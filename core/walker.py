@@ -22,6 +22,9 @@ DEFAULT_EXTENSIONS = {
     ".csv",
     ".html",
     ".rst",
+    ".pdf",
+    ".docx",
+    ".pptx",
 }
 
 
@@ -40,6 +43,35 @@ def _has_hidden_components(path: Path, root: Path) -> bool:
     return any(part.startswith(".") for part in rel.parts[:-1])
 
 
+def _extract_text(filepath: Path) -> str | None:
+    suffix = filepath.suffix.lower()
+    try:
+        if suffix == ".pdf":
+            import fitz  # pymupdf
+
+            doc = fitz.open(str(filepath))
+            return "\n".join(page.get_text() for page in doc)
+        elif suffix == ".docx":
+            import docx
+
+            doc = docx.Document(str(filepath))
+            return "\n".join(p.text for p in doc.paragraphs)
+        elif suffix == ".pptx":
+            from pptx import Presentation
+
+            prs = Presentation(str(filepath))
+            texts = []
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text"):
+                        texts.append(shape.text)
+            return "\n".join(texts)
+        else:
+            return filepath.read_text(encoding="utf-8")
+    except Exception:
+        return None
+
+
 def walk(root: Path, allowed_extensions: set[str] | None = None) -> Iterator[FileEntry]:
     """Yield FileEntry for every valid file under root."""
     extensions = (
@@ -50,7 +82,7 @@ def walk(root: Path, allowed_extensions: set[str] | None = None) -> Iterator[Fil
         if not filepath.is_file():
             continue
 
-        if _has_hidden_component(filepath, root):
+        if _has_hidden_components(filepath, root):
             continue
 
         if filepath.suffix.lower() not in extensions:
@@ -63,9 +95,7 @@ def walk(root: Path, allowed_extensions: set[str] | None = None) -> Iterator[Fil
         if size > MAX_FILE_BYTES:
             continue
 
-        try:
-            filepath.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError):
+        if _extract_text(filepath) is None:
             continue
 
         yield FileEntry(

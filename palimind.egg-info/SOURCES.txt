@@ -1,0 +1,17 @@
+README.md
+pyproject.toml
+core/__init__.py
+core/chunker.py
+core/cli.py
+core/config.py
+core/embedder.py
+core/responder.py
+core/searcher.py
+core/store.py
+core/walker.py
+palimind.egg-info/PKG-INFO
+palimind.egg-info/SOURCES.txt
+palimind.egg-info/dependency_links.txt
+palimind.egg-info/entry_points.txt
+palimind.egg-info/requires.txt
+palimind.egg-info/top_level.txt

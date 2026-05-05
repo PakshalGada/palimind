@@ -28,6 +28,9 @@ DEFAULTS = {
         ".csv",
         ".html",
         ".rst",
+        ".pdf",
+        ".docx",
+        ".pptx",
     ],
 }
 
