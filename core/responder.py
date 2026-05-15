@@ -69,4 +69,4 @@ def respond(
     except httpx.HTTPStatusError as e:
         raise RuntimeError(f"Ollama chat error: {e.response.text}") from e
 
-    print()  # final newline after streaming completes
+    print()

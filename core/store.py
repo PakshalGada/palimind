@@ -31,6 +31,11 @@ class Store:
         self._conn.executescript(SCHEMA)
         self._conn.commit()
 
+    def all_indexed_paths(self) -> list[str]:
+        """Return every file path currently tracked in the index."""
+        rows = self._conn.execute("SELECT file_path FROM files").fetchall()
+        return [r[0] for r in rows]
+
     def is_file_indexed(self, file_path: str, file_hash: str) -> bool:
         """Return True if the file has already been indexed with this hash."""
         row = self._conn.execute(
@@ -70,7 +75,6 @@ class Store:
             """,
             (chunk_text, source_path, start_char, end_char, file_hash, vec),
         )
-        # Callers commit in bulk via commit()
 
     def commit(self) -> None:
         self._conn.commit()
