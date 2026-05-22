@@ -1,2 +1,6 @@
-palimind.egg-info
-core/__pycache__
+/palimind.egg-info
+/core/__pycache__
+/core/cli/__pycache__
+/core/generative/__pycache__
+/core/index/__pycache__
+/core/retrieval/__pycache__
