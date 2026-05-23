@@ -3,10 +3,12 @@
 ## usage
 
 
-### install the palimind command
-in the main directory do 
+### install
+In the main directory:
 
-`pip install -e . `     
+`pip install -e .`
+
+This installs the `pm` CLI for the palimind package.
 
 ### ollama models
 `ollama pull nomic-embed-text`
@@ -16,13 +18,13 @@ in the main directory do
 `cd /your/project`
 
 ### initialise
-`palimind init` 
+`pm init`
 
 ### ask questions
-`palimind ask "how does authentication work?"`
+`pm ask "how does authentication work?"`
 
 ### update the embeddings with new files
-`palimind add`          
+`pm add`          
 
 
 for now it uses nomic-embed-text for embeddings and ollama3 for answering queries

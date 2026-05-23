@@ -27,7 +27,7 @@ def init(
     if dbp.exists():
         typer.echo(
             f"Index already exists at {pdir}.\n"
-            "Run `palimind add` to update it with new or changed files."
+            "Run `pm add` to update it with new or changed files."
         )
         raise typer.Exit(code=0)
 

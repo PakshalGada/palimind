@@ -38,7 +38,7 @@ def ask(
     hits = search(query_vec, store, k=k)
 
     if not hits:
-        typer.echo("The index is empty. Run `palimind init` to index some files.")
+        typer.echo("The index is empty. Run `pm init` to index some files.")
         raise typer.Exit(code=0)
 
     context_chunks: list[tuple[str, str]] = []

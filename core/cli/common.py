@@ -14,7 +14,7 @@ def file_hash(path: Path) -> str:
 
 def require_index(root: Path) -> None:
     if not db_path(root).exists():
-        typer.echo("No index found. Run `palimind init` first.")
+        typer.echo("No index found. Run `pm init` first.")
         raise typer.Exit(code=1)
 
 

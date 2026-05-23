@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-palimind = "core.cli:app"
+pm = "core.cli:app"
 
 [tool.setuptools.packages.find]
 where = ["."]
