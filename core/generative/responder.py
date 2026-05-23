@@ -2,27 +2,30 @@ import json
 
 import httpx
 
+from ..prompts import load_prompt, render_prompt
+
 OLLAMA_BASE = "http://localhost:11434"
 DEFAULT_CHAT_MODEL = "llama3"
-
-SYSTEM_PROMPT = (
-    "You are a helpful assistant. Answer the user's question strictly based on "
-    "the context provided below. Cite which file each piece of information came "
-    "from by referencing the source path shown above each context section. "
-    "If the answer cannot be found in the provided context, say so clearly — "
-    "do not make anything up."
-)
 
 
 def _build_user_message(
     question: str,
     context_chunks: list[tuple[str, str]],  # [(chunk_text, source_path), ...]
 ) -> str:
-    sections = []
-    for chunk_text, source_path in context_chunks:
-        sections.append(f"[Source: {source_path}]\n{chunk_text}")
+    sections = [
+        render_prompt(
+            "context_chunk",
+            source_path=source_path,
+            chunk_text=chunk_text,
+        )
+        for chunk_text, source_path in context_chunks
+    ]
     context_block = "\n\n---\n\n".join(sections)
-    return f"Context:\n\n{context_block}\n\nQuestion: {question}"
+    return render_prompt(
+        "ask_user",
+        context=context_block,
+        question=question,
+    )
 
 
 def respond(
@@ -36,7 +39,7 @@ def respond(
         "model": model,
         "stream": True,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": load_prompt("system")},
             {"role": "user", "content": user_message},
         ],
     }

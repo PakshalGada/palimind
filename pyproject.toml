@@ -19,3 +19,6 @@ palimind = "core.cli:app"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["core*"]
+
+[tool.setuptools.package-data]
+"core.prompts" = ["*.md"]
