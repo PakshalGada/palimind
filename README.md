@@ -1,6 +1,5 @@
 # palimind
 
-## usage
 
 
 ### install
@@ -12,6 +11,7 @@ This installs the `pm` CLI for the palimind package.
 
 ### ollama models
 `ollama pull nomic-embed-text`
+`ollama pull llava`
 `ollama pull llama3`
 
 ## how to use
@@ -22,6 +22,9 @@ This installs the `pm` CLI for the palimind package.
 
 ### ask questions
 `pm ask "how does authentication work?"`
+
+### chat with the model
+`pm chat`
 
 ### update the embeddings with new files
 `pm add`          
