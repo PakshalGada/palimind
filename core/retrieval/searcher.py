@@ -1,39 +1,39 @@
-import numpy as np
+from pathlib import Path
+from core.storage.vector_store import search
+from core.retrieval.embedder import generate_embedding
+from core.config import load_config
 
-from .store import Store
-
-DEFAULT_K = 5
-
-
-def _normalize(matrix: np.ndarray) -> np.ndarray:
-    """L2-normalize each row. Rows with zero norm are left as-is."""
-    norms = np.linalg.norm(matrix, axis=1, keepdims=True)
-    norms = np.where(norms == 0, 1.0, norms)
-    return matrix / norms
-
-
-def search(
-    query_embedding: list[float],
-    store: Store,
-    k: int = DEFAULT_K,
-) -> list[tuple[int, float]]:
+def retrieve_context(query: str, root: Path, limit: int = 5) -> dict:
     """
-    Return the top-k (chunk_id, score) pairs sorted by cosine similarity desc.
-    Returns an empty list if the index is empty.
+    Retrieve relevant chunks for a query.
+    Returns a dict with 'text_contexts' and 'image_paths'.
     """
-    matrix, ids = store.load_all_embeddings()
-
-    if len(ids) == 0:
-        return []
-
-    query = np.array(query_embedding, dtype=np.float32)
-    query_norm = query / (np.linalg.norm(query) or 1.0)
-
-    matrix_norm = _normalize(matrix)
-    scores = matrix_norm @ query_norm  # shape (N,)
-
-    top_k = min(k, len(ids))
-    top_indices = np.argpartition(scores, -top_k)[-top_k:]
-    top_indices = top_indices[np.argsort(scores[top_indices])[::-1]]
-
-    return [(ids[i], float(scores[i])) for i in top_indices]
+    config = load_config(root)
+    ollama_url = config.get("ollama_base_url", "http://localhost:11434")
+    embed_model = config.get("embed_model", "nomic-embed-text")
+    
+    query_vector = generate_embedding(query, ollama_url, embed_model)
+    if not query_vector:
+        return {"text_contexts": [], "image_paths": []}
+        
+    results = search(root, query_vector, limit=limit)
+    
+    text_contexts = []
+    image_paths = set()
+    
+    for row in results:
+        chunk_type = row.get("chunk_type", "text")
+        content = row.get("content", "")
+        file_path = row.get("file_path", "")
+        
+        if chunk_type in ["text", "caption"]:
+            text_contexts.append(f"Source ({file_path}):\n{content}")
+            if chunk_type == "caption":
+                image_paths.add(file_path)
+        elif chunk_type == "image":
+            image_paths.add(file_path)
+            
+    return {
+        "text_contexts": text_contexts,
+        "image_paths": list(image_paths)
+    }

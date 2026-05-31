@@ -1,36 +1,31 @@
 import httpx
 
-OLLAMA_BASE = "http://localhost:11434"
-DEFAULT_EMBED_MODEL = "nomic-embed-text"
-
-
-def _ollama_not_running() -> RuntimeError:
-    return RuntimeError(
-        "Cannot reach Ollama at localhost:11434. "
-        "Please start Ollama with `ollama serve` and try again."
-    )
-
-
-def embed_one(text: str, model: str = DEFAULT_EMBED_MODEL) -> list[float]:
-    """Return an embedding vector for a single string."""
+def generate_embedding(text: str, ollama_url: str, embed_model: str) -> list[float]:
+    """
+    Generate an embedding for a given text using Ollama.
+    """
     try:
-        response = httpx.post(
-            f"{OLLAMA_BASE}/api/embeddings",
-            json={"model": model, "prompt": text},
-            timeout=60.0,
-        )
+        url = f"{ollama_url.rstrip('/')}/api/embeddings"
+        payload = {
+            "model": embed_model,
+            "prompt": text
+        }
+        response = httpx.post(url, json=payload, timeout=60.0)
         response.raise_for_status()
-    except httpx.ConnectError:
-        raise _ollama_not_running()
-    except httpx.HTTPStatusError as e:
-        raise RuntimeError(f"Ollama embedding error: {e.response.text}") from e
+        return response.json().get("embedding", [])
+    except Exception as e:
+        print(f"Error generating embedding: {e}")
+        return []
 
-    data = response.json()
-    return data["embedding"]
-
-
-def embed_batch(
-    texts: list[str], model: str = DEFAULT_EMBED_MODEL
-) -> list[list[float]]:
-    """Return embedding vectors for a list of strings (one request per string)."""
-    return [embed_one(text, model) for text in texts]
+def generate_embeddings_batch(texts: list[str], ollama_url: str, embed_model: str) -> list[list[float]]:
+    """
+    Generate embeddings for multiple texts sequentially (or via batched API if supported).
+    """
+    # Ollama /api/embed supports batching in newer versions, 
+    # but to be safe and compatible with /api/embeddings, we do sequential or concurrent.
+    # Here we do sequential for simplicity, but in production we might use asyncio.gather.
+    embeddings = []
+    for text in texts:
+        emb = generate_embedding(text, ollama_url, embed_model)
+        embeddings.append(emb)
+    return embeddings
