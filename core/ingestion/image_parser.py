@@ -1,27 +1,29 @@
 import base64
-import httpx
 from pathlib import Path
 
+import httpx
+
+from core.exceptions import CaptionError
+
+
 def caption_image(file_path: Path, ollama_url: str, vision_model: str) -> str:
-    """
-    Use Ollama HTTP API to generate a caption for the given image.
-    """
+    """Use Ollama HTTP API to generate a caption for the given image."""
     try:
-        with open(file_path, "rb") as f:
-            image_data = base64.b64encode(f.read()).decode("utf-8")
-            
+        image_data = base64.b64encode(file_path.read_bytes()).decode("utf-8")
         payload = {
             "model": vision_model,
-            "prompt": "Provide a detailed semantic description of this image. Describe any text, objects, layout, and context visible.",
+            "prompt": (
+                "Provide a detailed semantic description of this image. "
+                "Describe any text, objects, layout, and context visible."
+            ),
             "images": [image_data],
-            "stream": False
+            "stream": False,
         }
-        
         url = f"{ollama_url.rstrip('/')}/api/generate"
         response = httpx.post(url, json=payload, timeout=60.0)
         response.raise_for_status()
-        
         return response.json().get("response", "").strip()
-    except Exception as e:
-        print(f"Error captioning image {file_path}: {e}")
-        return ""
+    except httpx.HTTPError as e:
+        raise CaptionError(f"Error captioning image {file_path}: {e}") from e
+    except OSError as e:
+        raise CaptionError(f"Error reading image {file_path}: {e}") from e
