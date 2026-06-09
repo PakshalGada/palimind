@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Palimind V2 Boardroom</title>
+  <link rel="stylesheet" href="/ui/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+  
+  <div class="glass-container">
+    
+    <!-- Sidebar / Status -->
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="pulse-ring"></div>
+        <h2>Palimind</h2>
+      </div>
+
+      <div class="fields-container">
+        <div class="fields-header">
+          <h3>Your Fields</h3>
+          <button id="btn-add-field" class="icon-btn" title="Add Field">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </button>
+        </div>
+        <ul id="fields-list" class="fields-list">
+          <!-- Fields populated via JS -->
+        </ul>
+        <button id="btn-update-active" class="action-btn" style="display: none;">Sync Active Field</button>
+      </div>
+
+      <!-- VS Code-like File Explorer -->
+      <div id="file-explorer-container" class="file-explorer-container" style="display: none;">
+        <div class="explorer-header">
+          <h3>Workspace Files</h3>
+          <button id="btn-clear-selection" class="text-link-btn" title="Clear selection">Clear</button>
+        </div>
+        <div id="file-tree" class="file-tree">
+          <!-- File tree populated via JS -->
+        </div>
+      </div>
+
+      <div class="personas-section">
+        <h3>Boardroom Active</h3>
+        <ul class="persona-list">
+          <li class="persona"><span class="dot builder-dot"></span> Builder</li>
+          <li class="persona"><span class="dot critic-dot"></span> Critic</li>
+          <li class="persona"><span class="dot strategist-dot"></span> Strategist</li>
+        </ul>
+      </div>
+
+      <div class="system-status">
+        <p>STT: <span class="status-indicator active"></span> Ready</p>
+        <p>TTS: <span class="status-indicator active"></span> Ready</p>
+      </div>
+    </aside>
+
+    <!-- Main Chat Area -->
+    <main class="chat-area" id="main-area">
+      
+      <!-- Welcome Overlay (Shown when no field is active) -->
+      <div id="welcome-screen" class="welcome-screen">
+        <div class="welcome-content">
+          <h1>Welcome to Palimind</h1>
+          <p>Your private, local-first AI workspace.</p>
+          <button id="btn-welcome-add" class="primary-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>
+            Select a Directory to Create a Field
+          </button>
+        </div>
+      </div>
+
+      <!-- Active Chat Interface -->
+      <div id="chat-interface" class="chat-interface" style="display: none;">
+        <div class="chat-header">
+          <h1>Boardroom Discussion</h1>
+          <span id="active-field-title" class="active-field-badge"></span>
+        </div>
+
+        <!-- Indexing progress bar -->
+        <div id="indexing-progress-container" class="indexing-progress-container" style="display: none;">
+          <div class="progress-bar-label" id="progress-bar-label">Indexing Field...</div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill"></div>
+          </div>
+        </div>
+
+        <div class="session-tabs-bar">
+          <div id="session-tabs" class="session-tabs">
+            <!-- Tabs populated via JS -->
+          </div>
+          <button id="btn-add-session" class="icon-btn" title="New Session">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </button>
+        </div>
+
+        <div class="messages" id="messages-container">
+          <div class="message system-message">
+            <div class="avatar system-avatar">P</div>
+            <div class="message-content">
+              <p>The Boardroom is ready. Your field context is loaded.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="input-area">
+          <div class="input-wrapper">
+            <textarea id="chat-input" placeholder="Ask the boardroom..." rows="1"></textarea>
+            <button id="btn-mic" class="mic-btn" title="Voice Input">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+            </button>
+            <button id="btn-send" class="send-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <script src="/ui/app.js"></script>
+</body>
+</html>
