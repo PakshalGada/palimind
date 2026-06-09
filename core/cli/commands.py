@@ -1,5 +1,8 @@
-import typer
+from __future__ import annotations
+
 from pathlib import Path
+
+import typer
 
 from core.api import (
     IndexExistsError,
@@ -8,6 +11,7 @@ from core.api import (
     PalimindError,
     initialize_index,
     query_stream,
+    require_index,
     update_index,
 )
 from core.cli.ui import (
@@ -67,6 +71,12 @@ def add(path: Path = typer.Argument(Path("."), help="Path to the indexed directo
                     "[green]Indexing files...", total=total
                 )
             progress.advance(progress_state["idx_task"])
+        elif phase == "summarise" and total:
+            if "sum_task" not in progress_state:
+                progress_state["sum_task"] = progress.add_task(
+                    "[yellow]Summarising files...", total=total
+                )
+            progress.update(progress_state["sum_task"], completed=current)
 
     try:
         with create_progress() as progress:
@@ -133,8 +143,6 @@ def chat(
     """Start an interactive chat session."""
     target_dir = path.resolve()
     try:
-        from core.api import require_index
-
         require_index(target_dir)
     except IndexNotFoundError as e:
         print_error(str(e))

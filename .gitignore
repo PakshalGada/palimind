@@ -1,7 +1,11 @@
-/palimind.egg-info
-/core/__pycache__
-/core/cli/__pycache__
-/core/generative/__pycache__
-/core/index/__pycache__
-/core/retrieval/__pycache__
-/core/prompts/__pycache__
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Palimind data
+.palimind/

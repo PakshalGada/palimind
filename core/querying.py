@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Iterator
 
 from core.config import load_config
 from core.exceptions import NoContextError, ResponseError

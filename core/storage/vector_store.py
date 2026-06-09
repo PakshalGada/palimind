@@ -1,65 +1,165 @@
-import lancedb
+"""Vector store backed by turbovec IdMapIndex.
+
+IdMapIndex provides:
+- Compressed storage (up to 16× vs raw float32)
+- O(1) deletion by external uint64 ID
+- No training phase required
+- Disk persistence via .write() / .load()
+
+The external IDs stored in turbovec are the ``id`` primary keys from the
+``chunks`` SQLite table.
+"""
+from __future__ import annotations
+
+import json
 from pathlib import Path
-from core.config import lance_db_path
+from typing import Any
 
-def get_db(root: Path):
-    path = lance_db_path(root)
-    return lancedb.connect(str(path))
+import numpy as np
+from turbovec import IdMapIndex
 
-def init_table(root: Path, dimension: int = 768):
-    # Nomic-embed-text uses 768 dimensions usually. We will use PyArrow schema or dicts.
-    db = get_db(root)
-    # If the table already exists, just return it
-    if "embeddings" in db.table_names():
-        return db.open_table("embeddings")
-    
-    # We define a schema implicitly via initial data, or use pyarrow explicitly.
-    # For flexibility, we'll wait for the first insert to create the table,
-    # or define an empty pyarrow schema. Let's define an empty schema.
-    import pyarrow as pa
-    schema = pa.schema([
-        pa.field("vector", pa.list_(pa.float32(), dimension)),
-        pa.field("file_path", pa.string()),
-        pa.field("chunk_index", pa.int32()),
-        pa.field("chunk_type", pa.string()),
-        pa.field("content", pa.string())
-    ])
-    
-    table = db.create_table("embeddings", schema=schema)
-    return table
+from core.config import palimind_dir
 
-def insert_vectors(root: Path, data: list[dict]):
-    """
-    data format:
-    [
-        {
-            "vector": [0.1, 0.2, ...],
-            "file_path": "a.txt",
-            "chunk_index": 0,
-            "chunk_type": "text",
-            "content": "hello world"
-        }
-    ]
-    """
-    if not data:
-        return
-        
-    db = get_db(root)
-    dimension = len(data[0]["vector"])
-    table = init_table(root, dimension)
-    table.add(data)
+_DEFAULT_DIM = 768
+_BIT_WIDTH = 4
+_META_FILE = "turbovec_meta.json"
+_INDEX_FILE = "turbovec.tvim"
 
-def delete_vectors_for_file(root: Path, file_path: str):
-    db = get_db(root)
-    if "embeddings" in db.table_names():
-        table = db.open_table("embeddings")
-        table.delete(f"file_path = '{file_path}'")
 
-def search(root: Path, query_vector: list[float], limit: int = 5):
-    db = get_db(root)
-    if "embeddings" not in db.table_names():
+def _index_path(root: Path) -> Path:
+    return palimind_dir(root) / _INDEX_FILE
+
+
+def _meta_path(root: Path) -> Path:
+    return palimind_dir(root) / _META_FILE
+
+
+def _load_meta(root: Path) -> dict[int, dict[str, Any]]:
+    p = _meta_path(root)
+    if not p.exists():
+        return {}
+    with p.open() as f:
+        raw: dict[str, Any] = json.load(f)
+    return {int(k): v for k, v in raw.items()}
+
+
+def _save_meta(root: Path, meta: dict[int, dict[str, Any]]) -> None:
+    p = _meta_path(root)
+    with p.open("w") as f:
+        json.dump({str(k): v for k, v in meta.items()}, f)
+
+
+def _load_index(root: Path, dim: int = _DEFAULT_DIM) -> IdMapIndex:
+    p = _index_path(root)
+    if p.exists():
+        return IdMapIndex.load(str(p))
+    return IdMapIndex(dim=dim, bit_width=_BIT_WIDTH)
+
+
+def _save_index(root: Path, index: IdMapIndex) -> None:
+    index.write(str(_index_path(root)))
+
+
+class VectorStore:
+    """Batched session wrapper around a turbovec IdMapIndex."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        self._index: IdMapIndex | None = None
+        self._meta: dict[int, dict[str, Any]] | None = None
+        self._dirty = False
+
+    # -- context manager --------------------------------------------------
+
+    def __enter__(self) -> VectorStore:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.commit()
+
+    # -- internal ---------------------------------------------------------
+
+    def _ensure_loaded(self, dim: int = _DEFAULT_DIM) -> None:
+        if self._index is None:
+            self._index = _load_index(self.root, dim)
+            self._meta = _load_meta(self.root)
+
+    # -- public API -------------------------------------------------------
+
+    def insert(self, data: list[dict]) -> None:
+        """Insert vectors into the active session."""
+        if not data:
+            return
+
+        dim = len(data[0]["vector"])
+        self._ensure_loaded(dim)
+
+        if self._index is None or self._meta is None:
+            raise RuntimeError("VectorStore failed to initialise")
+
+        vectors = np.array([d["vector"] for d in data], dtype=np.float32)
+        ids = np.array([d["chunk_db_id"] for d in data], dtype=np.uint64)
+        self._index.add_with_ids(vectors, ids)
+
+        for d in data:
+            cid = int(d["chunk_db_id"])
+            self._meta[cid] = {
+                "file_path": d["file_path"],
+                "chunk_index": d["chunk_index"],
+                "chunk_type": d["chunk_type"],
+                "content": d["content"],
+            }
+        self._dirty = True
+
+    def delete_file(self, file_path: str) -> None:
+        """Remove all vectors matching *file_path*."""
+        if not _index_path(self.root).exists() and self._index is None:
+            return
+
+        self._ensure_loaded()
+
+        if self._index is None or self._meta is None:
+            return
+
+        ids_to_remove = [
+            cid for cid, m in self._meta.items() if m["file_path"] == file_path
+        ]
+        if not ids_to_remove:
+            return
+
+        for cid in ids_to_remove:
+            self._index.remove(cid)
+            del self._meta[cid]
+        self._dirty = True
+
+    def commit(self) -> None:
+        """Persist all pending changes to disk."""
+        if self._dirty:
+            if self._index is not None:
+                _save_index(self.root, self._index)
+            if self._meta is not None:
+                _save_meta(self.root, self._meta)
+            self._dirty = False
+
+
+def search(root: Path, query_vector: list[float], limit: int = 5) -> list[dict]:
+    """Return up to *limit* results closest to *query_vector*."""
+    if not _index_path(root).exists():
         return []
-    
-    table = db.open_table("embeddings")
-    results = table.search(query_vector).limit(limit).to_list()
+
+    meta = _load_meta(root)
+    if not meta:
+        return []
+
+    index = _load_index(root)
+    query = np.array(query_vector, dtype=np.float32).reshape(1, -1)
+    k = min(limit, len(meta))
+    _scores, ext_ids = index.search(query, k=k)
+    top_ids = ext_ids[0]
+
+    results = []
+    for ext_id in top_ids:
+        cid = int(ext_id)
+        if cid in meta:
+            results.append(meta[cid])
     return results

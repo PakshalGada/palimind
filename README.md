@@ -1,33 +1,61 @@
-# palimind
+# Palimind
 
+Local multimodal RAG CLI — index your codebase and documents, then query them with a local LLM.
 
+## Features
 
-### install
-In the main directory:
+- **Vector search** via [Turbovec](https://github.com/PakshalGada/turbovec) (4-bit compressed, O(1) deletion)
+- **Intent routing** — file-targeted, corpus-wide, and semantic query strategies
+- **Multimodal** — indexes text, PDF, PPTX, XLSX, and images (vision captioning + OCR)
+- **Summarisation** — auto-generates per-file summaries at index time
+- **Streaming responses** — token-by-token output via Ollama
+- **Fully local** — all inference runs on your machine via Ollama
 
-`pip install -e .`
+## Install
 
-This installs the `pm` CLI for the palimind package.
+```bash
+pip install -e .
 
-### ollama models
-`ollama pull nomic-embed-text`
-`ollama pull llava`
-`ollama pull llama3`
+# Optional: install OCR support (EasyOCR, heavy dependency)
+pip install -e ".[ocr]"
+```
 
-## how to use
-`cd /your/project`
+## Ollama Models
 
-### initialise
-`pm init`
+```bash
+ollama pull nomic-embed-text   # embeddings
+ollama pull gemma4:e4b         # chat / summarisation
+ollama pull llava              # vision (image captioning)
+```
 
-### ask questions
-`pm ask "how does authentication work?"`
+## Usage
 
-### chat with the model
-`pm chat`
+```bash
+cd /your/project
 
-### update the embeddings with new files
-`pm add`          
+# Initialise the index
+pm init .
 
+# Index all files
+pm add .
 
-for now it uses nomic-embed-text for embeddings and ollama3 for answering queries
+# Ask a question
+pm ask "how does authentication work?"
+
+# Interactive chat
+pm chat
+```
+
+## Configuration
+
+Settings are stored in `.palimind/config.json`. Defaults:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `embed_model` | `nomic-embed-text` | Ollama embedding model |
+| `chat_model` | `gemma4:e4b` | Ollama chat model |
+| `vision_model` | `llava` | Ollama vision model |
+| `chunk_size` | `1000` | Characters per chunk |
+| `chunk_overlap` | `200` | Overlap between chunks |
+| `turbovec_bit_width` | `4` | Compression (2 or 4 bit) |
+| `summarise` | `true` | Generate file summaries |

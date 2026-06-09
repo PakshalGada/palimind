@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 from pathlib import Path
 
@@ -7,6 +9,7 @@ from core.exceptions import (
     EmbeddingError,
     IndexExistsError,
     IndexNotFoundError,
+    OCRError,
     ParseError,
 )
 from core.ingestion.chunker import chunk_text
@@ -27,8 +30,10 @@ from core.storage.db import (
     init_db,
     insert_chunks,
     upsert_file,
+    upsert_file_summary,
 )
-from core.storage.vector_store import delete_vectors_for_file, insert_vectors
+from core.storage.vector_store import VectorStore
+from core.generative.summariser import summarise_file
 
 
 def index_exists(root: Path) -> bool:
@@ -94,7 +99,9 @@ def update_index(
     config = load_config(root)
     init_db(root)
 
-    def report(phase: str, *, current: int = 0, total: int | None = None, message: str = ""):
+    def report(
+        phase: str, *, current: int = 0, total: int | None = None, message: str = ""
+    ) -> None:
         if on_progress is not None:
             on_progress(phase, current=current, total=total, message=message)
 
@@ -111,70 +118,98 @@ def update_index(
     conn = get_connection(root)
     file_errors: list[FileIndexError] = []
     chunks_indexed = 0
-
-    if deleted:
-        for i, rel_path in enumerate(deleted, start=1):
-            delete_vectors_for_file(root, rel_path)
-            delete_file(conn, rel_path)
-            report("delete", current=i, total=len(deleted), message=rel_path)
-
     indexed_files = 0
-    if new_or_modified:
-        for i, fpath in enumerate(new_or_modified, start=1):
-            rel_path = str(fpath.relative_to(root))
-            report("index", current=i, total=len(new_or_modified), message=rel_path)
 
-            md5 = compute_md5(fpath)
-            if not md5:
-                file_errors.append(
-                    FileIndexError(rel_path, "Could not compute file hash")
-                )
-                continue
+    try:
+        with VectorStore(root) as vstore:
+            # ---- deletions ----
+            if deleted:
+                for i, rel_path in enumerate(deleted, start=1):
+                    vstore.delete_file(rel_path)
+                    delete_file(conn, rel_path)
+                    report("delete", current=i, total=len(deleted), message=rel_path)
 
-            delete_vectors_for_file(root, rel_path)
-            file_id = upsert_file(conn, rel_path, md5, time.time())
+            # ---- indexing ----
+            for i, fpath in enumerate(new_or_modified, start=1):
+                rel_path = str(fpath.relative_to(root))
+                report("index", current=i, total=len(new_or_modified), message=rel_path)
 
-            try:
-                chunks_info = extract_chunks(fpath, root, config)
-            except (ParseError, CaptionError) as e:
-                file_errors.append(FileIndexError(rel_path, str(e)))
-                continue
-
-            if not chunks_info:
-                continue
-
-            texts = [c.content for c in chunks_info]
-            try:
-                embeddings = generate_embeddings_batch(
-                    texts, config["ollama_base_url"], config["embed_model"]
-                )
-            except EmbeddingError as e:
-                file_errors.append(FileIndexError(rel_path, str(e)))
-                continue
-
-            vector_data = []
-            db_chunks = []
-            for idx, (info, emb) in enumerate(zip(chunks_info, embeddings)):
-                if not emb:
+                md5 = compute_md5(fpath)
+                if not md5:
+                    file_errors.append(
+                        FileIndexError(rel_path, "Could not compute file hash")
+                    )
                     continue
-                db_chunks.append((idx, info.chunk_type, info.content))
-                vector_data.append(
-                    {
-                        "vector": emb,
-                        "file_path": rel_path,
-                        "chunk_index": idx,
-                        "chunk_type": info.chunk_type,
-                        "content": info.content,
-                    }
-                )
 
-            if vector_data:
-                insert_vectors(root, vector_data)
-                insert_chunks(conn, file_id, db_chunks)
-                chunks_indexed += len(vector_data)
-                indexed_files += 1
+                vstore.delete_file(rel_path)
+                file_id = upsert_file(conn, rel_path, md5, time.time())
 
-    conn.close()
+                try:
+                    chunks_info = extract_chunks(fpath, root, config)
+                except (ParseError, CaptionError, OCRError) as e:
+                    file_errors.append(FileIndexError(rel_path, str(e)))
+                    continue
+
+                if not chunks_info:
+                    continue
+
+                texts = [c.content for c in chunks_info]
+                try:
+                    embeddings = generate_embeddings_batch(
+                        texts, config["ollama_base_url"], config["embed_model"]
+                    )
+                except EmbeddingError as e:
+                    file_errors.append(FileIndexError(rel_path, str(e)))
+                    continue
+
+                db_chunks = []
+                valid_infos: list[tuple[int, ChunkInfo, list[float]]] = []
+                for idx, (info, emb) in enumerate(zip(chunks_info, embeddings)):
+                    if not emb:
+                        continue
+                    db_chunks.append((idx, info.chunk_type, info.content))
+                    valid_infos.append((idx, info, emb))
+
+                if valid_infos:
+                    chunk_db_ids = insert_chunks(conn, file_id, db_chunks)
+
+                    vector_data = [
+                        {
+                            "vector": emb,
+                            "chunk_db_id": chunk_db_ids[j],
+                            "file_path": rel_path,
+                            "chunk_index": idx,
+                            "chunk_type": info.chunk_type,
+                            "content": info.content,
+                        }
+                        for j, (idx, info, emb) in enumerate(valid_infos)
+                    ]
+                    vstore.insert(vector_data)
+                    chunks_indexed += len(vector_data)
+                    indexed_files += 1
+
+                    # Generate and store a file-level summary (best-effort).
+                    if config.get("summarise", True):
+                        report(
+                            "summarise",
+                            current=i,
+                            total=len(new_or_modified),
+                            message=rel_path,
+                        )
+                        full_text = "\n\n".join(texts)
+                        summary = summarise_file(
+                            full_text,
+                            config["ollama_base_url"],
+                            config["chat_model"],
+                            max_chars=config.get("summary_max_chars", 8000),
+                        )
+                        if summary:
+                            upsert_file_summary(conn, rel_path, summary)
+
+            # Single commit for the whole batch.
+            conn.commit()
+    finally:
+        conn.close()
 
     return UpdateIndexResult(
         indexed_files=indexed_files,

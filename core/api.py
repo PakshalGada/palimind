@@ -4,6 +4,7 @@ Public programmatic API for Palimind.
 Import from here when building CLI, TUI, or GUI frontends. Core modules raise
 domain exceptions; this module re-exports the main operations and result types.
 """
+from __future__ import annotations
 
 from core.exceptions import (
     CaptionError,
@@ -13,8 +14,8 @@ from core.exceptions import (
     IndexNotFoundError,
     NoContextError,
     OCRError,
-    ParseError,
     PalimindError,
+    ParseError,
     ResponseError,
 )
 from core.indexing import (
@@ -47,8 +48,8 @@ __all__ = [
     "InitIndexResult",
     "NoContextError",
     "OCRError",
-    "ParseError",
     "PalimindError",
+    "ParseError",
     "ProgressCallback",
     "QueryResult",
     "QueryStream",

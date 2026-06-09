@@ -1,4 +1,5 @@
 """Domain exceptions for Palimind. UI layers catch these and present messages."""
+from __future__ import annotations
 
 
 class PalimindError(Exception):

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import json
 from pathlib import Path
@@ -54,7 +56,7 @@ def generate_response_stream(
     payload = {"model": chat_model, "messages": messages, "stream": True}
 
     try:
-        with httpx.Client(timeout=60.0) as client:
+        with httpx.Client(timeout=httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)) as client:
             with client.stream("POST", url, json=payload) as response:
                 response.raise_for_status()
                 for line in response.iter_lines():
@@ -64,6 +66,8 @@ def generate_response_stream(
                     content = data.get("message", {}).get("content")
                     if content:
                         yield content
+    except httpx.TimeoutException as e:
+        raise ResponseError(f"Response generation timed out: {e}") from e
     except httpx.HTTPError as e:
         raise ResponseError(f"Failed to generate response: {e}") from e
     except json.JSONDecodeError as e:
