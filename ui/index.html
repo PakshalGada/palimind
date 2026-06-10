@@ -1,128 +1,377 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Palimind V2 Boardroom</title>
-  <link rel="stylesheet" href="/ui/styles.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
-</head>
-<body>
-  
-  <div class="glass-container">
-    
-    <!-- Sidebar / Status -->
-    <aside class="sidebar">
-      <div class="logo">
-        <div class="pulse-ring"></div>
-        <h2>Palimind</h2>
-      </div>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Palimind V2 Boardroom</title>
+        <link rel="stylesheet" href="/ui/styles.css" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" />
+    </head>
+    <body>
+        <div class="app-container">
+            <!-- Sidebar / Status -->
+            <aside class="sidebar">
+                <div class="logo">
+                    <h2>Palimind</h2>
+                    <button
+                        id="btn-settings"
+                        class="icon-btn"
+                        title="Settings"
+                        style="margin-left: auto"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path
+                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+                            ></path>
+                        </svg>
+                    </button>
+                </div>
 
-      <div class="fields-container">
-        <div class="fields-header">
-          <h3>Your Fields</h3>
-          <button id="btn-add-field" class="icon-btn" title="Add Field">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-          </button>
+                <div class="fields-container">
+                    <div class="fields-header">
+                        <h3>Your Fields</h3>
+                        <button
+                            id="btn-add-field"
+                            class="icon-btn"
+                            title="Add Field"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                        </button>
+                    </div>
+                    <ul id="fields-list" class="fields-list">
+                        <!-- Fields populated via JS -->
+                    </ul>
+                    <button
+                        id="btn-update-active"
+                        class="action-btn"
+                        style="display: none"
+                    >
+                        Sync Active Field
+                    </button>
+                </div>
+
+                <!-- Sessions Panel (Moved from main area to sidebar) -->
+                <div class="sessions-sidebar-container">
+                    <div class="sessions-sidebar-header">
+                        <h3>Active Sessions</h3>
+                        <button
+                            id="btn-add-session"
+                            class="icon-btn"
+                            title="New Session"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="session-tabs" class="session-list">
+                        <!-- Sessions populated via JS -->
+                    </div>
+                </div>
+
+                <!-- VS Code-like File Explorer -->
+                <div
+                    id="file-explorer-container"
+                    class="file-explorer-container"
+                    style="display: none"
+                >
+                    <div class="explorer-header">
+                        <h3>Workspace Files</h3>
+                    </div>
+                    <div id="file-tree" class="file-tree">
+                        <!-- File tree populated via JS -->
+                    </div>
+                </div>
+
+                <div class="personas-section">
+                    <h3>Agents</h3>
+                    <ul class="persona-list">
+                        <li class="persona">
+                            <span class="dot builder-dot"></span> Builder
+                        </li>
+                        <li class="persona">
+                            <span class="dot critic-dot"></span> Critic
+                        </li>
+                        <li class="persona">
+                            <span class="dot strategist-dot"></span> Strategist
+                        </li>
+                    </ul>
+                </div>
+            </aside>
+
+            <!-- Main Chat Area -->
+            <main class="chat-area" id="main-area">
+                <!-- Welcome Overlay (Shown when no field is active) -->
+                <div id="welcome-screen" class="welcome-screen">
+                    <div class="welcome-content">
+                        <h1>Welcome to Palimind</h1>
+                        <p>Your private, local-first AI workspace.</p>
+                        <button id="btn-welcome-add" class="primary-btn">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <path
+                                    d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                                ></path>
+                                <line x1="12" y1="11" x2="12" y2="17"></line>
+                                <line x1="9" y1="14" x2="15" y2="14"></line>
+                            </svg>
+                            Select a Directory to Create a Field
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Active Chat Interface -->
+                <div
+                    id="chat-interface"
+                    class="chat-interface"
+                    style="display: none"
+                >
+                    <div class="chat-header">
+                        <span
+                            id="active-field-title"
+                            class="active-field-badge"
+                        ></span>
+                    </div>
+
+                    <div class="chat-empty-hero">
+                        <h3>Ask a question about your active field context</h3>
+                    </div>
+
+                    <!-- Indexing progress bar -->
+                    <div
+                        id="indexing-progress-container"
+                        class="indexing-progress-container"
+                        style="display: none"
+                    >
+                        <div class="progress-bar-label" id="progress-bar-label">
+                            Indexing Field...
+                        </div>
+                        <div class="progress-bar-track">
+                            <div class="progress-bar-fill"></div>
+                        </div>
+                    </div>
+
+                    <div id="messages-container" class="messages"></div>
+
+                    <div class="input-area">
+                        <div class="input-wrapper">
+                            <textarea id="chat-input" rows="1"></textarea>
+                            <button
+                                id="btn-mic"
+                                class="mic-btn"
+                                title="Voice Input"
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path
+                                        d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"
+                                    ></path>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                    <line
+                                        x1="12"
+                                        y1="19"
+                                        x2="12"
+                                        y2="22"
+                                    ></line>
+                                </svg>
+                            </button>
+                            <button id="btn-send" class="send-btn">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                                    <polygon
+                                        points="22 2 15 22 11 13 2 9 22 2"
+                                    ></polygon>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </main>
         </div>
-        <ul id="fields-list" class="fields-list">
-          <!-- Fields populated via JS -->
-        </ul>
-        <button id="btn-update-active" class="action-btn" style="display: none;">Sync Active Field</button>
-      </div>
 
-      <!-- VS Code-like File Explorer -->
-      <div id="file-explorer-container" class="file-explorer-container" style="display: none;">
-        <div class="explorer-header">
-          <h3>Workspace Files</h3>
-          <button id="btn-clear-selection" class="text-link-btn" title="Clear selection">Clear</button>
-        </div>
-        <div id="file-tree" class="file-tree">
-          <!-- File tree populated via JS -->
-        </div>
-      </div>
-
-      <div class="personas-section">
-        <h3>Boardroom Active</h3>
-        <ul class="persona-list">
-          <li class="persona"><span class="dot builder-dot"></span> Builder</li>
-          <li class="persona"><span class="dot critic-dot"></span> Critic</li>
-          <li class="persona"><span class="dot strategist-dot"></span> Strategist</li>
-        </ul>
-      </div>
-
-      <div class="system-status">
-        <p>STT: <span class="status-indicator active"></span> Ready</p>
-        <p>TTS: <span class="status-indicator active"></span> Ready</p>
-      </div>
-    </aside>
-
-    <!-- Main Chat Area -->
-    <main class="chat-area" id="main-area">
-      
-      <!-- Welcome Overlay (Shown when no field is active) -->
-      <div id="welcome-screen" class="welcome-screen">
-        <div class="welcome-content">
-          <h1>Welcome to Palimind</h1>
-          <p>Your private, local-first AI workspace.</p>
-          <button id="btn-welcome-add" class="primary-btn">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>
-            Select a Directory to Create a Field
-          </button>
-        </div>
-      </div>
-
-      <!-- Active Chat Interface -->
-      <div id="chat-interface" class="chat-interface" style="display: none;">
-        <div class="chat-header">
-          <h1>Boardroom Discussion</h1>
-          <span id="active-field-title" class="active-field-badge"></span>
-        </div>
-
-        <!-- Indexing progress bar -->
-        <div id="indexing-progress-container" class="indexing-progress-container" style="display: none;">
-          <div class="progress-bar-label" id="progress-bar-label">Indexing Field...</div>
-          <div class="progress-bar-track">
-            <div class="progress-bar-fill"></div>
-          </div>
-        </div>
-
-        <div class="session-tabs-bar">
-          <div id="session-tabs" class="session-tabs">
-            <!-- Tabs populated via JS -->
-          </div>
-          <button id="btn-add-session" class="icon-btn" title="New Session">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-          </button>
-        </div>
-
-        <div class="messages" id="messages-container">
-          <div class="message system-message">
-            <div class="avatar system-avatar">P</div>
-            <div class="message-content">
-              <p>The Boardroom is ready. Your field context is loaded.</p>
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="modal" style="display: none">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Settings</h2>
+                    <button
+                        id="btn-close-settings"
+                        class="icon-btn"
+                        title="Close Settings"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-group">
+                        <label>Theme Mode</label>
+                        <div class="theme-switch-container">
+                            <button
+                                id="btn-theme-light"
+                                class="theme-toggle-btn"
+                            >
+                                Light Mode
+                            </button>
+                            <button
+                                id="btn-theme-dark"
+                                class="theme-toggle-btn active"
+                            >
+                                Night Mode
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
-          </div>
         </div>
 
-        <div class="input-area">
-          <div class="input-wrapper">
-            <textarea id="chat-input" placeholder="Ask the boardroom..." rows="1"></textarea>
-            <button id="btn-mic" class="mic-btn" title="Voice Input">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
-            </button>
-            <button id="btn-send" class="send-btn">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-            </button>
-          </div>
+        <!-- Directory Picker Modal -->
+        <div id="dir-picker-modal" class="modal" style="display: none">
+            <div class="modal-content dir-picker-content">
+                <div class="modal-header">
+                    <h2>Choose Workspace Directory</h2>
+                    <button
+                        id="btn-close-dir-picker"
+                        class="icon-btn"
+                        title="Cancel"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body dir-picker-body">
+                    <div class="dir-picker-path-row">
+                        <button id="btn-dir-up" class="icon-btn" title="Go Up">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <line x1="19" y1="12" x2="5" y2="12"></line>
+                                <polyline points="12 19 5 12 12 5"></polyline>
+                            </svg>
+                        </button>
+                        <input
+                            type="text"
+                            id="dir-current-path-input"
+                            readonly
+                        />
+                    </div>
+                    <div class="dir-picker-list" id="dir-picker-list">
+                        <!-- Populated dynamically -->
+                    </div>
+                    <div class="dir-picker-footer">
+                        <button id="btn-select-dir-confirm" class="primary-btn">
+                            Select Current Folder
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
-    </main>
 
-  </div>
-
-  <script src="/ui/app.js"></script>
-</body>
+        <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/marked-katex-extension/lib/index.umd.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
+        <script src="/ui/app.js"></script>
+    </body>
 </html>

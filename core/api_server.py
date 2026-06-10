@@ -138,21 +138,8 @@ def handle_watcher_change(root: Path):
         print(f"Watcher: index update failed: {e}")
 
 def update_watcher(path: Path | None):
-    if state.watcher:
-        try:
-            state.watcher.stop()
-        except Exception:
-            pass
-        state.watcher = None
-    
-    if path:
-        from core.watcher import FieldWatcher
-        try:
-            state.watcher = FieldWatcher(path, handle_watcher_change)
-            state.watcher.start()
-            print(f"Watcher started for field: {path}")
-        except Exception as e:
-            print(f"Failed to start watcher: {e}")
+    # Watcher is disabled. Syncing only occurs when user manually triggers it.
+    pass
 
 def build_file_tree(root: Path) -> list[dict]:
     def walk(path: Path) -> list[dict]:
@@ -245,6 +232,46 @@ async def select_dialog():
     if folder_path:
         return {"path": str(Path(folder_path).resolve())}
     return {"path": None}
+
+@app.get("/api/fs/list")
+async def list_fs(path: str | None = None):
+    target_path = None
+    if path:
+        target_path = Path(path).resolve()
+    else:
+        if state.active_field:
+            target_path = state.active_field.resolve()
+        else:
+            target_path = Path.home()
+            
+    if not target_path.exists():
+        target_path = Path.home()
+        
+    if not target_path.is_dir():
+        target_path = target_path.parent
+        
+    current_path = str(target_path)
+    parent_path = str(target_path.parent) if target_path.parent != target_path else None
+    
+    items = []
+    try:
+        for entry in sorted(target_path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
+            # Hide hidden files/folders by default
+            if entry.name.startswith("."):
+                continue
+            items.append({
+                "name": entry.name,
+                "path": str(entry.resolve()),
+                "type": "directory" if entry.is_dir() else "file"
+            })
+    except Exception as e:
+        return {"error": f"Failed to list directory: {str(e)}"}
+        
+    return {
+        "current_path": current_path,
+        "parent_path": parent_path,
+        "items": items
+    }
 
 @app.post("/api/fields/add")
 async def add_field(req: Request):

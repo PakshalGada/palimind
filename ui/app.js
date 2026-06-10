@@ -27,136 +27,60 @@ let lastTreeData = null;
 const sessionTabs = document.getElementById('session-tabs');
 const btnAddSession = document.getElementById('btn-add-session');
 
-// Markdown parser with styled code boxes and copy buttons
+// Markdown parser using marked, katex, and dompurify
+let markedConfigured = false;
+
 function formatMarkdown(text) {
   if (!text) return "";
   
-  // Escape HTML tags to prevent XSS and formatting issues, except we keep & untouched for now
-  let escaped = text
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-  
-  // Extract and store code blocks
-  const codeBlocks = [];
-  escaped = escaped.replace(/```(\w*)\n([\s\S]*?)```/g, (match, lang, code) => {
-    const index = codeBlocks.length;
-    const langLabel = lang ? lang.toUpperCase() : "CODE";
+  // Configure marked only once
+  if (!markedConfigured && typeof marked !== 'undefined') {
+    const renderer = new marked.Renderer();
     
-    // We un-escape code block contents because we want it raw for displaying inside <code>
-    const rawCode = code
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>');
-      
-    // Escape for html display inside code element
-    const finalCode = rawCode
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-      
-    const codeBox = `
-      <div class="code-box">
-        <div class="code-box-header">
-          <span class="code-box-lang">${langLabel}</span>
-          <button class="code-box-copy" onclick="copyCode(this)">Copy</button>
+    // Custom code block renderer to preserve the code-box UI
+    renderer.code = function(code, language) {
+      const langLabel = language ? language.toUpperCase() : "CODE";
+      // Escape HTML entities for display inside <code>
+      const escapedCode = code
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+          
+      return `
+        <div class="code-box">
+          <div class="code-box-header">
+            <span class="code-box-lang">${langLabel}</span>
+            <button class="code-box-copy" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code>${escapedCode}</code></pre>
         </div>
-        <pre><code>${finalCode}</code></pre>
-      </div>
-    `.trim();
-    codeBlocks.push(codeBox);
-    return `\n\n__CODE_BLOCK_PLACEHOLDER_${index}__\n\n`;
-  });
-  
-  const lines = escaped.split('\n');
-  let blocks = [];
-  let currentBlock = [];
-  let blockType = 'p'; // 'p', 'ul', 'ol'
-  
-  function flushBlock() {
-    if (currentBlock.length === 0) return;
-    const blockText = currentBlock.join('\n').trim();
-    if (blockText.startsWith('__CODE_BLOCK_PLACEHOLDER_')) {
-      blocks.push(blockText);
-    } else if (blockType === 'ul') {
-      blocks.push('<ul>' + currentBlock.map(line => `<li>${parseInlineMarkdown(line.substring(2))}</li>`).join('') + '</ul>');
-    } else if (blockType === 'ol') {
-      blocks.push('<ol>' + currentBlock.map(line => {
-        const match = line.match(/^\d+\.\s+(.*)$/);
-        return `<li>${parseInlineMarkdown(match ? match[1] : line)}</li>`;
-      }).join('') + '</ol>');
-    } else {
-      // Check for headings
-      if (blockText.startsWith('### ')) {
-        blocks.push(`<h3>${parseInlineMarkdown(blockText.substring(4))}</h3>`);
-      } else if (blockText.startsWith('## ')) {
-        blocks.push(`<h2>${parseInlineMarkdown(blockText.substring(3))}</h2>`);
-      } else if (blockText.startsWith('# ')) {
-        blocks.push(`<h1>${parseInlineMarkdown(blockText.substring(2))}</h1>`);
-      } else {
-        blocks.push(`<p>${parseInlineMarkdown(blockText)}</p>`);
-      }
+      `;
+    };
+    
+    // Use marked extensions
+    if (typeof markedKatex !== 'undefined') {
+      marked.use(markedKatex({ throwOnError: false }));
     }
-    currentBlock = [];
-    blockType = 'p';
+    marked.use({ renderer: renderer, breaks: true });
+    markedConfigured = true;
   }
   
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    
-    if (trimmed === "") {
-      flushBlock();
-      continue;
-    }
-    
-    if (trimmed.startsWith('__CODE_BLOCK_PLACEHOLDER_')) {
-      flushBlock();
-      currentBlock.push(trimmed);
-      flushBlock();
-      continue;
-    }
-    
-    const isUlItem = trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('+ ');
-    const isOlItem = /^\d+\.\s+/.test(trimmed);
-    
-    if (isUlItem) {
-      if (blockType !== 'ul') {
-        flushBlock();
-        blockType = 'ul';
-      }
-      currentBlock.push(trimmed);
-    } else if (isOlItem) {
-      if (blockType !== 'ol') {
-        flushBlock();
-        blockType = 'ol';
-      }
-      currentBlock.push(trimmed);
-    } else {
-      if (blockType !== 'p') {
-        flushBlock();
-      }
-      currentBlock.push(line);
-    }
+  if (typeof marked === 'undefined') {
+    // Fallback if CDNs failed to load
+    return text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
-  flushBlock();
   
-  let htmlResult = blocks.join('\n');
+  let htmlResult = marked.parse(text);
   
-  // Restore code blocks
-  for (let i = 0; i < codeBlocks.length; i++) {
-    htmlResult = htmlResult.replace(`__CODE_BLOCK_PLACEHOLDER_${i}__`, codeBlocks[i]);
+  if (typeof DOMPurify !== 'undefined') {
+    // Sanitize while allowing KaTeX classes and math elements
+    htmlResult = DOMPurify.sanitize(htmlResult, {
+      ADD_TAGS: ['math', 'mi', 'mo', 'mn', 'ms', 'mspace', 'mtext', 'menclose', 'merror', 'mpadded', 'mphantom', 'mroot', 'mrow', 'msqrt', 'mstyle', 'mmultiscripts', 'mover', 'mprescripts', 'msub', 'msubsup', 'msup', 'munder', 'munderover', 'none', 'semantics', 'annotation', 'annotation-xml'],
+      ADD_ATTR: ['class', 'style', 'aria-hidden', 'mathvariant', 'encoding', 'display', 'xmlns'],
+    });
   }
   
   return htmlResult;
-}
-
-function parseInlineMarkdown(text) {
-  // Parse bold **text**
-  let parsed = text.replace(/\*\*([\s\S]*?)\*\*/g, '<strong>$1</strong>');
-  // Parse italic *text*
-  parsed = parsed.replace(/\*([\s\S]*?)\*/g, '<em>$1</em>');
-  // Parse inline code `code`
-  parsed = parsed.replace(/`([\s\S]*?)`/g, '<code class="inline-code">$1</code>');
-  return parsed;
 }
 
 // Global copy helper for code boxes
@@ -278,33 +202,7 @@ function updateMainArea(currentActive) {
 }
 
 async function selectNewField() {
-  try {
-    const res = await fetch('/api/fields/select_dialog', { method: 'POST' });
-    const data = await res.json();
-    if (data.path) {
-      setChatDisabled(true);
-      indexingProgressContainer.style.display = 'flex';
-      progressBarLabel.textContent = `Connecting to ${data.path.split('\\').pop().split('/').pop()}...`;
-      
-      const addRes = await fetch('/api/fields/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: data.path })
-      });
-      const addData = await addRes.json();
-      if (!addData.error) {
-        await fetchFields();
-      } else {
-        setChatDisabled(false);
-        indexingProgressContainer.style.display = 'none';
-        alert(addData.error);
-      }
-    }
-  } catch (e) {
-    console.error("Error selecting field:", e);
-    setChatDisabled(false);
-    indexingProgressContainer.style.display = 'none';
-  }
+  openDirPicker(activeField || "");
 }
 
 async function setActiveField(path) {
@@ -348,12 +246,16 @@ btnUpdateActive.addEventListener('click', async () => {
     const data = await res.json();
     if (data.status === 'success') {
       btnUpdateActive.textContent = `Synced (${data.indexed_files} added, ${data.deleted_files} del)`;
+      showSyncToast(`Synced successfully: ${data.indexed_files} added, ${data.deleted_files} deleted`);
+      fetchFileTree();
     } else {
       btnUpdateActive.textContent = `Error: ${data.error}`;
+      showSyncToast(`Sync error: ${data.error}`);
     }
     setTimeout(() => { btnUpdateActive.textContent = 'Sync Active Field'; }, 3000);
   } catch (e) {
     btnUpdateActive.textContent = 'Error!';
+    showSyncToast(`Sync failed: ${e.message}`);
     setTimeout(() => { btnUpdateActive.textContent = 'Sync Active Field'; }, 3000);
   }
 });
@@ -362,12 +264,14 @@ btnAddField.addEventListener('click', selectNewField);
 btnWelcomeAdd.addEventListener('click', selectNewField);
 btnAddSession.addEventListener('click', createNewSession);
 
-btnClearSelection.addEventListener('click', () => {
-  selectedFiles.clear();
-  if (lastTreeData) {
-    renderFileTree(lastTreeData);
-  }
-});
+if (btnClearSelection) {
+  btnClearSelection.addEventListener('click', () => {
+    selectedFiles.clear();
+    if (lastTreeData) {
+      renderFileTree(lastTreeData);
+    }
+  });
+}
 
 initEventsWatcher();
 
@@ -375,15 +279,10 @@ function appendMessage(role, text) {
   const msgDiv = document.createElement('div');
   msgDiv.className = `message ${role === 'user' ? 'user-message' : 'system-message'}`;
   
-  const avatar = document.createElement('div');
-  avatar.className = `avatar ${role === 'user' ? 'user-avatar' : 'system-avatar'}`;
-  avatar.textContent = role === 'user' ? 'U' : 'P';
-  
   const content = document.createElement('div');
   content.className = 'message-content';
   
   if (role === 'system' && text === '') {
-    msgDiv.appendChild(avatar);
     msgDiv.appendChild(content);
     messagesContainer.appendChild(msgDiv);
     return content;
@@ -391,7 +290,6 @@ function appendMessage(role, text) {
   
   content.innerHTML = formatMarkdown(text);
   
-  msgDiv.appendChild(avatar);
   msgDiv.appendChild(content);
   messagesContainer.appendChild(msgDiv);
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -499,7 +397,9 @@ async function deleteSession(sessionId) {
 function renderActiveSessionChat() {
   messagesContainer.innerHTML = '';
   const currentSess = sessions.find(s => s.id === activeSessionId);
+  const chatInterfaceEl = document.getElementById('chat-interface');
   if (currentSess && currentSess.messages && currentSess.messages.length > 0) {
+    if (chatInterfaceEl) chatInterfaceEl.classList.remove('empty-chat');
     currentSess.messages.forEach(msg => {
       let contentText = "";
       if (msg.sources && msg.sources.length > 0) {
@@ -509,7 +409,7 @@ function renderActiveSessionChat() {
       appendMessage(msg.role, contentText);
     });
   } else {
-    appendMessage('system', 'The Boardroom is ready. Your field context is loaded.');
+    if (chatInterfaceEl) chatInterfaceEl.classList.add('empty-chat');
   }
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
@@ -553,22 +453,29 @@ function createTreeNodeElement(node) {
   const row = document.createElement('div');
   row.className = 'tree-node-row';
   
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.className = 'tree-checkbox';
-  checkbox.checked = isNodeSelected(node);
+  // 1. Chevron or Space
+  const chevronContainer = document.createElement('span');
+  chevronContainer.className = 'tree-chevron';
+  if (node.type === 'directory') {
+    chevronContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
+  } else {
+    chevronContainer.style.visibility = 'hidden';
+  }
+  row.appendChild(chevronContainer);
   
-  checkbox.onclick = (e) => {
-    e.stopPropagation();
-    toggleNodeSelection(node, checkbox.checked);
-  };
-  row.appendChild(checkbox);
+  // 2. Icon (moved up from step 3 since checkbox is removed)
   
-  const icon = document.createElement('span');
-  icon.className = 'tree-icon';
-  icon.innerHTML = node.type === 'directory' ? '📁' : '📄';
-  row.appendChild(icon);
+  // 3. Icon
+  const iconContainer = document.createElement('span');
+  iconContainer.className = 'tree-icon-container';
+  if (node.type === 'directory') {
+    iconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
+  } else {
+    iconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>`;
+  }
+  row.appendChild(iconContainer);
   
+  // 4. Name
   const nameSpan = document.createElement('span');
   nameSpan.className = 'node-name';
   nameSpan.textContent = node.name;
@@ -580,6 +487,7 @@ function createTreeNodeElement(node) {
   if (node.type === 'directory' && node.children) {
     const childrenContainer = document.createElement('div');
     childrenContainer.className = 'tree-node-children';
+    childrenContainer.style.display = 'none';
     
     node.children.forEach(child => {
       childrenContainer.appendChild(createTreeNodeElement(child));
@@ -589,7 +497,12 @@ function createTreeNodeElement(node) {
     row.onclick = () => {
       const isCollapsed = childrenContainer.style.display === 'none';
       childrenContainer.style.display = isCollapsed ? 'flex' : 'none';
-      icon.innerHTML = isCollapsed ? '📁' : '📂';
+      chevronContainer.innerHTML = isCollapsed 
+        ? `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`
+        : `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
+      iconContainer.innerHTML = isCollapsed
+        ? `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>`
+        : `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
     };
   }
   
@@ -705,6 +618,9 @@ async function sendMessage() {
   wasVoiceInput = false;  // Reset for next input
   
   chatInput.value = '';
+  if (typeof adjustInputWidth === 'function') adjustInputWidth();
+  const chatInterfaceEl = document.getElementById('chat-interface');
+  if (chatInterfaceEl) chatInterfaceEl.classList.remove('empty-chat');
   appendMessage('user', text);
   
   // Initialise streaming TTS state for this turn
@@ -868,7 +784,7 @@ function playNextTTS() {
   isTTSPlaying = true;
   currentAudio = new Audio(blobUrl);
 
-  const container = document.querySelector('.glass-container');
+  const container = document.querySelector('.app-container');
   if (container) {
     container.classList.remove('transcribing');
     container.classList.add('speaking');
@@ -924,7 +840,7 @@ function stopTTSQueue() {
     try { currentAudio.pause(); } catch(e) {}
     currentAudio = null;
   }
-  const container = document.querySelector('.glass-container');
+  const container = document.querySelector('.app-container');
   if (container) container.classList.remove('speaking', 'transcribing');
 }
 
@@ -1005,7 +921,7 @@ async function startRecording() {
   isRecording = true;
   wasVoiceInput = true;
   
-  const container = document.querySelector('.glass-container');
+  const container = document.querySelector('.app-container');
   container.classList.remove('speaking', 'transcribing', 'recording');
   container.classList.add('recording');
   btnMic.classList.add('active');
@@ -1059,7 +975,7 @@ function stopRecordingAndSend(shouldSend = true) {
   
   isRecording = false;
   
-  const container = document.querySelector('.glass-container');
+  const container = document.querySelector('.app-container');
   container.classList.remove('recording');
   
   if (isSpeechCancelled) {
@@ -1195,3 +1111,212 @@ chatInput.addEventListener('focus', handleUserInteraction);
 
 // Initial load
 fetchFields();
+
+// Settings Modal and Theme Toggle logic
+const btnSettings = document.getElementById('btn-settings');
+const settingsModal = document.getElementById('settings-modal');
+const btnCloseSettings = document.getElementById('btn-close-settings');
+const btnThemeLight = document.getElementById('btn-theme-light');
+const btnThemeDark = document.getElementById('btn-theme-dark');
+
+// Load stored theme or default to night (dark)
+const savedTheme = localStorage.getItem('theme') || 'dark';
+applyTheme(savedTheme);
+
+function applyTheme(theme) {
+  if (theme === 'light') {
+    document.documentElement.classList.add('light-mode');
+    btnThemeLight.classList.add('active');
+    btnThemeDark.classList.remove('active');
+  } else {
+    document.documentElement.classList.remove('light-mode');
+    btnThemeLight.classList.remove('active');
+    btnThemeDark.classList.add('active');
+  }
+  localStorage.setItem('theme', theme);
+}
+
+if (btnSettings) {
+  btnSettings.addEventListener('click', () => {
+    settingsModal.style.display = 'flex';
+  });
+}
+
+if (btnCloseSettings) {
+  btnCloseSettings.addEventListener('click', () => {
+    settingsModal.style.display = 'none';
+  });
+}
+
+if (settingsModal) {
+  settingsModal.addEventListener('click', (e) => {
+    if (e.target === settingsModal) {
+      settingsModal.style.display = 'none';
+    }
+  });
+}
+
+if (btnThemeLight) {
+  btnThemeLight.addEventListener('click', () => applyTheme('light'));
+}
+if (btnThemeDark) {
+  btnThemeDark.addEventListener('click', () => applyTheme('dark'));
+}
+
+// --- Dynamic input width/height auto-growing ---
+function adjustInputWidth() {
+  const wrapper = document.querySelector('.input-wrapper');
+  if (!wrapper || !chatInput) return;
+  
+  const charCount = chatInput.value.length;
+  const baseWidth = 600;
+  const maxWidth = 900;
+  const calculatedWidth = Math.min(maxWidth, Math.max(baseWidth, baseWidth + charCount * 6));
+  wrapper.style.width = `${calculatedWidth}px`;
+  
+  chatInput.style.height = 'auto';
+  chatInput.style.height = `${chatInput.scrollHeight}px`;
+}
+
+if (chatInput) {
+  chatInput.addEventListener('input', adjustInputWidth);
+  // Trigger initially to establish correct dimensions
+  adjustInputWidth();
+}
+
+// --- Modern Web Directory Picker ---
+let currentPickerPath = "";
+const dirPickerModal = document.getElementById('dir-picker-modal');
+const btnCloseDirPicker = document.getElementById('btn-close-dir-picker');
+const btnDirUp = document.getElementById('btn-dir-up');
+const dirCurrentPathInput = document.getElementById('dir-current-path-input');
+const dirPickerList = document.getElementById('dir-picker-list');
+const btnSelectDirConfirm = document.getElementById('btn-select-dir-confirm');
+
+async function openDirPicker(startingPath = "") {
+  if (dirPickerModal) {
+    dirPickerModal.style.display = 'flex';
+    await loadDirPickerPath(startingPath);
+  }
+}
+
+async function loadDirPickerPath(path) {
+  try {
+    let url = '/api/fs/list';
+    if (path) {
+      url += `?path=${encodeURIComponent(path)}`;
+    }
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+    currentPickerPath = data.current_path;
+    if (dirCurrentPathInput) {
+      dirCurrentPathInput.value = currentPickerPath;
+    }
+    
+    if (dirPickerList) {
+      dirPickerList.innerHTML = '';
+      data.items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = `dir-item ${item.type === 'file' ? 'file-item-disabled' : ''}`;
+        
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'dir-item-icon';
+        if (item.type === 'directory') {
+          iconSpan.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          `;
+        } else {
+          iconSpan.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
+          `;
+        }
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = item.name;
+        
+        div.appendChild(iconSpan);
+        div.appendChild(nameSpan);
+        
+        if (item.type === 'directory') {
+          div.ondblclick = () => {
+            loadDirPickerPath(item.path);
+          };
+          div.onclick = () => {
+            document.querySelectorAll('.dir-item').forEach(el => el.classList.remove('selected'));
+            div.classList.add('selected');
+            currentPickerPath = item.path;
+            if (dirCurrentPathInput) {
+              dirCurrentPathInput.value = currentPickerPath;
+            }
+          };
+        }
+        
+        dirPickerList.appendChild(div);
+      });
+    }
+    
+    if (btnDirUp) {
+      if (data.parent_path) {
+        btnDirUp.disabled = false;
+        btnDirUp.style.opacity = '1';
+        btnDirUp.onclick = () => loadDirPickerPath(data.parent_path);
+      } else {
+        btnDirUp.disabled = true;
+        btnDirUp.style.opacity = '0.4';
+      }
+    }
+  } catch (e) {
+    console.error("Error loading directory path:", e);
+  }
+}
+
+if (btnCloseDirPicker) {
+  btnCloseDirPicker.addEventListener('click', () => {
+    if (dirPickerModal) dirPickerModal.style.display = 'none';
+  });
+}
+
+if (dirPickerModal) {
+  dirPickerModal.addEventListener('click', (e) => {
+    if (e.target === dirPickerModal) {
+      dirPickerModal.style.display = 'none';
+    }
+  });
+}
+
+if (btnSelectDirConfirm) {
+  btnSelectDirConfirm.addEventListener('click', async () => {
+    if (!currentPickerPath) return;
+    if (dirPickerModal) dirPickerModal.style.display = 'none';
+    
+    setChatDisabled(true);
+    if (indexingProgressContainer) {
+      indexingProgressContainer.style.display = 'flex';
+      progressBarLabel.textContent = `Connecting to ${currentPickerPath.split('\\').pop().split('/').pop()}...`;
+    }
+    
+    try {
+      const addRes = await fetch('/api/fields/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: currentPickerPath })
+      });
+      const addData = await addRes.json();
+      if (!addData.error) {
+        await fetchFields();
+      } else {
+        setChatDisabled(false);
+        if (indexingProgressContainer) indexingProgressContainer.style.display = 'none';
+        alert(addData.error);
+      }
+    } catch (e) {
+      console.error("Error adding directory field:", e);
+      setChatDisabled(false);
+      if (indexingProgressContainer) indexingProgressContainer.style.display = 'none';
+    }
+  });
+}
