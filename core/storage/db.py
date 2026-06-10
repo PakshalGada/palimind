@@ -41,6 +41,36 @@ def init_db(root: Path) -> None:
             )
         """)
 
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chunks_fts'")
+        has_fts = cur.fetchone() is not None
+
+        if not has_fts:
+            cur.execute("""
+                CREATE VIRTUAL TABLE chunks_fts USING fts5(
+                    content,
+                    content='chunks',
+                    content_rowid='id'
+                )
+            """)
+            cur.execute("""
+                CREATE TRIGGER chunks_ai AFTER INSERT ON chunks BEGIN
+                    INSERT INTO chunks_fts(rowid, content) VALUES (new.id, new.content);
+                END;
+            """)
+            cur.execute("""
+                CREATE TRIGGER chunks_ad AFTER DELETE ON chunks BEGIN
+                    INSERT INTO chunks_fts(chunks_fts, rowid, content) VALUES('delete', old.id, old.content);
+                END;
+            """)
+            cur.execute("""
+                CREATE TRIGGER chunks_au AFTER UPDATE ON chunks BEGIN
+                    INSERT INTO chunks_fts(chunks_fts, rowid, content) VALUES('delete', old.id, old.content);
+                    INSERT INTO chunks_fts(rowid, content) VALUES (new.id, new.content);
+                END;
+            """)
+            # Populate existing chunks into FTS so old indexes still work!
+            cur.execute("INSERT INTO chunks_fts(rowid, content) SELECT id, content FROM chunks")
+
         # Migration: add summary column to existing databases.
         if columns and "summary" not in columns:
             cur.execute("ALTER TABLE files ADD COLUMN summary TEXT DEFAULT ''")
@@ -137,3 +167,44 @@ def get_chunks_for_file(conn: sqlite3.Connection, path: str) -> list[str]:
         (path,),
     )
     return [row[0] for row in cur.fetchall()]
+
+
+def fts_search(conn: sqlite3.Connection, query: str, limit: int = 5) -> list[dict]:
+    """Perform a BM25 keyword search using FTS5."""
+    # Remove quotes and backslashes to avoid FTS5 syntax errors
+    safe_query = query.replace('"', ' ').replace("'", " ").replace("\\", " ")
+    
+    # Provide a fallback if safe_query is completely empty after stripping
+    if not safe_query.strip():
+        return []
+
+    # Wrap words in double quotes to prevent FTS5 keyword conflicts (like AND, OR)
+    # This is a simple pragmatic approach
+    terms = [f'"{w}"' for w in safe_query.split() if w.strip()]
+    if not terms:
+        return []
+    fts_query = " OR ".join(terms)
+
+    cur = conn.execute(
+        '''
+        SELECT c.id, f.path, c.chunk_index, c.chunk_type, c.content, chunks_fts.rank
+        FROM chunks_fts
+        JOIN chunks c ON chunks_fts.rowid = c.id
+        JOIN files f ON c.file_id = f.id
+        WHERE chunks_fts MATCH ?
+        ORDER BY chunks_fts.rank
+        LIMIT ?
+        ''',
+        (fts_query, limit)
+    )
+    results = []
+    for row in cur.fetchall():
+        results.append({
+            "chunk_db_id": row[0],
+            "file_path": row[1],
+            "chunk_index": row[2],
+            "chunk_type": row[3],
+            "content": row[4],
+            "score": -row[5]  # SQLite fts5 rank is negative
+        })
+    return results

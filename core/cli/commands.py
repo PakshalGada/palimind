@@ -141,7 +141,7 @@ def ask(
 def chat(
     path: Path = typer.Option(Path("."), "--path", "-p", help="Path to the indexed directory"),
 ):
-    """Start an interactive chat session."""
+    """Start an interactive agent chat session."""
     target_dir = path.resolve()
     try:
         require_index(target_dir)
@@ -149,8 +149,17 @@ def chat(
         print_error(str(e))
         raise typer.Exit(1)
 
-    print_header("Interactive Chat")
+    from core.config import load_config
+    config = load_config(target_dir)
+    ollama_url = config.get("ollama_base_url", "http://localhost:11434")
+    chat_model = config.get("chat_model", "llama3")
+
+    from core.agent import needs_retrieval, reformulate_query
+
+    print_header("Interactive Agent Chat")
     print_info("Type 'exit' or 'quit' to end the session.")
+
+    history = []
 
     while True:
         try:
@@ -159,7 +168,50 @@ def chat(
                 break
             if not user_input.strip():
                 continue
-            ask(query=user_input, path=target_dir)
+
+            standalone_query = reformulate_query(user_input, history, ollama_url, chat_model)
+            
+            if needs_retrieval(standalone_query, history, ollama_url, chat_model):
+                if standalone_query != user_input:
+                    print_info(f"Searching knowledge base for: {standalone_query}")
+                try:
+                    context, stream = query_stream(target_dir, standalone_query, history=history)
+                    if context.sources:
+                        print_info(f"Sources: {', '.join(context.sources)}")
+                except PalimindError as e:
+                    print_error(str(e))
+                    continue
+            else:
+                from core.generative.responder import generate_response_stream
+                stream = generate_response_stream(
+                    query=user_input, 
+                    context="",
+                    image_paths=[],
+                    ollama_url=ollama_url,
+                    chat_model=chat_model,
+                    system_prompt="You are a helpful assistant.",
+                    history=history,
+                    is_chat_only=True
+                )
+
+            console.print("[bold magenta]Palimind:[/bold magenta] ", end="")
+            answer_chunks = []
+            try:
+                for token in stream:
+                    console.print(token, end="")
+                    answer_chunks.append(token)
+            except PalimindError as e:
+                console.print()
+                print_error(str(e))
+                continue
+            console.print()
+
+            history.append({"role": "user", "content": user_input})
+            history.append({"role": "assistant", "content": "".join(answer_chunks)})
+
+            if len(history) > 10:
+                history = history[-10:]
+
         except (KeyboardInterrupt, EOFError):
             break
 

@@ -46,6 +46,37 @@ def retrieve(root: Path, query: str, *, limit: int = 5, files_filter: list[str] 
     return _to_retrieved(raw)
 
 
+def _fetch_chat_episodes(
+    root: Path,
+    query: str,
+    config: dict,
+    session_id: str,
+) -> str:
+    """Fetch relevant past conversation episodes for the given query.
+    Designed to run concurrently with document retrieval.
+    """
+    try:
+        from core.storage.chat_store import search_chat_episodes
+        from core.retrieval.embedder import generate_embeddings_batch
+
+        emb_res = generate_embeddings_batch(
+            [query], config["ollama_base_url"], config["embed_model"]
+        )
+        if not emb_res or not emb_res[0]:
+            return ""
+        episodes = search_chat_episodes(root, emb_res[0], limit=3)
+        if not episodes:
+            return ""
+        parts = [
+            f"Past Turn: {ep['content']}"
+            for ep in episodes
+            if ep.get("session_id") == session_id
+        ]
+        return "\n\n".join(parts)
+    except Exception:
+        return ""
+
+
 def query_stream(
     root: Path,
     query: str,
@@ -54,12 +85,39 @@ def query_stream(
     system_prompt: str | None = None,
     history: list[dict] | None = None,
     files_filter: list[str] | None = None,
+    mid_term_summary: str | None = None,
+    session_id: str | None = None,
 ) -> QueryStream:
+    import concurrent.futures
+
     root = require_index(root)
     config = load_config(root)
-    context = retrieve(root, query, limit=limit, files_filter=files_filter)
+
+    # Run document retrieval and (optionally) chat memory lookup concurrently
+    # so neither blocks the other.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        future_docs = executor.submit(
+            retrieve, root, query, limit=limit, files_filter=files_filter
+        )
+        future_episodes: concurrent.futures.Future[str] | None = None
+        if session_id:
+            future_episodes = executor.submit(
+                _fetch_chat_episodes, root, query, config, session_id
+            )
+
+        context = future_docs.result()
+        chat_context = future_episodes.result() if future_episodes else ""
+
     joined_context = "\n\n".join(context.text_contexts) if context.text_contexts else ""
+    if chat_context:
+        if joined_context:
+            joined_context = f"{joined_context}\n\nPast Conversation Context:\n{chat_context}"
+        else:
+            joined_context = f"Past Conversation Context:\n{chat_context}"
+
     prompt = system_prompt if system_prompt is not None else _default_system_prompt()
+    if mid_term_summary:
+        prompt = f"{prompt}\n\nConversation Summary so far:\n{mid_term_summary}"
 
     stream = generate_response_stream(
         query=query,

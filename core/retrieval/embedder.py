@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import functools
 import httpx
 
 from core.exceptions import EmbeddingError
 
 
+@functools.lru_cache(maxsize=128)
 def generate_embedding(text: str, ollama_url: str, embed_model: str) -> list[float]:
     """Generate an embedding for a single text using Ollama."""
     url = f"{ollama_url.rstrip('/')}/api/embed"

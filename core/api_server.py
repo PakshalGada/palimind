@@ -115,6 +115,58 @@ async def background_index_field(path: Path):
             "message": f"Failed to index [{path.name}]: {str(e)}"
         })
 
+async def background_update_memory(root: Path, session_id: str, new_user_msg: str, new_bot_msg: str):
+    await asyncio.sleep(2) # Allow Ollama to breathe and prioritize new user queries
+    from core.config import load_config
+    from core.generative.summariser import summarise_conversation
+    from core.storage.chat_store import ChatVectorStore
+    from core.retrieval.embedder import generate_embeddings_batch
+    import uuid
+
+    config = load_config(root)
+    ollama_url = config.get("ollama_base_url")
+    chat_model = config.get("chat_model")
+    embed_model = config.get("embed_model")
+    
+    # 1. Update mid-term summary
+    sessions_data = load_sessions(root)
+    target_sess = next((s for s in sessions_data.get("sessions", []) if s["id"] == session_id), None)
+    if not target_sess:
+        return
+        
+    recent_messages = target_sess.get("messages", [])[-6:]
+    previous_summary = target_sess.get("summary", "")
+    
+    try:
+        new_summary = await asyncio.to_thread(
+            summarise_conversation,
+            recent_messages,
+            previous_summary,
+            ollama_url,
+            chat_model
+        )
+        if new_summary:
+            target_sess["summary"] = new_summary
+            save_sessions(root, sessions_data)
+    except Exception as e:
+        print(f"Failed to update summary: {e}")
+        
+    # 2. Update long-term episodic memory
+    turn_content = f"User: {new_user_msg}\nAssistant: {new_bot_msg}"
+    try:
+        embs = await asyncio.to_thread(generate_embeddings_batch, [turn_content], ollama_url, embed_model)
+        if embs and embs[0]:
+            chunk_id = int(uuid.uuid4().int % (2**63))
+            with ChatVectorStore(root) as vstore:
+                vstore.insert([{
+                    "vector": embs[0],
+                    "chunk_id": chunk_id,
+                    "session_id": session_id,
+                    "content": turn_content
+                }])
+    except Exception as e:
+        print(f"Failed to update episodic memory: {e}")
+
 def handle_watcher_change(root: Path):
     print(f"Watcher: detected file changes in {root}. Syncing index...")
     try:
@@ -544,6 +596,7 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
 
     active_sess_id = session_id
     history_to_send = None
+    mid_term_summary = None
     if state.active_field:
         sessions_data = await asyncio.to_thread(load_sessions, state.active_field)
         if not active_sess_id:
@@ -552,8 +605,9 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
         if active_sess_id:
             for sess in sessions_data.get("sessions", []):
                 if sess["id"] == active_sess_id:
+                    mid_term_summary = sess.get("summary")
                     history_to_send = []
-                    for msg in sess.get("messages", [])[-10:]:
+                    for msg in sess.get("messages", [])[-5:]:
                         role = msg["role"]
                         if role == "system":
                             role = "assistant"
@@ -568,13 +622,51 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
         files_filter = [f.strip() for f in files.split(",") if f.strip()]
 
     try:
-        context, stream = await asyncio.to_thread(
-            query_stream,
-            state.active_field,
-            q,
-            history=history_to_send,
-            files_filter=files_filter
+        from core.agent import reformulate_query, needs_retrieval
+        from core.config import load_config
+        config = load_config(state.active_field)
+        ollama_url = config.get("ollama_base_url", "http://localhost:11434")
+        chat_model = config.get("chat_model", "llama3")
+
+        needs_retrieval_fast = await asyncio.to_thread(
+            needs_retrieval, q, history_to_send or [], ollama_url, chat_model
         )
+
+        if needs_retrieval_fast:
+            standalone_query = await asyncio.to_thread(
+                reformulate_query, q, history_to_send or [], ollama_url, chat_model
+            )
+            context, stream = await asyncio.to_thread(
+                query_stream,
+                state.active_field,
+                standalone_query,
+                history=history_to_send,
+                files_filter=files_filter,
+                mid_term_summary=mid_term_summary,
+                session_id=active_sess_id
+            )
+        else:
+            from core.generative.responder import generate_response_stream
+            from core.models import RetrievedContext
+            
+            prompt = "You are a helpful assistant."
+            if mid_term_summary:
+                prompt = f"{prompt}\n\nConversation Summary so far:\n{mid_term_summary}"
+
+            context = RetrievedContext(text_contexts=(), image_paths=(), sources=())
+            
+            # Since generate_response_stream is a sync generator, we just get the iterator.
+            stream = generate_response_stream(
+                query=q,
+                context="",
+                image_paths=[],
+                ollama_url=ollama_url,
+                chat_model=chat_model,
+                system_prompt=prompt,
+                history=history_to_send,
+                is_chat_only=True
+            )
+
     except Exception as e:
         error_msg = str(e)
         async def err_stream():
@@ -631,6 +723,7 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
                 bot_answer,
                 sources
             )
+            asyncio.create_task(background_update_memory(state.active_field, active_sess_id, q, bot_answer))
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 

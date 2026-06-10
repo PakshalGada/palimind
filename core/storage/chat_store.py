@@ -1,14 +1,4 @@
-"""Vector store backed by turbovec IdMapIndex.
-
-IdMapIndex provides:
-- Compressed storage (up to 16× vs raw float32)
-- O(1) deletion by external uint64 ID
-- No training phase required
-- Disk persistence via .write() / .load()
-
-The external IDs stored in turbovec are the ``id`` primary keys from the
-``chunks`` SQLite table.
-"""
+"""Vector store backed by turbovec IdMapIndex for Chat Episodic Memory."""
 from __future__ import annotations
 
 import json
@@ -22,28 +12,8 @@ from core.config import palimind_dir
 
 _DEFAULT_DIM = 768
 _BIT_WIDTH = 4
-_META_FILE = "turbovec_meta.json"
-_INDEX_FILE = "turbovec.tvim"
-
-# Module-level cache to avoid disk reads on every search
-_global_search_cache: dict[str, tuple[IdMapIndex, dict[int, dict[str, Any]]]] = {}
-
-
-def _get_cached_search_data(root: Path) -> tuple[IdMapIndex, dict[int, dict[str, Any]]] | None:
-    path_str = str(root)
-    if path_str in _global_search_cache:
-        return _global_search_cache[path_str]
-    
-    if not _index_path(root).exists():
-        return None
-        
-    meta = _load_meta(root)
-    if not meta:
-        return None
-        
-    index = _load_index(root)
-    _global_search_cache[path_str] = (index, meta)
-    return index, meta
+_META_FILE = "turbovec_chat_meta.json"
+_INDEX_FILE = "turbovec_chat.tvim"
 
 
 def _index_path(root: Path) -> Path:
@@ -80,8 +50,8 @@ def _save_index(root: Path, index: IdMapIndex) -> None:
     index.write(str(_index_path(root)))
 
 
-class VectorStore:
-    """Batched session wrapper around a turbovec IdMapIndex."""
+class ChatVectorStore:
+    """Batched session wrapper around a turbovec IdMapIndex for Chat History."""
 
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -89,25 +59,27 @@ class VectorStore:
         self._meta: dict[int, dict[str, Any]] | None = None
         self._dirty = False
 
-    # -- context manager --------------------------------------------------
-
-    def __enter__(self) -> VectorStore:
+    def __enter__(self) -> ChatVectorStore:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.commit()
-
-    # -- internal ---------------------------------------------------------
 
     def _ensure_loaded(self, dim: int = _DEFAULT_DIM) -> None:
         if self._index is None:
             self._index = _load_index(self.root, dim)
             self._meta = _load_meta(self.root)
 
-    # -- public API -------------------------------------------------------
-
     def insert(self, data: list[dict]) -> None:
-        """Insert vectors into the active session."""
+        """Insert vectors into the active session.
+        data expects:
+        {
+            "vector": list[float],
+            "chunk_id": int,
+            "session_id": str,
+            "content": str
+        }
+        """
         if not data:
             return
 
@@ -115,41 +87,18 @@ class VectorStore:
         self._ensure_loaded(dim)
 
         if self._index is None or self._meta is None:
-            raise RuntimeError("VectorStore failed to initialise")
+            raise RuntimeError("ChatVectorStore failed to initialise")
 
         vectors = np.array([d["vector"] for d in data], dtype=np.float32)
-        ids = np.array([d["chunk_db_id"] for d in data], dtype=np.uint64)
+        ids = np.array([d["chunk_id"] for d in data], dtype=np.uint64)
         self._index.add_with_ids(vectors, ids)
 
         for d in data:
-            cid = int(d["chunk_db_id"])
+            cid = int(d["chunk_id"])
             self._meta[cid] = {
-                "file_path": d["file_path"],
-                "chunk_index": d["chunk_index"],
-                "chunk_type": d["chunk_type"],
+                "session_id": d["session_id"],
                 "content": d["content"],
             }
-        self._dirty = True
-
-    def delete_file(self, file_path: str) -> None:
-        """Remove all vectors matching *file_path*."""
-        if not _index_path(self.root).exists() and self._index is None:
-            return
-
-        self._ensure_loaded()
-
-        if self._index is None or self._meta is None:
-            return
-
-        ids_to_remove = [
-            cid for cid, m in self._meta.items() if m["file_path"] == file_path
-        ]
-        if not ids_to_remove:
-            return
-
-        for cid in ids_to_remove:
-            self._index.remove(cid)
-            del self._meta[cid]
         self._dirty = True
 
     def commit(self) -> None:
@@ -159,23 +108,19 @@ class VectorStore:
                 _save_index(self.root, self._index)
             if self._meta is not None:
                 _save_meta(self.root, self._meta)
-            
-            # Invalidate cache
-            path_str = str(self.root)
-            if path_str in _global_search_cache:
-                del _global_search_cache[path_str]
-                
             self._dirty = False
 
 
-def search(root: Path, query_vector: list[float], limit: int = 5) -> list[dict]:
+def search_chat_episodes(root: Path, query_vector: list[float], limit: int = 5) -> list[dict]:
     """Return up to *limit* results closest to *query_vector*."""
-    cached = _get_cached_search_data(root)
-    if not cached:
+    if not _index_path(root).exists():
         return []
-    
-    index, meta = cached
 
+    meta = _load_meta(root)
+    if not meta:
+        return []
+
+    index = _load_index(root)
     query = np.array(query_vector, dtype=np.float32).reshape(1, -1)
     k = min(limit, len(meta))
     _scores, ext_ids = index.search(query, k=k)
@@ -186,6 +131,6 @@ def search(root: Path, query_vector: list[float], limit: int = 5) -> list[dict]:
         cid = int(ext_id)
         if cid in meta:
             item = dict(meta[cid])
-            item["chunk_db_id"] = cid
+            item["chunk_id"] = cid
             results.append(item)
     return results

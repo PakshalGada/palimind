@@ -20,6 +20,7 @@ dependencies = [
     "turbovec>=0.1",
     "pillow>=10.2",
     "watchdog>=4.0",
+    "sentence-transformers>=3.0",
 ]
 
 [project.scripts]

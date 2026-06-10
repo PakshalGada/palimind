@@ -20,6 +20,13 @@ _SYSTEM = (
     "Answer with the summary only."
 )
 
+_CHAT_SUMMARY_SYSTEM = (
+    "You are an AI assistant tasked with summarizing an ongoing conversation. "
+    "Given the previous summary (if any) and the recent messages, update the summary to reflect the "
+    "most important points, decisions, and context of the entire conversation so far. "
+    "Keep it concise but informative. Do not use formatting, just plain text."
+)
+
 _MAX_CHARS = 8_000
 
 
@@ -58,3 +65,44 @@ def summarise_file(
         return data.get("message", {}).get("content", "").strip()
     except (httpx.HTTPError, json.JSONDecodeError, KeyError):
         return ""
+
+
+def summarise_conversation(
+    recent_messages: list[dict],
+    previous_summary: str,
+    ollama_url: str,
+    chat_model: str,
+) -> str:
+    """Update the running summary of a conversation."""
+    if not recent_messages:
+        return previous_summary
+
+    prompt_lines = []
+    if previous_summary:
+        prompt_lines.append(f"Previous Summary: {previous_summary}\n")
+    
+    prompt_lines.append("Recent Messages:")
+    for m in recent_messages:
+        role = m.get("role", "user")
+        content = m.get("content", "")
+        prompt_lines.append(f"{role.capitalize()}: {content}")
+        
+    user_content = "\n".join(prompt_lines)
+    
+    payload = {
+        "model": chat_model,
+        "messages": [
+            {"role": "system", "content": _CHAT_SUMMARY_SYSTEM},
+            {"role": "user", "content": user_content},
+        ],
+        "stream": False,
+    }
+
+    url = f"{ollama_url.rstrip('/')}/api/chat"
+    try:
+        resp = httpx.post(url, json=payload, timeout=120.0)
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("message", {}).get("content", "").strip()
+    except (httpx.HTTPError, json.JSONDecodeError, KeyError):
+        return previous_summary

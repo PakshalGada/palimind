@@ -28,6 +28,7 @@ def generate_response_stream(
     chat_model: str,
     system_prompt: str,
     history: list[dict] | None = None,
+    is_chat_only: bool = False,
 ) -> Iterator[str]:
     """Yield response tokens from Ollama."""
     messages = []
@@ -38,7 +39,9 @@ def generate_response_stream(
         for h in history:
             messages.append({"role": h["role"], "content": h["content"]})
 
-    if context and context.strip():
+    if is_chat_only:
+        user_content = query
+    elif context and context.strip():
         user_content = (
             "Context information is below:\n"
             "---------------------\n"
