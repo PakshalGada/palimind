@@ -14,6 +14,7 @@ from core.api import (
     require_index,
     update_index,
 )
+from core.api_server import run_server
 from core.cli.ui import (
     console,
     create_progress,
@@ -161,3 +162,20 @@ def chat(
             ask(query=user_input, path=target_dir)
         except (KeyboardInterrupt, EOFError):
             break
+
+@app.command()
+def ui(port: int = typer.Option(8000, "--port", help="Port to run the UI server on")):
+    """Start the Palimind V2 Boardroom UI."""
+    import webbrowser
+    import threading
+    import time
+    
+    print_header("Palimind V2 Boardroom")
+    print_info(f"Starting server on http://localhost:{port}/ui/")
+    
+    def open_browser():
+        time.sleep(1.5)
+        webbrowser.open(f"http://localhost:{port}/ui/")
+        
+    threading.Thread(target=open_browser, daemon=True).start()
+    run_server(port)

@@ -19,6 +19,7 @@ dependencies = [
     "pandas>=2.2",
     "turbovec>=0.1",
     "pillow>=10.2",
+    "watchdog>=4.0",
 ]
 
 [project.scripts]

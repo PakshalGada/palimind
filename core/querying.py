@@ -40,9 +40,9 @@ def _to_retrieved(raw: dict) -> RetrievedContext:
     )
 
 
-def retrieve(root: Path, query: str, *, limit: int = 5) -> RetrievedContext:
+def retrieve(root: Path, query: str, *, limit: int = 5, files_filter: list[str] | None = None) -> RetrievedContext:
     root = require_index(root)
-    raw = retrieve_context(query, root, limit=limit)
+    raw = retrieve_context(query, root, limit=limit, files_filter=files_filter)
     return _to_retrieved(raw)
 
 
@@ -52,15 +52,13 @@ def query_stream(
     *,
     limit: int = 5,
     system_prompt: str | None = None,
+    history: list[dict] | None = None,
+    files_filter: list[str] | None = None,
 ) -> QueryStream:
     root = require_index(root)
     config = load_config(root)
-    context = retrieve(root, query, limit=limit)
-
-    if not context.has_context:
-        raise NoContextError("No relevant context found in index.")
-
-    joined_context = "\n\n".join(context.text_contexts)
+    context = retrieve(root, query, limit=limit, files_filter=files_filter)
+    joined_context = "\n\n".join(context.text_contexts) if context.text_contexts else ""
     prompt = system_prompt if system_prompt is not None else _default_system_prompt()
 
     stream = generate_response_stream(
@@ -70,6 +68,7 @@ def query_stream(
         ollama_url=config["ollama_base_url"],
         chat_model=config["chat_model"],
         system_prompt=prompt,
+        history=history,
     )
     return context, stream
 

@@ -65,7 +65,11 @@ def _file_targeted_context(root: Path, matched_paths: list[str]) -> dict:
     return {"text_contexts": text_contexts, "image_paths": []}
 
 
-def _corpus_wide_context(root: Path) -> dict:
+def _normalize_path(p: str) -> str:
+    return p.replace("\\", "/").lower().strip()
+
+
+def _corpus_wide_context(root: Path, files_filter: list[str] | None = None) -> dict:
     """
     Build a structured file-manifest context block listing all indexed
     files and their summaries. Used to answer "what files are indexed?" etc.
@@ -79,9 +83,13 @@ def _corpus_wide_context(root: Path) -> dict:
     if not files:
         return {"text_contexts": [], "image_paths": []}
 
+    normalized_filter = {_normalize_path(f) for f in files_filter} if files_filter else set()
+
     lines = ["Indexed files in this knowledge base:\n"]
     for f in files:
         path = f["path"]
+        if normalized_filter and _normalize_path(path) not in normalized_filter:
+            continue
         summary = f["summary"].strip() if f["summary"] else "No summary available."
         lines.append(f"• {path}\n  {summary}")
 
@@ -92,21 +100,30 @@ def _corpus_wide_context(root: Path) -> dict:
     }
 
 
-def _semantic_context(query: str, root: Path, config: dict, limit: int) -> dict:
+def _semantic_context(query: str, root: Path, config: dict, limit: int, files_filter: list[str] | None = None) -> dict:
     """Standard turbovec vector similarity search."""
     ollama_url = config.get("ollama_base_url", "http://localhost:11434")
     embed_model = config.get("embed_model", "nomic-embed-text")
 
     query_vector = generate_embedding(query, ollama_url, embed_model)
-    results = search(root, query_vector, limit=limit)
+    search_limit = max(limit * 5, 50) if files_filter else limit
+    results = search(root, query_vector, limit=search_limit)
 
     text_contexts: list[str] = []
     image_paths: set[str] = set()
+    normalized_filter = {_normalize_path(f) for f in files_filter} if files_filter else set()
 
     for row in results:
         chunk_type = row.get("chunk_type", "text")
         content = row.get("content", "")
         file_path = row.get("file_path", "")
+
+        if normalized_filter and _normalize_path(file_path) not in normalized_filter:
+            continue
+
+        if len(text_contexts) >= limit:
+            if chunk_type not in ["caption", "image"]:
+                continue
 
         if chunk_type in ["text", "caption"]:
             text_contexts.append(f"Source ({file_path}):\n{content}")
@@ -123,17 +140,19 @@ def _semantic_context(query: str, root: Path, config: dict, limit: int) -> dict:
             files = get_all_files(conn)
         finally:
             conn.close()
-        summaries = [
-            f"Source ({f['path']}) — Summary:\n{f['summary']}"
-            for f in files
-            if f["summary"]
-        ]
+        summaries = []
+        for f in files:
+            path = f["path"]
+            if normalized_filter and _normalize_path(path) not in normalized_filter:
+                continue
+            if f["summary"]:
+                summaries.append(f"Source ({path}) — Summary:\n{f['summary']}")
         text_contexts = summaries[:limit]
 
-    return {"text_contexts": text_contexts, "image_paths": list(image_paths)}
+    return {"text_contexts": text_contexts[:limit], "image_paths": list(image_paths)}
 
 
-def retrieve_context(query: str, root: Path, limit: int = 5) -> dict:
+def retrieve_context(query: str, root: Path, limit: int = 5, files_filter: list[str] | None = None) -> dict:
     """
     Retrieve relevant context for *query* using intent-based routing.
 
@@ -146,10 +165,14 @@ def retrieve_context(query: str, root: Path, limit: int = 5) -> dict:
     intent = classify_query(query, indexed_paths)
 
     if intent.kind == IntentKind.FILE_TARGETED:
-        return _file_targeted_context(root, intent.matched_paths)
+        matched = intent.matched_paths
+        if files_filter:
+            normalized_filter = {_normalize_path(f) for f in files_filter}
+            matched = [p for p in matched if _normalize_path(p) in normalized_filter]
+        return _file_targeted_context(root, matched)
 
     if intent.kind == IntentKind.CORPUS_WIDE:
-        return _corpus_wide_context(root)
+        return _corpus_wide_context(root, files_filter=files_filter)
 
     # Default: SEMANTIC
-    return _semantic_context(query, root, config, limit)
+    return _semantic_context(query, root, config, limit, files_filter=files_filter)

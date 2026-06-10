@@ -27,21 +27,34 @@ def generate_response_stream(
     ollama_url: str,
     chat_model: str,
     system_prompt: str,
+    history: list[dict] | None = None,
 ) -> Iterator[str]:
     """Yield response tokens from Ollama."""
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
 
-    user_content = (
-        "Context information is below:\n"
-        "---------------------\n"
-        f"{context}\n"
-        "---------------------\n\n"
-        "Given the context information and not prior knowledge, answer the query.\n"
-        f"Query: {query}\n"
-        "Answer:"
-    )
+    if history:
+        for h in history:
+            messages.append({"role": h["role"], "content": h["content"]})
+
+    if context and context.strip():
+        user_content = (
+            "Context information is below:\n"
+            "---------------------\n"
+            f"{context}\n"
+            "---------------------\n\n"
+            "Given the context information and not prior knowledge, answer the query.\n"
+            f"Query: {query}\n"
+            "Answer:"
+        )
+    else:
+        user_content = (
+            "No relevant document context was found in the workspace.\n"
+            "Answer the query based on your general knowledge and the system instructions. If appropriate, note that you are answering from general knowledge as no local context was found.\n"
+            f"Query: {query}\n"
+            "Answer:"
+        )
     user_message: dict = {"role": "user", "content": user_content}
 
     images = []

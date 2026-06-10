@@ -7,7 +7,7 @@ from core.config import db_path
 
 
 def init_db(root: Path) -> None:
-    conn = sqlite3.connect(db_path(root))
+    conn = sqlite3.connect(db_path(root), timeout=30.0)
     try:
         cur = conn.cursor()
 
@@ -51,7 +51,7 @@ def init_db(root: Path) -> None:
 
 
 def get_connection(root: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path(root))
+    conn = sqlite3.connect(db_path(root), timeout=30.0)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
