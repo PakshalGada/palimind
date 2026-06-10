@@ -231,3 +231,90 @@ def ui(port: int = typer.Option(8000, "--port", help="Port to run the UI server 
         
     threading.Thread(target=open_browser, daemon=True).start()
     run_server(port)
+
+
+@app.command()
+def hotkey(
+    action: str = typer.Argument(
+        "start",
+        help="Action: 'start' to begin listening, 'stop' to stop"
+    ),
+    hotkey_combo: str = typer.Option(
+        "ctrl+shift+e",
+        "--hotkey",
+        "-k",
+        help="Hotkey combination (e.g., 'ctrl+shift+e')"
+    ),
+    api_url: str = typer.Option(
+        "http://localhost:8000",
+        "--api-url",
+        help="FastAPI server URL"
+    ),
+):
+    """
+    Global hotkey listener for capturing text and saving to Fields.
+    
+    Usage:
+        pm hotkey start                    # Start listening
+        pm hotkey start --hotkey alt+shift+c  # Custom hotkey
+        pm hotkey stop                     # Stop listening
+    """
+    try:
+        from hotkey.manager import HotkeyManager, HotkeyConfig
+    except ImportError:
+        print_error("Hotkey feature requires extra dependencies.")
+        print_info("Install with: pip install -e '.[hotkey]'")
+        raise typer.Exit(1)
+    
+    action = action.lower().strip()
+    
+    if action == "start":
+        print_header("Palimind Hotkey Listener")
+        print_info(f"Hotkey: {hotkey_combo}")
+        print_info(f"API Server: {api_url}")
+        print_info("Listening for hotkey... (Press Ctrl+C to stop)")
+        print()
+        
+        try:
+            config = HotkeyConfig(
+                hotkey_combo=hotkey_combo,
+                api_base_url=api_url,
+            )
+            manager = HotkeyManager(config)
+            
+            def on_event(event):
+                """Callback when capture is complete."""
+                print_success(
+                    f"Captured to '{event.selected_field.name}': "
+                    f"{len(event.selected_text)} chars"
+                )
+            
+            manager.start(on_event)
+            
+            # Keep running until interrupted
+            import time
+            try:
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                print("\n")
+                manager.stop()
+                print_success("Hotkey listener stopped")
+                
+        except ImportError as e:
+            print_error(f"Missing dependency: {e}")
+            print_info("Install with: pip install -e '.[hotkey]'")
+            raise typer.Exit(1)
+        except Exception as e:
+            print_error(f"Error starting hotkey listener: {e}")
+            raise typer.Exit(1)
+    
+    elif action == "stop":
+        print_info("Stopping hotkey listener...")
+        print_info("(Make sure the listener is running in another terminal)")
+        print_info("Stopping can only be done by terminating the listener process (Ctrl+C)")
+        
+    else:
+        print_error(f"Unknown action: {action}")
+        print_info("Use 'start' or 'stop'")
+        raise typer.Exit(1)

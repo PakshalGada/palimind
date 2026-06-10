@@ -1,0 +1,228 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    PALIMIND HOTKEY - QUICK REFERENCE                       ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INSTALLATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  pip install -e ".[hotkey]"
+
+  Installs: pynput, pyperclip, requests
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+QUICK START (3 TERMINALS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Terminal 1: Start the API server & UI
+    pm ui
+    → Opens http://localhost:8000/ui/
+
+  Terminal 2: Start hotkey listener
+    pm hotkey start
+    → Listening on Ctrl+Shift+E
+
+  Terminal 3: Use normally
+    → Copy text anywhere
+    → Press Ctrl+Shift+E
+    → Select Field in popup
+    → Done!
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Start listening (default hotkey: Ctrl+Shift+E)
+    pm hotkey start
+
+  Custom hotkey
+    pm hotkey start --hotkey "alt+shift+c"
+    pm hotkey start --hotkey "cmd+shift+e"
+
+  Custom API server
+    pm hotkey start --api-url "http://192.168.1.100:8000"
+
+  Both custom options
+    pm hotkey start --hotkey "alt+shift+c" --api-url "http://..."
+
+  Stop listening
+    Press Ctrl+C in the terminal
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HOTKEY COMBINATIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Modifiers: ctrl, shift, alt, cmd
+
+  Format: modifier+modifier+key
+
+  Examples:
+    ctrl+shift+e          ← All platforms
+    alt+shift+c           ← All platforms
+    cmd+shift+e           ← macOS
+    ctrl+alt+c            ← 2 modifiers
+    shift+space           ← With space key
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WORKFLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1. Copy/select text in ANY application
+     • Can be in browser, document, terminal, etc.
+
+  2. Press hotkey (default: Ctrl+Shift+E)
+     • Captured from clipboard
+
+  3. Popup appears with available Fields
+     • Select Field with arrow keys or click
+     • Press Enter or click button
+
+  4. Text saved automatically
+     → field/.palimind/captures/YYYY-MM-DD_HH-MM-SS_capture.txt
+
+  5. Index updated automatically
+     → Capture becomes searchable in Field
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE LOCATIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Your Field structure:
+    my-field/
+    └── .palimind/
+        └── captures/
+            ├── 2026-06-10_14-23-45_capture.txt
+            ├── 2026-06-10_14-25-12_capture.txt
+            └── ...
+
+  All captures stored in: field/.palimind/captures/
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Hotkey not working?
+    ✓ Check listener is running: pm hotkey start
+    ✓ Try default hotkey: Ctrl+Shift+E
+    ✓ Try different hotkey: --hotkey "alt+shift+c"
+    ✓ Check if app window has focus
+
+  Popup doesn't appear?
+    ✓ Create a Field first (in pm ui)
+    ✓ Verify tkinter: python3 -m tkinter
+
+  Clipboard not working (Linux)?
+    ✓ Install: sudo apt-get install xclip
+    ✓ Or: sudo apt-get install xsel
+
+  API connection error?
+    ✓ Verify server running: pm ui
+    ✓ Check URL: --api-url "http://localhost:8000"
+    ✓ Captures still saved locally, just not indexed
+
+  Missing dependencies?
+    ✓ Install: pip install -e ".[hotkey]"
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TESTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Run all tests:
+    python3 test_all_steps.py
+
+  Results should show:
+    ✅ PASS: Step 1: Core Infrastructure
+    ✅ PASS: Step 2: API Integration & Data Saving
+    ✅ PASS: Step 3: End-to-End Workflow
+    🎉 ALL TESTS PASSED
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ARCHITECTURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Step 1: Core Infrastructure
+    • hotkey/ module with manager, bindings, popup, models
+
+  Step 2: API Integration
+    • integrations.py handles FastAPI calls and file saving
+
+  Step 3: CLI Integration
+    • pm hotkey command in core/cli/commands.py
+
+  All components tested independently and together.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DOCUMENTATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  HOTKEY_README.md
+    • Complete user guide
+    • Configuration options
+    • Troubleshooting
+
+  HOTKEY_IMPLEMENTATION.md
+    • Technical implementation details
+    • Architecture overview
+    • Code metrics
+
+  HOTKEY_COMPLETION.txt
+    • Project completion summary
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+KEY MODULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  hotkey/manager.py
+    → HotkeyManager (main class)
+
+  hotkey/platform_bindings.py
+    → Global hotkey registration + clipboard access
+
+  hotkey/popup_ui.py
+    → Field selector window (tkinter)
+
+  hotkey/integrations.py
+    → FastAPI client + file saving
+
+  core/cli/commands.py
+    → pm hotkey command
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DEMO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Terminal 1:
+    $ pm ui
+    Starting Boardroom...
+
+  Terminal 2:
+    $ pm hotkey start
+    ✓ Hotkey manager started (hotkey: ctrl+shift+e)
+    ⏰ Waiting for hotkey...
+
+  Browser/App:
+    • Copy text: "The quick brown fox jumps over the lazy dog"
+    • Press Ctrl+Shift+E
+    • Select "my-field" in popup
+    • See: "✨ Capture successfully indexed!"
+
+  Boardroom Chat:
+    • Type: "Tell me about the fox"
+    • Palimind retrieves and answers based on your capture!
+
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║  STATUS: ✨ COMPLETE & READY TO USE ✨                                     ║
+║  Quick Start: pm ui → pm hotkey start → Ctrl+Shift+E → Select Field       ║
+╚════════════════════════════════════════════════════════════════════════════╝

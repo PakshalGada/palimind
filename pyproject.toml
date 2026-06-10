@@ -28,6 +28,11 @@ pm = "core.cli.main:app"
 
 [project.optional-dependencies]
 ocr = ["easyocr>=1.7"]
+hotkey = [
+    "pynput>=1.7.6",
+    "pyperclip>=1.9.0",
+    "requests>=2.32.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
