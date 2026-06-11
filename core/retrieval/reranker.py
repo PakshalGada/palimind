@@ -23,9 +23,8 @@ def _load_reranker() -> CrossEncoder | None:
     return _reranker_model
 
 
-# Eagerly start loading in a background thread so it's ready by first query.
-import threading as _threading
-_threading.Thread(target=_load_reranker, daemon=True).start()
+# Lazy loading only; no background thread so we don't force HF downloads
+# until actually used.
 
 
 def rerank_chunks(query: str, chunks: list[dict], top_n: int = 5) -> list[dict]:

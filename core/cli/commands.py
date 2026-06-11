@@ -26,6 +26,11 @@ from core.cli.ui import (
 
 app = typer.Typer(help="Palimind - Local Multimodal RAG CLI")
 
+# Register email sub-app
+from core.email.cli import app as email_app  # noqa: E402
+
+app.add_typer(email_app, name="email")
+
 
 @app.command()
 def init(path: Path = typer.Argument(..., help="Path to initialize indexing")):
@@ -151,8 +156,8 @@ def chat(
 
     from core.config import load_config
     config = load_config(target_dir)
-    ollama_url = config.get("ollama_base_url", "https://puny-aliens-film.loca.lt")
-    chat_model = config.get("chat_model", "llama3")
+    ollama_url = config.get("ollama_base_url", "https://heavy-hounds-hunt.loca.lt")
+    chat_model = config.get("chat_model", "gemma4:e4b")
 
     from core.agent import needs_retrieval, reformulate_query
 

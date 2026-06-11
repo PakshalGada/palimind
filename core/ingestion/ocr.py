@@ -1,6 +1,5 @@
 import io
 
-import easyocr
 import numpy as np
 from PIL import Image
 
@@ -12,6 +11,7 @@ _reader = None
 def get_reader():
     global _reader
     if _reader is None:
+        import easyocr  # lazy import — only load when OCR is actually needed
         _reader = easyocr.Reader(["en"], gpu=True)
     return _reader
 
