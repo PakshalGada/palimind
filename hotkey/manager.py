@@ -64,26 +64,51 @@ class HotkeyManager:
         print("✓ Hotkey manager stopped")
 
     def _on_hotkey_pressed(self, sync: bool = False) -> None:
-        """Handle hotkey press - show field selector then wait for clipboard change."""
+        """Handle hotkey press - capture text then show field selector."""
         # Debounce rapid presses
         now = time.time() * 1000
         if now - self._last_capture_time < self._debounce_ms:
             return
         self._last_capture_time = now
 
+        print("⚡ Hotkey triggered! Capturing text...")
+
+        # 1. Back up current clipboard content
+        old_text = self.bindings.get_clipboard_text()
+
+        # 2. Simulate Copy
+        self.bindings.simulate_copy()
+
+        # 3. Retrieve the selected text
+        captured_text = self.bindings.get_clipboard_text()
+
+        # 4. Restore the backup clipboard
+        self.bindings.set_clipboard_text(old_text)
+
+        # Fallback to backup if no selection was captured
+        if not captured_text or not captured_text.strip():
+            captured_text = old_text
+
+        # Final placeholder if still empty
+        if not captured_text or not captured_text.strip():
+            captured_text = "[No text captured. Make sure to select text before pressing the hotkey.]"
+
+        self.captured_text = captured_text
+        print(f"✓ Text captured ({len(captured_text)} chars)")
+
         if sync:
-            show_field_selector(self._on_field_selected)
+            show_field_selector(self.captured_text, self._on_field_selected)
         else:
             # Show field selector in separate thread to avoid blocking pynput
             selector_thread = threading.Thread(
-                target=lambda: show_field_selector(self._on_field_selected), 
+                target=lambda: show_field_selector(self.captured_text, self._on_field_selected), 
                 daemon=True
             )
             selector_thread.start()
 
     def _on_field_selected(self, field: Optional[FieldInfo]) -> None:
         """
-        Handle field selection from popup. Wait for clipboard change to get text.
+        Handle field selection from popup. We already have the captured text.
         
         Args:
             field: Selected FieldInfo, or None if cancelled
@@ -92,31 +117,13 @@ class HotkeyManager:
             print("⚠ Field selection cancelled")
             return
 
-        print(f"✓ Selected field: {field.name}. Waiting for text to be copied...")
-
-        def wait_for_copy():
-            initial_text = self.bindings.get_clipboard_text()
-            # Monitor clipboard for up to 60 seconds
-            for _ in range(600):  
-                time.sleep(0.1)
-                current_text = self.bindings.get_clipboard_text()
-                if current_text != initial_text and current_text.strip():
-                    print(f"✓ Captured text ({len(current_text)} chars)")
-                    self._process_capture(current_text, field)
-                    return
-            print("⚠ Timed out waiting for text to be copied")
-
-        wait_thread = threading.Thread(target=wait_for_copy, daemon=True)
-        wait_thread.start()
+        print(f"✓ Selected field: {field.name}. Saving captured text...")
+        self._process_capture(self.captured_text, field)
 
     def _process_capture(self, text: str, field: FieldInfo) -> None:
         """Process the captured text and selected field."""
-        # Process the capture (save + index) in background thread
-        def process():
-            self.processor.process_capture(field.path, text)
-
-        processor_thread = threading.Thread(target=process, daemon=True)
-        processor_thread.start()
+        # Process the capture (save + index)
+        self.processor.process_capture(field.path, text)
 
         # Create and invoke event
         event = HotkeyEvent(

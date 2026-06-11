@@ -80,8 +80,8 @@ async function saveSelection() {
         // Fallback if browser blocks window.close()
         document.body.innerHTML = `
             <div class="container" style="text-align: center;">
-                <h1 style="color: #4ade80;">Ready to Capture!</h1>
-                <p class="subtitle">You can now safely close this tab and copy text from any app.</p>
+                <h1 style="color: #4ade80;">Saved Successfully!</h1>
+                <p class="subtitle">The captured text has been added to the field context. You can now safely close this tab.</p>
             </div>`;
     } catch (error) {
         console.error('Save failed:', error);
@@ -137,5 +137,23 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+async function fetchCapturedText() {
+    try {
+        const response = await fetch('/api/captured');
+        const data = await response.json();
+        const textarea = document.getElementById('previewText');
+        if (textarea) {
+            textarea.value = data.text || '';
+        }
+    } catch (error) {
+        console.error('Error fetching captured text:', error);
+        const textarea = document.getElementById('previewText');
+        if (textarea) {
+            textarea.value = '[Failed to load captured text]';
+        }
+    }
+}
+
 // Initialize
 fetchFields();
+fetchCapturedText();

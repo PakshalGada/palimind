@@ -11,7 +11,12 @@
 
     <div class="container">
         <h1>Save Capture</h1>
-        <p class="subtitle">Select a Field. After saving, Palimind will monitor your clipboard. Simply copy any text to capture it.</p>
+        <p class="subtitle">Choose a Field to save the captured text into its knowledge context.</p>
+
+        <div class="preview-container">
+            <label class="preview-label">Captured Content</label>
+            <textarea id="previewText" class="preview-textarea" readonly>Loading captured text...</textarea>
+        </div>
 
         <div class="fields-container" id="fieldsList">
             <div class="loading">Loading fields...</div>

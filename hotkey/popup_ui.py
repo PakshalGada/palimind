@@ -62,11 +62,12 @@ def _find_free_port() -> int:
         return s.getsockname()[1]
 
 
-def show_field_selector(on_select: Callable[[Optional[FieldInfo]], None]) -> None:
+def show_field_selector(captured_text: str, on_select: Callable[[Optional[FieldInfo]], None]) -> None:
     """
     Show web-based field selector popup and invoke callback on selection.
     
     Args:
+        captured_text: The text that was captured on hotkey trigger
         on_select: Callback with selected FieldInfo or None if cancelled
     """
     app = FastAPI()
@@ -83,6 +84,10 @@ def show_field_selector(on_select: Callable[[Optional[FieldInfo]], None]) -> Non
     def get_fields():
         fields = FieldInfoLoader.load_fields()
         return {"fields": [{"name": f.name, "path": f.path, "is_active": f.is_active} for f in fields]}
+
+    @app.get("/api/captured")
+    def get_captured():
+        return {"text": captured_text}
 
     @app.post("/api/select")
     async def select_field(req: Request):
@@ -111,7 +116,8 @@ def show_field_selector(on_select: Callable[[Optional[FieldInfo]], None]) -> Non
     time.sleep(0.5)
     
     # Open the browser to the local server
-    url = f"http://127.0.0.1:{port}/ui/hotkey.html"
+    url = f"http://127.0.0.1:{port}/ui/template/hotkey.html"
+    print(f"🔗 Opening field selector URL: {url}")
     webbrowser.open(url)
     
     # Block until selection is made or server shuts down

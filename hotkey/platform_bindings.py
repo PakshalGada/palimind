@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sys
 import threading
+import time
 from typing import Callable, Optional
 
 import pyperclip
@@ -73,14 +74,96 @@ class PlatformBindings:
         try:
             return pyperclip.paste()
         except Exception as e:
-            print(f"Error reading clipboard: {e}")
-            return ""
+            # Fallback to tkinter
+            try:
+                import tkinter as tk
+                root = tk.Tk()
+                root.withdraw()
+                text = root.clipboard_get()
+                root.destroy()
+                return text
+            except Exception as tk_err:
+                print(f"Clipboard read failed: pyperclip({e}), tkinter({tk_err})")
+                return ""
+
+    def set_clipboard_text(self, text: str) -> None:
+        """
+        Set text in system clipboard.
+        
+        Args:
+            text: Text to copy to clipboard
+        """
+        try:
+            pyperclip.copy(text)
+        except Exception as e:
+            # Fallback to tkinter
+            try:
+                import tkinter as tk
+                root = tk.Tk()
+                root.withdraw()
+                root.clipboard_clear()
+                root.clipboard_append(text)
+                root.update()
+                root.destroy()
+            except Exception as tk_err:
+                print(f"Clipboard write failed: pyperclip({e}), tkinter({tk_err})")
+
+    def simulate_copy(self) -> bool:
+        """
+        Simulate pressing Ctrl+C (Windows/Linux) or Cmd+C (macOS) to copy selected text.
+        
+        Returns:
+            True if simulation succeeded, False otherwise
+        """
+        try:
+            from pynput.keyboard import Controller, Key
+            keyboard_controller = Controller()
+
+            # Wait a brief moment for user to release hotkey keys
+            time.sleep(0.25)
+
+            # Programmatically release modifiers to prevent interference
+            modifiers = [
+                Key.ctrl, Key.ctrl_l, Key.ctrl_r,
+                Key.alt, Key.alt_l, Key.alt_r,
+                Key.shift, Key.shift_l, Key.shift_r,
+                Key.cmd, Key.cmd_l, Key.cmd_r
+            ]
+            for mod in modifiers:
+                try:
+                    keyboard_controller.release(mod)
+                except Exception:
+                    pass
+
+            is_mac = sys.platform == "darwin"
+
+            if is_mac:
+                # Command + C
+                keyboard_controller.press(Key.cmd)
+                keyboard_controller.press('c')
+                time.sleep(0.05)
+                keyboard_controller.release('c')
+                keyboard_controller.release(Key.cmd)
+            else:
+                # Control + C
+                keyboard_controller.press(Key.ctrl)
+                keyboard_controller.press('c')
+                time.sleep(0.05)
+                keyboard_controller.release('c')
+                keyboard_controller.release(Key.ctrl)
+
+            # Allow some time for OS clipboard to update
+            time.sleep(0.2)
+            return True
+        except Exception as e:
+            print(f"Error simulating copy: {e}")
+            return False
 
     def ensure_setup(self) -> None:
         """Verify platform bindings are properly set up."""
         try:
             # Test clipboard access
-            test = pyperclip.paste()
+            test = self.get_clipboard_text()
             print(f"✓ Platform bindings ready (clipboard accessible)")
         except Exception as e:
             print(f"⚠ Warning: {e}")

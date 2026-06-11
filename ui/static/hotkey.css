@@ -235,3 +235,38 @@ button {
     border-radius: 12px;
     border: 1px dashed var(--glass-border);
 }
+
+.preview-container {
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.preview-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+}
+
+.preview-textarea {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 12px 16px;
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: none;
+    height: 80px;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.preview-textarea:focus {
+    border-color: var(--primary);
+    background: rgba(99, 102, 241, 0.03);
+}
