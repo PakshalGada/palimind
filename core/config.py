@@ -42,7 +42,7 @@ DEFAULTS = {
     ],
     "doc_extensions": [".pdf", ".docx", ".pptx", ".xlsx"],
     "image_extensions": [".png", ".jpg", ".jpeg", ".webp"],
-    "ollama_base_url": "http://localhost:11434",
+    "ollama_base_url": "https://puny-aliens-film.loca.lt",
 }
 
 

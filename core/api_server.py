@@ -637,7 +637,7 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
         from core.config import load_config
         from core.querying import query_stream_with_diagnostics
         config = load_config(state.active_field)
-        ollama_url = config.get("ollama_base_url", "http://localhost:11434")
+        ollama_url = config.get("ollama_base_url", "https://puny-aliens-film.loca.lt")
         chat_model = config.get("chat_model", "llama3")
 
         needs_retrieval_fast = await asyncio.to_thread(
@@ -782,6 +782,134 @@ async def voice_synthesize(request: Request):
         return Response(content=wav_bytes, media_type="audio/wav")
     except Exception as e:
         return Response(status_code=500, content=f"Synthesis error: {str(e)}")
+
+# -- Model Switcher & Config Endpoints --
+
+def _fetch_ollama_models_blocking(ollama_url: str) -> list[dict]:
+    """Fetch available models from Ollama API."""
+    import urllib.request
+    import urllib.error
+
+    base = ollama_url.rstrip("/")
+    url = f"{base}/api/tags"
+    try:
+        req = urllib.request.Request(url, method="GET")
+        req.add_header("User-Agent", "Palimind/2.0")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            models = []
+            for m in data.get("models", []):
+                name = m.get("name", "")
+                size_bytes = m.get("size", 0)
+                size_gb = round(size_bytes / (1024**3), 1) if size_bytes else 0
+                param_size = m.get("details", {}).get("parameter_size", "")
+                family = m.get("details", {}).get("family", "")
+                models.append({
+                    "model_id": name,
+                    "display_name": name,
+                    "family": family,
+                    "parameter_size": param_size,
+                    "size_gb": size_gb,
+                    "provider": "ollama",
+                })
+            return models
+    except Exception as e:
+        print(f"Failed to fetch Ollama models: {e}")
+        return []
+
+
+@app.get("/api/models")
+async def get_models():
+    """Fetch available models from configured Ollama instance."""
+    from core.config import load_config
+    config = {}
+    if state.active_field:
+        config = load_config(state.active_field)
+    ollama_url = config.get("ollama_base_url", "http://localhost:11434")
+    current_model = config.get("chat_model", "llama3")
+    try:
+        models = await asyncio.to_thread(_fetch_ollama_models_blocking, ollama_url)
+        return {
+            "models": models,
+            "current_model": current_model,
+            "ollama_url": ollama_url,
+        }
+    except Exception as e:
+        return {"error": str(e), "models": [], "current_model": current_model}
+
+
+@app.patch("/api/config/model")
+async def update_model(req: Request):
+    """Update the active chat model for the current field."""
+    data = await req.json()
+    model_id = data.get("model_id")
+    if not model_id:
+        return {"error": "model_id is required"}
+
+    from core.config import load_config, config_path, palimind_dir
+
+    # Update field-level config
+    if state.active_field:
+        cfg = load_config(state.active_field)
+        cfg["chat_model"] = model_id
+        p_dir = palimind_dir(state.active_field)
+        p_dir.mkdir(parents=True, exist_ok=True)
+        cp = config_path(state.active_field)
+        cp.write_text(json.dumps(cfg, indent=2), "utf-8")
+
+    # Also update global config
+    try:
+        global_data = {}
+        if GLOBAL_CONFIG_PATH.exists():
+            global_data = json.loads(GLOBAL_CONFIG_PATH.read_text("utf-8"))
+        global_data["chat_model"] = model_id
+        GLOBAL_CONFIG_PATH.write_text(json.dumps(global_data, indent=2), "utf-8")
+    except Exception:
+        pass
+
+    return {"status": "success", "model": model_id}
+
+
+@app.get("/api/config")
+async def get_config():
+    """Return current config for the active field."""
+    from core.config import load_config
+    config = {}
+    if state.active_field:
+        config = load_config(state.active_field)
+    return {
+        "chat_model": config.get("chat_model", "llama3"),
+        "embed_model": config.get("embed_model", "nomic-embed-text"),
+        "ollama_base_url": config.get("ollama_base_url", "http://localhost:11434"),
+    }
+
+
+# -- Cookbook / Hardware Endpoints --
+
+@app.get("/api/cookbook/hardware")
+async def get_hardware():
+    """Detect and return hardware profile for cookbook recommendations."""
+    try:
+        from core.hwfit.hardware import detect_hardware
+        profile = await asyncio.to_thread(detect_hardware)
+        return profile.to_dict()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/cookbook/recommendations")
+async def get_recommendations(top: int = 20):
+    """Get hardware-aware model recommendations."""
+    try:
+        from core.hwfit.hardware import detect_hardware
+        from core.hwfit.catalog import MODEL_CATALOG
+        from core.hwfit.fit import rank_models
+        profile = await asyncio.to_thread(detect_hardware)
+        ranked = rank_models(profile, MODEL_CATALOG, top=top)
+        return {"recommendations": ranked, "hardware": profile.to_dict()}
+    except Exception as e:
+        return {"error": str(e), "recommendations": []}
+
 
 def run_server(port: int = 8000):
     uvicorn.run(app, host="127.0.0.1", port=port)

@@ -155,7 +155,7 @@ def _hybrid_search(
     """
     from core.retrieval.reranker import rerank_chunks
 
-    ollama_url = config.get("ollama_base_url", "http://localhost:11434")
+    ollama_url = config.get("ollama_base_url", "https://puny-aliens-film.loca.lt")
     embed_model = config.get("embed_model", "nomic-embed-text")
     search_limit = max(limit * 3, 15)
 

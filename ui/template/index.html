@@ -26,6 +26,7 @@
                         id="btn-settings"
                         class="icon-btn"
                         title="Settings"
+                        aria-label="Open settings"
                         style="margin-left: auto"
                     >
                         <svg
@@ -54,6 +55,7 @@
                             id="btn-add-field"
                             class="icon-btn"
                             title="Add Field"
+                            aria-label="Add field"
                         >
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -91,6 +93,7 @@
                             id="btn-add-session"
                             class="icon-btn"
                             title="New Session"
+                            aria-label="Create new session"
                         >
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -186,14 +189,23 @@
                     </div>
 
                     <div id="messages-container" class="messages"></div>
+                    <div class="chat-empty-hero" aria-hidden="true">
+                        <h1>Ask Palimind</h1>
+                        <p>Search your field, reason over files, or start a new thread.</p>
+                    </div>
 
                     <div class="input-area">
                         <div class="input-wrapper">
-                            <textarea id="chat-input" rows="1"></textarea>
+                            <textarea
+                                id="chat-input"
+                                rows="1"
+                                aria-label="Chat message"
+                            ></textarea>
                             <button
                                 id="btn-mic"
                                 class="mic-btn"
                                 title="Voice Input"
+                                aria-label="Start voice input"
                             >
                                 <svg
                                     xmlns="http://www.w3.org/2000/svg"
@@ -218,7 +230,12 @@
                                     ></line>
                                 </svg>
                             </button>
-                            <button id="btn-send" class="send-btn">
+                            <button
+                                id="btn-send"
+                                class="send-btn"
+                                title="Send message"
+                                aria-label="Send message"
+                            >
                                 <svg
                                     xmlns="http://www.w3.org/2000/svg"
                                     width="20"
@@ -237,20 +254,101 @@
                                 </svg>
                             </button>
                         </div>
+                        <!-- Model Switcher Pill -->
+                        <div id="model-switcher-area" class="model-switcher-area">
+                            <button
+                                id="model-switcher-pill"
+                                class="model-switcher-pill"
+                                title="Switch Model"
+                                aria-label="Switch model"
+                                aria-haspopup="dialog"
+                                aria-expanded="false"
+                                aria-controls="model-switcher-dropdown"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                                <span id="model-switcher-name">Loading...</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </button>
+                            <!-- Dropdown (hidden by default) -->
+                            <div
+                                id="model-switcher-dropdown"
+                                class="model-switcher-dropdown"
+                                role="dialog"
+                                aria-label="Model selection"
+                                style="display:none"
+                            >
+                                <!-- Tab Bar -->
+                                <div class="ms-tab-bar" role="tablist" aria-label="Model menu sections">
+                                    <button
+                                        class="ms-tab active"
+                                        data-tab="models"
+                                        role="tab"
+                                        aria-selected="true"
+                                        aria-controls="ms-panel-models"
+                                    >Models</button>
+                                    <button
+                                        class="ms-tab"
+                                        data-tab="cookbook"
+                                        role="tab"
+                                        aria-selected="false"
+                                        aria-controls="ms-panel-cookbook"
+                                    >Cookbook</button>
+                                </div>
+                                <!-- Models Tab -->
+                                <div id="ms-panel-models" class="ms-panel" role="tabpanel">
+                                    <div class="model-search-container">
+                                        <input
+                                            type="text"
+                                            id="model-search-input"
+                                            class="model-search-input"
+                                            placeholder="Search models..."
+                                            autocomplete="off"
+                                            aria-label="Search models"
+                                        />
+                                    </div>
+                                    <div id="model-list" class="model-list" role="listbox" aria-label="Available models">
+                                        <div class="model-list-loading">Loading models...</div>
+                                    </div>
+                                </div>
+                                <!-- Cookbook Tab -->
+                                <div
+                                    id="ms-panel-cookbook"
+                                    class="ms-panel"
+                                    role="tabpanel"
+                                    hidden
+                                >
+                                    <div id="hw-card" class="hw-summary-card">
+                                        <span class="model-menu-state">Detecting hardware...</span>
+                                    </div>
+                                    <div class="ms-rec-header">
+                                        <span class="ms-rec-title">Recommended for your hardware</span>
+                                    </div>
+                                    <div id="rec-grid" class="recommendation-grid"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </main>
         </div>
 
         <!-- Settings Modal -->
-        <div id="settings-modal" class="modal" style="display: none">
+        <div
+            id="settings-modal"
+            class="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-title"
+            style="display: none"
+        >
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2>Settings</h2>
+                    <h2 id="settings-title">Settings</h2>
                     <button
                         id="btn-close-settings"
                         class="icon-btn"
                         title="Close Settings"
+                        aria-label="Close settings"
                     >
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -291,14 +389,22 @@
         </div>
 
         <!-- Directory Picker Modal -->
-        <div id="dir-picker-modal" class="modal" style="display: none">
+        <div
+            id="dir-picker-modal"
+            class="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dir-picker-title"
+            style="display: none"
+        >
             <div class="modal-content dir-picker-content">
                 <div class="modal-header">
-                    <h2>Choose Workspace Directory</h2>
+                    <h2 id="dir-picker-title">Choose Workspace Directory</h2>
                     <button
                         id="btn-close-dir-picker"
                         class="icon-btn"
                         title="Cancel"
+                        aria-label="Close directory picker"
                     >
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -318,7 +424,12 @@
                 </div>
                 <div class="modal-body dir-picker-body">
                     <div class="dir-picker-path-row">
-                        <button id="btn-dir-up" class="icon-btn" title="Go Up">
+                        <button
+                            id="btn-dir-up"
+                            class="icon-btn"
+                            title="Go Up"
+                            aria-label="Go up one directory"
+                        >
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
                                 width="16"
@@ -337,6 +448,7 @@
                         <input
                             type="text"
                             id="dir-current-path-input"
+                            aria-label="Current directory path"
                             readonly
                         />
                     </div>

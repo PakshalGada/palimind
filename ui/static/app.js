@@ -54,7 +54,7 @@ function formatMarkdown(text) {
         <div class="code-box">
           <div class="code-box-header">
             <span class="code-box-lang">${langLabel}</span>
-            <button class="code-box-copy" onclick="copyCode(this)">Copy</button>
+            <button class="code-box-copy" type="button" aria-label="Copy code" onclick="copyCode(this)">Copy</button>
           </div>
           <pre><code>${escapedCode}</code></pre>
         </div>
@@ -178,17 +178,105 @@ async function fetchFields() {
   }
 }
 
+const FIELD_TITLE_STORAGE_KEY = "palimind:field-display-titles";
+
+function getPathLeaf(path) {
+  if (!path) return "";
+  return String(path).split(/[\\/]+/).filter(Boolean).pop() || String(path);
+}
+
+function titleCaseToken(token) {
+  if (/^[A-Z0-9]{2,5}$/.test(token)) return token;
+  if (/^[a-z]{1,3}$/i.test(token)) return token.toUpperCase();
+  return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase();
+}
+
+function deriveFieldTitle(path) {
+  const leaf = getPathLeaf(path);
+  if (!leaf) return "Field Workspace";
+
+  const cleaned = leaf
+    .replace(/\b\d{8}T\d{6}Z(?:-\d+)*\b/gi, "")
+    .replace(/\b\d{8,14}\b/g, "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const source = cleaned || leaf;
+  const title = source
+    .split(" ")
+    .filter(Boolean)
+    .map(titleCaseToken)
+    .join(" ");
+
+  if (/^[A-Z0-9]{2,5}$/.test(title) || title.length <= 4) {
+    return `${title} Workspace`;
+  }
+  return title || "Field Workspace";
+}
+
+function getStoredFieldTitles() {
+  try {
+    return JSON.parse(localStorage.getItem(FIELD_TITLE_STORAGE_KEY) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+
+function getFieldDisplayTitle(path) {
+  const key = String(path || "");
+  const titles = getStoredFieldTitles();
+  if (titles[key]) return titles[key];
+
+  const title = deriveFieldTitle(key);
+  try {
+    titles[key] = title;
+    localStorage.setItem(FIELD_TITLE_STORAGE_KEY, JSON.stringify(titles));
+  } catch (e) {
+    // Non-critical: title persistence can fail in private or restricted storage.
+  }
+  return title;
+}
+
+function getFieldPathHint(path) {
+  const parts = String(path || "").split(/[\\/]+/).filter(Boolean);
+  if (parts.length <= 1) return path || "";
+  return parts.slice(Math.max(0, parts.length - 3)).join(" / ");
+}
+
+function renderActiveFieldTitle(path) {
+  if (!activeFieldTitle) return;
+  const displayTitle = getFieldDisplayTitle(path);
+  const pathHint = getFieldPathHint(path);
+
+  activeFieldTitle.innerHTML = "";
+  activeFieldTitle.title = path || displayTitle;
+  activeFieldTitle.setAttribute("aria-label", `${displayTitle}. ${path || ""}`);
+
+  const titleSpan = document.createElement("span");
+  titleSpan.className = "active-field-name";
+  titleSpan.textContent = displayTitle;
+  activeFieldTitle.appendChild(titleSpan);
+
+  if (pathHint && pathHint !== displayTitle) {
+    const pathSpan = document.createElement("span");
+    pathSpan.className = "active-field-path";
+    pathSpan.textContent = pathHint;
+    activeFieldTitle.appendChild(pathSpan);
+  }
+}
+
 function renderFields(fields, currentActive) {
   fieldsList.innerHTML = "";
   fields.forEach((path) => {
     const li = document.createElement("li");
     li.className = `field-item ${path === currentActive ? "active" : ""}`;
 
-    const folderName = path.split("\\").pop().split("/").pop();
+    const fieldTitle = getFieldDisplayTitle(path);
 
     const nameSpan = document.createElement("span");
     nameSpan.className = "field-name";
-    nameSpan.textContent = folderName;
+    nameSpan.textContent = fieldTitle;
     nameSpan.title = path;
     nameSpan.onclick = () => setActiveField(path);
 
@@ -230,7 +318,7 @@ function updateMainArea(currentActive) {
   if (activeField) {
     welcomeScreen.style.display = "none";
     chatInterface.style.display = "flex";
-    activeFieldTitle.textContent = activeField;
+    renderActiveFieldTitle(activeField);
     selectedFiles.clear();
     fetchSessions();
     fetchFileTree();
@@ -1216,10 +1304,12 @@ function adjustInputWidth() {
   if (!wrapper || !chatInput) return;
 
   const charCount = chatInput.value.length;
-  const baseWidth = 600;
+  const availableWidth = Math.max(280, window.innerWidth - 48);
+  const baseWidth = Math.min(600, availableWidth);
   const maxWidth = 900;
   const calculatedWidth = Math.min(
     maxWidth,
+    availableWidth,
     Math.max(baseWidth, baseWidth + charCount * 6),
   );
   wrapper.style.width = `${calculatedWidth}px`;
@@ -1230,6 +1320,7 @@ function adjustInputWidth() {
 
 if (chatInput) {
   chatInput.addEventListener("input", adjustInputWidth);
+  window.addEventListener("resize", adjustInputWidth);
   // Trigger initially to establish correct dimensions
   adjustInputWidth();
 }
@@ -1374,3 +1465,319 @@ if (btnSelectDirConfirm) {
     }
   });
 }
+
+// ═══════════════════════════════════════════════════════════
+// MODEL SWITCHER + COOKBOOK — Unified tabbed dropdown
+// ═══════════════════════════════════════════════════════════
+
+const ModelSwitcher = (() => {
+  let currentModel = "";
+  let modelsList = [];
+  let isOpen = false;
+  let highlightIndex = -1;
+  let cookbookLoaded = false;
+  let hwData = null;
+  let recommendations = [];
+
+  const pill = document.getElementById("model-switcher-pill");
+  const nameSpan = document.getElementById("model-switcher-name");
+  const dropdown = document.getElementById("model-switcher-dropdown");
+  const searchInput = document.getElementById("model-search-input");
+  const listContainer = document.getElementById("model-list");
+
+  function init() {
+    if (!pill) return;
+    pill.setAttribute("aria-expanded", "false");
+    if (dropdown) {
+      dropdown.querySelectorAll(".ms-tab").forEach(tab => {
+        tab.setAttribute("type", "button");
+      });
+    }
+    fetchCurrentModel();
+
+    pill.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (isOpen) close(); else open();
+    });
+
+    document.addEventListener("click", (e) => {
+      if (isOpen && dropdown && !dropdown.contains(e.target) && !pill.contains(e.target)) {
+        close();
+      }
+    });
+
+    if (searchInput) {
+      searchInput.addEventListener("input", () => renderFilteredList());
+      searchInput.addEventListener("keydown", handleKeyboard);
+    }
+
+    // Tab switching
+    if (dropdown) {
+      dropdown.querySelectorAll(".ms-tab").forEach(tab => {
+        tab.addEventListener("click", (e) => {
+          e.stopPropagation();
+          switchTab(tab.dataset.tab);
+        });
+      });
+    }
+  }
+
+  function switchTab(tabName) {
+    if (!dropdown) return;
+    dropdown.querySelectorAll(".ms-tab").forEach(t => {
+      const isActive = t.dataset.tab === tabName;
+      t.classList.toggle("active", isActive);
+      t.setAttribute("aria-selected", isActive ? "true" : "false");
+      t.tabIndex = isActive ? 0 : -1;
+    });
+    const modelsPanel = document.getElementById("ms-panel-models");
+    const cookbookPanel = document.getElementById("ms-panel-cookbook");
+    if (modelsPanel) {
+      const showModels = tabName === "models";
+      modelsPanel.style.display = showModels ? "flex" : "none";
+      modelsPanel.hidden = !showModels;
+    }
+    if (cookbookPanel) {
+      const showCookbook = tabName === "cookbook";
+      cookbookPanel.style.display = showCookbook ? "flex" : "none";
+      cookbookPanel.hidden = !showCookbook;
+    }
+
+    if (tabName === "cookbook" && !cookbookLoaded) {
+      cookbookLoaded = true;
+      loadHardware();
+    }
+  }
+
+  // ── Models tab ──
+
+  async function fetchCurrentModel() {
+    try {
+      const res = await fetch("/api/config");
+      const data = await res.json();
+      currentModel = data.chat_model || "llama3";
+      if (nameSpan) nameSpan.textContent = currentModel;
+    } catch (e) {
+      if (nameSpan) nameSpan.textContent = "offline";
+    }
+  }
+
+  async function fetchModels() {
+    setModelListState("Fetching models...");
+    try {
+      const res = await fetch("/api/models");
+      const data = await res.json();
+      if (data.error) {
+        setModelListState(`Error: ${data.error}`, "error");
+        return;
+      }
+      modelsList = data.models || [];
+      currentModel = data.current_model || currentModel;
+      if (nameSpan) nameSpan.textContent = currentModel;
+      renderFilteredList();
+    } catch (e) {
+      setModelListState("Failed to connect", "error");
+    }
+  }
+
+  function setModelListState(message, type = "") {
+    if (!listContainer) return;
+    listContainer.innerHTML = "";
+    const state = document.createElement("div");
+    state.className = `model-list-loading model-menu-state${type ? " " + type : ""}`;
+    state.textContent = message;
+    listContainer.appendChild(state);
+  }
+
+  function renderFilteredList() {
+    if (!listContainer) return;
+    const query = (searchInput ? searchInput.value : "").toLowerCase().trim();
+    const filtered = query
+      ? modelsList.filter(m => {
+          const modelId = (m.model_id || "").toLowerCase();
+          const family = (m.family || "").toLowerCase();
+          const displayName = (m.display_name || "").toLowerCase();
+          return modelId.includes(query) || family.includes(query) || displayName.includes(query);
+        })
+      : modelsList;
+
+    highlightIndex = -1;
+    if (filtered.length === 0) {
+      setModelListState("No models found", "empty");
+      return;
+    }
+    listContainer.innerHTML = "";
+    filtered.forEach((m, idx) => {
+      const item = document.createElement("div");
+      item.className = "model-list-item" + (m.model_id === currentModel ? " active-model" : "");
+      item.dataset.index = idx;
+      item.setAttribute("role", "option");
+      item.setAttribute("aria-selected", m.model_id === currentModel ? "true" : "false");
+      item.tabIndex = -1;
+      item.innerHTML = `
+        ${m.model_id === currentModel ? '<span class="model-active-dot"></span>' : ""}
+        <span class="model-list-item-name">${m.display_name || m.model_id}</span>
+        <span class="model-list-item-meta">${m.parameter_size || ""} ${m.size_gb ? m.size_gb + "GB" : ""}</span>
+      `;
+      item.addEventListener("click", () => selectModel(m.model_id));
+      listContainer.appendChild(item);
+    });
+  }
+
+  async function selectModel(modelId) {
+    if (modelId === currentModel) { close(); return; }
+    if (nameSpan) nameSpan.textContent = modelId;
+    currentModel = modelId;
+    close();
+    try {
+      const res = await fetch("/api/config/model", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model_id: modelId }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        showSyncToast("Model switch failed: " + data.error);
+      } else {
+        showSyncToast("Switched to " + modelId);
+      }
+    } catch (e) {
+      showSyncToast("Failed to switch model");
+    }
+    window.dispatchEvent(new CustomEvent("palimind:model-changed", { detail: { model: modelId } }));
+  }
+
+  function open() {
+    if (!dropdown) return;
+    isOpen = true;
+    dropdown.style.display = "flex";
+    dropdown.hidden = false;
+    pill.classList.add("open");
+    pill.setAttribute("aria-expanded", "true");
+    switchTab("models");
+    if (searchInput) { searchInput.value = ""; searchInput.focus(); }
+    fetchModels();
+  }
+
+  function close() {
+    if (!dropdown) return;
+    isOpen = false;
+    dropdown.style.display = "none";
+    dropdown.hidden = true;
+    pill.classList.remove("open");
+    pill.setAttribute("aria-expanded", "false");
+    highlightIndex = -1;
+  }
+
+  function handleKeyboard(e) {
+    const items = listContainer ? listContainer.querySelectorAll(".model-list-item") : [];
+    if (e.key === "Escape") { close(); return; }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      highlightIndex = Math.min(highlightIndex + 1, items.length - 1);
+      updateHighlight(items);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      highlightIndex = Math.max(highlightIndex - 1, 0);
+      updateHighlight(items);
+    } else if (e.key === "Enter" && highlightIndex >= 0 && highlightIndex < items.length) {
+      e.preventDefault();
+      items[highlightIndex].click();
+    }
+  }
+
+  function updateHighlight(items) {
+    items.forEach((item, i) => {
+      item.classList.toggle("keyboard-highlight", i === highlightIndex);
+    });
+    if (items[highlightIndex]) {
+      items[highlightIndex].scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  // ── Cookbook tab ──
+
+  async function loadHardware() {
+    const hwCard = document.getElementById("hw-card");
+    setCookbookState(hwCard, "Detecting hardware...");
+    try {
+      const res = await fetch("/api/cookbook/hardware");
+      hwData = await res.json();
+      if (hwData.error) {
+        setCookbookState(hwCard, `Error: ${hwData.error}`, "error");
+        return;
+      }
+      renderHardware();
+      loadRecommendations();
+    } catch (e) {
+      setCookbookState(hwCard, "Hardware detection failed", "error");
+    }
+  }
+
+  function setCookbookState(container, message, type = "") {
+    if (!container) return;
+    container.innerHTML = "";
+    const state = document.createElement("span");
+    state.className = `model-menu-state${type ? " " + type : ""}`;
+    state.textContent = message;
+    container.appendChild(state);
+  }
+
+  function renderHardware() {
+    const hwCard = document.getElementById("hw-card");
+    if (!hwCard || !hwData) return;
+    const gpuLines = hwData.gpus && hwData.gpus.length > 0
+      ? hwData.gpus.map(g => `<span class="hw-gpu-name">${g.name}</span><span>VRAM: <span class="hw-vram">${(g.vram_mb / 1024).toFixed(1)} GB</span></span>`).join("")
+      : '<span class="hw-gpu-name">No GPU detected (CPU only)</span>';
+    const ramGB = hwData.total_ram_mb ? (hwData.total_ram_mb / 1024).toFixed(0) : "?";
+    const engines = hwData.serve_engines_available && hwData.serve_engines_available.length > 0
+      ? hwData.serve_engines_available.join(", ") : "none";
+    hwCard.innerHTML = `${gpuLines}<span>RAM: ${ramGB} GB · ${hwData.os_platform || "?"}</span><span>Engines: ${engines}</span>`;
+  }
+
+  async function loadRecommendations() {
+    const recGrid = document.getElementById("rec-grid");
+    if (!recGrid) return;
+    setRecommendationState("Loading...");
+    try {
+      const res = await fetch("/api/cookbook/recommendations?top=10");
+      const data = await res.json();
+      recommendations = data.recommendations || [];
+      renderRecommendations();
+    } catch (e) {
+      setRecommendationState("Failed to load", "error");
+    }
+  }
+
+  function setRecommendationState(message, type = "") {
+    const recGrid = document.getElementById("rec-grid");
+    if (!recGrid) return;
+    recGrid.innerHTML = "";
+    const state = document.createElement("div");
+    state.className = `model-menu-state${type ? " " + type : ""}`;
+    state.textContent = message;
+    recGrid.appendChild(state);
+  }
+
+  function renderRecommendations() {
+    const recGrid = document.getElementById("rec-grid");
+    if (!recGrid) return;
+    if (recommendations.length === 0) {
+      setRecommendationState("No recommendations", "empty");
+      return;
+    }
+    recGrid.innerHTML = "";
+    recommendations.forEach(rec => {
+      const fitClass = rec.fit === "FITS_PERFECTLY" ? "fits" : rec.fit === "FITS_TIGHT" ? "tight" : rec.fit === "CPU_FALLBACK" ? "cpu" : "too-large";
+      const fitLabel = rec.fit === "FITS_PERFECTLY" ? "FITS" : rec.fit === "FITS_TIGHT" ? "TIGHT" : rec.fit === "CPU_FALLBACK" ? "CPU" : "TOO BIG";
+      const card = document.createElement("div");
+      card.className = "rec-card";
+      card.innerHTML = `<span class="rec-card-name">${rec.name}</span><span class="rec-card-size">${rec.params_b}B · ${rec.file_size_gb}GB</span><span class="fit-badge ${fitClass}">${fitLabel}</span>`;
+      recGrid.appendChild(card);
+    });
+  }
+
+  return { init, fetchCurrentModel };
+})();
+
+ModelSwitcher.init();

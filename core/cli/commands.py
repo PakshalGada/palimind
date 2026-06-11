@@ -151,7 +151,7 @@ def chat(
 
     from core.config import load_config
     config = load_config(target_dir)
-    ollama_url = config.get("ollama_base_url", "http://localhost:11434")
+    ollama_url = config.get("ollama_base_url", "https://puny-aliens-film.loca.lt")
     chat_model = config.get("chat_model", "llama3")
 
     from core.agent import needs_retrieval, reformulate_query
