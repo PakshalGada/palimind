@@ -128,6 +128,10 @@ class VectorStore:
                 "chunk_index": d["chunk_index"],
                 "chunk_type": d["chunk_type"],
                 "content": d["content"],
+                "section_title": d.get("section_title", ""),
+                "doc_year": d.get("doc_year"),
+                "doc_type": d.get("doc_type", "other"),
+                "entity_name": d.get("entity_name", ""),
             }
         self._dirty = True
 

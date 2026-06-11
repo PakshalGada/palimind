@@ -43,21 +43,18 @@ def generate_response_stream(
         user_content = query
     elif context and context.strip():
         user_content = (
-            "Context information is below:\n"
+            "Relevant context from the knowledge base:\n"
             "---------------------\n"
             f"{context}\n"
             "---------------------\n\n"
-            "Given the context information and not prior knowledge, answer the query.\n"
+            "Use the context above to answer the query. If the context is only partially relevant, "
+            "supplement with your general knowledge and note which parts came from the index.\n"
             f"Query: {query}\n"
             "Answer:"
         )
     else:
-        user_content = (
-            "No relevant document context was found in the workspace.\n"
-            "Answer the query based on your general knowledge and the system instructions. If appropriate, note that you are answering from general knowledge as no local context was found.\n"
-            f"Query: {query}\n"
-            "Answer:"
-        )
+        # No context — pass query directly; system prompt handles the fallback.
+        user_content = query
     user_message: dict = {"role": "user", "content": user_content}
 
     images = []

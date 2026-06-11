@@ -18,6 +18,9 @@ DEFAULTS = {
     "turbovec_bit_width": 4,  # 2 or 4 — compression vs accuracy trade-off
     "summarise": True,        # Generate per-file summaries at index time
     "summary_max_chars": 8000,  # Characters fed to the summariser (truncated)
+    "extract_financials": True,  # Extract financial facts at index time (financial docs)
+    "extract_timeline": True,    # Extract timeline events at index time
+    "comparison_chunks_per_doc": 4,  # Chunks retrieved per document in comparison mode
     "extensions": [
         ".txt",
         ".md",

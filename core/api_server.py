@@ -635,6 +635,7 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
     try:
         from core.agent import reformulate_query, needs_retrieval
         from core.config import load_config
+        from core.querying import query_stream_with_diagnostics
         config = load_config(state.active_field)
         ollama_url = config.get("ollama_base_url", "http://localhost:11434")
         chat_model = config.get("chat_model", "llama3")
@@ -643,12 +644,14 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
             needs_retrieval, q, history_to_send or [], ollama_url, chat_model
         )
 
+        diagnostics_report = None
+
         if needs_retrieval_fast:
             standalone_query = await asyncio.to_thread(
                 reformulate_query, q, history_to_send or [], ollama_url, chat_model
             )
-            context, stream = await asyncio.to_thread(
-                query_stream,
+            context, stream, diagnostics_report = await asyncio.to_thread(
+                query_stream_with_diagnostics,
                 state.active_field,
                 standalone_query,
                 history=history_to_send,
@@ -666,7 +669,6 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
 
             context = RetrievedContext(text_contexts=(), image_paths=(), sources=())
             
-            # Since generate_response_stream is a sync generator, we just get the iterator.
             stream = generate_response_stream(
                 query=q,
                 context="",
@@ -687,7 +689,12 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
     async def event_generator() -> AsyncGenerator[str, None]:
         import threading
         sources = list(context.sources) if context.sources else []
-        yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
+        
+        # Emit sources with task_type metadata
+        task_type_str = ""
+        if diagnostics_report:
+            task_type_str = diagnostics_report.task_type
+        yield f"data: {json.dumps({'type': 'sources', 'sources': sources, 'task_type': task_type_str})}\n\n"
 
         queue = asyncio.Queue()
         loop = asyncio.get_running_loop()
@@ -737,6 +744,14 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
             asyncio.create_task(background_update_memory(state.active_field, active_sess_id, q, bot_answer))
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+        # Emit diagnostics after done (non-blocking for client)
+        if diagnostics_report:
+            try:
+                diag_dict = diagnostics_report.to_dict()
+                yield f"data: {json.dumps({'type': 'diagnostics', 'data': diag_dict})}\n\n"
+            except Exception:
+                pass
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

@@ -12,7 +12,15 @@ from core.exceptions import (
     OCRError,
     ParseError,
 )
-from core.ingestion.chunker import chunk_text
+from core.ingestion.rich_chunker import (
+    DocumentMeta,
+    RichChunk,
+    extract_doc_type,
+    extract_doc_year,
+    extract_entity_name,
+    rich_chunk_caption,
+    rich_chunk_document,
+)
 from core.ingestion.crawler import compute_md5, crawl_directory
 from core.ingestion.doc_parser import parse_document
 from core.ingestion.image_parser import caption_image
@@ -29,6 +37,8 @@ from core.storage.db import (
     get_connection,
     init_db,
     insert_chunks,
+    insert_financial_facts,
+    insert_timeline_events,
     upsert_file,
     upsert_file_summary,
 )
@@ -61,7 +71,28 @@ def initialize_index(root: Path, *, force: bool = False) -> InitIndexResult:
     return InitIndexResult(root=root, index_dir=p_dir, created=True)
 
 
-def extract_chunks(file_path: Path, root: Path, config: dict) -> list[ChunkInfo]:
+def _build_doc_meta(file_path: Path, root: Path, text_sample: str) -> DocumentMeta:
+    """Extract document metadata from filename and early text content."""
+    rel_path = str(file_path.relative_to(root))
+    filename = file_path.name
+    doc_year = extract_doc_year(filename, text_sample)
+    doc_type = extract_doc_type(filename, text_sample)
+    entity_name = extract_entity_name(text_sample)
+    return DocumentMeta(
+        path=rel_path,
+        doc_year=doc_year,
+        doc_type=doc_type,
+        entity_name=entity_name,
+    )
+
+
+def extract_chunks(file_path: Path, root: Path, config: dict) -> list[RichChunk]:
+    """
+    Parse *file_path* and return a list of :class:`RichChunk` objects.
+
+    Image files → single caption chunk.
+    Documents/text → hierarchical rich chunks (section-aware).
+    """
     ext = file_path.suffix.lower()
 
     if ext in config["image_extensions"]:
@@ -69,7 +100,9 @@ def extract_chunks(file_path: Path, root: Path, config: dict) -> list[ChunkInfo]
             file_path, config["ollama_base_url"], config["vision_model"]
         )
         if caption:
-            return [ChunkInfo(content=caption, chunk_type="caption")]
+            rel_path = str(file_path.relative_to(root))
+            meta = DocumentMeta(path=rel_path)
+            return [rich_chunk_caption(caption, meta, chunk_index=0)]
         return []
 
     text = ""
@@ -86,9 +119,157 @@ def extract_chunks(file_path: Path, root: Path, config: dict) -> list[ChunkInfo]
         except OSError as e:
             raise ParseError(f"Error reading text file {file_path}: {e}") from e
 
-    chunks = chunk_text(text, config["chunk_size"], config["chunk_overlap"])
-    return [ChunkInfo(content=c, chunk_type="text") for c in chunks]
+    if not text:
+        return []
 
+    doc_meta = _build_doc_meta(file_path, root, text)
+    return rich_chunk_document(
+        text,
+        doc_meta,
+        chunk_size=config.get("chunk_size", 800),
+        chunk_overlap=config.get("chunk_overlap", 150),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Financial fact & timeline extraction (best-effort via LLM)
+# ---------------------------------------------------------------------------
+
+def _extract_financial_facts_from_text(
+    text: str,
+    doc_year: int | None,
+    ollama_url: str,
+    chat_model: str,
+) -> list[dict]:
+    """
+    Ask the LLM to extract key financial metrics as structured JSON.
+    Returns a list of fact dicts or empty list on any failure.
+    """
+    import json
+    import httpx
+
+    if not text or not text.strip():
+        return []
+
+    excerpt = text[:6000]
+    prompt = f"""Extract financial metrics from the following text.
+Return ONLY a JSON array, no explanation. Each item should have:
+{{"metric_name": str, "value": float_or_null, "unit": str, "period": str}}
+
+Common metrics: revenue, gross_margin, net_income, operating_income, eps, cash_flow, total_assets, total_debt
+
+Text:
+{excerpt}
+
+JSON array:"""
+
+    try:
+        resp = httpx.post(
+            f"{ollama_url.rstrip('/')}/api/chat",
+            json={
+                "model": chat_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False,
+                "options": {"temperature": 0.0},
+            },
+            timeout=60.0,
+        )
+        resp.raise_for_status()
+        content = resp.json().get("message", {}).get("content", "")
+
+        # Extract JSON array from response
+        m = __import__("re").search(r"\[.*\]", content, __import__("re").DOTALL)
+        if not m:
+            return []
+
+        facts = json.loads(m.group(0))
+        if not isinstance(facts, list):
+            return []
+
+        result = []
+        for fact in facts:
+            if not isinstance(fact, dict) or "metric_name" not in fact:
+                continue
+            result.append({
+                "metric_name": str(fact.get("metric_name", "")).lower().replace(" ", "_"),
+                "value": float(fact["value"]) if fact.get("value") is not None else None,
+                "unit": str(fact.get("unit", "USD")),
+                "period": str(fact.get("period", "")),
+                "doc_year": doc_year,
+            })
+        return result
+    except Exception:
+        return []
+
+
+def _extract_timeline_events_from_text(
+    text: str,
+    doc_year: int | None,
+    ollama_url: str,
+    chat_model: str,
+) -> list[dict]:
+    """
+    Ask the LLM to extract dated events as structured JSON.
+    Returns a list of event dicts or empty list on any failure.
+    """
+    import json
+    import httpx
+
+    if not text or not text.strip():
+        return []
+
+    excerpt = text[:6000]
+    prompt = f"""Extract dated events or announcements from the following text.
+Return ONLY a JSON array, no explanation. Each item should have:
+{{"event_date": "YYYY-MM-DD or YYYY", "event_year": int_or_null, "event_text": str, "event_type": str}}
+
+event_type options: product_launch, regulatory, financial, leadership, strategic, legal, general
+
+Text:
+{excerpt}
+
+JSON array:"""
+
+    try:
+        resp = httpx.post(
+            f"{ollama_url.rstrip('/')}/api/chat",
+            json={
+                "model": chat_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False,
+                "options": {"temperature": 0.0},
+            },
+            timeout=60.0,
+        )
+        resp.raise_for_status()
+        content = resp.json().get("message", {}).get("content", "")
+
+        m = __import__("re").search(r"\[.*\]", content, __import__("re").DOTALL)
+        if not m:
+            return []
+
+        events = json.loads(m.group(0))
+        if not isinstance(events, list):
+            return []
+
+        result = []
+        for event in events:
+            if not isinstance(event, dict) or "event_text" not in event:
+                continue
+            result.append({
+                "event_date": str(event.get("event_date", "")),
+                "event_year": int(event["event_year"]) if event.get("event_year") else doc_year,
+                "event_text": str(event["event_text"]),
+                "event_type": str(event.get("event_type", "general")),
+            })
+        return result
+    except Exception:
+        return []
+
+
+# ---------------------------------------------------------------------------
+# Main index update
+# ---------------------------------------------------------------------------
 
 def update_index(
     root: Path,
@@ -142,18 +323,31 @@ def update_index(
                     continue
 
                 vstore.delete_file(rel_path)
-                file_id = upsert_file(conn, rel_path, md5, time.time())
 
                 try:
-                    chunks_info = extract_chunks(fpath, root, config)
+                    rich_chunks = extract_chunks(fpath, root, config)
                 except (ParseError, CaptionError, OCRError) as e:
                     file_errors.append(FileIndexError(rel_path, str(e)))
                     continue
 
-                if not chunks_info:
+                if not rich_chunks:
+                    # Upsert file record even if no chunks (so crawl knows it's indexed)
+                    upsert_file(conn, rel_path, md5, time.time())
                     continue
 
-                texts = [c.content for c in chunks_info]
+                # Extract metadata from the first rich chunk (they all share doc meta)
+                first = rich_chunks[0]
+                file_id = upsert_file(
+                    conn,
+                    rel_path,
+                    md5,
+                    time.time(),
+                    doc_year=first.doc_year,
+                    doc_type=first.doc_type,
+                    entity_name=first.entity_name,
+                )
+
+                texts = [c.content for c in rich_chunks]
                 try:
                     embeddings = generate_embeddings_batch(
                         texts, config["ollama_base_url"], config["embed_model"]
@@ -162,13 +356,23 @@ def update_index(
                     file_errors.append(FileIndexError(rel_path, str(e)))
                     continue
 
+                # Build DB chunk rows with full metadata
                 db_chunks = []
-                valid_infos: list[tuple[int, ChunkInfo, list[float]]] = []
-                for idx, (info, emb) in enumerate(zip(chunks_info, embeddings)):
+                valid_infos: list[tuple[int, RichChunk, list[float]]] = []
+                for idx, (chunk, emb) in enumerate(zip(rich_chunks, embeddings)):
                     if not emb:
                         continue
-                    db_chunks.append((idx, info.chunk_type, info.content))
-                    valid_infos.append((idx, info, emb))
+                    db_chunks.append((
+                        chunk.chunk_index,
+                        chunk.chunk_type,
+                        chunk.content,
+                        chunk.section_title,
+                        chunk.parent_section,
+                        chunk.page_number,
+                        chunk.word_count,
+                        chunk.token_estimate,
+                    ))
+                    valid_infos.append((idx, chunk, emb))
 
                 if valid_infos:
                     chunk_db_ids = insert_chunks(conn, file_id, db_chunks)
@@ -178,17 +382,21 @@ def update_index(
                             "vector": emb,
                             "chunk_db_id": chunk_db_ids[j],
                             "file_path": rel_path,
-                            "chunk_index": idx,
-                            "chunk_type": info.chunk_type,
-                            "content": info.content,
+                            "chunk_index": chunk.chunk_index,
+                            "chunk_type": chunk.chunk_type,
+                            "content": chunk.content,
+                            "section_title": chunk.section_title,
+                            "doc_year": chunk.doc_year,
+                            "doc_type": chunk.doc_type,
+                            "entity_name": chunk.entity_name,
                         }
-                        for j, (idx, info, emb) in enumerate(valid_infos)
+                        for j, (_, chunk, emb) in enumerate(valid_infos)
                     ]
                     vstore.insert(vector_data)
                     chunks_indexed += len(vector_data)
                     indexed_files += 1
 
-                    # Generate and store a file-level summary (best-effort).
+                    # ── File summary ────────────────────────────────────────
                     if config.get("summarise", True):
                         report(
                             "summarise",
@@ -205,6 +413,31 @@ def update_index(
                         )
                         if summary:
                             upsert_file_summary(conn, rel_path, summary)
+
+                    # ── Financial fact extraction (financial docs only) ─────
+                    doc_type = first.doc_type
+                    if doc_type in ("10-K", "10-Q", "annual_report") and config.get(
+                        "extract_financials", True
+                    ):
+                        report("extract_financials", current=i, total=len(new_or_modified), message=rel_path)
+                        full_text = "\n\n".join(texts[:20])  # first 20 chunks
+                        facts = _extract_financial_facts_from_text(
+                            full_text, first.doc_year,
+                            config["ollama_base_url"], config["chat_model"]
+                        )
+                        if facts:
+                            insert_financial_facts(conn, file_id, facts)
+
+                    # ── Timeline event extraction ─────────────────────────
+                    if config.get("extract_timeline", True):
+                        report("extract_timeline", current=i, total=len(new_or_modified), message=rel_path)
+                        full_text = "\n\n".join(texts[:15])
+                        events = _extract_timeline_events_from_text(
+                            full_text, first.doc_year,
+                            config["ollama_base_url"], config["chat_model"]
+                        )
+                        if events:
+                            insert_timeline_events(conn, file_id, events)
 
             # Single commit for the whole batch.
             conn.commit()
