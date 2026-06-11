@@ -52,6 +52,8 @@
     box-sizing: border-box;
     margin: 0;
     padding: 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) var(--panel-bg);
 }
 
 body {
@@ -77,6 +79,8 @@ body {
     display: flex;
     overflow: hidden;
     background: var(--bg-color);
+    min-height: 0;
+    min-width: 0;
 }
 
 /* Sidebar */
@@ -293,6 +297,8 @@ h3 {
     height: 100%;
     max-height: 100%;
     overflow: hidden;
+    min-height: 0;
+    min-width: 0;
 }
 
 .active-field-badge {
@@ -404,6 +410,8 @@ button:active {
     flex-direction: column;
     position: relative;
     background: var(--bg-color);
+    min-height: 0;
+    min-width: 0;
 }
 
 .chat-header {
@@ -426,6 +434,7 @@ button:active {
     flex-direction: column;
     gap: 24px;
     scroll-behavior: smooth;
+    min-height: 0;
 }
 
 .messages::-webkit-scrollbar {
@@ -739,6 +748,7 @@ button:active {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    min-height: 0;
 }
 
 .file-tree::-webkit-scrollbar {
