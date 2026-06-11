@@ -32,29 +32,29 @@ class PlatformBindings:
         Register a global hotkey listener.
         
         Args:
-            hotkey_combo: Hotkey combination (e.g., "ctrl+shift+e")
+            hotkey_combo: Hotkey combination (e.g., "<ctrl>+<shift>+e" or "ctrl+shift+e")
             callback: Function to call when hotkey is pressed
         """
         self.hotkey_callback = callback
         
-        # Parse hotkey combination
+        # Convert standard modifiers to pynput format if they lack brackets
+        parts = hotkey_combo.lower().split('+')
+        formatted_parts = []
+        for part in parts:
+            if not part.startswith('<') and len(part) > 1 and part in ['ctrl', 'shift', 'alt', 'cmd', 'space', 'enter', 'esc', 'tab', 'backspace', 'delete', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12']:
+                formatted_parts.append(f'<{part}>')
+            else:
+                formatted_parts.append(part)
+        pynput_combo = '+'.join(formatted_parts)
+        
         try:
-            keys = self._parse_hotkey(hotkey_combo)
-        except ValueError as e:
-            raise ValueError(f"Invalid hotkey combination: {hotkey_combo}") from e
-
-        # Create listener
-        def on_press(key):
-            try:
-                if self._check_keys_pressed(keys):
-                    if self.hotkey_callback:
-                        self.hotkey_callback()
-            except Exception as e:
-                print(f"Error in hotkey callback: {e}")
-
-        self.listener = keyboard.Listener(on_press=on_press)
-        self.listener.start()
-        print(f"✓ Hotkey registered: {hotkey_combo}")
+            self.listener = keyboard.GlobalHotKeys({
+                pynput_combo: self.hotkey_callback
+            })
+            self.listener.start()
+            print(f"✓ Hotkey registered: {pynput_combo} (original: {hotkey_combo})")
+        except Exception as e:
+            raise ValueError(f"Invalid hotkey combination: {hotkey_combo} (parsed as {pynput_combo})") from e
 
     def stop_hotkey(self) -> None:
         """Stop listening for hotkey."""
@@ -75,50 +75,6 @@ class PlatformBindings:
         except Exception as e:
             print(f"Error reading clipboard: {e}")
             return ""
-
-    def _parse_hotkey(self, hotkey_combo: str) -> set:
-        """
-        Parse hotkey combination string into required keys.
-        
-        Args:
-            hotkey_combo: String like "ctrl+shift+e" or "cmd+shift+e"
-            
-        Returns:
-            Set of required keys
-        """
-        parts = hotkey_combo.lower().split("+")
-        valid_modifiers = {"ctrl", "shift", "alt", "cmd"}
-        
-        for part in parts[:-1]:  # All but last should be modifiers
-            if part not in valid_modifiers:
-                raise ValueError(f"Invalid modifier: {part}")
-        
-        return set(parts)
-
-    def _check_keys_pressed(self, required_keys: set) -> bool:
-        """
-        Check if all required keys are currently pressed.
-        
-        Args:
-            required_keys: Set of required keys
-            
-        Returns:
-            True if all keys are pressed
-        """
-        try:
-            # Get current pressed keys
-            pressed = set()
-            
-            # Check modifiers
-            if keyboard._listener is not None:
-                # Note: pynput doesn't provide direct "current state" query
-                # We use a simpler approach with KeyCode comparison
-                pass
-            
-            # Simplified: use pynput's built-in hotkey detection
-            return True
-        except Exception:
-            return False
 
     def ensure_setup(self) -> None:
         """Verify platform bindings are properly set up."""

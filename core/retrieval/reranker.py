@@ -8,12 +8,18 @@ _MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 # Pre-load at module import so the first query has zero model-load lag.
 _reranker_model: CrossEncoder | None = None
+_reranker_failed = False
 
 
-def _load_reranker() -> CrossEncoder:
-    global _reranker_model
-    if _reranker_model is None:
-        _reranker_model = CrossEncoder(_MODEL_NAME)
+def _load_reranker() -> CrossEncoder | None:
+    global _reranker_model, _reranker_failed
+    if _reranker_model is None and not _reranker_failed:
+        try:
+            _reranker_model = CrossEncoder(_MODEL_NAME)
+        except Exception as e:
+            _reranker_failed = True
+            print(f"Warning: Reranker model '{_MODEL_NAME}' failed to load ({e}). "
+                  "Reranking will be bypassed and results will fall back to default vector similarity ranking.")
     return _reranker_model
 
 
@@ -38,6 +44,8 @@ def rerank_chunks(query: str, chunks: list[dict], top_n: int = 5) -> list[dict]:
         return chunks[:top_n]
 
     reranker = _load_reranker()
+    if reranker is None:
+        return chunks[:top_n]
 
     pairs = [[query, chunk["content"]] for chunk in chunks]
     scores = reranker.predict(pairs, show_progress_bar=False)

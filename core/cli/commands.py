@@ -237,7 +237,7 @@ def ui(port: int = typer.Option(8000, "--port", help="Port to run the UI server 
 def hotkey(
     action: str = typer.Argument(
         "start",
-        help="Action: 'start' to begin listening, 'stop' to stop"
+        help="Action: 'start' to begin listening, 'stop' to stop, 'trigger' to run manually (for Wayland)"
     ),
     hotkey_combo: str = typer.Option(
         "ctrl+shift+e",
@@ -257,6 +257,7 @@ def hotkey(
     Usage:
         pm hotkey start                    # Start listening
         pm hotkey start --hotkey alt+shift+c  # Custom hotkey
+        pm hotkey trigger                  # Trigger the capture manually (for Wayland/Hyprland)
         pm hotkey stop                     # Stop listening
     """
     try:
@@ -308,6 +309,36 @@ def hotkey(
         except Exception as e:
             print_error(f"Error starting hotkey listener: {e}")
             raise typer.Exit(1)
+            
+    elif action == "trigger":
+        print_header("Triggering Palimind Capture (Wayland Mode)")
+        try:
+            config = HotkeyConfig(api_base_url=api_url)
+            manager = HotkeyManager(config)
+            
+            # Use a mutable list or similar to track completion
+            status = {"done": False}
+            
+            def on_event(event):
+                print_success(
+                    f"Captured to '{event.selected_field.name}': "
+                    f"{len(event.selected_text)} chars"
+                )
+                status["done"] = True
+                
+            manager.event_callback = on_event
+            manager._on_hotkey_pressed(sync=True)
+            
+            # Keep alive until flow finishes
+            import time
+            for _ in range(600):  # Wait up to 60 seconds
+                if status["done"]:
+                    break
+                time.sleep(0.1)
+                
+        except Exception as e:
+            print_error(f"Error triggering hotkey: {e}")
+            raise typer.Exit(1)
     
     elif action == "stop":
         print_info("Stopping hotkey listener...")
@@ -316,5 +347,5 @@ def hotkey(
         
     else:
         print_error(f"Unknown action: {action}")
-        print_info("Use 'start' or 'stop'")
+        print_info("Use 'start', 'stop', or 'trigger'")
         raise typer.Exit(1)

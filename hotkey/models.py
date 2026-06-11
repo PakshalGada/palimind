@@ -9,7 +9,7 @@ from typing import Optional
 @dataclass
 class HotkeyConfig:
     """Configuration for hotkey listener."""
-    hotkey_combo: str = "ctrl+shift+e"  # Default hotkey combination
+    hotkey_combo: str = "<ctrl>+<alt>+<shift>+<space>"  # Default hotkey combination
     api_base_url: str = "http://localhost:8000"  # FastAPI server URL
 
 

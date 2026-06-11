@@ -36,7 +36,18 @@ app.add_middleware(
 
 UI_DIR = Path(__file__).parent.parent / "ui"
 if UI_DIR.exists():
-    app.mount("/ui", StaticFiles(directory=UI_DIR, html=True), name="ui")
+    app.mount("/ui/static", StaticFiles(directory=UI_DIR / "static"), name="static")
+
+    @app.get("/ui", response_class=HTMLResponse)
+    @app.get("/ui/", response_class=HTMLResponse)
+    async def serve_ui():
+        index_file = UI_DIR / "template" / "index.html"
+        return index_file.read_text("utf-8")
+
+    @app.get("/ui/hotkey", response_class=HTMLResponse)
+    async def serve_hotkey():
+        hotkey_file = UI_DIR / "template" / "hotkey.html"
+        return hotkey_file.read_text("utf-8")
 
 # -- Global State & Config --
 GLOBAL_CONFIG_PATH = Path.home() / ".palimind_global.json"

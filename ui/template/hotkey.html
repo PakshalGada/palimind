@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Palimind Capture</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/ui/static/hotkey.css">
+</head>
+<body>
+
+    <div class="container">
+        <h1>Save Capture</h1>
+        <p class="subtitle">Select a Field. After saving, Palimind will monitor your clipboard. Simply copy any text to capture it.</p>
+
+        <div class="fields-container" id="fieldsList">
+            <div class="loading">Loading fields...</div>
+        </div>
+
+        <div class="actions">
+            <button class="btn-cancel" onclick="cancelSelection()">Cancel</button>
+            <button class="btn-save" id="saveBtn" onclick="saveSelection()" disabled>Save to Field</button>
+        </div>
+    </div>
+
+    <script src="/ui/static/hotkey.js"></script>
+</body>
+</html>

@@ -1,131 +1,19 @@
-"""Tkinter-based field selector popup for hotkey capture."""
+"""Web-based field selector popup for hotkey capture."""
 from __future__ import annotations
 
 import json
-import tkinter as tk
+import socket
+import threading
+import time
+import webbrowser
 from pathlib import Path
 from typing import Callable, Optional
 
+import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+
 from hotkey.models import FieldInfo
-
-
-class FieldSelectorPopup:
-    """Popup window for selecting which Field to save captured text to."""
-
-    def __init__(self, fields: list[FieldInfo], on_select: Callable[[Optional[FieldInfo]], None]):
-        """
-        Initialize field selector popup.
-        
-        Args:
-            fields: List of available fields
-            on_select: Callback when field is selected (or cancelled)
-        """
-        self.fields = fields
-        self.on_select = on_select
-        self.selected_field: Optional[FieldInfo] = None
-        self.window: Optional[tk.Tk] = None
-
-    def show(self) -> None:
-        """Show the popup window and wait for selection."""
-        self.window = tk.Tk()
-        self.window.title("Palimind - Select Field")
-        self.window.geometry("400x300")
-        self.window.attributes("-topmost", True)  # Always on top
-
-        # Center on screen
-        self.window.update_idletasks()
-        x = (self.window.winfo_screenwidth() // 2) - (self.window.winfo_width() // 2)
-        y = (self.window.winfo_screenheight() // 2) - (self.window.winfo_height() // 2)
-        self.window.geometry(f"+{x}+{y}")
-
-        # Title label
-        title = tk.Label(
-            self.window,
-            text="Select a Field to save this capture:",
-            font=("Arial", 12, "bold"),
-            fg="#333",
-        )
-        title.pack(pady=15)
-
-        # Field list frame
-        frame = tk.Frame(self.window)
-        frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
-
-        # Radio button variable
-        self.var = tk.StringVar(value=self.fields[0].path if self.fields else "")
-
-        # Radio buttons for each field
-        if self.fields:
-            for field in self.fields:
-                radio = tk.Radiobutton(
-                    frame,
-                    text=f"{field.name}",
-                    variable=self.var,
-                    value=field.path,
-                    font=("Arial", 10),
-                    fg="#333",
-                )
-                radio.pack(anchor=tk.W, pady=5)
-        else:
-            label = tk.Label(
-                frame,
-                text="No Fields available. Create one in Palimind.",
-                font=("Arial", 10),
-                fg="#999",
-            )
-            label.pack(pady=10)
-
-        # Button frame
-        btn_frame = tk.Frame(self.window)
-        btn_frame.pack(pady=15)
-
-        save_btn = tk.Button(
-            btn_frame,
-            text="Save",
-            command=self._on_save,
-            bg="#4CAF50",
-            fg="white",
-            font=("Arial", 10, "bold"),
-            padx=20,
-            pady=8,
-        )
-        save_btn.pack(side=tk.LEFT, padx=5)
-
-        cancel_btn = tk.Button(
-            btn_frame,
-            text="Cancel",
-            command=self._on_cancel,
-            bg="#999",
-            fg="white",
-            font=("Arial", 10),
-            padx=20,
-            pady=8,
-        )
-        cancel_btn.pack(side=tk.LEFT, padx=5)
-
-        # Bind Enter key to save
-        self.window.bind("<Return>", lambda e: self._on_save())
-        self.window.bind("<Escape>", lambda e: self._on_cancel())
-
-        # Focus on window
-        self.window.focus_set()
-        self.window.mainloop()
-
-    def _on_save(self) -> None:
-        """Handle save button click."""
-        selected_path = self.var.get()
-        if selected_path:
-            self.selected_field = next(
-                (f for f in self.fields if f.path == selected_path),
-                None,
-            )
-        self.window.destroy()
-        self.on_select(self.selected_field)
-
-    def _on_cancel(self) -> None:
-        """Handle cancel button click."""
-        self.window.destroy()
-        self.on_select(None)
 
 
 class FieldInfoLoader:
@@ -167,13 +55,67 @@ class FieldInfoLoader:
         return fields
 
 
+def _find_free_port() -> int:
+    """Find an available ephemeral port."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('', 0))
+        return s.getsockname()[1]
+
+
 def show_field_selector(on_select: Callable[[Optional[FieldInfo]], None]) -> None:
     """
-    Show field selector popup and invoke callback on selection.
+    Show web-based field selector popup and invoke callback on selection.
     
     Args:
         on_select: Callback with selected FieldInfo or None if cancelled
     """
-    fields = FieldInfoLoader.load_fields()
-    popup = FieldSelectorPopup(fields, on_select)
-    popup.show()
+    app = FastAPI()
+    port = _find_free_port()
+    
+    selection_event = threading.Event()
+    selected_field_info: Optional[FieldInfo] = None
+    
+    ui_dir = Path(__file__).parent.parent / "ui"
+    if ui_dir.exists():
+        app.mount("/ui", StaticFiles(directory=ui_dir, html=True))
+
+    @app.get("/api/fields")
+    def get_fields():
+        fields = FieldInfoLoader.load_fields()
+        return {"fields": [{"name": f.name, "path": f.path, "is_active": f.is_active} for f in fields]}
+
+    @app.post("/api/select")
+    async def select_field(req: Request):
+        nonlocal selected_field_info
+        data = await req.json()
+        path = data.get("path")
+        
+        if path:
+            fields = FieldInfoLoader.load_fields()
+            selected_field_info = next((f for f in fields if f.path == path), None)
+            
+        selection_event.set()
+        server.should_exit = True
+        return {"status": "ok"}
+
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="critical")
+    server = uvicorn.Server(config)
+    
+    def run_server():
+        server.run()
+
+    server_thread = threading.Thread(target=run_server, daemon=True)
+    server_thread.start()
+
+    # Wait briefly for the server to start
+    time.sleep(0.5)
+    
+    # Open the browser to the local server
+    url = f"http://127.0.0.1:{port}/ui/hotkey.html"
+    webbrowser.open(url)
+    
+    # Block until selection is made or server shuts down
+    selection_event.wait()
+    
+    # Invoke the callback
+    on_select(selected_field_info)
