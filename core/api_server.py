@@ -23,6 +23,7 @@ from core.api import (
 )
 from core.audio_stt import transcribe_wav_bytes
 from core.audio_tts import text_to_speech_bytes
+from core.email_api_router import router as email_router
 
 app = FastAPI(title="Palimind V2 API")
 
@@ -33,6 +34,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(email_router)
 
 UI_DIR = Path(__file__).parent.parent / "ui"
 if UI_DIR.exists():
@@ -948,8 +951,8 @@ async def get_models():
     config = {}
     if state.active_field:
         config = load_config(state.active_field)
-    ollama_url = config.get("ollama_base_url", "http://localhost:11434")
-    current_model = config.get("chat_model", "llama3")
+    ollama_url = config.get("ollama_base_url", "https://dull-ears-joke.loca.lt")
+    current_model = config.get("chat_model", "gemma4:e4b")
     try:
         models = await asyncio.to_thread(_fetch_ollama_models_blocking, ollama_url)
         return {
@@ -1003,7 +1006,7 @@ async def get_config():
     return {
         "chat_model": config.get("chat_model", "llama3"),
         "embed_model": config.get("embed_model", "nomic-embed-text"),
-        "ollama_base_url": config.get("ollama_base_url", "http://localhost:11434"),
+        "ollama_base_url": config.get("ollama_base_url", "https://dull-ears-joke.loca.lt"),
     }
 
 

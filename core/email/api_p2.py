@@ -486,22 +486,37 @@ def get_newsletters(db_path: Optional[Path] = None) -> list[dict]:
 # Spam management
 # ---------------------------------------------------------------------------
 
-def scan_spam(
+def scan_spam_live(
     limit: int = 100,
     db_path: Optional[Path] = None,
-) -> int:
-    """Scan emails and compute enhanced spam scores. Returns count flagged."""
+):
+    """Generator: scan emails for spam, yielding results one-by-one.
+
+    Yields dicts with keys:
+        index      (int)  — 1-based position in the scan
+        total      (int)  — total emails being scanned
+        id         (int)  — email DB id
+        subject    (str)
+        sender     (str)
+        sender_name(str)
+        status     (str)  — 'safe' / 'suspicious' / 'spam'
+        confidence (int)  — 0-100
+        reason     (str)
+        score_bar  (str)  — ASCII score bar (10 chars wide)
+
+    Automatically saves scan metadata when done.
+    """
     ensure_p2_db(db_path)
 
     try:
         emails = list_emails(limit=limit, db_path=db_path)
     except EmailError:
-        return 0
+        return
 
-    flagged = 0
-    for em in emails:
-        if em.is_sent:
-            continue
+    inbox_emails = [em for em in emails if not em.is_sent]
+    total = len(inbox_emails)
+
+    for idx, em in enumerate(inbox_emails, 1):
         try:
             sender_pref = store_p2.get_spam_pref(em.sender, db_path)
             status, conf, reason = ai_p2.compute_enhanced_spam_score(
@@ -515,10 +530,43 @@ def scan_spam(
                 spam_reason=reason,
                 db_path=db_path,
             )
-            if status in ("spam", "suspicious"):
-                flagged += 1
         except Exception:
-            pass
+            status, conf, reason = "safe", 0, "scan error"
+
+        filled = round(conf / 10)
+        bar = "█" * filled + "░" * (10 - filled)
+        yield {
+            "index": idx,
+            "total": total,
+            "id": em.id,
+            "subject": em.subject,
+            "sender": em.sender,
+            "sender_name": em.sender_name or "",
+            "status": status,
+            "confidence": conf,
+            "reason": reason,
+            "score_bar": bar,
+        }
+
+    # Persist scan metadata
+    try:
+        store_p2.set_spam_scan_meta(time.time(), total, db_path)
+    except Exception:
+        pass
+
+
+def scan_spam(
+    limit: int = 100,
+    db_path: Optional[Path] = None,
+) -> int:
+    """Scan emails and compute enhanced spam scores. Returns count flagged.
+
+    Blocking wrapper around scan_spam_live for backward compatibility.
+    """
+    flagged = 0
+    for result in scan_spam_live(limit=limit, db_path=db_path):
+        if result["status"] in ("spam", "suspicious"):
+            flagged += 1
     return flagged
 
 

@@ -5,6 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Palimind V2 Boardroom</title>
         <link rel="stylesheet" href="/ui/static/styles.css" />
+        <link rel="stylesheet" href="/ui/static/email.css" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link
@@ -62,6 +63,19 @@
                     </button>
                 </div>
 
+                <!-- Mode navigation -->
+                <nav class="sidebar-nav" aria-label="Workspace mode">
+                    <button class="sidebar-nav-item active" id="nav-fields" aria-label="Fields mode">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                        Fields
+                    </button>
+                    <button class="sidebar-nav-item" id="nav-email" aria-label="Email mode">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                        Email
+                    </button>
+                </nav>
+
+                <div id="fields-sidebar-content">
                 <div class="fields-container">
                     <div class="fields-header">
                         <h3>Your Fields</h3>
@@ -143,6 +157,7 @@
                         <!-- File tree populated via JS -->
                     </div>
                 </div>
+                </div><!-- /#fields-sidebar-content -->
             </aside>
 
             <!-- Main Chat Area -->
@@ -354,6 +369,342 @@
                     </div>
                 </div>
             </main>
+
+            <!-- ============================================================
+                 EMAIL WORKSPACE
+                 ============================================================ -->
+            <div class="email-workspace" id="email-workspace" role="main" aria-label="Email Workspace">
+
+            <!-- Toolbar -->
+            <div class="email-toolbar">
+                <input type="text" id="email-search-input" placeholder="Search emails…" aria-label="Search emails" />
+                <select class="email-account-select" id="email-account-sel" aria-label="Select account"></select>
+                <button class="email-toolbar-btn" id="email-accounts-btn" title="Manage email accounts">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="20" cy="7" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4"/><circle cx="9" cy="7" r="4"/></svg>
+                    Accounts
+                </button>
+                <button class="email-toolbar-btn" id="email-sync-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    Sync
+                </button>
+                <button class="email-toolbar-btn primary" id="email-compose-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Compose
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="email-body">
+
+                <!-- Folder list -->
+                <div class="email-folders" role="navigation" aria-label="Email folders">
+                    <div class="folder-section-label">Mailbox</div>
+                    <div class="folder-item active" data-folder="inbox">
+                        <span class="folder-item-label">Inbox</span>
+                        <span class="folder-badge" data-folder-badge="inbox"></span>
+                    </div>
+                    <div class="folder-item" data-folder="unread">
+                        <span class="folder-item-label">Unread</span>
+                        <span class="folder-badge" data-folder-badge="unread"></span>
+                    </div>
+                    <div class="folder-item" data-folder="needs_reply">
+                        <span class="folder-item-label">Needs Reply</span>
+                        <span class="folder-badge" data-folder-badge="needs_reply"></span>
+                    </div>
+                    <div class="folder-item" data-folder="today">
+                        <span class="folder-item-label">Today</span>
+                        <span class="folder-badge" data-folder-badge="today"></span>
+                    </div>
+                    <div class="folder-section-label" style="margin-top:8px">Send</div>
+                    <div class="folder-item" data-folder="sent">
+                        <span class="folder-item-label">Sent</span>
+                        <span class="folder-badge" data-folder-badge="sent"></span>
+                    </div>
+                    <div class="folder-item" data-folder="drafts">
+                        <span class="folder-item-label">Drafts</span>
+                        <span class="folder-badge" data-folder-badge="drafts"></span>
+                    </div>
+                    <div class="folder-section-label" style="margin-top:8px">Filter</div>
+                    <div class="folder-item" data-folder="spam">
+                        <span class="folder-item-label">Spam</span>
+                        <span class="folder-badge" data-folder-badge="spam"></span>
+                    </div>
+                    <div class="folder-item" data-folder="newsletters">
+                        <span class="folder-item-label">Newsletters</span>
+                        <span class="folder-badge" data-folder-badge="newsletters"></span>
+                    </div>
+                    <div class="folder-item" data-folder="archive">
+                        <span class="folder-item-label">Archive</span>
+                        <span class="folder-badge" data-folder-badge="archive"></span>
+                    </div>
+
+                    <!-- AI Actions -->
+                    <div class="folder-section-label" style="margin-top:12px">AI Actions</div>
+                    <button class="email-action-sidebar-btn" id="email-ask-btn" title="Ask your inbox a question">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        Ask Inbox
+                    </button>
+                    <button class="email-action-sidebar-btn" id="email-stats-btn" title="View email statistics">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                        Stats
+                    </button>
+                    <button class="email-action-sidebar-btn" id="email-scan-spam-btn" title="Scan inbox for spam">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        Scan Spam
+                    </button>
+                    <button class="email-action-sidebar-btn" id="email-scan-reply-btn" title="Detect emails needing a reply">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+                        Scan Needs-Reply
+                    </button>
+                    <button class="email-action-sidebar-btn" id="email-watch-btn" title="Toggle email watch mode">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <span id="email-watch-label">Start Watch</span>
+                    </button>
+                    <div class="email-watch-status" id="email-watch-status" style="display:none">
+                        <span class="watch-dot"></span><span id="email-watch-status-text">Watching…</span>
+                    </div>
+                </div><!-- /.email-folders -->
+
+                <!-- Email list column -->
+                <div class="email-list-col">
+                    <div class="email-list-header">
+                        <span class="email-list-title" id="email-list-title">Inbox</span>
+                        <button class="email-list-sort" id="email-sort-btn">↓ Date</button>
+                    </div>
+                    <div class="email-list-scroll" id="email-list-scroll"></div>
+                    <!-- Ask your inbox -->
+                    <div class="inbox-chat">
+                        <input type="text" id="inbox-chat-input" placeholder="Ask your inbox…" aria-label="Ask inbox question" />
+                        <button class="inbox-chat-send" id="inbox-chat-send-btn">Ask</button>
+                    </div>
+                    <div class="inbox-chat-result" id="inbox-chat-result"></div>
+                </div><!-- /.email-list-col -->
+
+                <!-- Email viewer + AI sidebar -->
+                <div class="email-viewer-col">
+                    <div class="email-viewer-empty" id="email-viewer-empty" style="display:flex">Select an email to read</div>
+
+                    <div class="email-viewer-main" id="email-viewer-main">
+                        <div class="email-viewer-header">
+                            <div class="email-viewer-subject" id="email-viewer-subject"></div>
+                            <div class="email-viewer-from" id="email-viewer-from"></div>
+                            <div class="email-viewer-from" id="email-viewer-to"></div>
+                            <div class="email-viewer-from" id="email-viewer-cc" style="display:none"></div>
+                            <div style="font-size:0.75rem;color:var(--text-muted)" id="email-viewer-date"></div>
+                        </div>
+                        <div class="email-viewer-actions">
+                            <button class="email-action-btn" id="email-action-reply">↩ Reply</button>
+                            <button class="email-action-btn" id="email-action-reply-all">↩ Reply All</button>
+                            <button class="email-action-btn" id="email-action-forward">→ Forward</button>
+                            <button class="email-action-btn" id="email-action-mark-read">Mark Read</button>
+                            <button class="email-action-btn" id="email-action-mark-unread">Mark Unread</button>
+                            <button class="email-action-btn" id="email-action-remind">🔔 Remind</button>
+                            <button class="email-action-btn" id="email-action-archive">Archive</button>
+                            <button class="email-action-btn danger" id="email-action-delete">Delete</button>
+                        </div>
+                        <div class="email-viewer-split">
+                            <div class="email-body-scroll">
+                                <div class="email-body-text" id="email-viewer-body-text"></div>
+                                <div class="email-attachments" id="email-viewer-attachments" style="display:none"></div>
+                            </div>
+                            <!-- AI Sidebar -->
+                            <div class="email-ai-sidebar">
+                                <div class="ai-sidebar-header">
+                                    <span class="ai-sidebar-title">AI Insights</span>
+                                </div>
+                                <div class="ai-sidebar-scroll">
+                                    <div class="ai-section">
+                                        <div class="ai-section-label">Summary</div>
+                                        <div class="ai-section-body" id="ai-summary"></div>
+                                    </div>
+                                    <div class="ai-section">
+                                        <div class="ai-section-label">Needs Reply</div>
+                                        <div class="ai-section-body" id="ai-needs-reply"></div>
+                                    </div>
+                                    <div class="ai-section">
+                                        <div class="ai-section-label">Tags</div>
+                                        <div class="ai-section-body" id="ai-tags"></div>
+                                    </div>
+                                    <div class="ai-section">
+                                        <div class="ai-section-label">Priority</div>
+                                        <div class="ai-section-body" id="ai-priority-exp"></div>
+                                    </div>
+                                    <div class="ai-section">
+                                        <div class="ai-section-label">Spam Analysis</div>
+                                        <div class="ai-section-body" id="ai-spam"></div>
+                                    </div>
+                                    <div class="ai-section">
+                                        <div class="ai-section-label">Suggested Reply</div>
+                                        <div class="ai-section-body" id="ai-suggested-reply"></div>
+                                        <button class="ai-insert-btn" id="ai-insert-reply-btn">Insert AI Reply</button>
+                                    </div>
+                                </div>
+                            </div><!-- /.email-ai-sidebar -->
+                        </div>
+                    </div><!-- /#email-viewer-main -->
+                </div><!-- /.email-viewer-col -->
+
+            </div><!-- /.email-body -->
+
+            <!-- ── Ask Inbox Panel ─────────────────────── -->
+            <div class="email-panel-overlay" id="email-ask-panel" style="display:none">
+                <div class="email-panel">
+                    <div class="email-panel-header">
+                        <span>Ask Your Inbox</span>
+                        <button class="email-panel-close" id="email-ask-panel-close">&times;</button>
+                    </div>
+                    <div class="email-panel-body">
+                        <div class="email-panel-input-row">
+                            <input type="text" id="ask-panel-input" placeholder="e.g. Any emails about invoices last week?" />
+                            <button class="email-panel-send-btn" id="ask-panel-send-btn">Ask</button>
+                        </div>
+                        <div class="email-panel-result" id="ask-panel-result"></div>
+                        <div class="email-panel-citations" id="ask-panel-citations"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Stats Panel ────────────────────────── -->
+            <div class="email-panel-overlay" id="email-stats-panel" style="display:none">
+                <div class="email-panel">
+                    <div class="email-panel-header">
+                        <span>Email Statistics</span>
+                        <button class="email-panel-close" id="email-stats-panel-close">&times;</button>
+                    </div>
+                    <div class="email-panel-body" id="email-stats-body">
+                        <div class="email-stats-loading">Loading stats…</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Accounts Panel ──────────────────────── -->
+            <div class="email-panel-overlay" id="email-accounts-panel" style="display:none">
+                <div class="email-panel" style="width:540px">
+                    <div class="email-panel-header">
+                        <span>Email Accounts</span>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <button class="email-panel-send-btn" id="accounts-panel-add-btn" style="font-size:0.78rem;padding:5px 12px">+ Add Account</button>
+                            <button class="email-panel-close" id="email-accounts-panel-close">&times;</button>
+                        </div>
+                    </div>
+                    <div class="email-panel-body" id="email-accounts-body">
+                        <div class="email-stats-loading">Loading accounts…</div>
+                    </div>
+                </div>
+            </div>
+
+            </div><!-- /#email-workspace -->
+        </div><!-- /.app-container -->
+
+        <!-- Compose Modal -->
+        <div class="compose-modal-overlay" id="compose-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="compose-modal-title">
+            <div class="compose-modal">
+                <div class="compose-header">
+                    <span class="compose-title" id="compose-modal-title">New Message</span>
+                    <button class="compose-close" id="compose-close-btn" aria-label="Close compose">&times;</button>
+                </div>
+                <div class="compose-fields">
+                    <div class="compose-field">
+                        <span class="compose-field-label">To</span>
+                        <input type="text" id="compose-to" placeholder="recipient@example.com" />
+                    </div>
+                    <div class="compose-field">
+                        <span class="compose-field-label">CC</span>
+                        <input type="text" id="compose-cc" placeholder="Optional" />
+                    </div>
+                    <div class="compose-field">
+                        <span class="compose-field-label">BCC</span>
+                        <input type="text" id="compose-bcc" placeholder="Optional" />
+                    </div>
+                    <div class="compose-field">
+                        <span class="compose-field-label">Subject</span>
+                        <input type="text" id="compose-subject" placeholder="Subject" />
+                    </div>
+                </div>
+                <textarea class="compose-body" id="compose-body" placeholder="Write your message…"></textarea>
+                <div class="compose-footer">
+                    <button class="compose-btn" id="compose-draft-btn">✨ AI Draft</button>
+                    <button class="compose-btn" id="compose-cancel-btn">Cancel</button>
+                    <button class="compose-btn send-compose" id="compose-send-btn">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast container -->
+        <div class="email-toast-container" id="email-toast-container" aria-live="polite"></div>
+
+        <!-- Add Account Modal -->
+        <div class="compose-modal-overlay" id="add-account-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="add-account-modal-title" style="align-items:center;justify-content:center">
+            <div class="compose-modal" style="max-height:92vh;overflow-y:auto">
+                <div class="compose-header">
+                    <span class="compose-title" id="add-account-modal-title">Add Email Account</span>
+                    <button class="compose-close" id="add-account-close-btn" aria-label="Close">&times;</button>
+                </div>
+                <div class="compose-fields">
+                    <div class="compose-field">
+                        <span class="compose-field-label">Label</span>
+                        <input type="text" id="acct-label" placeholder="e.g. personal / work" autocomplete="off" />
+                    </div>
+                    <div class="compose-field">
+                        <span class="compose-field-label">Email</span>
+                        <input type="email" id="acct-email" placeholder="you@example.com" autocomplete="email" />
+                    </div>
+                    <div class="compose-field">
+                        <span class="compose-field-label">Password</span>
+                        <input type="password" id="acct-password" placeholder="App password / IMAP password" autocomplete="new-password" />
+                    </div>
+                </div>
+                <!-- IMAP section -->
+                <div style="padding:10px 20px 0;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted)">IMAP (Incoming)</div>
+                <div class="compose-fields">
+                    <div class="compose-field">
+                        <span class="compose-field-label">Host</span>
+                        <input type="text" id="acct-imap-host" placeholder="imap.gmail.com" autocomplete="off" />
+                    </div>
+                    <div class="compose-field">
+                        <span class="compose-field-label">Port</span>
+                        <input type="number" id="acct-imap-port" placeholder="993" value="993" style="width:80px" />
+                    </div>
+                </div>
+                <!-- SMTP section -->
+                <div style="padding:10px 20px 0;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted)">SMTP (Outgoing)</div>
+                <div class="compose-fields">
+                    <div class="compose-field">
+                        <span class="compose-field-label">Host</span>
+                        <input type="text" id="acct-smtp-host" placeholder="smtp.gmail.com" autocomplete="off" />
+                    </div>
+                    <div class="compose-field">
+                        <span class="compose-field-label">Port</span>
+                        <input type="number" id="acct-smtp-port" placeholder="465" value="465" style="width:80px" />
+                    </div>
+                </div>
+                <div class="compose-fields">
+                    <div class="compose-field">
+                        <span class="compose-field-label">Username</span>
+                        <input type="text" id="acct-username" placeholder="Optional — defaults to email address" autocomplete="off" />
+                    </div>
+                </div>
+                <div style="padding:8px 20px;display:flex;align-items:center;gap:8px;border-top:1px solid var(--border-color)">
+                    <input type="checkbox" id="acct-ssl" checked style="cursor:pointer" />
+                    <label for="acct-ssl" style="font-size:0.82rem;color:var(--text-muted);cursor:pointer">Use SSL/TLS</label>
+                    <input type="checkbox" id="acct-test" style="cursor:pointer;margin-left:16px" />
+                    <label for="acct-test" style="font-size:0.82rem;color:var(--text-muted);cursor:pointer">Test connection on add</label>
+                </div>
+                <!-- Quick-fill presets -->
+                <div style="padding:6px 20px;display:flex;gap:6px;flex-wrap:wrap;border-top:1px solid var(--border-color)">
+                    <span style="font-size:0.72rem;color:var(--text-muted);align-self:center">Quick-fill:</span>
+                    <button class="compose-btn" onclick="acctPreset('gmail')" style="font-size:0.72rem;padding:3px 10px">Gmail</button>
+                    <button class="compose-btn" onclick="acctPreset('outlook')" style="font-size:0.72rem;padding:3px 10px">Outlook</button>
+                    <button class="compose-btn" onclick="acctPreset('yahoo')" style="font-size:0.72rem;padding:3px 10px">Yahoo</button>
+                    <button class="compose-btn" onclick="acctPreset('fastmail')" style="font-size:0.72rem;padding:3px 10px">Fastmail</button>
+                    <button class="compose-btn" onclick="acctPreset('proton')" style="font-size:0.72rem;padding:3px 10px">Proton</button>
+                </div>
+                <div class="compose-footer">
+                    <div id="add-account-status" style="font-size:0.78rem;color:var(--text-muted);flex:1"></div>
+                    <button class="compose-btn" id="add-account-cancel-btn">Cancel</button>
+                    <button class="compose-btn send-compose" id="add-account-save-btn">Add Account</button>
+                </div>
+            </div>
         </div>
 
         <!-- Settings Modal -->
@@ -552,6 +903,7 @@
         <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/marked-katex-extension/lib/index.umd.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
+        <script src="/ui/static/email.js"></script>
         <script src="/ui/static/app.js"></script>
     </body>
 </html>

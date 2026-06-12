@@ -75,6 +75,13 @@ _P2_DDL = [
         updated_at      REAL    NOT NULL
     )
     """,
+    # Spam scan metadata (last scan timestamp, count)
+    """
+    CREATE TABLE IF NOT EXISTS spam_scan_meta (
+        key    TEXT PRIMARY KEY,
+        value  TEXT NOT NULL
+    )
+    """,
     # Indexes
     "CREATE INDEX IF NOT EXISTS idx_p2_needs_reply     ON email_p2_meta(needs_reply) WHERE needs_reply = 1",
     "CREATE INDEX IF NOT EXISTS idx_p2_newsletter      ON email_p2_meta(is_newsletter) WHERE is_newsletter = 1",
@@ -292,14 +299,62 @@ def get_spam_stats(db_path: Optional[Path] = None) -> dict:
             LIMIT 5
             """
         ).fetchall()
+        # Confidence distribution
+        dist = conn.execute(
+            """
+            SELECT
+                SUM(CASE WHEN spam_status != 'safe' AND spam_confidence >= 90 THEN 1 ELSE 0 END) AS high,
+                SUM(CASE WHEN spam_status != 'safe' AND spam_confidence >= 60 AND spam_confidence < 90 THEN 1 ELSE 0 END) AS medium,
+                SUM(CASE WHEN spam_status != 'safe' AND spam_confidence < 60 THEN 1 ELSE 0 END) AS low
+            FROM email_p2_meta
+            """
+        ).fetchone()
+        # Last scan metadata
+        try:
+            last_scan = conn.execute(
+                "SELECT value FROM spam_scan_meta WHERE key = 'last_scan_at'"
+            ).fetchone()
+            scanned_total = conn.execute(
+                "SELECT value FROM spam_scan_meta WHERE key = 'scanned_total'"
+            ).fetchone()
+            last_scan_at = float(last_scan["value"]) if last_scan else None
+            scanned_total_n = int(scanned_total["value"]) if scanned_total else 0
+        except Exception:
+            last_scan_at = None
+            scanned_total_n = 0
         return {
             "spam_count": row["spam_count"] or 0,
             "suspicious_count": row["suspicious_count"] or 0,
             "unreviewed_count": row["unreviewed_count"] or 0,
             "top_spam_senders": [(r["sender"], r["cnt"]) for r in top_senders],
+            "dist_high": dist["high"] or 0 if dist else 0,
+            "dist_medium": dist["medium"] or 0 if dist else 0,
+            "dist_low": dist["low"] or 0 if dist else 0,
+            "last_scan_at": last_scan_at,
+            "scanned_total": scanned_total_n,
         }
     except sqlite3.Error as exc:
         raise EmailSyncError(f"Failed to get spam stats: {exc}") from exc
+    finally:
+        conn.close()
+
+
+def set_spam_scan_meta(last_scan_at: float, scanned_total: int, db_path: Optional[Path] = None) -> None:
+    """Persist spam scan metadata (last run time + count)."""
+    conn = get_connection(db_path)
+    try:
+        with conn:
+            for key, value in [
+                ("last_scan_at", str(last_scan_at)),
+                ("scanned_total", str(scanned_total)),
+            ]:
+                conn.execute(
+                    "INSERT INTO spam_scan_meta(key, value) VALUES (?, ?)"
+                    " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    (key, value),
+                )
+    except sqlite3.Error as exc:
+        raise EmailSyncError(f"Failed to save spam scan meta: {exc}") from exc
     finally:
         conn.close()
 

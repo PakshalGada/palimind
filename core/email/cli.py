@@ -206,6 +206,45 @@ def list_accounts():
     console.print(table)
 
 
+@app.command("remove")
+def remove_account(
+    label: str = typer.Argument(..., help="Account label to delete"),
+    keep_emails: bool = typer.Option(False, "--keep-emails", help="Keep emails in DB (only remove account credentials)"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+):
+    """Remove an email account and (by default) all its emails from the local database."""
+    from core.email.api import delete_account as _delete
+
+    if not yes:
+        console.print(
+            f"[bold yellow]⚠ This will permanently delete account [cyan]{label}[/cyan]"
+            + (" and ALL its emails" if not keep_emails else "")
+            + " from the local database.[/bold yellow]"
+        )
+        console.print("[dim]Type the label to confirm, or press Enter to cancel:[/dim] ", end="")
+        try:
+            confirm = input().strip()
+        except (KeyboardInterrupt, EOFError):
+            console.print()
+            print_info("Cancelled.")
+            return
+        if confirm != label:
+            print_info("Cancelled.")
+            return
+
+    try:
+        _delete(label, purge_emails=not keep_emails)
+    except EmailError as exc:
+        print_error(str(exc))
+        raise typer.Exit(1)
+
+    print_success(
+        f'Account "{label}" removed'
+        + (" (emails kept)" if keep_emails else " + all emails deleted")
+        + "."
+    )
+
+
 @app.command("sync")
 def sync(
     account: Optional[str] = typer.Option(None, "--account", "-a", help="Account label (default: all)"),

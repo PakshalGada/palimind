@@ -47,6 +47,44 @@ let lastTreeData = null;
 const sessionTabs = document.getElementById("session-tabs");
 const btnAddSession = document.getElementById("btn-add-session");
 
+// ── Workspace mode switching ─────────────────────────────────────────────
+let _emailInitialised = false;
+
+function switchToMode(mode) {
+  const fieldsSidebar = document.getElementById("fields-sidebar-content");
+  const mainArea      = document.getElementById("main-area");
+  const emailWS       = document.getElementById("email-workspace");
+  const navFields     = document.getElementById("nav-fields");
+  const navEmail      = document.getElementById("nav-email");
+
+  if (mode === "email") {
+    if (fieldsSidebar) fieldsSidebar.style.display = "none";
+    if (mainArea)      mainArea.style.display = "none";
+    if (emailWS)       emailWS.classList.add("active");
+    navFields?.classList.remove("active");
+    navEmail?.classList.add("active");
+    stopEmailPolling();
+    if (!_emailInitialised) {
+      _emailInitialised = true;
+      wireEmailEvents();
+      initEmailWorkspace();
+    } else {
+      startEmailPolling();
+    }
+  } else {
+    if (fieldsSidebar) fieldsSidebar.style.display = "";
+    if (mainArea)      mainArea.style.display = "";
+    if (emailWS)       emailWS.classList.remove("active");
+    navFields?.classList.add("active");
+    navEmail?.classList.remove("active");
+    stopEmailPolling();
+  }
+}
+
+document.getElementById("nav-fields")?.addEventListener("click", () => switchToMode("fields"));
+document.getElementById("nav-email")?.addEventListener("click",  () => switchToMode("email"));
+// ─────────────────────────────────────────────────────────────────────────
+
 // Markdown parser using marked, katex, and dompurify
 let markedConfigured = false;
 

@@ -92,6 +92,49 @@ def list_accounts(db_path: Optional[Path] = None) -> list[Account]:
     return store.get_accounts(db_path)
 
 
+def delete_account(
+    label: str,
+    *,
+    purge_emails: bool = True,
+    db_path: Optional[Path] = None,
+) -> None:
+    """Delete an account and (optionally) all its emails from the local DB.
+
+    Raises EmailAccountNotFoundError if the label does not exist.
+    """
+    import sqlite3
+
+    ensure_db(db_path)
+    account = store.get_account_by_label(label, db_path)  # raises if not found
+    acc_id = account.id
+
+    _db = db_path or store._EMAIL_DB_PATH
+    try:
+        con = sqlite3.connect(str(_db))
+        con.execute("PRAGMA foreign_keys = ON")
+        with con:
+            if purge_emails:
+                # Remove p2 meta rows tied to this account's emails
+                con.execute(
+                    "DELETE FROM email_p2_meta WHERE email_id IN "
+                    "(SELECT id FROM emails WHERE account_id=?)", (acc_id,)
+                )
+                # Remove attachments
+                con.execute(
+                    "DELETE FROM attachments WHERE email_id IN "
+                    "(SELECT id FROM emails WHERE account_id=?)", (acc_id,)
+                )
+                # Remove the emails themselves
+                con.execute("DELETE FROM emails WHERE account_id=?", (acc_id,))
+            # Remove sync state
+            con.execute("DELETE FROM sync_state WHERE account_id=?", (acc_id,))
+            # Remove the account
+            con.execute("DELETE FROM accounts WHERE id=?", (acc_id,))
+        con.close()
+    except Exception as exc:
+        raise EmailError(f"Failed to delete account: {exc}") from exc
+
+
 # ---------------------------------------------------------------------------
 # Sync
 # ---------------------------------------------------------------------------

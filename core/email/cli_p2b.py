@@ -83,12 +83,78 @@ _spam_app = typer.Typer(name="spam", help="Spam management — detect, review, w
 
 
 @app.command("spam")
-def spam_dashboard():
-    """Show the spam dashboard: counts, top senders, recent detections."""
-    from core.email.api_p2 import get_spam_dashboard, get_spam_list
+def spam_dashboard(
+    scan: bool = typer.Option(False, "--scan", "-s", help="Scan inbox for spam first (shows live AI scores)"),
+    limit: int = typer.Option(100, "--limit", "-n", help="Max emails to scan"),
+):
+    """Show the spam dashboard: counts, AI scores, top senders, recent detections.
+
+    Use --scan to run the AI detector on your inbox first.
+    """
+    from core.email.api_p2 import get_spam_dashboard, get_spam_list, scan_spam_live
+    from rich.live import Live
 
     print_header("Spam Dashboard")
 
+    # ── Live scan mode ──────────────────────────────────────────────────────
+    if scan:
+        print_info(f"Scanning up to {limit} emails for spam…")
+        console.print("[dim]  AI scores each email heuristically + via Ollama (if available).[/dim]")
+        console.print()
+
+        FLUSH_EVERY = 3
+        flagged_live = 0
+        total_scanned = 0
+
+        scan_table = Table(
+            box=box.SIMPLE_HEAVY,
+            show_header=True,
+            header_style="bold magenta",
+            expand=True,
+        )
+        scan_table.add_column("#", width=5, justify="right", style="dim")
+        scan_table.add_column("Score", width=12)
+        scan_table.add_column("Conf", width=5, justify="right")
+        scan_table.add_column("Status", width=11)
+        scan_table.add_column("From", max_width=26)
+        scan_table.add_column("Subject", max_width=38)
+        scan_table.add_column("Signal", max_width=22, style="dim")
+
+        with Live(scan_table, console=console, refresh_per_second=4, transient=False) as live:
+            for result in scan_spam_live(limit=limit):
+                total_scanned += 1
+                status = result["status"]
+                conf = result["confidence"]
+
+                if status in ("spam", "suspicious"):
+                    flagged_live += 1
+
+                color = "red" if status == "spam" else ("yellow" if status == "suspicious" else "green")
+                bar_colored = f"[{color}]{result['score_bar']}[/{color}]"
+                display = (result["sender_name"] or result["sender"])[:26]
+
+                scan_table.add_row(
+                    str(result["id"]),
+                    bar_colored,
+                    f"[{color}]{conf}[/{color}]",
+                    f"[{color}]{status}[/{color}]",
+                    display,
+                    result["subject"][:38],
+                    (result["reason"] or "")[:22],
+                )
+
+                if total_scanned % FLUSH_EVERY == 0:
+                    live.refresh()
+
+        console.print()
+        pct = round(flagged_live / total_scanned * 100) if total_scanned else 0
+        console.print(
+            f"[bold]Scan complete.[/bold] Scanned [cyan]{total_scanned}[/cyan] emails — "
+            f"[red]{flagged_live}[/red] flagged ([yellow]{pct}%[/yellow])"
+        )
+        console.print()
+
+    # ── Dashboard ───────────────────────────────────────────────────────────
     try:
         stats = get_spam_dashboard()
         recent = get_spam_list(limit=5)
@@ -96,13 +162,54 @@ def spam_dashboard():
         print_error(str(exc))
         raise typer.Exit(1)
 
-    # Stats panel
-    info_lines = [
-        f"[bold red]Spam:[/bold red]           {stats['spam_count']}",
-        f"[bold yellow]Suspicious:[/bold yellow]     {stats['suspicious_count']}",
-        f"[bold cyan]Unreviewed:[/bold cyan]     {stats['unreviewed_count']}",
-    ]
-    console.print(Panel("\n".join(info_lines), title="[bold]Spam Statistics[/bold]", border_style="red"))
+    spam_c = stats["spam_count"]
+    susp_c = stats["suspicious_count"]
+    unrev_c = stats["unreviewed_count"]
+    total_bad = spam_c + susp_c
+
+    # Last scan info
+    import time as _time
+    last_scan_at = stats.get("last_scan_at")
+    scanned_total = stats.get("scanned_total", 0)
+    if last_scan_at:
+        mins_ago = int((_time.time() - last_scan_at) / 60)
+        if mins_ago < 1:
+            scan_age = "just now"
+        elif mins_ago < 60:
+            scan_age = f"{mins_ago}m ago"
+        else:
+            scan_age = f"{mins_ago // 60}h {mins_ago % 60}m ago"
+        scan_line = f"[dim]Last scan:[/dim] [cyan]{scan_age}[/cyan]  [dim]({scanned_total} emails scanned)[/dim]"
+    else:
+        scan_line = "[dim]No scan yet — run [bold white]pm email spam --scan[/bold white] to detect spam.[/dim]"
+
+    # Confidence histogram
+    def _hist_bar(n: int, colour: str, total: int) -> str:
+        width = 10
+        filled = round((n / total) * width) if total else 0
+        return f"[{colour}]{'█' * filled}[/{colour}][dim]{'░' * (width - filled)}[/dim]"
+
+    high_n = stats.get("dist_high", 0)
+    med_n = stats.get("dist_medium", 0)
+    low_n = stats.get("dist_low", 0)
+
+    hist_block = ""
+    if total_bad:
+        hist_block = (
+            f"\n\n  [bold]Score distribution  ({total_bad} flagged)[/bold]\n"
+            f"  [red]High ≥90[/red]  {_hist_bar(high_n, 'red', total_bad)}  {high_n}\n"
+            f"  [yellow]Med  60+[/yellow]  {_hist_bar(med_n, 'yellow', total_bad)}  {med_n}\n"
+            f"  [dim]Low  <60[/dim]   {_hist_bar(low_n, 'dim', total_bad)}  {low_n}"
+        )
+
+    panel_body = (
+        f"[bold red]Spam:[/bold red]           {spam_c}\n"
+        f"[bold yellow]Suspicious:[/bold yellow]     {susp_c}\n"
+        f"[bold cyan]Unreviewed:[/bold cyan]     {unrev_c}\n"
+        f"{scan_line}"
+        f"{hist_block}"
+    )
+    console.print(Panel(panel_body, title="[bold]Spam Statistics[/bold]", border_style="red"))
 
     # Top spam senders
     if stats["top_spam_senders"]:
@@ -111,30 +218,36 @@ def spam_dashboard():
         for sender, count in stats["top_spam_senders"]:
             console.print(f"  [red]•[/red] {sender} [dim]({count})[/dim]")
 
-    # Recent detections
+    # Recent detections with score bars
     if recent:
         console.print()
         console.print("[bold]Recent Detections[/bold]")
         t = Table(box=box.SIMPLE, show_header=True, header_style="bold cyan", expand=True)
         t.add_column("#", width=5, justify="right")
-        t.add_column("Status", width=10)
+        t.add_column("Status", width=11)
+        t.add_column("Score", width=12)
         t.add_column("Conf", width=5, justify="right")
         t.add_column("From", max_width=25)
         t.add_column("Subject", max_width=35)
         for item in recent:
             status = item.get("spam_status", "safe")
+            conf = item.get("spam_confidence", 0)
             color = "red" if status == "spam" else "yellow"
+            filled = round(conf / 10)
+            bar = f"[{color}]{'█' * filled}[/{color}][dim]{'░' * (10 - filled)}[/dim]"
             t.add_row(
                 str(item["id"]),
                 f"[{color}]{status}[/{color}]",
-                str(item.get("spam_confidence", 0)) + "%",
+                bar,
+                f"[{color}]{conf}[/{color}]",
                 (item.get("sender_name") or item["sender"])[:25],
                 item["subject"][:35],
             )
         console.print(t)
 
     console.print()
-    console.print("[dim]Commands: pm email spam list | pm email spam review | pm email spam whitelist/blacklist <addr>[/dim]")
+    console.print("[dim]Commands: pm email spam --scan | pm email spam-list | pm email spam-review | pm email spam-whitelist/spam-blacklist <addr>[/dim]")
+
 
 
 @app.command("spam-list")
