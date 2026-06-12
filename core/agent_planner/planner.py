@@ -271,7 +271,7 @@ class AgentPlanner:
         ollama_url: str,
         model: str,
         max_iterations: int = 3,
-        token_budget: int = 6000,
+        token_budget: int = 8000,
     ) -> None:
         self.root = root
         self.config = config
@@ -293,7 +293,12 @@ class AgentPlanner:
             conn.close()
         return classify_query(query, indexed_docs)
 
-    def execute(self, query: str, classification: ClassificationResult | None = None) -> AgentResult:
+    def execute(
+        self,
+        query: str,
+        classification: ClassificationResult | None = None,
+        files_filter: list[str] | None = None
+    ) -> AgentResult:
         """
         Execute the full agentic pipeline for *query*.
 
@@ -301,6 +306,7 @@ class AgentPlanner:
         ----------
         query: The user's query (already reformulated to standalone).
         classification: Optional pre-computed classification (skips classifier call).
+        files_filter: Optional list of specific files to restrict search to.
 
         Returns
         -------
@@ -311,16 +317,30 @@ class AgentPlanner:
         if classification is None:
             classification = self.classify(query)
 
+        # ── Query rewriting ────────────────────────────────────────────────────
+        # Rewrite the raw user query into a clean primary search query.
+        # This improves embedding quality significantly compared to embedding the
+        # full verbose question as-is.
+        retrieval_query = query
+        try:
+            from core.retrieval.query_rewriter import rewrite_query
+            rewritten = rewrite_query(query, self.ollama_url, self.model)
+            if rewritten.search_queries:
+                # Use the first (cleaned) sub-query for primary retrieval
+                retrieval_query = rewritten.search_queries[0]
+        except Exception:
+            pass  # Fallback to original query silently
+
         all_tool_results: list[ToolResult] = []
         plan: ExecutionPlan | None = None
         iteration = 0
 
         for iteration in range(1, self.max_iterations + 1):
-            # 1. Plan
-            plan = get_plan(query, classification, self.config)
+            # 1. Plan (using the cleaned retrieval query)
+            plan = get_plan(retrieval_query, classification, self.config)
 
             # 2. Execute
-            tool_results = self.executor.run(plan)
+            tool_results = self.executor.run(plan, files_filter=files_filter)
             all_tool_results.extend(tool_results)
 
             # 3. Reflect

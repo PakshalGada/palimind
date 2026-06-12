@@ -47,8 +47,11 @@ def generate_response_stream(
             "---------------------\n"
             f"{context}\n"
             "---------------------\n\n"
-            "Use the context above to answer the query. If the context is only partially relevant, "
-            "supplement with your general knowledge and note which parts came from the index.\n"
+            "Answer the query using ONLY the context above. "
+            "You MUST cite the exact source file using brackets (e.g. [filename]) for every claim you make based on the context. "
+            "If the context does not contain enough information to answer fully, "
+            "say explicitly what is missing rather than inventing details. "
+            "Never fabricate specific numbers, dates, names, or code that are not in the context.\n"
             f"Query: {query}\n"
             "Answer:"
         )

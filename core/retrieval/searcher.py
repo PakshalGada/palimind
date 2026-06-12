@@ -202,11 +202,15 @@ def _hybrid_search(
     fused = _rrf(vector_results, fts_results)
     reranked = rerank_chunks(query, fused, top_n=limit)
 
-    # Filter out very low relevance chunks
-    RELEVANCE_THRESHOLD = -5.0
+    # Filter out chunks below a neutral relevance score.
+    # ms-marco-MiniLM scores range ~-10 to +10; -1.0 is a "below neutral"
+    # cutoff that removes clearly irrelevant chunks while keeping marginal ones.
+    RELEVANCE_THRESHOLD = -1.0
     has_scores = any("rerank_score" in r for r in reranked)
     if has_scores:
-        reranked = [r for r in reranked if r.get("rerank_score", 0.0) >= RELEVANCE_THRESHOLD]
+        filtered = [r for r in reranked if r.get("rerank_score", 0.0) >= RELEVANCE_THRESHOLD]
+        # Always keep at least 1 result so we never return empty-handed
+        reranked = filtered if filtered else reranked[:1]
 
     return reranked
 

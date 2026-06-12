@@ -51,6 +51,72 @@ if UI_DIR.exists():
 
 # -- Global State & Config --
 GLOBAL_CONFIG_PATH = Path.home() / ".palimind_global.json"
+GLOBAL_AGENTS_PATH = Path.home() / ".palimind_agents.json"
+
+def get_default_agents():
+    return [
+        {
+            "id": "research",
+            "name": "Research",
+            "description": "researches deep in the documents.",
+            "system_prompt": (
+                "You are an expert Research Agent. Your goal is to provide deep, analytical, and highly structured insights based "
+                "on the provided context. Follow these reasoning steps:\n"
+                "1. Break down the user's query into core concepts.\n"
+                "2. Systematically search the context for evidence matching these concepts.\n"
+                "3. Synthesize your findings into a comprehensive report, using clear headings, bullet points, and logical flow.\n"
+                "Always favor precision and factual accuracy over assumption. Cite your sources clearly using inline brackets [filename] "
+                "for every claim."
+            ),
+            "is_default": True
+        },
+        {
+            "id": "compare",
+            "name": "Compare",
+            "description": "multi document comparision",
+            "system_prompt": (
+                "You are an expert Comparison Agent. Your goal is to analyze multiple documents and provide a structured, objective "
+                "comparison. Follow these reasoning steps:\n"
+                "1. Identify the key entities, concepts, or documents being compared.\n"
+                "2. Establish clear criteria for comparison (e.g., pros/cons, similarities/differences, performance metrics).\n"
+                "3. Present your analysis using tables or structured bullet points for maximum clarity.\n"
+                "Always cite your sources clearly using inline brackets [filename]."
+            ),
+            "is_default": True
+        },
+        {
+            "id": "advise",
+            "name": "Advise",
+            "description": "advises",
+            "system_prompt": (
+                "You are an expert Advisory Agent. Your goal is to provide highly practical, actionable, and logical advice. "
+                "Follow these reasoning steps:\n"
+                "1. Analyze the user's situation and goals based on the query.\n"
+                "2. Evaluate the provided context for constraints, best practices, and relevant solutions.\n"
+                "3. Present clear recommendations, ordered by priority, explaining the 'why' behind each piece of advice.\n"
+                "Always cite your sources clearly using inline brackets [filename]."
+            ),
+            "is_default": True
+        }
+    ]
+
+def load_agents() -> list[dict]:
+    if GLOBAL_AGENTS_PATH.exists():
+        try:
+            data = json.loads(GLOBAL_AGENTS_PATH.read_text("utf-8"))
+            return data.get("agents", get_default_agents())
+        except Exception:
+            return get_default_agents()
+    else:
+        agents = get_default_agents()
+        save_agents(agents)
+        return agents
+
+def save_agents(agents: list[dict]):
+    try:
+        GLOBAL_AGENTS_PATH.write_text(json.dumps({"agents": agents}, indent=2), "utf-8")
+    except Exception as e:
+        print(f"Failed to save agents: {e}")
 
 class AppState:
     active_field: Path | None = None
@@ -598,8 +664,53 @@ async def get_files_tree():
     tree = await asyncio.to_thread(build_file_tree, state.active_field)
     return {"tree": tree}
 
+@app.get("/api/agents")
+async def get_agents():
+    return {"agents": load_agents()}
+
+@app.post("/api/agents/new")
+async def create_agent(req: Request):
+    data = await req.json()
+    agents = load_agents()
+    new_agent = {
+        "id": str(uuid.uuid4()),
+        "name": data.get("name", "New Agent"),
+        "description": data.get("description", ""),
+        "system_prompt": data.get("system_prompt", "You are a helpful assistant."),
+        "is_default": False
+    }
+    agents.append(new_agent)
+    save_agents(agents)
+    return {"status": "success", "agent": new_agent}
+
+@app.post("/api/agents/edit")
+async def edit_agent(req: Request):
+    data = await req.json()
+    agent_id = data.get("id")
+    agents = load_agents()
+    for i, a in enumerate(agents):
+        if a["id"] == agent_id and not a.get("is_default"):
+            agents[i]["name"] = data.get("name", a["name"])
+            agents[i]["description"] = data.get("description", a["description"])
+            agents[i]["system_prompt"] = data.get("system_prompt", a["system_prompt"])
+            save_agents(agents)
+            return {"status": "success", "agent": agents[i]}
+    return {"error": "Agent not found or is default"}
+
+@app.post("/api/agents/remove")
+async def remove_agent(req: Request):
+    data = await req.json()
+    agent_id = data.get("id")
+    agents = load_agents()
+    original_len = len(agents)
+    agents = [a for a in agents if not (a["id"] == agent_id and not a.get("is_default"))]
+    if len(agents) < original_len:
+        save_agents(agents)
+        return {"status": "success"}
+    return {"error": "Agent not found or is default"}
+
 @app.get("/api/chat")
-async def chat_stream(q: str, session_id: str | None = None, files: str | None = None):
+async def chat_stream(q: str, session_id: str | None = None, files: str | None = None, chat_mode: str = "rag", agent_id: str | None = None):
     if not state.active_field:
         async def err_stream():
             yield f"data: {json.dumps({'type': 'error', 'text': 'No active field'})}\n\n"
@@ -640,9 +751,20 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
         ollama_url = config.get("ollama_base_url", "https://puny-aliens-film.loca.lt")
         chat_model = config.get("chat_model", "llama3")
 
-        needs_retrieval_fast = await asyncio.to_thread(
-            needs_retrieval, q, history_to_send or [], ollama_url, chat_model
-        )
+        agent_system_prompt = None
+        if agent_id:
+            agents = await asyncio.to_thread(load_agents)
+            for a in agents:
+                if a["id"] == agent_id:
+                    agent_system_prompt = a["system_prompt"]
+                    break
+
+        if chat_mode == "llm":
+            needs_retrieval_fast = False
+        else:
+            needs_retrieval_fast = await asyncio.to_thread(
+                needs_retrieval, q, history_to_send or [], ollama_url, chat_model
+            )
 
         diagnostics_report = None
 
@@ -654,6 +776,7 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
                 query_stream_with_diagnostics,
                 state.active_field,
                 standalone_query,
+                system_prompt=agent_system_prompt,
                 history=history_to_send,
                 files_filter=files_filter,
                 mid_term_summary=mid_term_summary,
@@ -663,7 +786,7 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
             from core.generative.responder import generate_response_stream
             from core.models import RetrievedContext
             
-            prompt = "You are a helpful assistant."
+            prompt = agent_system_prompt or "You are a helpful assistant."
             if mid_term_summary:
                 prompt = f"{prompt}\n\nConversation Summary so far:\n{mid_term_summary}"
 

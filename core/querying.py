@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from pathlib import Path
 
@@ -10,6 +11,8 @@ from core.indexing import require_index
 from core.models import QueryResult, QueryStream, RetrievedContext
 from core.prompts.loader import load_prompt
 from core.retrieval.searcher import retrieve_context
+
+logger = logging.getLogger(__name__)
 
 
 def _default_system_prompt() -> str:
@@ -120,10 +123,10 @@ def _agent_query_stream(
         config=config,
         ollama_url=ollama_url,
         model=chat_model,
-        token_budget=config.get("context_token_budget", 6000),
+        token_budget=config.get("context_token_budget", 8000),
     )
 
-    agent_result = planner.execute(query)
+    agent_result = planner.execute(query, files_filter=files_filter)
     elapsed_ms = (time.monotonic() - start_time) * 1000
 
     # 2. Optionally fetch chat episodes concurrently (no agent blocking)
@@ -216,7 +219,13 @@ def query_stream(
             session_id=session_id,
         )
         return context, stream
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "AgentPlanner failed for query %r — falling back to legacy retrieval: %s",
+            query[:80],
+            exc,
+            exc_info=True,
+        )
         # Fallback to legacy retrieval pipeline
         return _legacy_query_stream(
             root,
@@ -260,7 +269,13 @@ def query_stream_with_diagnostics(
             mid_term_summary=mid_term_summary,
             session_id=session_id,
         )
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "AgentPlanner failed (with_diagnostics) for query %r — falling back: %s",
+            query[:80],
+            exc,
+            exc_info=True,
+        )
         context, stream = _legacy_query_stream(
             root,
             query,

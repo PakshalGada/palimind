@@ -25,7 +25,7 @@ def _lookup_template(
                 tool_name="retrieve_documents",
                 arguments={
                     "query": query,
-                    "limit": config.get("retrieval_limit", 5),
+                    "limit": config.get("retrieval_limit", 10),
                 },
                 parallel_group=0,
                 call_id="retrieve_main",
@@ -46,7 +46,7 @@ def _summarization_template(
                 tool_name="retrieve_documents",
                 arguments={
                     "query": query,
-                    "limit": 8,
+                    "limit": max(config.get("retrieval_limit", 10), 12),
                 },
                 parallel_group=0,
                 call_id="retrieve_summary",
@@ -233,7 +233,7 @@ def _financial_template(
                 tool_name="retrieve_documents",
                 arguments={
                     "query": query,
-                    "limit": 3,
+                    "limit": 5,
                     "section_filter": "financial",
                 },
                 parallel_group=0,

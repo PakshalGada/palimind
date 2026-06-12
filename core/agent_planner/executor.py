@@ -219,12 +219,17 @@ class ToolExecutor:
                 elapsed_ms=(time.monotonic() - start) * 1000,
             )
 
-    def run(self, plan: ExecutionPlan) -> list[ToolResult]:
+    def run(self, plan: ExecutionPlan, files_filter: list[str] | None = None) -> list[ToolResult]:
         """
         Execute the plan's steps in parallel-group order.
 
         Returns a list of ToolResult objects in completion order.
         """
+        if files_filter:
+            for step in plan.steps:
+                if "files_filter" not in step.arguments:
+                    step.arguments["files_filter"] = files_filter
+
         # Group steps by parallel_group
         groups: dict[int, list[ToolCall]] = defaultdict(list)
         for step in plan.steps:

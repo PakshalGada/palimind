@@ -30,17 +30,17 @@ def _load_reranker() -> CrossEncoder | None:
 def rerank_chunks(query: str, chunks: list[dict], top_n: int = 5) -> list[dict]:
     """Re-rank retrieved chunks using a cross-encoder.
 
-    Skips reranking when there are no more candidates than we need —
-    ordering doesn't matter if we'd return everything anyway.
+    Always runs the CrossEncoder when there are >= 2 candidates so that
+    results are sorted by true semantic relevance, not raw RRF scores.
     Expects each chunk to have a ``content`` key.
     """
     if not chunks:
         return []
 
-    # If we already have top_n or fewer candidates, reranking won't change
-    # which chunks are returned — skip the CPU inference entirely.
-    if len(chunks) <= top_n:
-        return chunks[:top_n]
+    # Only skip if there's literally one or zero chunks — reranking a single
+    # chunk against itself is meaningless but ordering 2+ by relevance matters.
+    if len(chunks) == 1:
+        return chunks
 
     reranker = _load_reranker()
     if reranker is None:

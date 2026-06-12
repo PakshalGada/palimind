@@ -20,6 +20,8 @@ DEFAULTS = {
     "summary_max_chars": 8000,  # Characters fed to the summariser (truncated)
     "extract_financials": True,  # Extract financial facts at index time (financial docs)
     "extract_timeline": True,    # Extract timeline events at index time
+    "retrieval_limit": 10,         # Number of chunks returned per retrieval call
+    "context_token_budget": 8000,  # Maximum tokens assembled into LLM context
     "comparison_chunks_per_doc": 4,  # Chunks retrieved per document in comparison mode
     "extensions": [
         ".txt",

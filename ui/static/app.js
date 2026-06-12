@@ -22,6 +22,22 @@ const indexingProgressContainer = document.getElementById(
 );
 const progressBarLabel = document.getElementById("progress-bar-label");
 
+let allAgents = [];
+
+const btnManageAgents = document.getElementById("btn-manage-agents");
+const agentsModal = document.getElementById("agents-modal");
+const btnCloseAgents = document.getElementById("btn-close-agents");
+const agentsList = document.getElementById("agents-list");
+const agentIdInput = document.getElementById("agent-id-input");
+const agentNameInput = document.getElementById("agent-name-input");
+const agentDescInput = document.getElementById("agent-desc-input");
+const agentPromptInput = document.getElementById("agent-prompt-input");
+const btnSaveAgent = document.getElementById("btn-save-agent");
+const btnClearAgentForm = document.getElementById("btn-clear-agent-form");
+
+const chatModeCheckbox = document.getElementById("chat-mode-checkbox");
+const mentionsPopup = document.getElementById("mentions-popup");
+
 let activeField = null;
 let activeSessionId = null;
 let sessions = [];
@@ -177,6 +193,8 @@ async function fetchFields() {
     console.error("Error fetching fields:", e);
   }
 }
+
+fetchAgents();
 
 const FIELD_TITLE_STORAGE_KEY = "palimind:field-display-titles";
 
@@ -405,6 +423,24 @@ if (btnClearSelection) {
       renderFileTree(lastTreeData);
     }
   });
+}
+
+if (btnManageAgents) {
+  btnManageAgents.addEventListener("click", () => {
+    agentsModal.style.display = "flex";
+    renderAgentsList();
+  });
+}
+if (btnCloseAgents) {
+  btnCloseAgents.addEventListener("click", () => {
+    agentsModal.style.display = "none";
+  });
+}
+if (btnClearAgentForm) {
+  btnClearAgentForm.addEventListener("click", clearAgentForm);
+}
+if (btnSaveAgent) {
+  btnSaveAgent.addEventListener("click", saveAgent);
 }
 
 initEventsWatcher();
@@ -724,12 +760,20 @@ function appendTyping() {
   const msgDiv = document.createElement("div");
   msgDiv.className = `message system-message typing-msg`;
   msgDiv.innerHTML = `
-    <div class="avatar system-avatar">P</div>
     <div class="message-content">
-      <div class="typing-indicator">
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
+      <div class="thinking-container">
+        <div class="circle-grid">
+          <div class="circle-dot"></div>
+          <div class="circle-dot"></div>
+          <div class="circle-dot"></div>
+          <div class="circle-dot"></div>
+          <div class="circle-dot"></div>
+          <div class="circle-dot"></div>
+          <div class="circle-dot"></div>
+          <div class="circle-dot"></div>
+          <div class="circle-dot"></div>
+        </div>
+        <div class="thinking-text">Thinking... <span>0.0s</span></div>
       </div>
     </div>
   `;
@@ -745,18 +789,33 @@ let isTTSPlaying = false;
 let ttsActive = false;
 
 async function sendMessage() {
-  const text = chatInput.value.trim();
-  if (!text) return;
+  const rawText = chatInput.value.trim();
+  if (!rawText) return;
 
   // Capture voice input flag NOW before anything can reset it
   const triggeredByVoice = wasVoiceInput;
   wasVoiceInput = false; // Reset for next input
 
+  // Extract agent mention from start of text
+  let agentId = null;
+  let text = rawText;
+  const mentionMatch = text.match(/^@(\w+)\s+(.*)/s) || text.match(/^@(\w+)$/);
+  if (mentionMatch) {
+    const mentionedName = mentionMatch[1];
+    const agent = allAgents.find(a => a.name.toLowerCase() === mentionedName.toLowerCase());
+    if (agent) {
+      agentId = agent.id;
+      text = mentionMatch[2] ? mentionMatch[2].trim() : "";
+    }
+  }
+  
+  if (!text && !agentId) return; // empty
+
   chatInput.value = "";
   if (typeof adjustInputWidth === "function") adjustInputWidth();
   const chatInterfaceEl = document.getElementById("chat-interface");
   if (chatInterfaceEl) chatInterfaceEl.classList.remove("empty-chat");
-  appendMessage("user", text);
+  appendMessage("user", rawText);
 
   // Initialise streaming TTS state for this turn
   if (triggeredByVoice) {
@@ -793,9 +852,22 @@ async function sendMessage() {
   }
 
   const typingInd = appendTyping();
+  const startTime = Date.now();
+  let timerInterval = null;
+  const timerTextEl = typingInd.querySelector(".thinking-text span");
+  if (timerTextEl) {
+    timerInterval = setInterval(() => {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      timerTextEl.textContent = elapsed + "s";
+    }, 100);
+  }
 
   try {
-    let url = `/api/chat?q=${encodeURIComponent(text)}${activeSessionId ? `&session_id=${activeSessionId}` : ""}`;
+    const chatMode = chatModeCheckbox && chatModeCheckbox.checked ? "rag" : "llm";
+    let url = `/api/chat?q=${encodeURIComponent(text)}&chat_mode=${chatMode}`;
+    if (activeSessionId) url += `&session_id=${activeSessionId}`;
+    if (agentId) url += `&agent_id=${agentId}`;
+    
     if (selectedFiles.size > 0) {
       const filesParam = Array.from(selectedFiles).join(",");
       url += `&files=${encodeURIComponent(filesParam)}`;
@@ -806,19 +878,25 @@ async function sendMessage() {
     let fullText = "";
 
     eventSource.onmessage = async function (event) {
-      if (typingInd.parentNode) {
-        typingInd.remove();
-      }
-
       const data = JSON.parse(event.data);
 
       if (data.type === "sources") {
         if (data.sources && data.sources.length > 0) {
+          if (typingInd.parentNode) {
+            typingInd.remove();
+          }
           fullText += `*Sources: ${data.sources.join(", ")}*\n\n`;
+          contentDiv = appendMessage("system", "");
+          contentDiv.innerHTML = formatMarkdown(fullText);
+          
+          messagesContainer.appendChild(typingInd);
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
-        contentDiv = appendMessage("system", "");
-        contentDiv.innerHTML = formatMarkdown(fullText);
       } else if (data.type === "token") {
+        if (typingInd.parentNode) {
+          typingInd.remove();
+          if (timerInterval) clearInterval(timerInterval);
+        }
         if (!contentDiv) contentDiv = appendMessage("system", "");
         fullText += data.text;
         contentDiv.innerHTML = formatMarkdown(fullText);
@@ -835,11 +913,19 @@ async function sendMessage() {
           }
         }
       } else if (data.type === "error") {
+        if (typingInd.parentNode) {
+          typingInd.remove();
+          if (timerInterval) clearInterval(timerInterval);
+        }
         if (!contentDiv) contentDiv = appendMessage("system", "");
         fullText += `\n**Error:** ${data.text}`;
         contentDiv.innerHTML = formatMarkdown(fullText);
         eventSource.close();
       } else if (data.type === "done") {
+        if (typingInd.parentNode) {
+          typingInd.remove();
+          if (timerInterval) clearInterval(timerInterval);
+        }
         eventSource.close();
         await fetchSessions();
         // Flush any remaining text in the buffer as the last TTS chunk
@@ -850,11 +936,17 @@ async function sendMessage() {
     };
 
     eventSource.onerror = function () {
-      if (typingInd.parentNode) typingInd.remove();
+      if (typingInd.parentNode) {
+        typingInd.remove();
+        if (timerInterval) clearInterval(timerInterval);
+      }
       eventSource.close();
     };
   } catch (e) {
-    if (typingInd.parentNode) typingInd.remove();
+    if (typingInd.parentNode) {
+      typingInd.remove();
+      if (timerInterval) clearInterval(timerInterval);
+    }
     appendMessage("system", `**Connection Error:** ${e.message}`);
   }
 }
@@ -1781,3 +1873,208 @@ const ModelSwitcher = (() => {
 })();
 
 ModelSwitcher.init();
+
+// --- Mentions & Agents Logic ---
+
+async function fetchAgents() {
+  try {
+    const res = await fetch("/api/agents");
+    const data = await res.json();
+    allAgents = data.agents || [];
+  } catch (e) {
+    console.error("Error fetching agents:", e);
+  }
+}
+
+function renderAgentsList() {
+  agentsList.innerHTML = "";
+  allAgents.forEach(agent => {
+    const li = document.createElement("li");
+    li.className = "agent-list-item";
+    
+    const info = document.createElement("div");
+    info.className = "agent-list-info";
+    const name = document.createElement("span");
+    name.className = "agent-list-name";
+    name.textContent = agent.name;
+    const desc = document.createElement("span");
+    desc.className = "agent-list-desc";
+    desc.textContent = agent.description;
+    info.appendChild(name);
+    info.appendChild(desc);
+    
+    const actions = document.createElement("div");
+    actions.className = "agent-list-actions";
+    
+    if (!agent.is_default) {
+      const btnEdit = document.createElement("button");
+      btnEdit.className = "action-btn";
+      btnEdit.textContent = "Edit";
+      btnEdit.onclick = () => {
+        agentIdInput.value = agent.id;
+        agentNameInput.value = agent.name;
+        agentDescInput.value = agent.description;
+        agentPromptInput.value = agent.system_prompt;
+        document.getElementById("agent-form-title").textContent = "Edit Agent";
+      };
+      
+      const btnDel = document.createElement("button");
+      btnDel.className = "field-del-btn";
+      btnDel.textContent = "×";
+      btnDel.style.opacity = "1";
+      btnDel.onclick = () => deleteAgent(agent.id);
+      
+      actions.appendChild(btnEdit);
+      actions.appendChild(btnDel);
+    } else {
+      const span = document.createElement("span");
+      span.style.fontSize = "0.75rem";
+      span.style.color = "var(--text-muted)";
+      span.textContent = "Default";
+      actions.appendChild(span);
+    }
+    
+    li.appendChild(info);
+    li.appendChild(actions);
+    agentsList.appendChild(li);
+  });
+}
+
+function clearAgentForm() {
+  agentIdInput.value = "";
+  agentNameInput.value = "";
+  agentDescInput.value = "";
+  agentPromptInput.value = "";
+  document.getElementById("agent-form-title").textContent = "Create New Agent";
+}
+
+async function saveAgent() {
+  const id = agentIdInput.value;
+  const name = agentNameInput.value.trim();
+  const desc = agentDescInput.value.trim();
+  const prompt = agentPromptInput.value.trim();
+  if (!name) return alert("Name is required");
+  
+  const endpoint = id ? "/api/agents/edit" : "/api/agents/new";
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, name, description: desc, system_prompt: prompt })
+    });
+    const data = await res.json();
+    if (!data.error) {
+      await fetchAgents();
+      renderAgentsList();
+      clearAgentForm();
+    } else {
+      alert(data.error);
+    }
+  } catch (e) {
+    console.error("Error saving agent:", e);
+  }
+}
+
+async function deleteAgent(id) {
+  if (!confirm("Are you sure you want to delete this agent?")) return;
+  try {
+    const res = await fetch("/api/agents/remove", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id })
+    });
+    const data = await res.json();
+    if (!data.error) {
+      await fetchAgents();
+      renderAgentsList();
+    }
+  } catch (e) {
+    console.error("Error deleting agent:", e);
+  }
+}
+
+let activeMentionIndex = 0;
+let filteredAgents = [];
+
+if (chatInput) {
+  chatInput.addEventListener("input", (e) => {
+    const val = chatInput.value;
+    const cursor = chatInput.selectionStart;
+    const textBeforeCursor = val.slice(0, cursor);
+    const match = textBeforeCursor.match(/(?:^|\s)@(\w*)$/);
+    if (match) {
+      const query = match[1].toLowerCase();
+      filteredAgents = allAgents.filter(a => a.name.toLowerCase().includes(query));
+      if (filteredAgents.length > 0) {
+        showMentionsPopup();
+      } else {
+        hideMentionsPopup();
+      }
+    } else {
+      hideMentionsPopup();
+    }
+  });
+  
+  chatInput.addEventListener("keydown", (e) => {
+    if (mentionsPopup.style.display === "block") {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        activeMentionIndex = (activeMentionIndex + 1) % filteredAgents.length;
+        renderMentionsPopup();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        activeMentionIndex = (activeMentionIndex - 1 + filteredAgents.length) % filteredAgents.length;
+        renderMentionsPopup();
+      } else if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        selectAgentMention(filteredAgents[activeMentionIndex]);
+      } else if (e.key === "Escape") {
+        hideMentionsPopup();
+      }
+    }
+  });
+}
+
+function showMentionsPopup() {
+  mentionsPopup.style.display = "block";
+  activeMentionIndex = 0;
+  renderMentionsPopup();
+}
+
+function hideMentionsPopup() {
+  mentionsPopup.style.display = "none";
+}
+
+function renderMentionsPopup() {
+  mentionsPopup.innerHTML = "";
+  filteredAgents.forEach((agent, i) => {
+    const div = document.createElement("div");
+    div.className = `mention-item ${i === activeMentionIndex ? "active" : ""}`;
+    
+    const name = document.createElement("span");
+    name.className = "mention-item-name";
+    name.textContent = "@" + agent.name;
+    
+    const desc = document.createElement("span");
+    desc.className = "mention-item-desc";
+    desc.textContent = agent.description;
+    
+    div.appendChild(name);
+    div.appendChild(desc);
+    
+    div.onmousedown = (e) => {
+      e.preventDefault();
+      selectAgentMention(agent);
+    };
+    
+    mentionsPopup.appendChild(div);
+  });
+}
+
+function selectAgentMention(agent) {
+  const val = chatInput.value;
+  const newValue = val.replace(/(?:^|\s)@\w*$/, " @" + agent.name + " ");
+  chatInput.value = newValue;
+  chatInput.focus();
+  hideMentionsPopup();
+}
