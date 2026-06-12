@@ -191,7 +191,7 @@ def list_accounts():
         return
 
     table = Table(box=box.ROUNDED, show_header=True, header_style="bold cyan")
-    table.add_column("#", justify="right", style="dim", width=4)
+    table.add_column("#", justify="right", style="cyan", width=4)
     table.add_column("Label", style="bold")
     table.add_column("Email", style="cyan")
     table.add_column("IMAP Host")
@@ -335,6 +335,7 @@ def list_emails(
 ):
     """List emails from the local store with filters and sorting."""
     from core.email.api import list_emails as _list
+    from core.email.api import list_accounts
 
     try:
         emails = _list(
@@ -347,6 +348,8 @@ def list_emails(
             after_str=after,
             before_str=before,
         )
+        accounts = list_accounts()
+        acct_map = {a.id: a.label for a in accounts}
     except EmailError as exc:
         print_error(str(exc))
         raise typer.Exit(1)
@@ -361,8 +364,9 @@ def list_emails(
         return
 
     table = Table(box=box.SIMPLE_HEAVY, show_header=True, header_style="bold cyan", expand=True)
-    table.add_column("#", justify="right", style="dim", width=5)
+    table.add_column("#", justify="right", style="cyan", width=5)
     table.add_column("●", width=2)
+    table.add_column("Account", max_width=12, style="yellow", no_wrap=True)
     table.add_column("From", max_width=20, no_wrap=True)
     table.add_column("Subject", max_width=35, no_wrap=True)
     table.add_column("Summary", max_width=40, no_wrap=True)
@@ -370,6 +374,7 @@ def list_emails(
 
     for em in emails:
         unread_dot = "[bold cyan]●[/bold cyan]" if not em.is_read else " "
+        acct_label = acct_map.get(em.account_id, f"ID:{em.account_id}")
         sender_display = em.sender_name or em.sender
         if len(sender_display) > 20:
             sender_display = sender_display[:18] + "…"
@@ -378,6 +383,7 @@ def list_emails(
         table.add_row(
             str(em.id),
             unread_dot,
+            acct_label,
             sender_display,
             subject_display,
             summary_display or "[dim]—[/dim]",
@@ -420,7 +426,7 @@ def unread(
         return
 
     table = Table(box=box.SIMPLE_HEAVY, show_header=True, header_style="bold cyan", expand=True)
-    table.add_column("#", justify="right", style="dim", width=5)
+    table.add_column("#", justify="right", style="cyan", width=5)
     table.add_column("From", max_width=22)
     table.add_column("Subject", max_width=36)
     table.add_column("Summary", max_width=40)
@@ -536,7 +542,7 @@ def search(
         return
 
     table = Table(box=box.SIMPLE_HEAVY, show_header=True, header_style="bold cyan", expand=True)
-    table.add_column("#", justify="right", style="dim", width=5)
+    table.add_column("#", justify="right", style="cyan", width=5)
     table.add_column("Score", justify="right", width=7)
     table.add_column("From", max_width=20)
     table.add_column("Subject", max_width=30)
