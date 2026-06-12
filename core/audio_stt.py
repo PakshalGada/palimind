@@ -1,15 +1,29 @@
 import io
-from pathlib import Path
-from faster_whisper import WhisperModel
+
+from core.config import app_cache_dir
 
 _model = None
 
 def get_model():
     global _model
     if _model is None:
-        # Load tiny model offline. Cache under user home directory.
+        try:
+            from faster_whisper import WhisperModel
+        except ImportError as exc:
+            raise RuntimeError(
+                "Voice transcription requires the optional 'faster-whisper' dependency."
+            ) from exc
+
+        model_cache = app_cache_dir() / "models" / "whisper"
+        model_cache.mkdir(parents=True, exist_ok=True)
+
         # ctranslate2 tiny runs fast even on low-end CPUs
-        _model = WhisperModel("tiny", device="cpu", compute_type="int8")
+        _model = WhisperModel(
+            "tiny",
+            device="cpu",
+            compute_type="int8",
+            download_root=str(model_cache),
+        )
     return _model
 
 def transcribe_wav_bytes(wav_bytes: bytes) -> str:

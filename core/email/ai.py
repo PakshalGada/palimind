@@ -45,7 +45,7 @@ def _get_ollama_settings() -> tuple[str, str]:
         config = load_config(_Path.cwd())
     except Exception:
         config = {}
-    url = config.get("ollama_base_url", "https://heavy-hounds-hunt.loca.lt")
+    url = config.get("ollama_base_url", "https://huge-parks-burn.loca.lt")
     model = config.get("chat_model", "gemma3:latest")
     return url, model
 

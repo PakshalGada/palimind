@@ -16,10 +16,11 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
+from core.config import app_data_dir
 from core.email.exceptions import EmailError, EmailSyncError
 from core.email.models import Account, Attachment, Email, SearchResult
 
-_EMAIL_DB_PATH = Path.home() / ".palimind" / "email.db"
+_EMAIL_DB_PATH = app_data_dir() / "data" / "email.db"
 
 # ---------------------------------------------------------------------------
 # Schema version — increment when adding tables/columns

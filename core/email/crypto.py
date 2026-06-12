@@ -17,6 +17,7 @@ import subprocess
 from functools import lru_cache
 from pathlib import Path
 
+from core.config import app_data_dir
 from core.email.exceptions import EmailCryptoError
 
 # Lazy import so the cryptography package is optional until email commands are used.
@@ -28,7 +29,7 @@ except ImportError as _err:  # pragma: no cover
         "Install it with: pip install cryptography"
     ) from _err
 
-_EMAIL_KEY_FILE = Path.home() / ".palimind" / "email.key"
+_EMAIL_KEY_FILE = app_data_dir() / "data" / "email.key"
 
 
 def _machine_uuid() -> str | None:
@@ -71,7 +72,7 @@ def _derive_key_from_uuid(uuid_str: str) -> bytes:
 
 
 def _load_or_create_file_key() -> bytes:
-    """Load (or create) a random key stored in ~/.palimind/email.key."""
+    """Load (or create) a random key stored in Palimind app data."""
     _EMAIL_KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
     if _EMAIL_KEY_FILE.exists():
         return _EMAIL_KEY_FILE.read_bytes().strip()

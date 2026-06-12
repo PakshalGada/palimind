@@ -156,7 +156,7 @@ def chat(
 
     from core.config import load_config
     config = load_config(target_dir)
-    ollama_url = config.get("ollama_base_url", "https://heavy-hounds-hunt.loca.lt")
+    ollama_url = config.get("ollama_base_url", "https://huge-parks-burn.loca.lt")
     chat_model = config.get("chat_model", "gemma4:e4b")
 
     from core.agent import needs_retrieval, reformulate_query

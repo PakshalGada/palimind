@@ -1,11 +1,9 @@
-import os
 import urllib.request
-from pathlib import Path
-import soundfile as sf
 import io
+from core.config import app_cache_dir
 
 # Cache directory for ONNX files
-CACHE_DIR = Path.home() / ".palimind_audio"
+CACHE_DIR = app_cache_dir() / "models" / "kokoro"
 MODEL_PATH = CACHE_DIR / "kokoro-v0_19.onnx"
 VOICES_PATH = CACHE_DIR / "voices.bin"
 
@@ -56,6 +54,13 @@ def text_to_speech_bytes(text: str, voice: str = "af_bella") -> bytes | None:
         return None
         
     try:
+        try:
+            import soundfile as sf
+        except ImportError as exc:
+            raise RuntimeError(
+                "Voice synthesis requires the optional 'soundfile' dependency."
+            ) from exc
+
         # Generate raw float32 array
         samples, sample_rate = engine.create(text, voice=voice, speed=1.0, lang="en-us")
         

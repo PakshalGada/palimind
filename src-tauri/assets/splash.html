@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Palimind</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #09090f;
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Subtle radial glow in the background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse 70% 60% at 50% 40%,
+        rgba(99, 102, 241, 0.12) 0%,
+        rgba(139, 92, 246, 0.06) 40%,
+        transparent 70%);
+      pointer-events: none;
+    }
+
+    .splash-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+      animation: fadeIn 0.4s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Logo / wordmark */
+    .logo-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 40px rgba(99, 102, 241, 0.35);
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 30px rgba(99, 102, 241, 0.3); }
+      50%       { box-shadow: 0 0 55px rgba(99, 102, 241, 0.5); }
+    }
+
+    .logo-icon svg {
+      width: 34px;
+      height: 34px;
+      fill: white;
+    }
+
+    .logo-name {
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #e2e8f0, #a5b4fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .logo-tagline {
+      font-size: 12px;
+      font-weight: 400;
+      color: #64748b;
+      letter-spacing: 0.5px;
+    }
+
+    /* Progress area */
+    .progress-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      width: 280px;
+    }
+
+    .progress-bar-track {
+      width: 100%;
+      height: 2px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #6366f1, #8b5cf6);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 8px rgba(99, 102, 241, 0.6);
+    }
+
+    .status-text {
+      font-size: 12px;
+      color: #64748b;
+      text-align: center;
+      min-height: 18px;
+      transition: opacity 0.2s;
+    }
+
+    /* Error state */
+    .error-panel {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      border-radius: 12px;
+      padding: 20px 28px;
+      max-width: 340px;
+      text-align: center;
+    }
+
+    .error-panel.visible { display: flex; }
+
+    .error-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: #fca5a5;
+    }
+
+    .error-body {
+      font-size: 12px;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+
+    .retry-btn {
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: #a5b4fc;
+      padding: 8px 22px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+    .retry-btn:hover {
+      background: rgba(99, 102, 241, 0.25);
+      border-color: rgba(99, 102, 241, 0.5);
+    }
+
+    /* Ollama warning */
+    .ollama-warning {
+      display: none;
+      font-size: 11px;
+      color: #f59e0b;
+      text-align: center;
+      opacity: 0.8;
+    }
+    .ollama-warning.visible { display: block; }
+
+    /* Version */
+    .version-label {
+      position: fixed;
+      bottom: 20px;
+      font-size: 10px;
+      color: #334155;
+      letter-spacing: 0.3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="splash-container">
+    <div class="logo-area">
+      <div class="logo-icon">
+        <!-- Brain/mind icon -->
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2a5 5 0 0 1 4.95 4.33A4.5 4.5 0 0 1 20 10.5a4.5 4.5 0 0 1-2 3.74V17a3 3 0 0 1-3 3h-6a3 3 0 0 1-3-3v-2.76A4.5 4.5 0 0 1 4 10.5a4.5 4.5 0 0 1 3.05-4.17A5 5 0 0 1 12 2zm0 2a3 3 0 0 0-2.92 2.33l-.16.75-.77-.06A2.5 2.5 0 0 0 6 9.5a2.5 2.5 0 0 0 1.5 2.29l.5.21V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-4.96l.53-.22A2.5 2.5 0 0 0 18 9.5a2.5 2.5 0 0 0-2.15-2.48l-.77.06-.16-.75A3 3 0 0 0 12 4z"/>
+        </svg>
+      </div>
+      <div class="logo-name">Palimind</div>
+      <div class="logo-tagline">Local-first AI Desktop</div>
+    </div>
+
+    <div class="progress-area" id="progressArea">
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progressFill"></div>
+      </div>
+      <div class="status-text" id="statusText">Initializing...</div>
+      <div class="ollama-warning" id="ollamaWarning">
+        ⚠ Ollama not detected — AI features will be limited
+      </div>
+    </div>
+
+    <div class="error-panel" id="errorPanel">
+      <div class="error-title" id="errorTitle">Startup Failed</div>
+      <div class="error-body" id="errorBody">The AI engine failed to start.</div>
+      <button class="retry-btn" onclick="retryStartup()">Retry</button>
+    </div>
+  </div>
+
+  <div class="version-label" id="versionLabel">v0.1.0</div>
+
+  <script>
+    const { invoke, event } = window.__TAURI__;
+
+    // Get app version
+    invoke('get_app_version').then(v => {
+      document.getElementById('versionLabel').textContent = 'v' + v;
+    }).catch(() => {});
+
+    // Listen for startup progress events from Rust
+    event.listen('startup-progress', ({ payload }) => {
+      const fill = document.getElementById('progressFill');
+      const text = document.getElementById('statusText');
+      const ollamaWarn = document.getElementById('ollamaWarning');
+
+      if (fill) fill.style.width = payload.progress + '%';
+      if (text) text.textContent = payload.message || '';
+
+      if (payload.stage === 'ollama_done' && payload.ollama_available === false) {
+        ollamaWarn.classList.add('visible');
+      }
+    });
+
+    // Listen for startup errors
+    event.listen('startup-error', ({ payload }) => {
+      const errorPanel = document.getElementById('errorPanel');
+      const errorBody = document.getElementById('errorBody');
+      const progressArea = document.getElementById('progressArea');
+
+      if (errorBody) errorBody.textContent = payload.message;
+      if (errorPanel) errorPanel.classList.add('visible');
+      if (!payload.fatal && progressArea) {
+        // Non-fatal: keep progress area, just show the error too
+      } else {
+        if (progressArea) progressArea.style.opacity = '0.3';
+      }
+    });
+
+    function retryStartup() {
+      // Restart the entire app
+      invoke('plugin:process|restart').catch(() => location.reload());
+    }
+  </script>
+</body>
+</html>

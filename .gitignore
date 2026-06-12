@@ -6,6 +6,17 @@ __pycache__/
 dist/
 build/
 .eggs/
+.venv/
 
 # Palimind data
 .palimind/
+
+# Node / Tauri / Rust build output
+node_modules/
+src-tauri/target/
+src-tauri/binaries/
+src-tauri/gen/
+src-tauri/.tauri/
+
+# Desktop build artifacts
+*.spec.tmp

@@ -1,14 +1,14 @@
 import asyncio
+import secrets
 import json
-import tkinter as tk
+import os
 import uuid
 import time
-from tkinter import filedialog
 from pathlib import Path
 from typing import AsyncGenerator, Any
 
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import StreamingResponse, HTMLResponse
+from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -23,6 +23,7 @@ from core.api import (
 )
 from core.audio_stt import transcribe_wav_bytes
 from core.audio_tts import text_to_speech_bytes
+from core.config import app_config_dir, app_data_dir
 
 app = FastAPI(title="Palimind V2 API")
 
@@ -33,6 +34,42 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _configured_auth_token() -> str | None:
+    return os.environ.get("PALIMIND_AUTH_TOKEN") or None
+
+
+def _request_auth_token(request: Request) -> str | None:
+    auth_header = request.headers.get("authorization", "")
+    scheme, _, token = auth_header.partition(" ")
+    if scheme.lower() == "bearer" and token:
+        return token
+    return request.query_params.get("auth_token")
+
+
+def _is_public_desktop_path(path: str) -> bool:
+    return (
+        path == "/health"
+        or path == "/favicon.ico"
+        or path == "/ui"
+        or path == "/ui/"
+        or path == "/ui/hotkey"
+        or path.startswith("/ui/static/")
+    )
+
+
+@app.middleware("http")
+async def require_desktop_auth(request: Request, call_next):
+    expected = _configured_auth_token()
+    if not expected or request.method == "OPTIONS" or _is_public_desktop_path(request.url.path):
+        return await call_next(request)
+
+    supplied = _request_auth_token(request)
+    if not supplied or not secrets.compare_digest(supplied, expected):
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    return await call_next(request)
 
 UI_DIR = Path(__file__).parent.parent / "ui"
 if UI_DIR.exists():
@@ -50,8 +87,8 @@ if UI_DIR.exists():
         return hotkey_file.read_text("utf-8")
 
 # -- Global State & Config --
-GLOBAL_CONFIG_PATH = Path.home() / ".palimind_global.json"
-GLOBAL_AGENTS_PATH = Path.home() / ".palimind_agents.json"
+GLOBAL_CONFIG_PATH = app_config_dir() / "global_config.json"
+GLOBAL_AGENTS_PATH = app_data_dir() / "data" / "agents.json"
 
 def get_default_agents():
     return [
@@ -114,6 +151,7 @@ def load_agents() -> list[dict]:
 
 def save_agents(agents: list[dict]):
     try:
+        GLOBAL_AGENTS_PATH.parent.mkdir(parents=True, exist_ok=True)
         GLOBAL_AGENTS_PATH.write_text(json.dumps({"agents": agents}, indent=2), "utf-8")
     except Exception as e:
         print(f"Failed to save agents: {e}")
@@ -138,6 +176,7 @@ class AppState:
                 pass
 
     def save(self):
+        GLOBAL_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         GLOBAL_CONFIG_PATH.write_text(
             json.dumps({
                 "fields": self.fields,
@@ -314,6 +353,18 @@ async def shutdown_event():
         except Exception:
             pass
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint used by Tauri to verify the sidecar is ready."""
+    return {"status": "ok", "version": "2.0.0", "pid": os.getpid()}
+
+@app.post("/shutdown")
+async def graceful_shutdown():
+    """Graceful shutdown endpoint called by Tauri before killing the process."""
+    import signal
+    os.kill(os.getpid(), signal.SIGTERM)
+    return {"status": "shutting_down"}
+
 # -- Endpoints --
 
 @app.get("/api/fields")
@@ -325,42 +376,15 @@ async def get_fields():
         "indexing_status": state.indexing_status
     }
 
-def _select_dir_blocking():
-    import subprocess
-    import sys
-    
-    script = """
-import tkinter as tk
-from tkinter import filedialog
-root = tk.Tk()
-root.withdraw()
-root.attributes('-topmost', True)
-folder_path = filedialog.askdirectory(title="Select a directory for Palimind Field")
-if folder_path:
-    print(folder_path)
-root.destroy()
-"""
-    try:
-        res = subprocess.run(
-            [sys.executable, "-c", script],
-            capture_output=True,
-            text=True,
-            timeout=180
-        )
-        if res.returncode == 0:
-            path = res.stdout.strip()
-            return path if path else None
-    except Exception as e:
-        print(f"Subprocess folder picker failed: {e}")
-    return None
-
 @app.post("/api/fields/select_dialog")
 async def select_dialog():
-    """Opens a native OS folder picker."""
-    folder_path = await asyncio.to_thread(_select_dir_blocking)
-    if folder_path:
-        return {"path": str(Path(folder_path).resolve())}
-    return {"path": None}
+    """Legacy endpoint — folder picking is now handled by Tauri native dialog IPC.
+    
+    The frontend calls invoke('pick_folder') directly. This endpoint is kept for
+    backward compatibility with browser-based dev mode but should not be reached
+    in production desktop builds.
+    """
+    return {"path": None, "error": "Use Tauri native dialog (invoke pick_folder) in desktop mode"}
 
 @app.get("/api/fs/list")
 async def list_fs(path: str | None = None):
@@ -986,6 +1010,7 @@ async def update_model(req: Request):
         if GLOBAL_CONFIG_PATH.exists():
             global_data = json.loads(GLOBAL_CONFIG_PATH.read_text("utf-8"))
         global_data["chat_model"] = model_id
+        GLOBAL_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         GLOBAL_CONFIG_PATH.write_text(json.dumps(global_data, indent=2), "utf-8")
     except Exception:
         pass

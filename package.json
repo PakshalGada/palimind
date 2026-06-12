@@ -1,0 +1,18 @@
+{
+  "name": "palimind",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Palimind — Local-first AI Desktop",
+  "scripts": {
+    "dev": "powershell -ExecutionPolicy Bypass -File scripts/dev.ps1",
+    "dev:browser": "powershell -ExecutionPolicy Bypass -File scripts/dev.ps1 -NoTauri",
+    "build:sidecar": "powershell -ExecutionPolicy Bypass -File scripts/build-sidecar.ps1",
+    "build:sidecar:clean": "powershell -ExecutionPolicy Bypass -File scripts/build-sidecar.ps1 -Clean",
+    "build": "powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1",
+    "build:tauri": "powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -SkipSidecar",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

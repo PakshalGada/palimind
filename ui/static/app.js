@@ -1,3 +1,79 @@
+// Tauri desktop request bridge.
+// Runs before the app's initial API calls so the sidecar auth token is attached.
+(function initTauriRequestBridge() {
+  const tauriCore = window.__TAURI__ && window.__TAURI__.core;
+  if (!tauriCore || window.__PALIMIND_REQUEST_BRIDGE_READY__) return;
+
+  window.__PALIMIND_REQUEST_BRIDGE_READY__ = true;
+  const { invoke } = tauriCore;
+
+  const bridgeReady = Promise.allSettled([
+    invoke("get_sidecar_port"),
+    invoke("get_auth_token"),
+  ]).then(([portResult, tokenResult]) => {
+    if (portResult.status === "fulfilled" && portResult.value) {
+      window.__PALIMIND_PORT__ = portResult.value;
+    }
+    if (tokenResult.status === "fulfilled" && tokenResult.value) {
+      window.__PALIMIND_AUTH_TOKEN__ = tokenResult.value;
+    }
+  });
+
+  window.__PALIMIND_BRIDGE_READY__ = bridgeReady;
+
+  function localBaseUrl() {
+    return window.__PALIMIND_PORT__
+      ? `http://127.0.0.1:${window.__PALIMIND_PORT__}`
+      : window.location.origin;
+  }
+
+  function normalizeLocalUrl(url) {
+    if (typeof url === "string" && url.startsWith("/")) {
+      return `${localBaseUrl()}${url}`;
+    }
+    return url;
+  }
+
+  function isApiUrl(url) {
+    if (typeof url === "string") {
+      return url.startsWith("/api/") || url.includes("/api/");
+    }
+    return url && typeof url.url === "string" && url.url.includes("/api/");
+  }
+
+  function withAuthHeader(options) {
+    if (!window.__PALIMIND_AUTH_TOKEN__) return options;
+    const next = options ? { ...options } : {};
+    const headers = new Headers(next.headers || {});
+    headers.set("Authorization", `Bearer ${window.__PALIMIND_AUTH_TOKEN__}`);
+    next.headers = headers;
+    return next;
+  }
+
+  function withAuthQuery(url) {
+    if (!window.__PALIMIND_AUTH_TOKEN__ || !isApiUrl(url)) return url;
+    const parsed = new URL(String(url), localBaseUrl());
+    parsed.searchParams.set("auth_token", window.__PALIMIND_AUTH_TOKEN__);
+    return parsed.toString();
+  }
+
+  const originalFetch = window.fetch;
+  window.fetch = function (url, options) {
+    return bridgeReady.then(() => {
+      const finalUrl = normalizeLocalUrl(url);
+      const finalOptions = isApiUrl(finalUrl) ? withAuthHeader(options) : options;
+      return originalFetch.call(this, finalUrl, finalOptions);
+    });
+  };
+
+  const OriginalEventSource = window.EventSource;
+  window.EventSource = function (url, opts) {
+    const finalUrl = withAuthQuery(normalizeLocalUrl(url));
+    return new OriginalEventSource(finalUrl, opts);
+  };
+  window.EventSource.prototype = OriginalEventSource.prototype;
+})();
+
 const btnAddField = document.getElementById("btn-add-field");
 const fieldsList = document.getElementById("fields-list");
 const btnUpdateActive = document.getElementById("btn-update-active");
@@ -348,7 +424,50 @@ function updateMainArea(currentActive) {
 }
 
 async function selectNewField() {
+  // --- Tauri desktop mode: use native OS folder dialog ---
+  if (window.__TAURI__) {
+    try {
+      const { invoke } = window.__TAURI__.core;
+      const selectedPath = await invoke("pick_folder");
+      if (selectedPath) {
+        await addFieldFromPath(selectedPath);
+      }
+    } catch (e) {
+      console.error("Tauri folder picker failed, falling back:", e);
+      openDirPicker(activeField || "");
+    }
+    return;
+  }
+  // --- Browser / dev mode: use the existing in-app directory browser ---
   openDirPicker(activeField || "");
+}
+
+// Extracted helper: add a field given a known absolute path.
+// Called by both the native Tauri picker and the existing in-app picker confirm button.
+async function addFieldFromPath(path) {
+  if (!path) return;
+  setChatDisabled(true);
+  indexingProgressContainer.style.display = "flex";
+  progressBarLabel.textContent = `Indexing ${path.split(/[/\\]/).pop()}...`;
+  try {
+    const res = await fetch("/api/fields/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      setChatDisabled(false);
+      indexingProgressContainer.style.display = "none";
+      alert(data.error);
+    } else {
+      await fetchFields();
+    }
+  } catch (e) {
+    console.error("Error adding field:", e);
+    setChatDisabled(false);
+    indexingProgressContainer.style.display = "none";
+  }
 }
 
 async function setActiveField(path) {
@@ -718,6 +837,17 @@ function toggleNodeSelection(node, isChecked) {
 }
 
 function initEventsWatcher() {
+  if (
+    window.__PALIMIND_BRIDGE_READY__ &&
+    !window.__PALIMIND_EVENTS_BRIDGE_READY__
+  ) {
+    window.__PALIMIND_BRIDGE_READY__.finally(() => {
+      window.__PALIMIND_EVENTS_BRIDGE_READY__ = true;
+      initEventsWatcher();
+    });
+    return;
+  }
+
   const source = new EventSource("/api/events");
   source.onmessage = function (event) {
     const data = JSON.parse(event.data);
@@ -2078,3 +2208,107 @@ function selectAgentMention(agent) {
   chatInput.focus();
   hideMentionsPopup();
 }
+
+// ─── Tauri Desktop Bridge ─────────────────────────────────────────────────────
+// This section only activates when running inside the Tauri shell.
+// It does nothing in browser/dev mode — safe to leave in always.
+(function initTauriBridge() {
+  if (!window.__TAURI__) return;
+
+  const { event, invoke } = window.__TAURI__.core;
+
+  // ── 1. Reconnection overlay for sidecar crashes ───────────────────────────
+  const overlay = document.createElement("div");
+  overlay.id = "tauri-reconnect-overlay";
+  overlay.style.cssText = `
+    display: none; position: fixed; inset: 0; z-index: 9999;
+    background: rgba(9,9,15,0.88); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center; flex-direction: column;
+    gap: 16px; font-family: Inter, sans-serif; color: #e2e8f0;
+  `;
+  overlay.innerHTML = `
+    <div style="width:40px;height:40px;border:3px solid #6366f1;border-top-color:transparent;
+                border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+    <div id="tauri-reconnect-msg" style="font-size:14px;color:#94a3b8;">
+      Reconnecting to AI engine...
+    </div>
+    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+  `;
+  document.body.appendChild(overlay);
+
+  // ── 2. Listen for sidecar status events from Rust ────────────────────────
+  event.listen("sidecar-status", ({ payload }) => {
+    const msg = document.getElementById("tauri-reconnect-msg");
+    if (payload.status === "down") {
+      overlay.style.display = "flex";
+      if (msg) msg.textContent = payload.message || "Reconnecting to AI engine...";
+    } else if (payload.status === "restored") {
+      overlay.style.display = "none";
+      // Update the base URL if the port changed after restart
+      if (payload.port) {
+        window.__PALIMIND_PORT__ = payload.port;
+      }
+      showSyncToast("✓ AI engine reconnected");
+    } else if (payload.status === "fatal") {
+      overlay.style.display = "flex";
+      if (msg) {
+        msg.textContent = payload.message || "AI engine failed. Please restart Palimind.";
+        msg.style.color = "#fca5a5";
+      }
+      // Add a restart button
+      const existing = overlay.querySelector("#tauri-restart-btn");
+      if (!existing) {
+        const btn = document.createElement("button");
+        btn.id = "tauri-restart-btn";
+        btn.textContent = "Restart App";
+        btn.style.cssText = `
+          background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3);
+          color: #a5b4fc; padding: 8px 22px; border-radius: 8px;
+          font-size: 13px; cursor: pointer; font-family: inherit;
+        `;
+        btn.onclick = () => {
+          invoke("plugin:process|restart").catch(() => location.reload());
+        };
+        overlay.appendChild(btn);
+      }
+    }
+  });
+
+  // ── 3. Refresh bridge state for UI events ────────────────────────────────
+  Promise.allSettled([invoke("get_sidecar_port"), invoke("get_auth_token")])
+    .then(([portResult, tokenResult]) => {
+      if (portResult.status === "fulfilled" && portResult.value) {
+        window.__PALIMIND_PORT__ = portResult.value;
+      }
+      if (tokenResult.status === "fulfilled" && tokenResult.value) {
+        window.__PALIMIND_AUTH_TOKEN__ = tokenResult.value;
+      }
+    })
+    .catch(() => {
+      // Not in Tauri or command failed — ignore
+    });
+
+  // ── 4. Ollama warning banner ──────────────────────────────────────────────
+  event.listen("startup-progress", ({ payload }) => {
+    if (payload.stage === "ollama_done" && payload.ollama_available === false) {
+      // Show a non-blocking banner in the app UI
+      const banner = document.createElement("div");
+      banner.id = "ollama-warning-banner";
+      banner.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+        background: rgba(245,158,11,0.12); border-bottom: 1px solid rgba(245,158,11,0.25);
+        color: #fbbf24; text-align: center; padding: 7px 16px;
+        font-size: 12px; font-family: Inter, sans-serif;
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+      `;
+      banner.innerHTML = `
+        <span>⚠ Ollama not detected — AI features will be limited until Ollama is started</span>
+        <button onclick="this.parentElement.remove()" style="
+          background:none;border:none;color:#fbbf24;cursor:pointer;font-size:16px;
+          line-height:1;padding:0 4px;opacity:0.7;
+        ">×</button>
+      `;
+      document.body.prepend(banner);
+    }
+  });
+})();

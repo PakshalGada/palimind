@@ -608,7 +608,8 @@ def get_email_stats(db_path: Optional[Path] = None) -> dict:
 
         # Storage usage
         try:
-            db_path_obj = db_path or Path.home() / ".palimind" / "email.db"
+            from core.config import app_data_dir
+            db_path_obj = db_path or app_data_dir() / "data" / "email.db"
             storage_bytes = db_path_obj.stat().st_size if db_path_obj.exists() else 0
         except OSError:
             storage_bytes = 0

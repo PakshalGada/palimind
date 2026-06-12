@@ -1,0 +1,21 @@
+{
+  "identifier": "default",
+  "description": "Default capability for the main Palimind window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-execute",
+    "shell:allow-open",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-ask",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-read-dir",
+    "fs:allow-exists",
+    "log:allow-log",
+    "notification:default",
+    "process:allow-exit",
+    "process:allow-restart"
+  ]
+}

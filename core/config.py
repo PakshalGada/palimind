@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 # Paths relative to the project root where `pm init` is run
 PALIMIND_DIR = ".palimind"
 CONFIG_FILE = "config.json"
 DB_FILE = "index.db"
+APP_NAME = "Palimind"
 
 # Default application settings
 DEFAULTS = {
@@ -44,7 +46,7 @@ DEFAULTS = {
     ],
     "doc_extensions": [".pdf", ".docx", ".pptx", ".xlsx"],
     "image_extensions": [".png", ".jpg", ".jpeg", ".webp"],
-    "ollama_base_url": "https://heavy-hounds-hunt.loca.lt",
+    "ollama_base_url": "https://huge-parks-burn.loca.lt",
 }
 
 
@@ -58,6 +60,30 @@ def config_path(root: Path) -> Path:
 
 def db_path(root: Path) -> Path:
     return palimind_dir(root) / DB_FILE
+
+
+def app_data_dir() -> Path:
+    """Return Palimind's global user-data directory."""
+    if os.name == "nt":
+        base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+        if base:
+            return Path(base) / APP_NAME
+    xdg_data_home = os.environ.get("XDG_DATA_HOME")
+    if xdg_data_home:
+        return Path(xdg_data_home) / APP_NAME.lower()
+    return Path.home() / ".palimind"
+
+
+def app_config_dir() -> Path:
+    return app_data_dir() / "config"
+
+
+def app_cache_dir() -> Path:
+    return app_data_dir() / "cache"
+
+
+def app_logs_dir() -> Path:
+    return app_data_dir() / "logs"
 
 
 def load_config(root: Path) -> dict:

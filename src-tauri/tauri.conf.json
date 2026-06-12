@@ -1,0 +1,84 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Palimind",
+  "version": "0.1.0",
+  "identifier": "com.palimind.app",
+  "build": {
+    "beforeDevCommand": "powershell -ExecutionPolicy Bypass -File ../scripts/tauri-dev-backend.ps1 -Port 8000",
+    "devUrl": "http://127.0.0.1:8000/ui/",
+    "beforeBuildCommand": "",
+    "frontendDist": "http://127.0.0.1:8000/ui/"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Palimind",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false,
+        "center": true,
+        "visible": false,
+        "url": "palimind://localhost/splash.html"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' palimind: asset: https://asset.localhost; connect-src http://127.0.0.1:* 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": [
+      "binaries/palimind-server"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false,
+        "startMenuFolder": "Palimind"
+      },
+      "wix": null
+    },
+    "resources": []
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    },
+    "updater": {
+      "active": false,
+      "dialog": true,
+      "endpoints": [
+        "https://github.com/PakshalGada/palimind/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    },
+    "log": {
+      "level": "info",
+      "targets": [
+        {
+          "kind": "Stdout"
+        },
+        {
+          "kind": "LogDir",
+          "fileName": "tauri"
+        }
+      ]
+    }
+  }
+}
