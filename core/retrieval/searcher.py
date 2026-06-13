@@ -155,7 +155,7 @@ def _hybrid_search(
     """
     from core.retrieval.reranker import rerank_chunks
 
-    ollama_url = config.get("ollama_base_url", "https://mighty-eggs-move.loca.lt")
+    ollama_url = config.get("ollama_base_url", "https://plain-masks-jump.loca.lt")
     embed_model = config.get("embed_model", "nomic-embed-text")
     search_limit = max(limit * 3, 15)
 

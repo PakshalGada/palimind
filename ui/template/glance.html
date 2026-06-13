@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PaliGlance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono&display=swap"
+        rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/ui/static/glance.css" />
+</head>
+<body>
+    <div class="glance-shell">
+
+        <!-- Draggable header bar -->
+        <div class="glance-header">
+            <div class="glance-title">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+                     fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/>
+                </svg>
+                <span>PaliGlance</span>
+            </div>
+            <div class="glance-status">
+                <span id="glance-status-dot" class="glance-dot" title="No screenshot"></span>
+                <span id="glance-status-text" class="glance-status-label">No capture</span>
+            </div>
+        </div>
+
+        <!-- Messages area -->
+        <div id="glance-messages" class="glance-messages">
+            <div class="glance-empty">
+                <p>Ask anything about your screen.</p>
+                <span class="glance-hint">Press <kbd>Esc</kbd> to dismiss</span>
+            </div>
+        </div>
+
+        <!-- Input bar -->
+        <div class="glance-input-bar">
+            <textarea
+                id="glance-input"
+                placeholder="Ask about your screen…"
+                rows="1"
+                autofocus
+            ></textarea>
+            <button id="glance-send-btn" title="Send">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                     fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="19" x2="12" y2="5"></line>
+                    <polyline points="5 12 12 5 19 12"></polyline>
+                </svg>
+            </button>
+        </div>
+
+    </div>
+
+    <script src="/ui/static/glance.js"></script>
+</body>
+</html>

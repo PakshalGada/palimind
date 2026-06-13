@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, desktopCapturer, session, screen } = require('electron');
 const { spawn, execSync } = require('child_process');
 const path = require('path');
 const http = require('http');
@@ -6,7 +6,8 @@ const os = require('os');
 const fs = require('fs');
 
 // Global references to prevent JavaScript garbage collection from discarding active objects
-let mainWindow = null;
+let mainWindow   = null;
+let glanceWindow = null;  // PaliGlance hotkey popup
 let pythonProcess = null;
 
 // Configuration Parameters
@@ -133,10 +134,11 @@ function createWindow() {
         autoHideMenuBar: true,
         webPreferences: {
             // Sane security defaults strictly enforced
+            preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
-            sandbox: true,
-            webSecurity: true 
+            sandbox: false,
+            webSecurity: true
         }
     });
 
@@ -146,6 +148,93 @@ function createWindow() {
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
+}
+
+/**
+ * Creates the PaliGlance floating popup window.
+ * Created once at startup, then shown/hidden by hotkey.
+ * frame:false + transparent gives us a clean frameless overlay.
+ */
+function createGlanceWindow() {
+    glanceWindow = new BrowserWindow({
+        width: 580,
+        height: 420,
+        minWidth: 400,
+        minHeight: 300,
+        frame: false,
+        transparent: true,
+        alwaysOnTop: true,
+        skipTaskbar: true,
+        resizable: true,
+        show: false,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            nodeIntegration: false,
+            contextIsolation: true,
+            sandbox: false,
+            webSecurity: true,
+        },
+    });
+
+    glanceWindow.loadURL(SERVER_URL + '/ui/glance');
+
+    // Hide instead of close so next hotkey press re-shows instantly
+    glanceWindow.on('close', (e) => {
+        e.preventDefault();
+        glanceWindow.hide();
+    });
+}
+
+/**
+ * Toggles the PaliGlance popup.
+ * Key behavior: capture screenshot BEFORE showing the window so we
+ * capture what the user was actually looking at, not our own UI.
+ */
+async function toggleGlanceWindow() {
+    if (!glanceWindow) return;
+
+    if (glanceWindow.isVisible()) {
+        glanceWindow.hide();
+        return;
+    }
+
+    // Step 1: Capture screenshot before the popup appears
+    let screenshotDataUrl = null;
+    try {
+        const sources = await desktopCapturer.getSources({
+            types: ['screen'],
+            thumbnailSize: { width: 1920, height: 1080 },
+        });
+        if (sources && sources.length > 0) {
+            const raw = sources[0].thumbnail.toDataURL();
+            if (raw && raw.startsWith('data:image')) {
+                screenshotDataUrl = raw;
+            }
+        }
+    } catch (err) {
+        console.error('[PaliGlance] Screenshot capture error:', err);
+    }
+
+    // Step 2: Center window in upper-third of primary display
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.workAreaSize;
+    const winW = 580;
+    const winH = 420;
+    glanceWindow.setSize(winW, winH);
+    glanceWindow.setPosition(
+        Math.round((width - winW) / 2),
+        Math.round((height - winH) / 3)
+    );
+
+    // Step 3: Show window and signal the renderer to reset its UI
+    glanceWindow.show();
+    glanceWindow.focus();
+    glanceWindow.webContents.send('glance:shown');
+
+    // Step 4: Send screenshot to renderer (may arrive slightly after 'shown')
+    if (screenshotDataUrl) {
+        glanceWindow.webContents.send('glance:screenshot', screenshotDataUrl);
+    }
 }
 
 /**
@@ -187,21 +276,67 @@ app.whenReady().then(async () => {
     // 3. Electron opens a BrowserWindow
     createWindow();
 
+    // 4. Grant media (screen capture) permissions to pages loaded from localhost.
+    //    Without this, getUserMedia with chromeMediaSource:'desktop' silently fails.
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+        if (permission === 'media') {
+            callback(true);  // Allow screen capture from our trusted localhost page
+        } else {
+            callback(false); // Deny everything else
+        }
+    });
+
+
+
+    // 6. IPC handler: hide the PaliGlance window (called from glance.js on Escape)
+    ipcMain.handle('glance:hide', () => {
+        if (glanceWindow) glanceWindow.hide();
+    });
+
+    // 7. Create the PaliGlance popup window (hidden, kept alive for instant re-show)
+    createGlanceWindow();
+
     // macOS specific recreation behavior (handling dock clicks)
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
 
-    // 4. Register global hotkey for toggling the window
-    const hotkey = process.platform === 'darwin' ? 'Command+Shift+Space' : 'Ctrl+Shift+Space';
-    const ret = globalShortcut.register(hotkey, () => {
+    // Register existing hotkey: Ctrl+Shift+Space → toggle main window
+    const mainHotkey = process.platform === 'darwin' ? 'Command+Shift+Space' : 'Ctrl+Shift+Space';
+    const retMain = globalShortcut.register(mainHotkey, () => {
         toggleMainWindow();
     });
-
-    if (!ret) {
-        console.error(`[Hotkey Error] Failed to register global shortcut: ${hotkey}`);
+    if (!retMain) {
+        console.error(`[Hotkey Error] Failed to register global shortcut: ${mainHotkey}`);
     } else {
-        console.log(`[Hotkey] Successfully registered global shortcut: ${hotkey}`);
+        console.log(`[Hotkey] Registered: ${mainHotkey} → toggle main window`);
+    }
+
+    // Register Ctrl+Shift+V → PaliGlance vision popup
+    const glanceHotkey = process.platform === 'darwin' ? 'Command+Shift+V' : 'Ctrl+Shift+V';
+    const retGlance = globalShortcut.register(glanceHotkey, () => {
+        toggleGlanceWindow();
+    });
+    if (!retGlance) {
+        console.error(`[Hotkey Error] Failed to register global shortcut: ${glanceHotkey}`);
+    } else {
+        console.log(`[Hotkey] Registered: ${glanceHotkey} → PaliGlance popup`);
+    }
+
+    // Register Ctrl+Shift+E → open main window and switch to Email mode
+    const emailHotkey = process.platform === 'darwin' ? 'Command+Shift+E' : 'Ctrl+Shift+E';
+    const retEmail = globalShortcut.register(emailHotkey, () => {
+        if (!mainWindow) return;
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+        // Tell the renderer to switch to email mode
+        mainWindow.webContents.send('switch-mode', 'email');
+    });
+    if (!retEmail) {
+        console.error(`[Hotkey Error] Failed to register global shortcut: ${emailHotkey}`);
+    } else {
+        console.log(`[Hotkey] Registered: ${emailHotkey} → Email mode`);
     }
 });
 

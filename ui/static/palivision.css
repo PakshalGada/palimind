@@ -1,0 +1,233 @@
+/* ============================================================
+   palivision.css
+   Styles for the Palivision screen-aware chat feature.
+   Uses PaliMind's existing CSS variable system for theming.
+   ============================================================ */
+
+/* ── Main container ─────────────────────────────────────────── */
+#palivision-workspace {
+  display: none;          /* Hidden by default. switchToMode() shows/hides this. */
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-primary, #0f0f0f);
+}
+
+/* When active, use flex to create the two-column layout */
+#palivision-workspace.active {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+}
+
+/* ── Left pane: video preview ───────────────────────────────── */
+.pv-preview-pane {
+  width: 300px;
+  min-width: 200px;
+  max-width: 380px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border, #2a2a2a);
+  background: var(--bg-secondary, #161616);
+  padding: 10px;
+  gap: 8px;
+}
+
+/* Source selection bar at the top of the preview pane */
+.pv-source-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pv-source-bar select {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-primary, #0f0f0f);
+  border: 1px solid var(--border, #2a2a2a);
+  color: var(--text-primary, #e0e0e0);
+  border-radius: 5px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.pv-source-bar select:focus {
+  outline: none;
+  border-color: var(--accent, #6c7efa);
+}
+
+/* Small colored dot showing stream status */
+.pv-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-muted, #555);
+  transition: background 0.3s ease;
+}
+
+.pv-status-dot.pv-status-active {
+  background: #22c55e;   /* Green = streaming */
+}
+
+.pv-status-dot.pv-status-error {
+  background: #ef4444;   /* Red = error */
+}
+
+/* The live video preview */
+#pv-video {
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid var(--border, #2a2a2a);
+  background: #000;
+  min-height: 120px;
+  display: block;
+}
+
+/* Canvas used only for capturing frames — never visible to user */
+#pv-canvas {
+  display: none;
+}
+
+/* Status message for errors / loading */
+.pv-status-message {
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  display: none;
+}
+
+.pv-status-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.pv-status-loading {
+  background: rgba(108, 126, 250, 0.1);
+  color: var(--accent, #6c7efa);
+  border: 1px solid rgba(108, 126, 250, 0.3);
+}
+
+/* Small helper text */
+.pv-hint {
+  font-size: 10px;
+  color: var(--text-muted, #555);
+  line-height: 1.4;
+}
+
+/* ── Right pane: chat ───────────────────────────────────────── */
+.pv-chat-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Scrollable messages area */
+#pv-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Individual message bubble */
+.pv-message {
+  max-width: 85%;
+  padding: 9px 13px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* User messages: right-aligned */
+.pv-message-user {
+  align-self: flex-end;
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border, #2a2a2a);
+  color: var(--text-primary, #e0e0e0);
+}
+
+/* Assistant messages: left-aligned */
+.pv-message-assistant {
+  align-self: flex-start;
+  background: transparent;
+  border: 1px solid var(--border, #2a2a2a);
+  color: var(--text-primary, #e0e0e0);
+  max-width: 95%;
+}
+
+/* Thinking indicator shown before first token arrives */
+.pv-thinking {
+  color: var(--text-muted, #888);
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* ── Input bar at the bottom of the chat pane ───────────────── */
+.pv-input-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border, #2a2a2a);
+  background: var(--bg-secondary, #161616);
+}
+
+#pv-input {
+  flex: 1;
+  background: var(--bg-primary, #0f0f0f);
+  border: 1px solid var(--border, #2a2a2a);
+  color: var(--text-primary, #e0e0e0);
+  border-radius: 7px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: none;
+  min-height: 38px;
+  max-height: 120px;
+  line-height: 1.4;
+}
+
+#pv-input:focus {
+  outline: none;
+  border-color: var(--accent, #6c7efa);
+}
+
+#pv-input::placeholder {
+  color: var(--text-muted, #555);
+}
+
+#pv-send-btn {
+  background: var(--accent, #6c7efa);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+  height: 38px;
+}
+
+#pv-send-btn:hover {
+  opacity: 0.85;
+}
+
+#pv-send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

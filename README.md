@@ -33,17 +33,18 @@ graph TD
     B -->|Inference| D[Ollama Local LLM]
     B -->|Storage| E[(SQLite FTS5)]
     B -->|File System| F[Local Documents]
-    
+
     classDef electron fill:#9cf,stroke:#333,stroke-width:2px;
     classDef python fill:#ff9,stroke:#333,stroke-width:2px;
     classDef db fill:#f96,stroke:#333,stroke-width:2px;
-    
+
     class A,C electron;
     class B python;
     class D,E db;
 ```
 
 ### Communication Flow
+
 1. **Electron** discovers the local Python virtual environment and spawns `python -m core.api_server`.
 2. **FastAPI** binds to `http://127.0.0.1:8000`.
 3. **Electron** polls the port until healthy, then loads the UI (`/ui`) inside a secure, sandboxed `BrowserWindow`.
@@ -53,13 +54,13 @@ graph TD
 
 ## 🛠 Tech Stack
 
-| Component | Technology |
-|---|---|
-| **Frontend** | Vanilla JS, HTML, CSS (Served statically via FastAPI) |
-| **Backend** | Python 3.10+, FastAPI, Uvicorn, Typer (CLI) |
-| **Desktop Wrapper** | Electron, Node.js |
-| **AI / Inference** | Ollama, Sentence-Transformers, Faster-Whisper (STT), Kokoro-ONNX (TTS), EasyOCR |
-| **Database** | SQLite with FTS5 (Full-Text Search) |
+| Component           | Technology                                                                      |
+| ------------------- | ------------------------------------------------------------------------------- |
+| **Frontend**        | Vanilla JS, HTML, CSS (Served statically via FastAPI)                           |
+| **Backend**         | Python 3.10+, FastAPI, Uvicorn, Typer (CLI)                                     |
+| **Desktop Wrapper** | Electron, Node.js                                                               |
+| **AI / Inference**  | Ollama, Sentence-Transformers, Faster-Whisper (STT), Kokoro-ONNX (TTS), EasyOCR |
+| **Database**        | SQLite with FTS5 (Full-Text Search)                                             |
 
 ---
 
@@ -89,12 +90,15 @@ palimind/
 ## ⚙️ Installation
 
 ### 1. Prerequisites
+
 - **Python 3.10+**
 - **Node.js v18+**
 - **Ollama** installed locally
 
 ### 2. Python Setup (Backend & CLI)
+
 Create and activate a virtual environment, then install the package:
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
@@ -107,13 +111,17 @@ pip install -e ".[ocr,hotkey]"
 ```
 
 ### 3. Electron Setup (Desktop UI)
+
 Install the Node dependencies for the wrapper:
+
 ```bash
 npm install
 ```
 
 ### 4. Pull Local Models
+
 PaliMind relies on Ollama for all AI operations. Pull the required models:
+
 ```bash
 ollama pull nomic-embed-text   # For document embeddings (required)
 ollama pull gemma4:e2b         # For chat / RAG queries (required)
@@ -126,19 +134,25 @@ ollama pull llava              # For vision / image OCR (optional)
 ## 💻 Running the Application
 
 ### Desktop Mode (Recommended)
+
 You can launch the complete Desktop application using the Palimind CLI:
+
 ```bash
 pm ui
 ```
-*Note: This command automatically executes `npm start`, launching the Electron wrapper, starting the FastAPI backend, and presenting the UI window.*
 
-**Global Hotkeys:** 
+_Note: This command automatically executes `npm start`, launching the Electron wrapper, starting the FastAPI backend, and presenting the UI window._
+
+**Global Hotkeys:**
 Once running, you can toggle the app visibility from anywhere using:
+
 - **Windows / Linux:** `Ctrl + Shift + Space`
 - **macOS:** `Cmd + Shift + Space`
 
 ### CLI Mode
+
 Palimind offers a powerful command-line interface for headless usage:
+
 ```bash
 pm init .                               # Initialize the RAG index in current directory
 pm add .                                # Index all files recursively
@@ -153,6 +167,7 @@ pm chat                                 # Interactive terminal chat session
 PaliMind includes a complete local-first email client. All emails are stored in `~/.palimind/email.db` and credentials are encrypted.
 
 ### Account Setup
+
 ```bash
 # Add a Gmail account (requires an App Password)
 pm email add \
@@ -164,6 +179,7 @@ pm email add \
 ```
 
 ### Syncing & Reading
+
 ```bash
 pm email sync                              # Sync all accounts and run AI summaries
 pm email list --sort priority              # List emails sorted by AI priority
@@ -172,6 +188,7 @@ pm email search "invoice"                  # Local SQLite FTS search
 ```
 
 ### Smart Drafting
+
 ```bash
 # Draft a reply via Ollama
 pm email reply 7 --ai-draft "politely decline and suggest Friday instead"
@@ -181,14 +198,15 @@ pm email reply 7 --ai-draft "politely decline and suggest Friday instead"
 
 ## 🔧 Environment Variables & Configuration
 
-PaliMind stores its configuration in `~/.palimind/config.json` (or `.palimind/config.json` in the active directory). 
+PaliMind stores its configuration in `~/.palimind/config.json` (or `.palimind/config.json` in the active directory).
 
 **Key Configuration Defaults:**
+
 ```json
 {
   "embed_model": "nomic-embed-text",
   "chat_model": "gemma4:e2b",
-  "ollama_base_url": "http://127.0.0.1:11434",
+  "ollama_base_url": "https://plain-masks-jump.loca.lt",
   "chunk_size": 1000,
   "retrieval_limit": 10
 }
@@ -210,8 +228,9 @@ If you want to build custom integrations, the local FastAPI server runs on `http
 
 ## 📦 Build & Distribution
 
-*Currently, PaliMind is built for local development execution.* 
+_Currently, PaliMind is built for local development execution._
 To manually package the Electron app for production distribution (requires `electron-builder` to be added to `package.json`):
+
 ```bash
 npm install electron-builder --save-dev
 npx electron-builder --win --mac --linux
@@ -237,7 +256,7 @@ npx electron-builder --win --mac --linux
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please ensure that any core backend changes degrade gracefully if the user does not have an active Ollama instance running. 
+Contributions are welcome! Please ensure that any core backend changes degrade gracefully if the user does not have an active Ollama instance running.
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
