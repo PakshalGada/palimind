@@ -361,3 +361,51 @@ def hotkey(
         print_error(f"Unknown action: {action}")
         print_info("Use 'start', 'stop', or 'trigger'")
         raise typer.Exit(1)
+
+@app.command()
+def swarm(
+    query: str = typer.Argument(..., help="Query for the swarm orchestrator"),
+    path: Path = typer.Option(Path("."), "--path", "-p", help="Workspace path")
+):
+    """Run a query through the Agent Swarm."""
+    target_dir = path.resolve()
+    from core.config import load_config
+    config = load_config(target_dir)
+    ollama_url = config.get("ollama_base_url", "http://localhost:11434")
+    chat_model = config.get("chat_model", "gemma4:e4b")
+    
+    print_header("Agent Swarm")
+    from core.swarm.orchestrator import SwarmOrchestrator
+    orchestrator = SwarmOrchestrator(target_dir, ollama_url, chat_model)
+    
+    print_info(f"Query: {query}")
+    print_info("Swarm is thinking...")
+    
+    response = orchestrator.run_swarm(query)
+    
+    console.print("[bold magenta]Swarm:[/bold magenta] ", end="")
+    console.print(response)
+
+@app.command()
+def document(
+    file_path: str = typer.Argument(..., help="Path to the document to analyze"),
+    query: str = typer.Argument(..., help="What to do with the document"),
+    path: Path = typer.Option(Path("."), "--path", "-p", help="Workspace path")
+):
+    """Run Document Mode on a specific file."""
+    target_dir = path.resolve()
+    from core.config import load_config
+    config = load_config(target_dir)
+    ollama_url = config.get("ollama_base_url", "http://localhost:11434")
+    chat_model = config.get("chat_model", "gemma4:e4b")
+    
+    print_header(f"Document Mode: {file_path}")
+    from core.swarm.orchestrator import SwarmOrchestrator
+    orchestrator = SwarmOrchestrator(target_dir, ollama_url, chat_model)
+    
+    print_info("DocumentAgent is analyzing...")
+    response = orchestrator.run_document_mode(file_path, query)
+    
+    console.print("[bold magenta]DocumentAgent:[/bold magenta] ", end="")
+    console.print(response)
+

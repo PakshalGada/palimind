@@ -846,9 +846,11 @@ async function sendMessage() {
   const triggeredByVoice = wasVoiceInput;
   wasVoiceInput = false; // Reset for next input
 
-  // Extract agent mention from start of text
-  let agentId = null;
+  // Default to the swarm orchestrator
+  let agentId = "";
   let text = rawText;
+  
+  // Extract agent mention from start of text
   const mentionMatch = text.match(/^@(\w+)\s+(.*)/s) || text.match(/^@(\w+)$/);
   if (mentionMatch) {
     const mentionedName = mentionMatch[1];
@@ -913,7 +915,7 @@ async function sendMessage() {
   }
 
   try {
-    const chatMode = chatModeCheckbox && chatModeCheckbox.checked ? "rag" : "llm";
+    const chatMode = chatModeCheckbox && chatModeCheckbox.checked ? "llm" : "rag";
     let url = `/api/chat?q=${encodeURIComponent(text)}&chat_mode=${chatMode}`;
     if (activeSessionId) url += `&session_id=${activeSessionId}`;
     if (agentId) url += `&agent_id=${agentId}`;
@@ -941,6 +943,15 @@ async function sendMessage() {
           
           messagesContainer.appendChild(typingInd);
           messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+      } else if (data.type === "progress") {
+        if (typingInd && typingInd.parentNode) {
+          const textNode = typingInd.querySelector(".thinking-text");
+          if (textNode) {
+            const cleanMsg = data.text.replace(/[>*_]/g, '').trim();
+            const spanHtml = textNode.querySelector("span") ? textNode.querySelector("span").outerHTML : "<span>0.0s</span>";
+            textNode.innerHTML = cleanMsg + " " + spanHtml;
+          }
         }
       } else if (data.type === "token") {
         if (typingInd.parentNode) {

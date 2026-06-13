@@ -100,20 +100,39 @@ def get_default_agents():
                 "Always cite your sources clearly using inline brackets [filename]."
             ),
             "is_default": True
+        },
+        {
+            "id": "swarm",
+            "name": "Swarm",
+            "description": "Multi-agent orchestrator for queries.",
+            "system_prompt": "I am the Swarm Orchestrator. (Backend handled)",
+            "is_default": True
+        },
+        {
+            "id": "document",
+            "name": "DocumentAgent",
+            "description": "Deep dive analysis of specific files (select a file first).",
+            "system_prompt": "I am the Document Agent. (Backend handled)",
+            "is_default": True
         }
     ]
 
 def load_agents() -> list[dict]:
+    defaults = get_default_agents()
     if GLOBAL_AGENTS_PATH.exists():
         try:
             data = json.loads(GLOBAL_AGENTS_PATH.read_text("utf-8"))
-            return data.get("agents", get_default_agents())
+            saved = data.get("agents", [])
+            saved_ids = {a["id"] for a in saved}
+            for d in defaults:
+                if d["id"] not in saved_ids:
+                    saved.append(d)
+            return saved
         except Exception:
-            return get_default_agents()
+            return defaults
     else:
-        agents = get_default_agents()
-        save_agents(agents)
-        return agents
+        save_agents(defaults)
+        return defaults
 
 def save_agents(agents: list[dict]):
     try:
@@ -761,6 +780,82 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
                 if a["id"] == agent_id:
                     agent_system_prompt = a["system_prompt"]
                     break
+
+        if agent_id == "swarm":
+            async def swarm_stream():
+                try:
+                    from core.swarm.orchestrator import SwarmOrchestrator
+                    orchestrator = SwarmOrchestrator(state.active_field, ollama_url, chat_model)
+                    
+                    if files_filter:
+                        yield f"data: {json.dumps({'type': 'sources', 'sources': [Path(f).name for f in files_filter]})}\n\n"
+                    elif chat_mode == "rag":
+                        yield f"data: {json.dumps({'type': 'sources', 'sources': ['Workspace Documents']})}\n\n"
+
+                    import queue
+                    q_progress = queue.Queue()
+                    
+                    def progress_callback(msg: str):
+                        q_progress.put(msg)
+
+                    task = asyncio.create_task(
+                        asyncio.to_thread(orchestrator.run_swarm, q, files_filter, chat_mode, progress_callback)
+                    )
+                    
+                    while not task.done():
+                        while not q_progress.empty():
+                            msg = q_progress.get()
+                            yield f"data: {json.dumps({'type': 'progress', 'text': msg})}\n\n"
+                        yield ": ping\n\n"
+                        await asyncio.sleep(0.5)
+
+                    while not q_progress.empty():
+                        msg = q_progress.get()
+                        yield f"data: {json.dumps({'type': 'progress', 'text': msg})}\n\n"
+                        
+                    response = task.result()
+                    
+                    if response and active_sess_id:
+                        await asyncio.to_thread(append_message_to_session, state.active_field, active_sess_id, "user", q)
+                        await asyncio.to_thread(append_message_to_session, state.active_field, active_sess_id, "system", response)
+                    
+                    yield f"data: {json.dumps({'type': 'token', 'text': response})}\n\n"
+                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                except Exception as e:
+                    yield f"data: {json.dumps({'type': 'error', 'text': f'Swarm error: {str(e)}'})}\n\n"
+            return StreamingResponse(swarm_stream(), media_type="text/event-stream")
+
+        if agent_id == "document":
+            file_path = files_filter[0] if files_filter and len(files_filter) > 0 else None
+            if not file_path:
+                async def err_stream():
+                    yield f"data: {json.dumps({'type': 'error', 'text': 'DocumentAgent requires a selected file.'})}\n\n"
+                return StreamingResponse(err_stream(), media_type="text/event-stream")
+            
+            async def doc_stream():
+                try:
+                    from core.swarm.orchestrator import SwarmOrchestrator
+                    orchestrator = SwarmOrchestrator(state.active_field, ollama_url, chat_model)
+                    
+                    task = asyncio.create_task(
+                        asyncio.to_thread(orchestrator.run_document_mode, file_path, q)
+                    )
+                    
+                    while not task.done():
+                        yield ": ping\n\n"
+                        await asyncio.sleep(1)
+                        
+                    response = task.result()
+                    
+                    if response and active_sess_id:
+                        await asyncio.to_thread(append_message_to_session, state.active_field, active_sess_id, "user", q)
+                        await asyncio.to_thread(append_message_to_session, state.active_field, active_sess_id, "system", response)
+                    
+                    yield f"data: {json.dumps({'type': 'token', 'text': response})}\n\n"
+                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                except Exception as e:
+                    yield f"data: {json.dumps({'type': 'error', 'text': f'DocumentAgent error: {str(e)}'})}\n\n"
+            return StreamingResponse(doc_stream(), media_type="text/event-stream")
 
         if chat_mode == "llm":
             needs_retrieval_fast = False
