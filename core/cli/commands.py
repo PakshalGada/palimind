@@ -156,8 +156,8 @@ def chat(
 
     from core.config import load_config
     config = load_config(target_dir)
-    ollama_url = config.get("ollama_base_url", "https://dull-ears-joke.loca.lt")
-    chat_model = config.get("chat_model", "gemma4:e4b")
+    ollama_url = config.get("ollama_base_url", "https://mighty-eggs-move.loca.lt")
+    chat_model = config.get("chat_model", "gemma4:e2b")
 
     from core.agent import needs_retrieval, reformulate_query
 
@@ -221,21 +221,28 @@ def chat(
             break
 
 @app.command()
-def ui(port: int = typer.Option(8000, "--port", help="Port to run the UI server on")):
-    """Start the Palimind V2 Boardroom UI."""
-    import webbrowser
-    import threading
-    import time
+def ui():
+    """Start the Palimind V2 Boardroom UI via Electron."""
+    import subprocess
+    import sys
+    import os
+    from pathlib import Path
     
     print_header("Palimind V2 Boardroom")
-    print_info(f"Starting server on http://localhost:{port}/ui/")
+    print_info("Starting Electron Wrapper...")
     
-    def open_browser():
-        time.sleep(1.5)
-        webbrowser.open(f"http://localhost:{port}/ui/")
-        
-    threading.Thread(target=open_browser, daemon=True).start()
-    run_server(port)
+    root_dir = Path(__file__).parent.parent.parent
+    
+    # Start Electron using npm start
+    try:
+        if os.name == 'nt':
+            subprocess.run(["npm.cmd", "start"], cwd=root_dir)
+        else:
+            subprocess.run(["npm", "start"], cwd=root_dir)
+    except KeyboardInterrupt:
+        print_info("Electron wrapper stopped.")
+    except Exception as e:
+        print_error(f"Failed to start Electron: {e}")
 
 
 @app.command()

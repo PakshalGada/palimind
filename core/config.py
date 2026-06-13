@@ -11,7 +11,7 @@ DB_FILE = "index.db"
 # Default application settings
 DEFAULTS = {
     "embed_model": "nomic-embed-text",
-    "chat_model": "gemma4:e4b",
+    "chat_model": "gemma4:e2b",
     "vision_model": "llava",
     "chunk_size": 1000,
     "chunk_overlap": 200,
@@ -44,7 +44,7 @@ DEFAULTS = {
     ],
     "doc_extensions": [".pdf", ".docx", ".pptx", ".xlsx"],
     "image_extensions": [".png", ".jpg", ".jpeg", ".webp"],
-    "ollama_base_url": "https://dull-ears-joke.loca.lt",
+    "ollama_base_url": "https://mighty-eggs-move.loca.lt",
 }
 
 

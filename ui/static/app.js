@@ -483,7 +483,7 @@ if (btnSaveAgent) {
 
 initEventsWatcher();
 
-function appendMessage(role, text) {
+function appendMessage(role, text, autoScroll = true) {
   const msgDiv = document.createElement("div");
   msgDiv.className = `message ${role === "user" ? "user-message" : "system-message"}`;
 
@@ -500,11 +500,13 @@ function appendMessage(role, text) {
 
   msgDiv.appendChild(content);
   messagesContainer.appendChild(msgDiv);
-  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  if (autoScroll) {
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
   return content;
 }
 
-async function fetchSessions() {
+async function fetchSessions(silent = false) {
   if (!activeField) return;
   try {
     const res = await fetch("/api/sessions");
@@ -513,7 +515,9 @@ async function fetchSessions() {
     sessions = data.sessions || [];
     activeSessionId = data.active_session_id;
     renderSessions();
-    renderActiveSessionChat();
+    if (!silent) {
+      renderActiveSessionChat();
+    }
   } catch (e) {
     console.error("Error fetching sessions:", e);
   }
@@ -603,6 +607,9 @@ async function deleteSession(sessionId) {
 }
 
 function renderActiveSessionChat() {
+  const isScrolledUp = messagesContainer.scrollHeight - messagesContainer.clientHeight > messagesContainer.scrollTop + 50;
+  const previousScroll = messagesContainer.scrollTop;
+
   messagesContainer.innerHTML = "";
   const currentSess = sessions.find((s) => s.id === activeSessionId);
   const chatInterfaceEl = document.getElementById("chat-interface");
@@ -614,12 +621,17 @@ function renderActiveSessionChat() {
         contentText += `*Sources: ${msg.sources.join(", ")}*\n\n`;
       }
       contentText += msg.content;
-      appendMessage(msg.role, contentText);
+      appendMessage(msg.role, contentText, false);
     });
   } else {
     if (chatInterfaceEl) chatInterfaceEl.classList.add("empty-chat");
   }
-  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  
+  if (isScrolledUp) {
+    messagesContainer.scrollTop = previousScroll;
+  } else {
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
 }
 
 async function fetchFileTree() {
@@ -935,10 +947,16 @@ async function sendMessage() {
           typingInd.remove();
           if (timerInterval) clearInterval(timerInterval);
         }
-        if (!contentDiv) contentDiv = appendMessage("system", "");
+        if (!contentDiv) contentDiv = appendMessage("system", "", false);
+        
+        const isNearBottom = messagesContainer.scrollHeight - messagesContainer.clientHeight <= messagesContainer.scrollTop + 50;
+        
         fullText += data.text;
         contentDiv.innerHTML = formatMarkdown(fullText);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        if (isNearBottom) {
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
 
         // --- Streaming TTS: accumulate and flush by sentence ---
         if (triggeredByVoice && ttsActive) {
@@ -965,7 +983,7 @@ async function sendMessage() {
           if (timerInterval) clearInterval(timerInterval);
         }
         eventSource.close();
-        await fetchSessions();
+        await fetchSessions(true); // silent fetch, avoids re-rendering the chat
         // Flush any remaining text in the buffer as the last TTS chunk
         if (triggeredByVoice && ttsActive) {
           flushTTSBuffer(true);

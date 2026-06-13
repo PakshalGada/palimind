@@ -1075,7 +1075,7 @@ button:active {
     border: 1px solid var(--border-color);
     border-radius: 16px;
     width: 90%;
-    max-width: 450px;
+    max-width: 550px;
     overflow: hidden;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
     animation: modalFadeIn 0.2s ease-out;
@@ -2217,7 +2217,7 @@ input:disabled {
 .toggle-switch {
     position: relative;
     display: inline-block;
-    width: 200px;
+    width: 240px;
     height: 34px;
 }
 .toggle-switch input {
@@ -2235,14 +2235,14 @@ input:disabled {
     border-radius: 34px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0 10px;
+    justify-content: center;
+    padding: 0;
 }
 .toggle-slider:before {
     position: absolute;
     content: "";
     height: 26px;
-    width: 90px;
+    width: 112px;
     left: 4px;
     bottom: 3px;
     background-color: var(--text-main);
@@ -2251,7 +2251,7 @@ input:disabled {
     z-index: 1;
 }
 input:checked + .toggle-slider:before {
-    transform: translateX(98px);
+    transform: translateX(120px);
 }
 .toggle-label {
     font-size: 0.75rem;
@@ -2261,6 +2261,7 @@ input:checked + .toggle-slider:before {
     transition: color 0.3s;
     flex: 1;
     text-align: center;
+    white-space: nowrap;
 }
 input:not(:checked) + .toggle-slider .document-mode {
     color: var(--panel-bg);
@@ -2337,6 +2338,7 @@ input:checked + .toggle-slider .llm-mode {
 .agent-list-actions {
     display: flex;
     gap: 8px;
+    align-items: center;
 }
 .agent-edit-form {
     display: flex;
@@ -2358,4 +2360,14 @@ input:checked + .toggle-slider .llm-mode {
     display: flex;
     gap: 10px;
     margin-top: 10px;
+    align-items: center;
+}
+.agent-form-actions button {
+    flex: 1;
+    margin-top: 0;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
 }

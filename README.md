@@ -1,464 +1,254 @@
 # PaliMind
 
-> **Local-first intelligence OS** — index documents, chat with a local LLM, and manage email entirely on your machine. No cloud. No subscriptions. No data leaving your device.
+> **Local-first intelligence OS** — index documents, chat with a local LLM, manage email entirely on your machine, and capture knowledge seamlessly via global hotkeys. No cloud. No subscriptions. No data leaving your device.
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org)
+[![Node.js](https://img.shields.io/badge/node.js-v18+-green.svg)](https://nodejs.org)
+[![Electron](https://img.shields.io/badge/electron-42.4-blueviolet.svg)](https://www.electronjs.org/)
 [![Ollama](https://img.shields.io/badge/inference-Ollama-black.svg)](https://ollama.com)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ---
 
-## What is PaliMind?
+## 🚀 Features
 
-PaliMind is a modular, privacy-first personal intelligence system. It turns your local machine into a powerful knowledge workspace:
-
-- **RAG** — semantic search over your documents using local embeddings
-- **Email** — full IMAP/SMTP email client with AI triage, spam detection, and smart drafting
-- **Local-only** — all inference via [Ollama](https://ollama.com); nothing is sent to external APIs
-
----
-
-## Features
-
-| Module | Capabilities |
-|--------|-------------|
-| **RAG** | Vector search, intent routing, multimodal (PDF, PPTX, XLSX, images), streaming chat |
-| **Email Phase 1** | IMAP sync, FTS search, AI summaries + tags + priority, SMTP compose/reply |
-| **Email Phase 2** | Watch mode, NL Q&A, needs-reply detection, daily digest, contact analytics, newsletters, spam management, reminders, style-aware drafting |
+- **Desktop AI Workspace** — A secure Electron desktop wrapper that automatically manages the background FastAPI server and renders a responsive Vanilla JS frontend.
+- **Cross-Platform Global Hotkeys** — Toggle the interface instantly (`Ctrl+Shift+Space` on Windows/Linux, `Cmd+Shift+Space` on macOS) and capture context without interrupting your workflow.
+- **Multimodal RAG** — Semantic search over personal files (PDF, PPTX, XLSX, images, and code) using local embeddings.
+- **Smart Email Client** — Full IMAP/SMTP client with AI triage, needs-reply detection, spam filtering, and smart drafting.
+- **Voice Engine** — Built-in Speech-to-Text (Faster-Whisper) and Text-to-Speech (Kokoro-ONNX) for hands-free interactions.
+- **100% Local Privacy** — All inference is done via [Ollama](https://ollama.com); your data is never sent to external APIs. Credentials are encrypted via Fernet AES-128.
 
 ---
 
-## Install
+## 🏗 Architecture
 
+PaliMind operates a dual-layer architecture: a **Python/FastAPI Backend** for heavy ML/RAG lifting, and an **Electron/Node.js Wrapper** for native desktop integration.
+
+```mermaid
+graph TD
+    A[Electron Main Process] -->|Spawns & Manages| B(FastAPI Server)
+    A -->|Global Hotkeys & native events| C[BrowserWindow]
+    C -->|HTTP REST & SSE| B
+    B -->|Inference| D[Ollama Local LLM]
+    B -->|Storage| E[(SQLite FTS5)]
+    B -->|File System| F[Local Documents]
+    
+    classDef electron fill:#9cf,stroke:#333,stroke-width:2px;
+    classDef python fill:#ff9,stroke:#333,stroke-width:2px;
+    classDef db fill:#f96,stroke:#333,stroke-width:2px;
+    
+    A class:electron
+    C class:electron
+    B class:python
+    D class:db
+    E class:db
+```
+
+### Communication Flow
+1. **Electron** discovers the local Python virtual environment and spawns `python -m core.api_server`.
+2. **FastAPI** binds to `http://127.0.0.1:8000`.
+3. **Electron** polls the port until healthy, then loads the UI (`/ui`) inside a secure, sandboxed `BrowserWindow`.
+4. The **Frontend** communicates with the backend via REST APIs and Server-Sent Events (SSE) for streaming text and TTS.
+
+---
+
+## 🛠 Tech Stack
+
+| Component | Technology |
+|---|---|
+| **Frontend** | Vanilla JS, HTML, CSS (Served statically via FastAPI) |
+| **Backend** | Python 3.10+, FastAPI, Uvicorn, Typer (CLI) |
+| **Desktop Wrapper** | Electron, Node.js |
+| **AI / Inference** | Ollama, Sentence-Transformers, Faster-Whisper (STT), Kokoro-ONNX (TTS), EasyOCR |
+| **Database** | SQLite with FTS5 (Full-Text Search) |
+
+---
+
+## 📂 Project Structure
+
+```text
+palimind/
+├── core/                  # Python backend logic
+│   ├── api_server.py      # FastAPI entrypoint
+│   ├── cli/               # CLI command definitions (pm init, pm email)
+│   ├── email/             # IMAP/SMTP logic, AI triage, local SQLite storage
+│   ├── retrieval/         # RAG search, embeddings, document chunking
+│   ├── generative/        # Agent routing and LLM streaming
+│   └── config.py          # Environment settings and defaults
+├── electron/              # Node.js Desktop application
+│   └── main.js            # Process orchestration, hotkeys, lifecycle management
+├── ui/                    # Frontend UI assets
+│   ├── static/            # CSS, JavaScript (app.js, email.js, hotkey.js)
+│   └── template/          # HTML templates
+├── package.json           # Electron dependencies & scripts
+├── pyproject.toml         # Python dependencies & CLI entrypoints
+└── tests/                 # Unit and integration tests
+```
+
+---
+
+## ⚙️ Installation
+
+### 1. Prerequisites
+- **Python 3.10+**
+- **Node.js v18+**
+- **Ollama** installed locally
+
+### 2. Python Setup (Backend & CLI)
+Create and activate a virtual environment, then install the package:
 ```bash
-# Core install
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install core package
 pip install -e .
 
-# With OCR support (EasyOCR — large download ~2 GB)
-pip install -e ".[ocr]"
+# Optional: Install with Hotkey & OCR support
+pip install -e ".[ocr,hotkey]"
 ```
 
-## Ollama Models
-
-Pull the models PaliMind uses:
-
+### 3. Electron Setup (Desktop UI)
+Install the Node dependencies for the wrapper:
 ```bash
-ollama pull nomic-embed-text   # document embeddings
-ollama pull gemma3:latest      # email AI (summaries, tagging, drafts)
-ollama pull gemma4:e4b         # chat / RAG queries
-ollama pull llava              # vision / image captioning (optional)
+npm install
 ```
 
-> **Note:** All AI features degrade gracefully — if Ollama is offline, sync, search, and storage still work normally.
-
----
-
-## RAG — Document Q&A
-
+### 4. Pull Local Models
+PaliMind relies on Ollama for all AI operations. Pull the required models:
 ```bash
-cd /your/project
-
-pm init .                                   # initialise the index
-pm add .                                    # index all files recursively
-pm ask "how does authentication work?"      # single question
-pm chat                                     # interactive chat session
-pm search "database schema"                 # keyword search
+ollama pull nomic-embed-text   # For document embeddings (required)
+ollama pull gemma4:e2b         # For chat / RAG queries (required)
+ollama pull gemma3:latest      # For email AI (optional but recommended)
+ollama pull llava              # For vision / image OCR (optional)
 ```
 
 ---
 
-## Email Assistant
+## 💻 Running the Application
 
-PaliMind includes a complete local-first email client under `pm email`.
-
-- **Storage:** `~/.palimind/email.db` (SQLite, shared across workspaces)
-- **Credentials:** encrypted at rest with Fernet (machine-bound key, never exposed to AI)
-- **Privacy:** email bodies are summarised locally; no content leaves your machine
-
-### Setup
-
-#### Gmail
-
-Gmail requires an **App Password** (not your regular password):
-
-1. Enable 2-Step Verification → [myaccount.google.com/security](https://myaccount.google.com/security)
-2. Create an App Password → [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
-3. Copy the 16-character password
-
+### Desktop Mode (Recommended)
+You can launch the complete Desktop application using the Palimind CLI:
 ```bash
+pm ui
+```
+*Note: This command automatically executes `npm start`, launching the Electron wrapper, starting the FastAPI backend, and presenting the UI window.*
+
+**Global Hotkeys:** 
+Once running, you can toggle the app visibility from anywhere using:
+- **Windows / Linux:** `Ctrl + Shift + Space`
+- **macOS:** `Cmd + Shift + Space`
+
+### CLI Mode
+Palimind offers a powerful command-line interface for headless usage:
+```bash
+pm init .                               # Initialize the RAG index in current directory
+pm add .                                # Index all files recursively
+pm ask "How does auth work?"            # Single RAG question
+pm chat                                 # Interactive terminal chat session
+```
+
+---
+
+## 📧 Email Assistant Workflows
+
+PaliMind includes a complete local-first email client. All emails are stored in `~/.palimind/email.db` and credentials are encrypted.
+
+### Account Setup
+```bash
+# Add a Gmail account (requires an App Password)
 pm email add \
   --label "Gmail" \
   --email you@gmail.com \
   --imap-host imap.gmail.com \
   --smtp-host smtp.gmail.com \
   --smtp-port 587
-# Enter the App Password when prompted
 ```
 
-#### Other Providers
-
+### Syncing & Reading
 ```bash
-# Outlook / Hotmail
-pm email add --label "Work" --email you@outlook.com \
-  --imap-host outlook.office365.com \
-  --smtp-host smtp.office365.com --smtp-port 587
-
-# Custom / self-hosted
-pm email add --label "Personal" --email you@domain.com \
-  --imap-host mail.domain.com --imap-port 993 \
-  --smtp-host mail.domain.com --smtp-port 587
+pm email sync                              # Sync all accounts and run AI summaries
+pm email list --sort priority              # List emails sorted by AI priority
+pm email read 42                           # Read email #42
+pm email search "invoice"                  # Local SQLite FTS search
 ```
 
----
-
-## Email — Phase 1: Core Commands
-
-### Account Management
-
+### Smart Drafting
 ```bash
-pm email accounts                          # list configured accounts
-pm email add --label "Gmail" ...           # add an account (see setup above)
-```
-
-### Sync
-
-```bash
-pm email sync                              # sync all accounts (INBOX, last 50)
-pm email sync -a "Gmail"                   # specific account
-pm email sync -a "Gmail" -f "Sent"        # specific folder
-pm email sync -a "Gmail" --full           # full re-sync (ignore checkpoint)
-pm email sync -a "Gmail" --no-ai          # skip AI processing (faster)
-pm email sync -a "Gmail" --limit 100      # fetch more emails
-```
-
-### Browse & Read
-
-```bash
-pm email list                              # latest 20 emails
-pm email list -a "Gmail"                   # filter by account
-pm email list --sort priority              # sort by AI priority score
-pm email list --sort sender
-pm email list --tag "work"                 # filter by AI-assigned tag
-pm email list --after 2025-01-01
-pm email list -n 50
-
-pm email unread                            # show unread emails
-pm email unread -c                         # count only (per account)
-
-pm email read 42                           # read email #42 (marks as read)
-pm email read 42 --headers                 # show full headers
-pm email read 42 --html                    # show raw HTML body
-```
-
-### Search
-
-Full-text search powered by SQLite FTS5 (BM25 ranked):
-
-```bash
-pm email search "invoice"
-pm email search "meeting notes" -a "Gmail"
-pm email search "deploy" --after 2025-06-01 -n 5
-```
-
-### Compose & Reply
-
-```bash
-# Manual compose
-pm email compose -a "Gmail" \
-  --to "friend@example.com" \
-  --subject "Hello" \
-  --body "Just saying hi!"
-
-# AI-drafted compose (Ollama required)
-pm email compose -a "Gmail" --to "client@work.com" -s "Project Update" \
-  --ai-draft "brief update: milestone hit, next step is review"
-
-# Skip confirmation prompt
-pm email compose -a "Gmail" --to "boss@work.com" -s "Update" \
-  --body "All done." --yes
-
-# Dry run — preview without sending
-pm email compose -a "Gmail" --to "test@example.com" -s "Test" \
-  --body "Hello!" --dry-run
-
-# Reply to email #7
-pm email reply 7 --body "Thanks, I'll look into it."
+# Draft a reply via Ollama
 pm email reply 7 --ai-draft "politely decline and suggest Friday instead"
-pm email reply 7 --reply-all --body "Thanks everyone."
-pm email reply 7 --ai-draft "confirm meeting" --dry-run
 ```
-
-### AI Processing
-
-When syncing with AI enabled (default), each new email is enriched locally:
-
-| Field | What it does |
-|-------|-------------|
-| **Summary** | 2–3 sentence digest shown in `pm email read` |
-| **Tags** | Auto-classification (e.g. `work`, `invoice`, `action-required`) |
-| **Priority** | Score 0–5 (used for `--sort priority`) |
-| **Spam Score** | 0–100 (shown as warning in `pm email read` if > 30) |
 
 ---
 
-## Email — Phase 2: Intelligence & Automation
+## 🔧 Environment Variables & Configuration
 
-Phase 2 adds a layer of proactive intelligence on top of the Phase 1 core. All features degrade gracefully when Ollama is offline — heuristics continue to work.
+PaliMind stores its configuration in `~/.palimind/config.json` (or `.palimind/config.json` in the active directory). 
 
-### Watch Mode
+**Key Configuration Defaults:**
+```json
+{
+  "embed_model": "nomic-embed-text",
+  "chat_model": "gemma4:e2b",
+  "ollama_base_url": "http://127.0.0.1:11434",
+  "chunk_size": 1000,
+  "retrieval_limit": 10
+}
+```
 
-Continuously polls all accounts in the background:
+---
 
+## 🔌 API Documentation
+
+If you want to build custom integrations, the local FastAPI server runs on `http://127.0.0.1:8000`.
+
+- `GET /ui` - Serves the web interface
+- `GET /api/chat?q={query}&chat_mode={llm|rag}` - Returns a Server-Sent Events (SSE) stream of the LLM response
+- `GET /api/sessions` - Retrieve past chat sessions
+- `GET /api/files/tree` - Retrieve the indexed document structure
+- `POST /api/voice/synthesize` - Convert text to speech audio blobs
+
+---
+
+## 📦 Build & Distribution
+
+*Currently, PaliMind is built for local development execution.* 
+To manually package the Electron app for production distribution (requires `electron-builder` to be added to `package.json`):
 ```bash
-pm email watch                             # poll every 5 minutes
-pm email watch --interval 60               # poll every 60 seconds
-pm email watch --no-ai                     # heuristics only, no Ollama
-pm email watch --no-notify                 # disable desktop notifications
-pm email watch --folder "All Mail"         # watch a specific folder
-```
-
-Press `Ctrl+C` to stop. New emails are printed with timestamps as they arrive.
-
----
-
-### Natural Language Q&A
-
-Ask questions about your inbox in plain English:
-
-```bash
-pm email ask "Which recruiter emailed me last week?"
-pm email ask "Do I have any pending invoices?"
-pm email ask "Summarize unread emails from GitHub."
-pm email ask "Which emails require my reply?"
-pm email ask "Show anything about the AWS deployment."
-pm email ask "Did anyone email me about the interview?" --no-refs
-```
-
-The command searches your local archive with FTS, passes relevant emails to the AI, and returns a cited answer. `--no-refs` hides the source email table.
-
----
-
-### Needs-Reply Detection
-
-Identifies emails that expect a response (questions, action requests, RSVPs, follow-ups):
-
-```bash
-pm email needs-reply                       # show previously flagged emails
-pm email needs-reply --scan                # re-scan inbox first
-pm email needs-reply --scan --no-ai        # heuristics only
-pm email needs-reply --limit 20
-```
-
-Detection uses a combination of linguistic heuristics (question marks, "please reply", "RSVP", deadlines) and an optional AI classification pass.
-
----
-
-### Daily Inbox Digest
-
-```bash
-pm email today                             # full digest with AI summary
-pm email today --no-ai                     # skip AI, show categories only
-pm email today --account "Gmail"           # filter to one account
-```
-
-Shows:
-- **AI Summary** — one-paragraph executive briefing
-- Unread count, high priority, needs reply, meetings, finance emails
-- Due reminders for today
-- Newsletter and spam counts
-
----
-
-### Contact Analytics
-
-```bash
-pm email contacts                          # top 20 contacts by volume
-pm email contacts --rebuild                # rebuild stats cache from scratch
-pm email contacts --limit 30
-```
-
-Shows received/sent counts, reply rate, and last contact date per sender.
-
----
-
-### Reminders
-
-Set reminders on any email and get them surfaced in `pm email today`:
-
-```bash
-# Create a reminder (note auto-generated by AI if omitted)
-pm email remind 42
-pm email remind 42 --note "Reply by Friday with invoice"
-pm email remind 42 --due 2026-06-15
-pm email remind 42 --due tomorrow
-pm email remind 42 --due "next week"
-
-# List reminders
-pm email reminders                         # active reminders only
-pm email reminders --all                   # include completed
-
-# Dismiss a reminder
-pm email reminders --dismiss 3
+npm install electron-builder --save-dev
+npx electron-builder --win --mac --linux
 ```
 
 ---
 
-### Newsletter Detection
+## 🛡 Security & Privacy Notes
 
-```bash
-pm email newsletters                       # show detected newsletters
-pm email newsletters --scan                # scan inbox first, then show
-pm email newsletters --limit 100
-```
-
-Detection combines MIME header signals (`List-Unsubscribe`, `List-ID`) with heuristics (bulk patterns, "unsubscribe" keywords) and optional AI classification.
+- **Zero Cloud Footprint:** PaliMind does not communicate with OpenAI, Anthropic, or any cloud LLM provider.
+- **Encrypted Credentials:** Your IMAP/SMTP passwords are encrypted on disk using Fernet symmetric encryption. The key is bound to your machine.
+- **Sandboxed UI:** The Electron `BrowserWindow` runs with `nodeIntegration: false` and `contextIsolation: true` to prevent Cross-Site Scripting (XSS) from interacting with your file system.
 
 ---
 
-### Spam Management
+## ⚠️ Troubleshooting
 
-#### Dashboard
-```bash
-pm email spam                              # spam stats + top senders + recent detections
-```
-
-#### Listing
-```bash
-pm email spam-list                         # all spam + suspicious emails
-pm email spam-list --status spam           # confirmed spam only
-pm email spam-list --status suspicious     # borderline emails
-```
-
-#### Interactive Review
-```bash
-pm email spam-review                       # review borderline emails one by one
-pm email spam-review --limit 20
-```
-For each email: press `s` = mark spam, `o` = mark safe, `Enter` = skip.
-
-#### Sender Preferences
-```bash
-pm email spam-whitelist boss@company.com   # always treat as safe
-pm email spam-blacklist spammer@evil.xyz   # always treat as spam
-```
-
-Whitelist/blacklist entries override AI and heuristic scores completely.
+- **Port 8000 in Use:** If Electron hangs on `Waiting for FastAPI...`, ensure no other `pm ui` or Uvicorn process is running. Terminate existing processes and restart.
+- **Ollama Connection Error:** Ensure the Ollama daemon is running (`ollama serve`) and the models have been successfully pulled.
+- **Python Module Error:** Ensure the virtual environment is activated before running `pm` commands, and that it resides in `.venv` so the Electron wrapper can automatically discover it.
 
 ---
 
-### Style-Aware Drafting
+## 🤝 Contributing
 
-Phase 2 drafting commands (`pm email compose --ai-draft` and `pm email reply --ai-draft`) automatically use your past sent emails as style examples, matching your tone, vocabulary, and email length.
+Contributions are welcome! Please ensure that any core backend changes degrade gracefully if the user does not have an active Ollama instance running. 
 
-```bash
-# Compose with style-matching (uses sent history automatically)
-pm email compose -a "Gmail" --to "colleague@work.com" \
-  -s "Meeting Request" \
-  --ai-draft "schedule a 30-min sync this week to discuss the API design"
-
-# Reply with style-matching
-pm email reply 42 --ai-draft "accept the invitation and suggest Thursday 3pm"
-```
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ---
 
-### Enhanced Statistics
+## 📄 License
 
-```bash
-pm email stats
-```
-
-Shows all Phase 1 + Phase 2 metrics in one view:
-
-| Metric | Description |
-|--------|-------------|
-| Total / Unread / Sent | Core counts |
-| Needs Reply | Emails flagged as awaiting response |
-| Active Reminders | Pending reminders |
-| Newsletters | Detected bulk mail |
-| Spam / Suspicious | Flagged emails |
-| Storage Used | `email.db` file size |
-| Last Sync | Timestamp of last successful sync |
-| Top Contacts | Top 5 by email volume |
-
----
-
-## Phase 2 Full Command Reference
-
-```
-pm email watch          Background polling (Ctrl+C to stop)
-pm email ask "<q>"      Natural language inbox Q&A
-pm email needs-reply    Emails awaiting your reply
-pm email today          Daily inbox digest
-pm email contacts       Contact analytics
-pm email remind <ID>    Set a reminder on an email
-pm email reminders      List / dismiss reminders
-pm email newsletters    Newsletter detection view
-pm email spam           Spam dashboard
-pm email spam-list      List spam/suspicious emails
-pm email spam-review    Interactive review of borderline emails
-pm email spam-whitelist <addr>
-pm email spam-blacklist <addr>
-pm email stats          Enhanced statistics (Phase 1 + 2)
-```
-
----
-
-## Configuration
-
-Settings live in `.palimind/config.json` inside each workspace:
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `embed_model` | `nomic-embed-text` | Ollama embedding model |
-| `chat_model` | `gemma4:e4b` | Ollama chat / email AI model |
-| `vision_model` | `llava` | Ollama vision model |
-| `ollama_base_url` | `http://localhost:11434` | Ollama server URL |
-| `chunk_size` | `1000` | Characters per RAG chunk |
-| `chunk_overlap` | `200` | Overlap between chunks |
-| `turbovec_bit_width` | `4` | Vector compression (2 or 4 bit) |
-| `summarise` | `true` | Generate file summaries at index time |
-
-Email data is stored in `~/.palimind/email.db` (shared across all workspaces). Credentials are stored encrypted in the same database — the encryption key is machine-bound and never stored in plaintext.
-
----
-
-## Architecture
-
-```
-palimind/
-├── core/
-│   ├── email/               # Email module (isolated)
-│   │   ├── crypto.py        # Fernet credential encryption
-│   │   ├── store.py         # Phase 1 SQLite layer + FTS5
-│   │   ├── store_p2.py      # Phase 2 DB tables (reminders, spam_prefs, etc.)
-│   │   ├── ai.py            # Phase 1 Ollama integration
-│   │   ├── ai_p2.py         # Phase 2 AI (Q&A, newsletter, spam, drafting)
-│   │   ├── api.py           # Phase 1 facade
-│   │   ├── api_p2.py        # Phase 2 facade
-│   │   ├── cli.py           # Phase 1 CLI commands
-│   │   ├── cli_p2.py        # Phase 2 CLI (watch, ask, today, reminders…)
-│   │   ├── cli_p2b.py       # Phase 2 CLI (spam, newsletters, stats)
-│   │   └── prompts/         # Ollama prompt templates
-│   ├── ingestion/           # Document ingestion pipeline
-│   ├── retrieval/           # RAG search + reranking
-│   └── cli/                 # Top-level CLI (pm)
-└── tests/
-    ├── test_email_module.py      # Phase 1 tests
-    └── test_email_phase2.py      # Phase 2 tests
-```
-
----
-
-## Privacy & Security
-
-- **No external API calls** — all inference is local via Ollama
-- **Credentials encrypted** — Fernet AES-128 with a machine-bound key; never written in plaintext
-- **LLM never sees credentials** — only email content (subject, sender, body) is passed to Ollama
-- **Local SQLite** — no cloud sync, no telemetry
-
----
-
-## License
-
-MIT © PakshalGada
+Distributed under the MIT License. See `LICENSE` for more information.

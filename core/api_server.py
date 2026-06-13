@@ -76,7 +76,7 @@ def get_default_agents():
         {
             "id": "compare",
             "name": "Compare",
-            "description": "multi document comparision",
+            "description": "multi document comparison",
             "system_prompt": (
                 "You are an expert Comparison Agent. Your goal is to analyze multiple documents and provide a structured, objective "
                 "comparison. Follow these reasoning steps:\n"
@@ -951,8 +951,8 @@ async def get_models():
     config = {}
     if state.active_field:
         config = load_config(state.active_field)
-    ollama_url = config.get("ollama_base_url", "https://dull-ears-joke.loca.lt")
-    current_model = config.get("chat_model", "gemma4:e4b")
+    ollama_url = config.get("ollama_base_url", "https://mighty-eggs-move.loca.lt")
+    current_model = config.get("chat_model", "gemma4:e2b")
     try:
         models = await asyncio.to_thread(_fetch_ollama_models_blocking, ollama_url)
         return {
@@ -1006,7 +1006,7 @@ async def get_config():
     return {
         "chat_model": config.get("chat_model", "llama3"),
         "embed_model": config.get("embed_model", "nomic-embed-text"),
-        "ollama_base_url": config.get("ollama_base_url", "https://dull-ears-joke.loca.lt"),
+        "ollama_base_url": config.get("ollama_base_url", "https://mighty-eggs-move.loca.lt"),
     }
 
 
@@ -1038,4 +1038,7 @@ async def get_recommendations(top: int = 20):
 
 
 def run_server(port: int = 8000):
-    uvicorn.run(app, host="127.0.0.1", port=port)
+    uvicorn.run("core.api_server:app", host="127.0.0.1", port=port)
+
+if __name__ == "__main__":
+    run_server()

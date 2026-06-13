@@ -1,0 +1,14 @@
+{
+  "name": "fastapi-electron-wrapper",
+  "version": "1.0.0",
+  "description": "A minimal Electron wrapper for an existing FastAPI application",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "Migration Engineer",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^42.4.0"
+  }
+}
