@@ -18,14 +18,14 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Ollama server address — same as what PaliMind already uses
+# Fallback Ollama server address (overridden at call-time from config)
 OLLAMA_BASE_URL = "https://plain-masks-jump.loca.lt"
 
 # We try these models in order. First one that responds wins.
 VISION_MODELS_TO_TRY = ["llava", "moondream2", "minicpm-v", "llava-phi3"]
 
 
-async def describe_screenshot(image_b64: str) -> str | None:
+async def describe_screenshot(image_b64: str, ollama_url: str | None = None) -> str | None:
     """
     Sends a base64-encoded screenshot to a local Ollama vision model.
     Returns a text description of what's on screen, or None if no vision model
@@ -33,10 +33,26 @@ async def describe_screenshot(image_b64: str) -> str | None:
 
     Args:
         image_b64: Base64-encoded PNG (no data URL prefix)
+        ollama_url: Ollama server URL; if None, reads from global config or uses fallback.
 
     Returns:
         A string describing the screen content, or None if unavailable.
     """
+    if not image_b64:
+        return None
+
+    if ollama_url is None:
+        from pathlib import Path
+        import json as _json
+        _cfg_path = Path.home() / ".palimind" / "config.json"
+        if _cfg_path.exists():
+            try:
+                ollama_url = _json.loads(_cfg_path.read_text("utf-8")).get("ollama_base_url", OLLAMA_BASE_URL)
+            except Exception:
+                ollama_url = OLLAMA_BASE_URL
+        else:
+            ollama_url = OLLAMA_BASE_URL
+
     prompt = (
         "You are analyzing a screenshot. Describe exactly what you see: "
         "what application is open, what text is visible, what the user is doing, "
@@ -49,7 +65,7 @@ async def describe_screenshot(image_b64: str) -> str | None:
             try:
                 logger.info(f"[Palivision Vision] Trying Ollama vision model: {model_name}")
                 response = await client.post(
-                    f"{OLLAMA_BASE_URL}/api/generate",
+                    f"{ollama_url}/api/generate",
                     json={
                         "model": model_name,
                         "prompt": prompt,

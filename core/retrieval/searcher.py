@@ -146,6 +146,7 @@ def _hybrid_search(
     doc_type: str | None = None,
     entity_name: str | None = None,
     section_title: str | None = None,
+    subsection: str | None = None,
 ) -> list[dict]:
     """
     Core hybrid (BM25 + vector) search with optional metadata filtering.
@@ -159,29 +160,29 @@ def _hybrid_search(
     embed_model = config.get("embed_model", "nomic-embed-text")
     search_limit = max(limit * 3, 15)
 
-    has_filters = any([doc_year, doc_type, entity_name, section_title, files_filter, candidate_ids])
+    has_filters = any([doc_year, doc_type, entity_name, section_title, subsection, files_filter, candidate_ids])
 
     def _do_vector():
         query_vector = generate_embedding(query, ollama_url, embed_model)
-        results = search(root, query_vector, limit=search_limit)
-        if candidate_ids is not None:
-            results = [r for r in results if r.get("chunk_db_id") in candidate_ids]
-        elif files_filter:
+        results = search(root, query_vector, limit=search_limit, candidate_ids=candidate_ids)
+        if files_filter and candidate_ids is None:
             results = _apply_file_filter(results, files_filter)
-        elif doc_year is not None:
+        elif doc_year is not None and candidate_ids is None:
             results = [r for r in results if r.get("doc_year") == doc_year]
         return results
 
     def _do_fts():
         conn = get_connection(root)
         try:
-            if has_filters and (doc_year or doc_type or entity_name or section_title):
+            if has_filters and (doc_year or doc_type or entity_name or section_title or subsection or files_filter):
                 return fts_search_filtered(
                     conn, query,
                     doc_year=doc_year,
                     doc_type=doc_type,
                     entity_name=entity_name,
                     section_title=section_title,
+                    subsection=subsection,
+                    file_paths=files_filter,
                     limit=search_limit,
                 )
             results = fts_search(conn, query, limit=search_limit)
@@ -205,12 +206,13 @@ def _hybrid_search(
     # Filter out chunks below a neutral relevance score.
     # ms-marco-MiniLM scores range ~-10 to +10; -1.0 is a "below neutral"
     # cutoff that removes clearly irrelevant chunks while keeping marginal ones.
-    RELEVANCE_THRESHOLD = -1.0
+    RELEVANCE_THRESHOLD = -2.5
     has_scores = any("rerank_score" in r for r in reranked)
     if has_scores:
         filtered = [r for r in reranked if r.get("rerank_score", 0.0) >= RELEVANCE_THRESHOLD]
-        # Always keep at least 1 result so we never return empty-handed
-        reranked = filtered if filtered else reranked[:1]
+        # If the threshold is too aggressive for broad queries, ensure we keep a healthy amount of context
+        fallback_size = max(limit // 2, 3)
+        reranked = filtered if len(filtered) >= fallback_size else reranked[:fallback_size]
 
     return reranked
 
@@ -251,6 +253,48 @@ def _chunks_to_context_dict(chunks: list[dict], limit: int, root: Path, config: 
 
 # ── Public retrieval functions ─────────────────────────────────────────────────
 
+def expand_with_parents(results: list[dict], root: Path) -> list[dict]:
+    """Fetch surrounding chunks (chunk_index - 1, chunk_index + 1) for context."""
+    if not results:
+        return []
+
+    conn = get_connection(root)
+    try:
+        expanded = []
+        for r in results:
+            file_path = r["file_path"]
+            chunk_idx = r["chunk_index"]
+
+            cur = conn.execute(
+                """
+                SELECT c.chunk_index, c.content
+                FROM chunks c
+                JOIN files f ON c.file_id = f.id
+                WHERE f.path = ? AND c.chunk_index IN (?, ?, ?)
+                ORDER BY c.chunk_index
+                """,
+                (file_path, chunk_idx - 1, chunk_idx, chunk_idx + 1)
+            )
+            rows = cur.fetchall()
+
+            content_parts = []
+            for row in rows:
+                idx, content = row
+                if idx < chunk_idx:
+                    content_parts.append(f"[Previous Context: {content}]")
+                elif idx == chunk_idx:
+                    content_parts.append(f"[Primary Match: {content}]")
+                elif idx > chunk_idx:
+                    content_parts.append(f"[Following Context: {content}]")
+
+            expanded_item = r.copy()
+            expanded_item["content"] = "\n".join(content_parts)
+            expanded.append(expanded_item)
+        return expanded
+    finally:
+        conn.close()
+
+
 def retrieve_documents(
     query: str,
     root: Path,
@@ -258,6 +302,7 @@ def retrieve_documents(
     *,
     files_filter: list[str] | None = None,
     section_filter: str | None = None,
+    subsection_filter: str | None = None,
     rerank: bool = True,
 ) -> list[dict]:
     """
@@ -273,11 +318,13 @@ def retrieve_documents(
     rerank: Whether to apply CrossEncoder reranking (default True).
     """
     config = load_config(root)
-    return _hybrid_search(
+    results = _hybrid_search(
         query, root, config, limit,
         files_filter=files_filter,
         section_title=section_filter,
+        subsection=subsection_filter,
     )
+    return expand_with_parents(results, root)
 
 
 def retrieve_by_metadata(
@@ -289,6 +336,7 @@ def retrieve_by_metadata(
     doc_type: str | None = None,
     entity_name: str | None = None,
     section_title: str | None = None,
+    subsection: str | None = None,
     files_filter: list[str] | None = None,
 ) -> list[dict]:
     """
@@ -308,6 +356,7 @@ def retrieve_by_metadata(
             doc_type=doc_type,
             entity_name=entity_name,
             section_title=section_title,
+            subsection=subsection,
             file_paths=files_filter,
         )
     finally:
@@ -317,15 +366,17 @@ def retrieve_by_metadata(
         # No candidates match the metadata filter — return empty
         return []
 
-    return _hybrid_search(
+    results = _hybrid_search(
         query, root, config, limit,
         candidate_ids=candidate_ids,
         doc_year=doc_year,
         doc_type=doc_type,
         entity_name=entity_name,
         section_title=section_title,
+        subsection=subsection,
         files_filter=files_filter,
     )
+    return expand_with_parents(results, root)
 
 
 def retrieve_risk_factors(
@@ -361,6 +412,7 @@ def retrieve_for_comparison(
     chunks_per_doc: int = 4,
     *,
     section_title: str | None = None,
+    files_filter: list[str] | None = None,
 ) -> dict[int, list[dict]]:
     """
     Parallel per-year retrieval for comparison queries.
@@ -373,6 +425,7 @@ def retrieve_for_comparison(
             query, root, chunks_per_doc,
             doc_year=year,
             section_title=section_title,
+            files_filter=files_filter,
         )
         return year, year_chunks
 

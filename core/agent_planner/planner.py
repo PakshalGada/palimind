@@ -324,7 +324,7 @@ class AgentPlanner:
         retrieval_query = query
         try:
             from core.retrieval.query_rewriter import rewrite_query
-            rewritten = rewrite_query(query, self.ollama_url, self.model)
+            rewritten = rewrite_query(query, self.ollama_url, self.model, self.root)
             if rewritten.search_queries:
                 # Use the first (cleaned) sub-query for primary retrieval
                 retrieval_query = rewritten.search_queries[0]

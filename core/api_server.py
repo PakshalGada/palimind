@@ -777,7 +777,7 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
         from core.config import load_config
         from core.querying import query_stream_with_diagnostics
         config = load_config(state.active_field)
-        ollama_url = config.get("ollama_base_url", "https://puny-aliens-film.loca.lt")
+        ollama_url = config.get("ollama_base_url", "http://localhost:11434")
         chat_model = config.get("chat_model", "llama3")
 
         agent_system_prompt = None

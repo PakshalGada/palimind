@@ -47,6 +47,7 @@ def init_db(root: Path) -> None:
                 chunk_type      TEXT NOT NULL,
                 content         TEXT NOT NULL,
                 section_title   TEXT DEFAULT '',
+                subsection      TEXT DEFAULT '',
                 parent_section  TEXT DEFAULT '',
                 page_number     INTEGER,
                 word_count      INTEGER,
@@ -104,6 +105,7 @@ def init_db(root: Path) -> None:
         chunk_cols = {col[1] for col in cur.fetchall()}
         for col_def in [
             ("section_title",  "TEXT DEFAULT ''"),
+            ("subsection",     "TEXT DEFAULT ''"),
             ("parent_section", "TEXT DEFAULT ''"),
             ("page_number",    "INTEGER"),
             ("word_count",     "INTEGER"),
@@ -226,7 +228,7 @@ def insert_chunks(
     """Insert chunks and return the list of newly assigned primary key IDs.
 
     *chunks_data* is a list of tuples:
-    ``(chunk_index, chunk_type, content, section_title, parent_section, page_number, word_count, token_estimate)``
+    ``(chunk_index, chunk_type, content, section_title, subsection, parent_section, page_number, word_count, token_estimate)``
     or legacy ``(chunk_index, chunk_type, content)``.
     Returns ``list[int]`` of inserted row IDs in the same order.
     """
@@ -238,19 +240,20 @@ def insert_chunks(
         if len(row) == 3:
             idx, ctype, content = row
             section_title = ""
+            subsection = ""
             parent_section = ""
             page_number = None
             word_count = None
             token_estimate = None
         else:
-            idx, ctype, content, section_title, parent_section, page_number, word_count, token_estimate = row
+            idx, ctype, content, section_title, subsection, parent_section, page_number, word_count, token_estimate = row
         cur.execute(
             """INSERT INTO chunks
                (file_id, chunk_index, chunk_type, content,
-                section_title, parent_section, page_number, word_count, token_estimate)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                section_title, subsection, parent_section, page_number, word_count, token_estimate)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (file_id, idx, ctype, content,
-             section_title or "", parent_section or "",
+             section_title or "", subsection or "", parent_section or "",
              page_number, word_count, token_estimate),
         )
         chunk_ids.append(cur.lastrowid)
@@ -310,7 +313,7 @@ def get_rich_chunks_for_file(conn: sqlite3.Connection, path: str) -> list[dict]:
     cur = conn.execute(
         """
         SELECT c.id, c.chunk_index, c.chunk_type, c.content,
-               c.section_title, c.parent_section, c.page_number,
+               c.section_title, c.subsection, c.parent_section, c.page_number,
                c.word_count, c.token_estimate,
                f.doc_year, f.doc_type, f.entity_name
         FROM chunks c
@@ -327,14 +330,15 @@ def get_rich_chunks_for_file(conn: sqlite3.Connection, path: str) -> list[dict]:
             "chunk_type": row[2],
             "content": row[3],
             "section_title": row[4] or "",
-            "parent_section": row[5] or "",
-            "page_number": row[6],
-            "word_count": row[7],
-            "token_estimate": row[8],
+            "subsection": row[5] or "",
+            "parent_section": row[6] or "",
+            "page_number": row[7],
+            "word_count": row[8],
+            "token_estimate": row[9],
             "file_path": path,
-            "doc_year": row[9],
-            "doc_type": row[10] or "other",
-            "entity_name": row[11] or "",
+            "doc_year": row[10],
+            "doc_type": row[11] or "other",
+            "entity_name": row[12] or "",
         }
         for row in cur.fetchall()
     ]
@@ -358,7 +362,7 @@ def fts_search(conn: sqlite3.Connection, query: str, limit: int = 5) -> list[dic
             '''
             SELECT c.id, f.path, c.chunk_index, c.chunk_type, c.content,
                    chunks_fts.rank,
-                   c.section_title, c.parent_section, c.page_number,
+                   c.section_title, c.subsection, c.parent_section, c.page_number,
                    f.doc_year, f.doc_type, f.entity_name
             FROM chunks_fts
             JOIN chunks c ON chunks_fts.rowid = c.id
@@ -382,11 +386,12 @@ def fts_search(conn: sqlite3.Connection, query: str, limit: int = 5) -> list[dic
             "content": row[4],
             "score": -row[5],
             "section_title": row[6] or "",
-            "parent_section": row[7] or "",
-            "page_number": row[8],
-            "doc_year": row[9],
-            "doc_type": row[10] or "other",
-            "entity_name": row[11] or "",
+            "subsection": row[7] or "",
+            "parent_section": row[8] or "",
+            "page_number": row[9],
+            "doc_year": row[10],
+            "doc_type": row[11] or "other",
+            "entity_name": row[12] or "",
         })
     return results
 
@@ -399,6 +404,8 @@ def fts_search_filtered(
     doc_type: str | None = None,
     entity_name: str | None = None,
     section_title: str | None = None,
+    subsection: str | None = None,
+    file_paths: list[str] | None = None,
     limit: int = 5,
 ) -> list[dict]:
     """BM25 search with optional metadata filters on the JOIN side."""
@@ -426,6 +433,13 @@ def fts_search_filtered(
     if section_title is not None:
         conditions.append("c.section_title LIKE ?")
         params.append(f"%{section_title}%")
+    if subsection is not None:
+        conditions.append("c.subsection LIKE ?")
+        params.append(f"%{subsection}%")
+    if file_paths is not None:
+        placeholders = ",".join("?" * len(file_paths))
+        conditions.append(f"f.path IN ({placeholders})")
+        params.extend(file_paths)
 
     where_clause = " AND ".join(conditions)
     params.append(limit)
@@ -435,7 +449,7 @@ def fts_search_filtered(
             f"""
             SELECT c.id, f.path, c.chunk_index, c.chunk_type, c.content,
                    chunks_fts.rank,
-                   c.section_title, c.parent_section, c.page_number,
+                   c.section_title, c.subsection, c.parent_section, c.page_number,
                    f.doc_year, f.doc_type, f.entity_name
             FROM chunks_fts
             JOIN chunks c ON chunks_fts.rowid = c.id
@@ -459,11 +473,12 @@ def fts_search_filtered(
             "content": row[4],
             "score": -row[5],
             "section_title": row[6] or "",
-            "parent_section": row[7] or "",
-            "page_number": row[8],
-            "doc_year": row[9],
-            "doc_type": row[10] or "other",
-            "entity_name": row[11] or "",
+            "subsection": row[7] or "",
+            "parent_section": row[8] or "",
+            "page_number": row[9],
+            "doc_year": row[10],
+            "doc_type": row[11] or "other",
+            "entity_name": row[12] or "",
         })
     return results
 
@@ -475,6 +490,7 @@ def get_candidate_chunk_ids(
     doc_type: str | None = None,
     entity_name: str | None = None,
     section_title: str | None = None,
+    subsection: str | None = None,
     file_paths: list[str] | None = None,
 ) -> set[int]:
     """Return a set of chunk IDs matching the given metadata filters."""
@@ -493,6 +509,9 @@ def get_candidate_chunk_ids(
     if section_title is not None:
         conditions.append("c.section_title LIKE ?")
         params.append(f"%{section_title}%")
+    if subsection is not None:
+        conditions.append("c.subsection LIKE ?")
+        params.append(f"%{subsection}%")
     if file_paths is not None:
         placeholders = ",".join("?" * len(file_paths))
         conditions.append(f"f.path IN ({placeholders})")

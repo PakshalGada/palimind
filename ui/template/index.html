@@ -6,6 +6,7 @@
         <title>Palimind V2 Boardroom</title>
         <link rel="stylesheet" href="/ui/static/styles.css" />
         <link rel="stylesheet" href="/ui/static/email.css" />
+        <link rel="stylesheet" href="/ui/static/glance-workspace.css" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link
@@ -58,6 +59,10 @@
                     <button class="sidebar-nav-item" id="nav-email" aria-label="Email mode">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
                         Palimail
+                    </button>
+                    <button class="sidebar-nav-item" id="nav-glance" aria-label="PaliGlance mode">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/></svg>
+                        PaliGlance
                     </button>
                 </nav>
 
@@ -129,6 +134,8 @@
                         <!-- Sessions populated via JS -->
                     </div>
                 </div>
+
+
 
                 <!-- VS Code-like File Explorer -->
                 <div
@@ -590,7 +597,60 @@
             </div>
 
             </div><!-- /#email-workspace -->
+
+            <!-- PaliGlance Workspace -->
+            <div class="glance-workspace" id="glance-workspace">
+                <!-- Glance sidebar: session list -->
+                <aside class="glance-ws-sidebar">
+                    <div class="glance-ws-sidebar-header">
+                        <span class="glance-ws-sidebar-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/></svg>
+                            Screen History
+                        </span>
+                    </div>
+                    <div id="glance-ws-session-list" class="glance-ws-session-list">
+                        <div class="glance-ws-empty">
+                            <p>No screen analyses yet.</p>
+                            <span>Press <kbd>Ctrl+Shift+V</kbd> to open PaliGlance.</span>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- Glance main: conversation viewer -->
+                <main class="glance-ws-main" id="glance-ws-main">
+                    <!-- Default empty state -->
+                    <div class="glance-ws-welcome" id="glance-ws-welcome">
+                        <div class="glance-ws-welcome-inner">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.3"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/></svg>
+                            <h2>PaliGlance</h2>
+                            <p>Select a past screen analysis, or press <kbd>Ctrl+Shift+V</kbd> to start a new one.</p>
+                        </div>
+                    </div>
+
+                    <!-- Active conversation view (hidden until session selected) -->
+                    <div class="glance-ws-convo" id="glance-ws-convo" style="display:none">
+                        <!-- Screenshot panel -->
+                        <div class="glance-ws-screenshot-panel" id="glance-ws-screenshot-panel">
+                            <img id="glance-ws-screenshot-img" src="" alt="Screen capture" class="glance-ws-screenshot-thumb" title="Click to expand" />
+                            <div class="glance-ws-meta" id="glance-ws-meta"></div>
+                        </div>
+
+                        <!-- Messages -->
+                        <div class="glance-ws-messages" id="glance-ws-messages"></div>
+
+                        <!-- Continue chat input -->
+                        <div class="glance-ws-input-bar">
+                            <textarea id="glance-ws-input" placeholder="Continue this analysis…" rows="1"></textarea>
+                            <button id="glance-ws-send-btn" title="Send">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </main>
+            </div><!-- /#glance-workspace -->
+
         </div><!-- /.app-container -->
+
 
         <!-- Compose Modal -->
         <div class="compose-modal-overlay" id="compose-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="compose-modal-title">

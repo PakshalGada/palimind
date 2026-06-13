@@ -55,14 +55,19 @@ function switchToMode(mode) {
   const fieldsSidebar  = document.getElementById("fields-sidebar-content");
   const mainArea       = document.getElementById("main-area");
   const emailWS        = document.getElementById("email-workspace");
+  const glanceWS       = document.getElementById("glance-workspace");
   const navFields      = document.getElementById("nav-fields");
   const navEmail       = document.getElementById("nav-email");
+  const navGlance      = document.getElementById("nav-glance");
 
-  // First: remove active class from all nav buttons and hide all panels
+  // Remove active from all nav buttons
   navFields?.classList.remove("active");
   navEmail?.classList.remove("active");
+  navGlance?.classList.remove("active");
 
-  if (emailWS)       emailWS.classList.remove("active");
+  // Hide all workspaces
+  if (emailWS)  emailWS.classList.remove("active");
+  if (glanceWS) glanceWS.classList.remove("active");
 
   if (mode === "email") {
     if (fieldsSidebar) fieldsSidebar.style.display = "none";
@@ -78,6 +83,14 @@ function switchToMode(mode) {
       startEmailPolling();
     }
 
+  } else if (mode === "glance") {
+    if (fieldsSidebar) fieldsSidebar.style.display = "none";
+    if (mainArea)      mainArea.style.display = "none";
+    if (glanceWS)      glanceWS.classList.add("active");
+    navGlance?.classList.add("active");
+    stopEmailPolling();
+    loadGlanceWorkspace();
+
   } else {
     // Default: "fields" mode
     if (fieldsSidebar) fieldsSidebar.style.display = "";
@@ -89,9 +102,9 @@ function switchToMode(mode) {
 
 document.getElementById("nav-fields")?.addEventListener("click", () => switchToMode("fields"));
 document.getElementById("nav-email")?.addEventListener("click",  () => switchToMode("email"));
+document.getElementById("nav-glance")?.addEventListener("click", () => switchToMode("glance"));
 
 // Listen for 'switch-mode' IPC messages from the Electron main process.
-// e.g. Ctrl+Shift+E sends: mainWindow.webContents.send('switch-mode', 'email')
 if (window.electronBridge && window.electronBridge.onSwitchMode) {
   window.electronBridge.onSwitchMode((mode) => switchToMode(mode));
 }
@@ -2168,3 +2181,243 @@ function selectAgentMention(agent) {
   chatInput.focus();
   hideMentionsPopup();
 }
+
+// ── PaliGlance Workspace ────────────────────────────────────────────────────
+
+let _glanceWsActiveSess = null;   // currently displayed session object
+let _glanceWsSessions   = [];     // cached sessions array
+
+async function loadGlanceWorkspace() {
+    try {
+        const res = await fetch('/api/palivision/sessions');
+        const data = await res.json();
+        _glanceWsSessions = data.sessions || [];
+        renderGlanceWsSidebar(_glanceWsSessions);
+    } catch (e) {
+        console.error('[PaliGlance WS] Failed to load sessions:', e);
+    }
+}
+
+function renderGlanceWsSidebar(sessions) {
+    const listEl = document.getElementById('glance-ws-session-list');
+    if (!listEl) return;
+
+    if (sessions.length === 0) {
+        listEl.innerHTML = `
+            <div class="glance-ws-empty">
+                <p>No screen analyses yet.</p>
+                <span>Press <kbd>Ctrl+Shift+V</kbd> to open PaliGlance.</span>
+            </div>`;
+        return;
+    }
+
+    listEl.innerHTML = '';
+    sessions.forEach(sess => {
+        const card = document.createElement('div');
+        card.className = 'glance-ws-session-card';
+        if (_glanceWsActiveSess && _glanceWsActiveSess.id === sess.id) {
+            card.classList.add('active');
+        }
+
+        const ts = sess.created_at
+            ? new Date(sess.created_at * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+            : '';
+
+        // Thumbnail from saved screenshot
+        const thumbHtml = sess.screenshot_b64
+            ? `<img class="glance-ws-card-thumb" src="data:image/png;base64,${sess.screenshot_b64}" alt="Screenshot" />`
+            : `<div class="glance-ws-card-thumb glance-ws-card-thumb--empty"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/></svg></div>`;
+
+        const preview = (sess.messages || []).find(m => m.role === 'user')?.content?.slice(0, 60) || 'Screen analysis';
+
+        card.innerHTML = `
+            ${thumbHtml}
+            <div class="glance-ws-card-body">
+                <span class="glance-ws-card-title">${sess.title || 'Screen — ' + ts}</span>
+                <span class="glance-ws-card-preview">${preview}</span>
+                <span class="glance-ws-card-ts">${ts}</span>
+            </div>`;
+
+        card.addEventListener('click', () => openGlanceSession(sess));
+        listEl.appendChild(card);
+    });
+}
+
+function openGlanceSession(sess) {
+    _glanceWsActiveSess = sess;
+
+    // Mark active in sidebar
+    document.querySelectorAll('.glance-ws-session-card').forEach(c => c.classList.remove('active'));
+    event?.currentTarget?.classList.add('active');
+
+    const welcome = document.getElementById('glance-ws-welcome');
+    const convo   = document.getElementById('glance-ws-convo');
+    const imgEl   = document.getElementById('glance-ws-screenshot-img');
+    const metaEl  = document.getElementById('glance-ws-meta');
+    const msgsEl  = document.getElementById('glance-ws-messages');
+
+    if (welcome) welcome.style.display = 'none';
+    if (convo)   convo.style.display = 'flex';
+
+    // Screenshot
+    if (imgEl) {
+        if (sess.screenshot_b64) {
+            imgEl.src = `data:image/png;base64,${sess.screenshot_b64}`;
+            imgEl.style.display = 'block';
+        } else {
+            imgEl.style.display = 'none';
+        }
+    }
+
+    // Meta info
+    if (metaEl) {
+        const ts = sess.created_at
+            ? new Date(sess.created_at * 1000).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+            : '';
+        const msgCount = (sess.messages || []).length;
+        metaEl.innerHTML = [
+            ts ? `<span class="glance-meta-item">🕒 ${ts}</span>` : '',
+            sess.ocr_text ? `<span class="glance-meta-item">📝 ${sess.ocr_text.slice(0, 80)}${sess.ocr_text.length > 80 ? '…' : ''}</span>` : '',
+            `<span class="glance-meta-item">💬 ${msgCount} message${msgCount !== 1 ? 's' : ''}</span>`,
+        ].filter(Boolean).join('');
+    }
+
+    // Messages
+    if (msgsEl) {
+        msgsEl.innerHTML = '';
+        (sess.messages || []).forEach(msg => {
+            const div = document.createElement('div');
+            div.className = `glance-ws-msg glance-ws-msg--${msg.role}`;
+            div.innerHTML = msg.role === 'assistant' ? formatMarkdown(msg.content) : escapeHtml(msg.content);
+            msgsEl.appendChild(div);
+        });
+        msgsEl.scrollTop = msgsEl.scrollHeight;
+    }
+}
+
+function escapeHtml(text) {
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Screenshot lightbox — click to expand
+document.getElementById('glance-ws-screenshot-img')?.addEventListener('click', () => {
+    const imgEl = document.getElementById('glance-ws-screenshot-img');
+    if (!imgEl || !imgEl.src) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'glance-lightbox';
+    overlay.innerHTML = `<div class="glance-lightbox-inner"><img src="${imgEl.src}" alt="Screenshot" /><button class="glance-lightbox-close" aria-label="Close">×</button></div>`;
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay || e.target.classList.contains('glance-lightbox-close')) {
+            overlay.remove();
+        }
+    });
+    document.body.appendChild(overlay);
+});
+
+// Continue-chat: send a new query in the context of the active session
+const _gwsInput   = document.getElementById('glance-ws-input');
+const _gwsSendBtn = document.getElementById('glance-ws-send-btn');
+
+async function glanceWsSend() {
+    if (!_glanceWsActiveSess || !_gwsInput) return;
+    const text = _gwsInput.value.trim();
+    if (!text) return;
+
+    _gwsInput.value = '';
+    _gwsInput.disabled = true;
+    if (_gwsSendBtn) _gwsSendBtn.disabled = true;
+
+    const msgsEl = document.getElementById('glance-ws-messages');
+
+    // Render user bubble
+    const userDiv = document.createElement('div');
+    userDiv.className = 'glance-ws-msg glance-ws-msg--user';
+    userDiv.textContent = text;
+    msgsEl?.appendChild(userDiv);
+
+    // Thinking bubble
+    const asstDiv = document.createElement('div');
+    asstDiv.className = 'glance-ws-msg glance-ws-msg--assistant';
+    asstDiv.innerHTML = '<span class="glance-thinking">Analyzing…</span>';
+    msgsEl?.appendChild(asstDiv);
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+
+    try {
+        const res = await fetch('/api/palivision/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_prompt: text,
+                image_b64: _glanceWsActiveSess.screenshot_b64 || '',
+                chat_model: _glanceWsActiveSess.chat_model || 'gemma4:e2b',
+                web_search: false,
+            }),
+        });
+
+        const reader  = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '', fullText = '', first = true, done = false;
+
+        while (!done) {
+            const { done: d, value } = await reader.read();
+            if (d) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+            for (const line of lines) {
+                const t = line.trim();
+                if (!t.startsWith('data: ')) continue;
+                const payload = t.slice(6);
+                if (payload === '[DONE]') { done = true; break; }
+                try {
+                    const p = JSON.parse(payload);
+                    if (p.type === 'screen_context') continue;
+                    const token = p.token || '';
+                    if (token) {
+                        if (first) { asstDiv.innerHTML = ''; first = false; }
+                        fullText += token;
+                        asstDiv.innerHTML = formatMarkdown(fullText);
+                        msgsEl.scrollTop = msgsEl.scrollHeight;
+                    }
+                } catch (_) {}
+            }
+        }
+
+        if (!fullText) {
+            asstDiv.textContent = '(No response from model)';
+        } else {
+            // Persist new messages to the session
+            _glanceWsActiveSess.messages = [
+                ...(_glanceWsActiveSess.messages || []),
+                { role: 'user', content: text, ts: Date.now() },
+                { role: 'assistant', content: fullText, ts: Date.now() },
+            ];
+            fetch('/api/palivision/session/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: _glanceWsActiveSess.id,
+                    title: _glanceWsActiveSess.title,
+                    messages: _glanceWsActiveSess.messages,
+                    screen_summary: _glanceWsActiveSess.screen_summary || '',
+                }),
+            }).catch(() => {});
+        }
+    } catch (err) {
+        asstDiv.textContent = `Error: ${err.message}`;
+    } finally {
+        _gwsInput.disabled = false;
+        if (_gwsSendBtn) _gwsSendBtn.disabled = false;
+        _gwsInput.focus();
+    }
+}
+
+_gwsSendBtn?.addEventListener('click', glanceWsSend);
+_gwsInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); glanceWsSend(); }
+});
+_gwsInput?.addEventListener('input', () => {
+    _gwsInput.style.height = 'auto';
+    _gwsInput.style.height = Math.min(_gwsInput.scrollHeight, 120) + 'px';
+});
+

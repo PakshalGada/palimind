@@ -21,7 +21,7 @@ import json
 import logging
 
 import httpx
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -48,7 +48,10 @@ class PalivisionRequest(BaseModel):
     # The question the user typed in the Palivision chat box
     user_prompt: str
     # Which Ollama model to use for the final chat response
+    # Which Ollama model to use for the final chat response
     chat_model: str = DEFAULT_CHAT_MODEL
+    # Web search toggle
+    web_search: bool = False
 
 
 @router.post("/analyze")
@@ -99,6 +102,16 @@ async def analyze_screen(req: PalivisionRequest):
         "If the screen context does not contain enough information to answer, say so clearly."
     )
 
+    if req.web_search:
+        import asyncio
+        from core.web_search import perform_web_search
+        try:
+            web_results = await asyncio.to_thread(perform_web_search, req.user_prompt)
+            if web_results:
+                system_prompt += f"\n\nWEB SEARCH RESULTS FOR CONTEXT:\n{web_results}"
+        except Exception as e:
+            logger.warning(f"[Palivision] Web search failed: {e}")
+
     logger.info(f"[Palivision] System prompt built ({len(system_prompt)} chars). Streaming response...")
 
     # --- Step 4: Stream response from Ollama chat model ---
@@ -108,10 +121,22 @@ async def analyze_screen(req: PalivisionRequest):
         converts each token into an SSE-formatted data line.
         """
         try:
+            yield f"data: {json.dumps({'type': 'screen_context', 'summary': ocr_text[:200] if ocr_text else ''})}\n\n"
+
+            # Read Ollama URL from global config (not hardcoded constant)
+            _glance_root = Path.home() / ".palimind"
+            _global_cfg_path = _glance_root / "config.json"
+            _ollama_url = OLLAMA_BASE_URL
+            if _global_cfg_path.exists():
+                try:
+                    _ollama_url = json.loads(_global_cfg_path.read_text("utf-8")).get("ollama_base_url", OLLAMA_BASE_URL)
+                except Exception:
+                    pass
+
             async with httpx.AsyncClient(timeout=120.0) as client:
                 async with client.stream(
                     "POST",
-                    f"{OLLAMA_BASE_URL}/api/chat",
+                    f"{_ollama_url}/api/chat",
                     json={
                         "model": req.chat_model,
                         "messages": [
@@ -169,7 +194,151 @@ async def warmup_ocr():
     Optional endpoint to pre-load the EasyOCR model at startup.
     Call GET /api/palivision/warmup to avoid the ~5s delay on first use.
     PaliMind can call this automatically if desired.
+    Returns status 'ok' even if EasyOCR is not installed (graceful degradation).
     """
-    from core.services.ocr_service import _get_reader
-    _get_reader()  # This triggers the cached model load
-    return {"status": "ok", "message": "OCR model loaded and ready."}
+    try:
+        from core.services.ocr_service import _get_reader
+        _get_reader()  # This triggers the cached model load
+        return {"status": "ok", "message": "OCR model loaded and ready."}
+    except ImportError:
+        return {"status": "degraded", "message": "EasyOCR not installed. Install with: pip install easyocr"}
+    except Exception as e:
+        logger.warning(f"[Palivision] OCR warmup failed: {e}")
+        return {"status": "degraded", "message": f"OCR warmup failed: {e}"}
+
+
+
+# ── Session Persistence ───────────────────────────────────────────────────
+from pathlib import Path
+
+GLANCE_SESSIONS_PATH = Path.home() / ".palimind" / "glance_sessions.json"
+
+def load_glance_sessions() -> dict:
+    if GLANCE_SESSIONS_PATH.exists():
+        try:
+            return json.loads(GLANCE_SESSIONS_PATH.read_text("utf-8"))
+        except Exception:
+            pass
+    return {"sessions": []}
+
+def save_glance_sessions(data: dict):
+    GLANCE_SESSIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    GLANCE_SESSIONS_PATH.write_text(json.dumps(data, indent=2), "utf-8")
+
+
+class GlanceSessionSaveRequest(BaseModel):
+    session_id: str
+    title: str
+    messages: list[dict]          # [{"role": "user"|"assistant", "content": "...", "ts": 123}]
+    screen_summary: str = ""      # OCR/vision summary — for memory retrieval
+    screenshot_b64: str = ""      # Raw base64 PNG of the captured screen
+    ocr_text: str = ""            # Full OCR text extracted from screen
+
+
+@router.post("/session/save")
+async def save_glance_session(req: GlanceSessionSaveRequest):
+    """
+    Save or update a PaliGlance conversation to ~/.palimind/glance_sessions.json.
+    Called from glance.js after each assistant response.
+    """
+    data = load_glance_sessions()
+    existing = next((s for s in data["sessions"] if s["id"] == req.session_id), None)
+    import time
+    if existing:
+        existing["messages"] = req.messages
+        existing["title"] = req.title
+        existing["updated_at"] = int(time.time())
+        # Update screenshot/ocr only if provided (don't overwrite with empty on follow-up saves)
+        if req.screenshot_b64:
+            existing["screenshot_b64"] = req.screenshot_b64
+        if req.ocr_text:
+            existing["ocr_text"] = req.ocr_text
+    else:
+        data["sessions"].insert(0, {
+            "id": req.session_id,
+            "title": req.title,
+            "messages": req.messages,
+            "screen_summary": req.screen_summary,
+            "screenshot_b64": req.screenshot_b64,
+            "ocr_text": req.ocr_text,
+            "created_at": int(time.time()),
+            "updated_at": int(time.time()),
+        })
+    save_glance_sessions(data)
+    return {"status": "saved", "session_id": req.session_id}
+
+
+@router.get("/sessions")
+async def get_glance_sessions():
+    """Return all saved PaliGlance sessions for the PaliSpace sidebar."""
+    data = load_glance_sessions()
+    return data
+
+
+# ── Memory Integration ────────────────────────────────────────────────────
+class GlanceMemoryRequest(BaseModel):
+    session_id: str
+    user_message: str
+    assistant_message: str
+    screen_summary: str = ""
+
+
+@router.post("/memory/update")
+async def update_glance_memory(req: GlanceMemoryRequest, background_tasks: BackgroundTasks):
+    """
+    Index a PaliGlance conversation turn into the global episodic memory.
+    Uses ~/.palimind as the root so memories are accessible across all fields.
+    """
+    import asyncio
+
+    # ChatVectorStore expects a project ROOT — it appends .palimind/ internally via palimind_dir().
+    # So we must pass Path.home() (not Path.home()/'.palimind') to avoid doubling the subdir.
+    glance_root = Path.home()
+    glance_dot_dir = Path.home() / ".palimind"
+    glance_dot_dir.mkdir(parents=True, exist_ok=True)
+
+    # Import the same memory pipeline used by the main chat
+    from core.storage.chat_store import ChatVectorStore
+    from core.retrieval.embedder import generate_embeddings_batch
+    import uuid
+
+    # Load global config for model settings
+    global_config_path = glance_dot_dir / "config.json"
+    config = {}
+    if global_config_path.exists():
+        try:
+            config = json.loads(global_config_path.read_text("utf-8"))
+        except Exception:
+            pass
+
+    ollama_url = config.get("ollama_base_url", OLLAMA_BASE_URL)
+    embed_model = config.get("embed_model", "nomic-embed-text")
+
+    turn_content = (
+        f"[PaliGlance Screen Analysis]\n"
+        f"Screen context: {req.screen_summary}\n"
+        f"User: {req.user_message}\n"
+        f"Assistant: {req.assistant_message}"
+    )
+
+    async def do_embed():
+        try:
+            embs = await asyncio.to_thread(
+                generate_embeddings_batch, [turn_content], ollama_url, embed_model
+            )
+            if embs and embs[0]:
+                chunk_id = int(uuid.uuid4().int % (2**63))
+                with ChatVectorStore(glance_root) as vstore:
+                    vstore.insert([{
+                        "vector": embs[0],
+                        "chunk_id": chunk_id,
+                        "session_id": req.session_id,
+                        "content": turn_content
+                    }])
+                logger.info(f"[Palivision] Memory indexed for session {req.session_id}")
+        except Exception as e:
+            logger.warning(f"[Palivision] Memory update failed: {e}")
+
+    background_tasks.add_task(do_embed)
+    return {"status": "queued"}
+
