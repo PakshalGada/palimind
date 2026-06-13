@@ -93,11 +93,71 @@ body {
     flex-direction: column;
     gap: 24px;
     background: var(--panel-bg);
-    transition:
-        background-color 0.3s,
-        border-color 0.3s;
     overflow-y: auto;
+    overflow-x: hidden;
+    flex-shrink: 0;
+    transition:
+        width 0.25s cubic-bezier(0.4,0,0.2,1),
+        min-width 0.25s cubic-bezier(0.4,0,0.2,1),
+        padding 0.25s cubic-bezier(0.4,0,0.2,1),
+        border-color 0.25s,
+        background-color 0.3s;
 }
+
+/* ── Collapsed sidebar ── */
+.sidebar.sidebar-collapsed {
+    width: 0;
+    min-width: 0;
+    padding: 0;
+    border-right-color: transparent;
+    overflow: hidden;
+}
+.sidebar.sidebar-collapsed > *:not(.sidebar-reveal-tab) {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+}
+
+/* Floating reveal tab — body-level element, shown via JS when sidebar is collapsed */
+.sidebar-reveal-tab {
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 400;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    padding: 10px 7px;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: color 0.15s, background 0.15s, box-shadow 0.15s;
+    box-shadow: 2px 0 12px rgba(0,0,0,0.12);
+    align-items: center;
+    justify-content: center;
+    animation: revealTabIn 0.2s ease-out;
+}
+.sidebar-reveal-tab:hover {
+    color: var(--text-main);
+    background: var(--bg-active);
+    box-shadow: 2px 0 16px rgba(0,0,0,0.2);
+}
+@keyframes revealTabIn {
+    from { opacity: 0; transform: translateY(-50%) translateX(-6px); }
+    to   { opacity: 1; transform: translateY(-50%) translateX(0); }
+}
+
+/* Toggle button — subtle */
+.sidebar-toggle-btn {
+    opacity: 0.45;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+}
+.sidebar-toggle-btn:hover {
+    opacity: 1;
+}
+
 .sidebar::-webkit-scrollbar {
     width: 6px;
 }
@@ -1512,11 +1572,43 @@ button:active {
     white-space: nowrap;
 }
 .model-list-loading {
+    padding: 16px;
     text-align: center;
-    padding: 24px;
     color: var(--text-muted);
     font-size: 0.8rem;
 }
+
+.model-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 20px 12px;
+    text-align: center;
+}
+.model-empty-msg {
+    font-size: 0.82rem;
+    color: var(--text-main);
+    font-weight: 500;
+}
+.model-empty-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+}
+.model-retry-btn {
+    margin-top: 6px;
+    padding: 5px 14px;
+    font-size: 0.75rem;
+    font-family: inherit;
+    background: var(--bg-active);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.model-retry-btn:hover { background: var(--border-color); }
 .model-active-dot {
     width: 6px;
     height: 6px;
@@ -1977,11 +2069,7 @@ input:disabled {
     min-height: 30px;
     padding: 5px 12px;
     border-radius: 999px;
-    background: color-mix(
-        in srgb,
-        var(--surface-raised) 92%,
-        var(--text-main) 8%
-    );
+    /* Uses background: var(--input-bg) from line 1468 */
 }
 
 #model-switcher-name {

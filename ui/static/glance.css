@@ -11,7 +11,13 @@
     --text-muted: #8e8e93;
     --input-bg: #151515;
     --msg-user-bg: #1c1c1e;
+    --msg-system-bg: #0a0a0a;
     --bg-active: #222222;
+
+    /* Primary action colors */
+    --primary-color: #ffffff;
+    --primary-hover: #e5e5e5;
+    --primary-text: #000000;
 }
 
 /* Light mode override — mirrors styles.css .light-mode block exactly */
@@ -21,9 +27,15 @@
     --border-color: #e5e5e7;
     --text-main: #000000;
     --text-muted: #6e6e73;
-    --input-bg: #f5f5f7;
+    --input-bg: #f0f0f2;
     --msg-user-bg: #e5e5ea;
+    --msg-system-bg: #ffffff;
     --bg-active: #e5e5e7;
+
+    /* Primary action colors */
+    --primary-color: #000000;
+    --primary-hover: #262626;
+    --primary-text: #ffffff;
 }
 
 .light-mode .glance-shell {
@@ -163,19 +175,19 @@ html, body {
 
 .glance-hint {
     font-size: 0.72rem;
-    color: var(--border-color);
+    color: var(--text-muted);
 }
-
 .glance-hint kbd {
-    display: inline-block;
-    padding: 1px 5px;
+    background: var(--bg-active);
     border: 1px solid var(--border-color);
     border-radius: 4px;
-    font-family: "JetBrains Mono", monospace;
-    font-size: 0.68rem;
-    color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.03);
+    padding: 1px 5px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-main);
 }
+
+
 
 /* Message bubbles */
 .glance-msg {
@@ -212,14 +224,25 @@ html, body {
 }
 
 /* ── Input bar ────────────────────────────────────────────── */
+.glance-input-wrapper {
+    border-top: 1px solid var(--border-color);
+    background: var(--panel-bg);
+    flex-shrink: 0;
+}
+
 .glance-input-bar {
     display: flex;
     align-items: flex-end;
     gap: 8px;
-    padding: 10px 14px 12px;
-    border-top: 1px solid var(--border-color);
-    background: var(--panel-bg);
-    flex-shrink: 0;
+    padding: 10px 14px 6px;
+    border-top: none;
+    background: transparent;
+}
+
+.glance-input-footer {
+    display: flex;
+    align-items: center;
+    padding: 4px 14px 10px;
 }
 
 #glance-input {
@@ -243,9 +266,9 @@ html, body {
 #glance-input::placeholder { color: var(--text-muted); }
 
 #glance-send-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
     border: none;
     background: var(--text-main);
     color: var(--bg-color);
@@ -254,11 +277,11 @@ html, body {
     justify-content: center;
     cursor: pointer;
     flex-shrink: 0;
-    transition: background 0.15s, transform 0.1s;
+    transition: opacity 0.15s, transform 0.1s;
     padding: 0;
 }
 
-#glance-send-btn:hover { background: #e5e5e5; }
+#glance-send-btn:hover { opacity: 0.85; }
 #glance-send-btn:active { transform: scale(0.95); }
 #glance-send-btn:disabled {
     opacity: 0.35;
@@ -289,24 +312,30 @@ html, body {
     background: rgba(0, 0, 0, 0.1);
 }
 
+/* Legacy class kept for backward compat — popup uses .glance-model-pill--btn */
 .glance-model-pill {
     font-size: 0.65rem;
     color: var(--text-muted);
-    background: var(--input-bg);
+    background: transparent;
     border: 1px solid var(--border-color);
-    padding: 2px 8px;
-    border-radius: 10px;
+    padding: 2px 8px 2px 6px;
+    border-radius: 20px;
     font-family: 'JetBrains Mono', monospace;
     letter-spacing: 0.2px;
     -webkit-app-region: no-drag;
     cursor: pointer;
-    max-width: 140px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 160px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s;
 }
 .glance-model-pill:hover {
     border-color: var(--text-muted);
+    color: var(--text-main);
 }
 
 .glance-msg-assistant pre,
@@ -342,30 +371,7 @@ html, body {
     font-size: 0.68rem;
 }
 
-.glance-mic-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    flex-shrink: 0;
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-    background: var(--input-bg);
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-.glance-mic-btn:hover {
-    background: var(--bg-active);
-    color: var(--text-main);
-}
-.glance-mic-btn.recording {
-    background: #dc2626;
-    color: #ffffff;
-    border-color: #dc2626;
-}
-
+.glance-mic-btn,
 .glance-web-search-btn {
     display: flex;
     align-items: center;
@@ -373,45 +379,192 @@ html, body {
     width: 32px;
     height: 32px;
     flex-shrink: 0;
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-    background: var(--input-bg);
+    border-radius: 50%;
+    border: none;
+    background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    transition: background 0.15s, color 0.15s;
 }
-.glance-web-search-btn.active {
+.glance-mic-btn:hover,
+.glance-web-search-btn:hover {
     background: var(--bg-active);
     color: var(--text-main);
-    border-color: var(--text-muted);
+}
+.glance-mic-btn.recording {
+    background: #dc2626;
+    color: #ffffff;
+}
+.glance-web-search-btn.active {
+    color: var(--text-main);
+    background: transparent;
+}
+.glance-web-search-btn.active svg {
+    filter: drop-shadow(0 0 6px var(--text-main));
 }
 
-.glance-cookbook-panel {
+/* ── Model selector area ── */
+.glance-model-area {
+    position: relative;
+}
+
+.glance-model-pill--btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-muted);
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-family: 'JetBrains Mono', monospace;
+    transition: border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+.glance-model-pill--btn:hover {
+    border-color: var(--text-muted);
+    color: var(--text-main);
+}
+
+/* Dropdown panel */
+.glance-model-dropdown {
     position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
+    bottom: calc(100% + 6px);
+    left: 0;
+    width: 300px;
     background: var(--panel-bg);
-    z-index: 10;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+    z-index: 100;
     display: flex;
     flex-direction: column;
-    padding: 12px 16px;
-    gap: 8px;
+    overflow: hidden;
+    animation: glanceIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.glance-cookbook-header {
+
+/* Tab bar — reuses the PaliSpace styles exactly */
+.glance-ms-tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    padding: 8px 8px 0;
+    gap: 4px;
+}
+.glance-ms-tab {
+    flex: 1;
+    padding: 6px 0;
+    border: none;
+    border-radius: 7px 7px 0 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-family: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+}
+.glance-ms-tab.active {
+    color: var(--text-main);
+    background: var(--bg-active);
+}
+
+/* Panel */
+.glance-ms-panel {
+    display: flex;
+    flex-direction: column;
+    max-height: 260px;
+    overflow: hidden;
+}
+
+/* Model search */
+.glance-model-search {
+    margin: 8px;
+    padding: 7px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--input-bg);
+    color: var(--text-main);
+    font-size: 0.82rem;
+    font-family: inherit;
+    outline: none;
+    flex-shrink: 0;
+}
+.glance-model-search:focus { border-color: var(--text-muted); }
+.glance-model-search::placeholder { color: var(--text-muted); }
+
+/* Model list */
+.glance-model-list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 4px 8px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.glance-model-list::-webkit-scrollbar { width: 4px; }
+.glance-model-list::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 2px; }
+
+.glance-model-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 0.78rem;
-    font-weight: 500;
-    color: var(--text-muted);
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--border-color);
+    padding: 7px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.12s;
 }
+.glance-model-item:hover { background: var(--bg-active); }
+.glance-model-item.active { background: var(--bg-active); }
+.glance-model-item-name {
+    font-size: 0.82rem;
+    color: var(--text-main);
+    font-family: 'JetBrains Mono', monospace;
+}
+.glance-model-item-meta {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+/* Empty state */
+.glance-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 20px 12px;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+.glance-empty-hint {
+    font-size: 0.72rem;
+    font-family: 'JetBrains Mono', monospace;
+    opacity: 0.8;
+}
+.glance-retry-btn {
+    margin-top: 6px;
+    padding: 5px 14px;
+    font-size: 0.75rem;
+    font-family: inherit;
+    background: var(--bg-active);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    cursor: pointer;
+}
+.glance-retry-btn:hover { background: var(--border-color); }
+.glance-loading { font-size: 0.78rem; color: var(--text-muted); padding: 12px 0; text-align: center; }
+
+/* Cookbook Rec Card */
 .glance-cookbook-list {
     display: flex;
     flex-direction: column;
     gap: 6px;
     overflow-y: auto;
     flex: 1;
+    padding: 4px 8px 8px;
 }
 .glance-rec-card {
     display: flex;
@@ -428,5 +581,4 @@ html, body {
 .glance-rec-card.selected { border-color: var(--text-muted); }
 .glance-rec-name { font-size: 0.8rem; color: var(--text-main); }
 .glance-rec-size { font-size: 0.7rem; color: var(--text-muted); }
-.glance-loading { font-size: 0.78rem; color: var(--text-muted); padding: 12px 0; }
 

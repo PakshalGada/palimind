@@ -44,7 +44,7 @@ DEFAULTS = {
     ],
     "doc_extensions": [".pdf", ".docx", ".pptx", ".xlsx"],
     "image_extensions": [".png", ".jpg", ".jpeg", ".webp"],
-    "ollama_base_url": "https://plain-masks-jump.loca.lt",
+    "ollama_base_url": "https://chubby-camels-design.loca.lt",
 }
 
 

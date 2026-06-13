@@ -206,7 +206,7 @@ PaliMind stores its configuration in `~/.palimind/config.json` (or `.palimind/co
 {
   "embed_model": "nomic-embed-text",
   "chat_model": "gemma4:e2b",
-  "ollama_base_url": "https://plain-masks-jump.loca.lt",
+  "ollama_base_url": "https://chubby-camels-design.loca.lt",
   "chunk_size": 1000,
   "retrieval_limit": 10
 }

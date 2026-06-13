@@ -19,7 +19,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 # Fallback Ollama server address (overridden at call-time from config)
-OLLAMA_BASE_URL = "https://plain-masks-jump.loca.lt"
+OLLAMA_BASE_URL = "https://chubby-camels-design.loca.lt"
 
 # We try these models in order. First one that responds wins.
 VISION_MODELS_TO_TRY = ["llava", "moondream2", "minicpm-v", "llava-phi3"]

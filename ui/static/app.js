@@ -1762,17 +1762,41 @@ const ModelSwitcher = (() => {
     try {
       const res = await fetch("/api/models");
       const data = await res.json();
-      if (data.error) {
-        setModelListState(`Error: ${data.error}`, "error");
-        return;
-      }
       modelsList = data.models || [];
       currentModel = data.current_model || currentModel;
       if (nameSpan) nameSpan.textContent = currentModel;
+
+      if (modelsList.length === 0) {
+          const msg = data.status === "offline"
+              ? "Ollama is offline"
+              : "No models installed";
+          const hint = data.status === "offline"
+              ? "Start Ollama and retry"
+              : "Run: ollama pull llama3.2";
+          renderEmptyState(msg, hint);
+          return;
+      }
       renderFilteredList();
     } catch (e) {
-      setModelListState("Failed to connect", "error");
+      renderEmptyState("Could not reach backend", "Is the Palimind server running?");
     }
+  }
+
+  function renderEmptyState(message, hint) {
+      if (!listContainer) return;
+      listContainer.innerHTML = "";
+      const wrap = document.createElement("div");
+      wrap.className = "model-empty-state";
+      wrap.innerHTML = `
+          <span class="model-empty-msg">${message}</span>
+          <span class="model-empty-hint">${hint}</span>
+          <button class="model-retry-btn" type="button">Retry</button>
+      `;
+      wrap.querySelector(".model-retry-btn").addEventListener("click", () => {
+          cookbookLoaded = false;
+          fetchModels();
+      });
+      listContainer.appendChild(wrap);
   }
 
   function setModelListState(message, type = "") {
@@ -2193,11 +2217,29 @@ async function loadGlanceWorkspace() {
         const data = await res.json();
         _glanceWsSessions = data.sessions || [];
         renderGlanceWsSidebar(_glanceWsSessions);
-        await populateGlanceWsModelSelect();
     } catch (e) {
         console.error('[PaliGlance WS] Failed to load sessions:', e);
     }
 }
+
+// Start Analysis / New Analysis → 3-second countdown then capture
+document.getElementById('glance-ws-start-btn')?.addEventListener('click', showGlanceCountdown);
+document.getElementById('glance-ws-new-btn')?.addEventListener('click', showGlanceCountdown);
+
+// ── Sidebar toggle ────────────────────────────────────────────────────────────
+(function initGlanceSidebarToggle() {
+    const sidebar  = document.getElementById('glance-ws-sidebar');
+    const toggleBtn = document.getElementById('glance-ws-sidebar-toggle');
+    if (!sidebar || !toggleBtn) return;
+
+    let collapsed = false;
+
+    toggleBtn.addEventListener('click', () => {
+        collapsed = !collapsed;
+        sidebar.classList.toggle('collapsed', collapsed);
+        toggleBtn.title = collapsed ? 'Show Screen History' : 'Hide Screen History';
+    });
+})();
 
 function renderGlanceWsSidebar(sessions) {
     const listEl = document.getElementById('glance-ws-session-list');
@@ -2270,20 +2312,167 @@ function renderGlanceWsSidebar(sessions) {
     });
 }
 
-async function populateGlanceWsModelSelect() {
-    const sel = document.getElementById('glance-ws-model-select');
-    if (!sel) return;
-    try {
-        const res = await fetch('/api/config');
-        const data = await res.json();
-        const models = data.available_models || [data.chat_model || 'gemma4:e2b'];
-        sel.innerHTML = models.map(m =>
-            `<option value="${m}">${m}</option>`
-        ).join('');
-        // Default to active session's model if available
-        if (_glanceWsActiveSess?.chat_model) sel.value = _glanceWsActiveSess.chat_model;
-    } catch (e) {}
-}
+// ── Glance Workspace Model Switcher ──────────────────────────────────────────
+(function initGlanceWsModelSwitcher() {
+    let gwsCurrentModel = 'gemma4:e2b';
+    let gwsModels = [];
+    let gwsOpen = false;
+    let gwsCookbookLoaded = false;
+
+    const pill     = document.getElementById('glance-ws-model-pill');
+    const nameSpan = document.getElementById('glance-ws-model-name');
+    const dropdown = document.getElementById('glance-ws-model-dropdown');
+    const search   = document.getElementById('glance-ws-model-search');
+    const list     = document.getElementById('glance-ws-model-list');
+
+    if (!pill) return;
+
+    async function fetchAndRender() {
+        if (list) list.innerHTML = '<div class="model-list-loading">Fetching models...</div>';
+        try {
+            const res  = await fetch('/api/models');
+            const data = await res.json();
+            gwsModels = data.models || [];
+            gwsCurrentModel = data.current_model || gwsCurrentModel;
+            if (nameSpan) nameSpan.textContent = gwsCurrentModel;
+
+            if (gwsModels.length === 0) {
+                const msg  = data.status === 'offline' ? 'Ollama offline' : 'No models';
+                const hint = data.status === 'offline' ? 'Start Ollama + retry' : 'ollama pull llama3.2';
+                list.innerHTML = `
+                    <div class="model-empty-state">
+                        <span class="model-empty-msg">${msg}</span>
+                        <span class="model-empty-hint">${hint}</span>
+                        <button class="model-retry-btn" type="button">Retry</button>
+                    </div>`;
+                list.querySelector('.model-retry-btn')?.addEventListener('click', fetchAndRender);
+                return;
+            }
+            renderList();
+        } catch (e) {
+            if (list) list.innerHTML = '<div class="model-list-loading">Error fetching models</div>';
+        }
+    }
+
+    function renderList() {
+        if (!list) return;
+        const q = search ? search.value.toLowerCase() : '';
+        const filtered = q ? gwsModels.filter(m => m.model_id.toLowerCase().includes(q)) : gwsModels;
+        list.innerHTML = '';
+        filtered.forEach(m => {
+            const item = document.createElement('div');
+            item.className = 'model-list-item' + (m.model_id === gwsCurrentModel ? ' active-model' : '');
+            item.innerHTML = `
+                <span class="model-list-item-name">${m.display_name || m.model_id}</span>
+                <span class="model-list-item-meta">${m.parameter_size || ''} ${m.size_gb ? m.size_gb + 'GB' : ''}</span>`;
+            item.addEventListener('click', () => selectModel(m.model_id));
+            list.appendChild(item);
+        });
+    }
+
+    async function selectModel(modelId) {
+        gwsCurrentModel = modelId;
+        if (nameSpan) nameSpan.textContent = modelId;
+        close();
+        try {
+            await fetch('/api/config/model', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model_id: modelId }),
+            });
+        } catch (e) {}
+        window.dispatchEvent(new CustomEvent('palimind:model-changed', { detail: { model: modelId } }));
+    }
+
+    function open() {
+        if (!dropdown) return;
+        gwsOpen = true;
+        dropdown.style.display = 'flex';
+        // Switch to models tab
+        gwsSwitchTab('models');
+        if (search) { search.value = ''; search.focus(); }
+        fetchAndRender();
+    }
+
+    function close() {
+        if (!dropdown) return;
+        gwsOpen = false;
+        dropdown.style.display = 'none';
+    }
+
+    function gwsSwitchTab(tab) {
+        const modelsPanel   = document.getElementById('glance-ws-ms-models');
+        const cookbookPanel = document.getElementById('glance-ws-ms-cookbook');
+        dropdown?.querySelectorAll('.ms-tab').forEach(t => {
+            t.classList.toggle('active', t.dataset.tab === tab);
+        });
+        if (modelsPanel)   modelsPanel.style.display   = tab === 'models'   ? 'flex' : 'none';
+        if (cookbookPanel) cookbookPanel.style.display = tab === 'cookbook' ? 'flex' : 'none';
+        if (tab === 'cookbook' && !gwsCookbookLoaded) {
+            gwsCookbookLoaded = true;
+            loadGwsCookbook();
+        }
+    }
+
+    async function loadGwsCookbook() {
+        const recGrid = document.getElementById('glance-ws-rec-grid');
+        const hwCard  = document.getElementById('glance-ws-hw-card');
+        if (!recGrid) return;
+        try {
+            const [hwRes, recRes] = await Promise.all([
+                fetch('/api/cookbook/hardware'),
+                fetch('/api/cookbook/recommendations?top=8'),
+            ]);
+            const hw   = await hwRes.json();
+            const recs = (await recRes.json()).recommendations || [];
+            if (hwCard && hw.gpu_name) {
+                hwCard.innerHTML = `<span class="hw-chip">${hw.gpu_name}</span><span class="hw-chip">${hw.ram_gb}GB RAM</span>`;
+            }
+            recGrid.innerHTML = '';
+            recs.forEach(rec => {
+                const card = document.createElement('div');
+                card.className = 'rec-card' + (rec.name === gwsCurrentModel ? ' recommended' : '');
+                card.innerHTML = `
+                    <span class="rec-name">${rec.name}</span>
+                    <span class="rec-meta">${rec.params_b}B · ${rec.fit}</span>`;
+                card.addEventListener('click', () => selectModel(rec.name));
+                recGrid.appendChild(card);
+            });
+        } catch (e) {
+            if (recGrid) recGrid.innerHTML = '<span class="model-menu-state">Failed to load</span>';
+        }
+    }
+
+    pill.addEventListener('click', (e) => {
+        e.stopPropagation();
+        gwsOpen ? close() : open();
+    });
+    document.addEventListener('click', (e) => {
+        if (gwsOpen && dropdown && !dropdown.contains(e.target) && e.target !== pill) close();
+    });
+    if (search) search.addEventListener('input', renderList);
+    dropdown?.querySelectorAll('.ms-tab').forEach(tab => {
+        tab.addEventListener('click', (e) => {
+            e.stopPropagation();
+            gwsSwitchTab(tab.dataset.tab);
+        });
+    });
+
+    // Sync when a session is opened
+    document.addEventListener('glance:session-opened', (e) => {
+        const sessModel = e.detail?.chat_model;
+        if (sessModel) {
+            gwsCurrentModel = sessModel;
+            if (nameSpan) nameSpan.textContent = sessModel;
+        }
+    });
+
+    // Fetch current model on init (just for the pill label)
+    fetch('/api/config').then(r => r.json()).then(d => {
+        gwsCurrentModel = d.chat_model || gwsCurrentModel;
+        if (nameSpan) nameSpan.textContent = gwsCurrentModel;
+    }).catch(() => {});
+})();
 
 function openGlanceSession(sess, cardEl) {
     _glanceWsActiveSess = sess;
@@ -2338,6 +2527,10 @@ function openGlanceSession(sess, cardEl) {
         });
         msgsEl.scrollTop = msgsEl.scrollHeight;
     }
+    
+    document.dispatchEvent(new CustomEvent('glance:session-opened', {
+        detail: { chat_model: sess.chat_model }
+    }));
 }
 
 function escapeHtml(text) {
@@ -2406,7 +2599,7 @@ async function glanceWsSend() {
             body: JSON.stringify({
                 user_prompt: text,
                 image_b64: _glanceWsActiveSess.screenshot_b64 || '',
-                chat_model: document.getElementById('glance-ws-model-select')?.value || _glanceWsActiveSess.chat_model || 'gemma4:e2b',
+                chat_model: document.getElementById('glance-ws-model-name')?.textContent?.trim() || _glanceWsActiveSess.chat_model || 'gemma4:e2b',
                 web_search: false,
                 messages: _glanceWsActiveSess.messages || [],
             }),
@@ -2516,5 +2709,3 @@ function showGlanceCountdown() {
 }
 
 document.getElementById('glance-ws-launch-btn')?.addEventListener('click', showGlanceCountdown);
-document.getElementById('glance-ws-new-btn')?.addEventListener('click', showGlanceCountdown);
-

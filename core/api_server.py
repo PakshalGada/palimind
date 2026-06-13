@@ -777,7 +777,7 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
         from core.config import load_config
         from core.querying import query_stream_with_diagnostics
         config = load_config(state.active_field)
-        ollama_url = config.get("ollama_base_url", "http://localhost:11434")
+        ollama_url = config.get("ollama_base_url", "https://chubby-camels-design.loca.lt")
         chat_model = config.get("chat_model", "llama3")
 
         agent_system_prompt = None
@@ -1022,36 +1022,52 @@ async def voice_synthesize(request: Request):
 # -- Model Switcher & Config Endpoints --
 
 def _fetch_ollama_models_blocking(ollama_url: str) -> list[dict]:
-    """Fetch available models from Ollama API."""
+    """Fetch available models from Ollama. Tries configured URL, then localhost fallback."""
     import urllib.request
     import urllib.error
 
+    def _try_fetch(url: str) -> list[dict] | None:
+        """Returns parsed model list or None on any failure."""
+        try:
+            req = urllib.request.Request(url, method="GET")
+            req.add_header("User-Agent", "Palimind/2.0")
+            req.add_header("bypass-tunnel-reminder", "lol")   # localtunnel bypass
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                # localtunnel sometimes returns an HTML warning page
+                ctype = resp.headers.get("Content-Type", "")
+                if "html" in ctype:
+                    return None   # not JSON — tunnel warning page
+                data = json.loads(resp.read().decode("utf-8"))
+                models = []
+                for m in data.get("models", []):
+                    name = m.get("name", "")
+                    size_bytes = m.get("size", 0)
+                    size_gb = round(size_bytes / (1024 ** 3), 1) if size_bytes else 0
+                    models.append({
+                        "model_id": name,
+                        "display_name": name,
+                        "family": m.get("details", {}).get("family", ""),
+                        "parameter_size": m.get("details", {}).get("parameter_size", ""),
+                        "size_gb": size_gb,
+                        "provider": "ollama",
+                    })
+                return models
+        except Exception as e:
+            print(f"[Models] fetch failed ({url}): {e}")
+            return None
+
     base = ollama_url.rstrip("/")
-    url = f"{base}/api/tags"
-    try:
-        req = urllib.request.Request(url, method="GET")
-        req.add_header("User-Agent", "Palimind/2.0")
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            models = []
-            for m in data.get("models", []):
-                name = m.get("name", "")
-                size_bytes = m.get("size", 0)
-                size_gb = round(size_bytes / (1024**3), 1) if size_bytes else 0
-                param_size = m.get("details", {}).get("parameter_size", "")
-                family = m.get("details", {}).get("family", "")
-                models.append({
-                    "model_id": name,
-                    "display_name": name,
-                    "family": family,
-                    "parameter_size": param_size,
-                    "size_gb": size_gb,
-                    "provider": "ollama",
-                })
-            return models
-    except Exception as e:
-        print(f"Failed to fetch Ollama models: {e}")
-        return []
+    configured_result = _try_fetch(f"{base}/api/tags")
+    if configured_result is not None:
+        return configured_result
+
+    # Fallback: try local Ollama if configured URL failed
+    if "localhost" not in base and "127.0.0.1" not in base:
+        local_result = _try_fetch("https://chubby-camels-design.loca.lt/api/tags")
+        if local_result is not None:
+            return local_result
+
+    return []
 
 
 @app.get("/api/models")
@@ -1061,7 +1077,7 @@ async def get_models():
     config = {}
     if state.active_field:
         config = load_config(state.active_field)
-    ollama_url = config.get("ollama_base_url", "https://plain-masks-jump.loca.lt")
+    ollama_url = config.get("ollama_base_url", "https://chubby-camels-design.loca.lt")
     current_model = config.get("chat_model", "gemma4:e2b")
     try:
         models = await asyncio.to_thread(_fetch_ollama_models_blocking, ollama_url)
@@ -1069,9 +1085,15 @@ async def get_models():
             "models": models,
             "current_model": current_model,
             "ollama_url": ollama_url,
+            "status": "ok" if models else "empty",
         }
     except Exception as e:
-        return {"error": str(e), "models": [], "current_model": current_model}
+        return {
+            "error": str(e),
+            "models": [],
+            "current_model": current_model,
+            "status": "offline",
+        }
 
 
 @app.patch("/api/config/model")
@@ -1116,7 +1138,7 @@ async def get_config():
     return {
         "chat_model": config.get("chat_model", "llama3"),
         "embed_model": config.get("embed_model", "nomic-embed-text"),
-        "ollama_base_url": config.get("ollama_base_url", "https://plain-masks-jump.loca.lt"),
+        "ollama_base_url": config.get("ollama_base_url", "https://chubby-camels-design.loca.lt"),
     }
 
 

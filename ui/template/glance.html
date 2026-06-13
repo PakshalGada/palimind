@@ -34,15 +34,6 @@
             <div class="glance-status">
                 <span id="glance-status-dot" class="glance-dot" title="No screenshot"></span>
                 <span id="glance-status-text" class="glance-status-label">No capture</span>
-                <span id="glance-model-pill" class="glance-model-pill" title="Active model">gemma4:e2b</span>
-                <button id="glance-cookbook-btn" class="glance-icon-btn" title="Model Recommendations">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
-                         fill="none" stroke="currentColor" stroke-width="2"
-                         stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-                    </svg>
-                </button>
             </div>
         </div>
 
@@ -54,55 +45,58 @@
             </div>
         </div>
 
-        <!-- Input bar -->
-        <div class="glance-input-bar">
-            <textarea
-                id="glance-input"
-                placeholder="Ask about your screen…"
-                rows="1"
-                autofocus
-            ></textarea>
-            <button id="glance-web-search-btn" class="glance-web-search-btn" title="Toggle Web Search" aria-label="Toggle web search">
-                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="2" y1="12" x2="22" y2="12"></line>
-                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-                </svg>
-            </button>
-            <button id="glance-mic-btn" class="glance-mic-btn" title="Voice Input" aria-label="Start voice input">
-                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                    <line x1="12" y1="19" x2="12" y2="23"></line>
-                    <line x1="8" y1="23" x2="16" y2="23"></line>
-                </svg>
-            </button>
-            <button id="glance-send-btn" title="Send">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="12" y1="19" x2="12" y2="5"></line>
-                    <polyline points="5 12 12 5 19 12"></polyline>
-                </svg>
-            </button>
+        <!-- Input wrapper — clean, matches workspace style -->
+        <div class="glance-input-wrapper">
+            <div class="glance-input-bar">
+                <textarea
+                    id="glance-input"
+                    placeholder="Ask about your screen…"
+                    rows="1"
+                    autofocus
+                ></textarea>
+                <button id="glance-send-btn" title="Send" aria-label="Send">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="19" x2="12" y2="5"></line>
+                        <polyline points="5 12 12 5 19 12"></polyline>
+                    </svg>
+                </button>
+            </div>
+            <div class="glance-input-footer">
+                <div id="glance-model-area" class="glance-model-area">
+                    <button id="glance-model-btn" class="glance-model-pill glance-model-pill--btn" type="button">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        </svg>
+                        <span id="glance-model-name">Loading...</span>
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                    </button>
+                    <!-- Tabbed dropdown panel -->
+                    <div id="glance-model-dropdown" class="glance-model-dropdown" style="display:none">
+                        <div class="glance-ms-tab-bar">
+                            <button class="glance-ms-tab active" data-tab="models">Models</button>
+                            <button class="glance-ms-tab" data-tab="cookbook">Cookbook</button>
+                        </div>
+                        <!-- Models tab -->
+                        <div id="glance-ms-models" class="glance-ms-panel">
+                            <input type="text" id="glance-model-search" class="glance-model-search"
+                                   placeholder="Search models..." autocomplete="off"/>
+                            <div id="glance-model-list" class="glance-model-list"></div>
+                        </div>
+                        <!-- Cookbook tab -->
+                        <div id="glance-ms-cookbook" class="glance-ms-panel" style="display:none">
+                            <div id="glance-cookbook-recs" class="glance-cookbook-list">
+                                <span class="glance-loading">Loading recommendations...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-
-    </div>
-
-    <!-- Cookbook panel (hidden by default, opens over messages area) -->
-    <div id="glance-cookbook-panel" class="glance-cookbook-panel" style="display:none">
-        <div class="glance-cookbook-header">
-            <span>Recommended Models</span>
-            <button id="glance-cookbook-close" class="glance-icon-btn">✕</button>
-        </div>
-        <div id="glance-cookbook-list" class="glance-cookbook-list">
-            <span class="glance-loading">Loading recommendations...</span>
-        </div>
-    </div>
 
     <script src="/ui/static/glance.js"></script>
 </body>

@@ -305,8 +305,25 @@ app.whenReady().then(async () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
 
-    // Register existing hotkey: Ctrl+Shift+Space → toggle main window
-    const mainHotkey = process.platform === 'darwin' ? 'Command+Shift+Space' : 'Ctrl+Shift+Space';
+    // ── Platform detection ────────────────────────────────────────────────────
+    // Linux Ctrl+Shift combos are frequently intercepted by GNOME, KDE, and
+    // other desktop environments (and some Wayland compositors) before Electron
+    // ever sees them.  Super+Shift is not reserved by any common DE and works
+    // reliably on both X11 and Wayland sessions.
+    const isMac   = process.platform === 'darwin';
+    const isLinux = process.platform === 'linux';
+
+    console.log('[Hotkey] Platform:', process.platform);
+    console.log('[Hotkey] Session type (XDG_SESSION_TYPE):', process.env.XDG_SESSION_TYPE || 'n/a');
+
+    function getAccelerator(mac, linux, win) {
+        if (isMac)   return mac;
+        if (isLinux) return linux;
+        return win;
+    }
+
+    // Register hotkey: toggle main window
+    const mainHotkey = getAccelerator('Command+Shift+Space', 'Super+Shift+Space', 'Ctrl+Shift+Space');
     const retMain = globalShortcut.register(mainHotkey, () => {
         toggleMainWindow();
     });
@@ -316,8 +333,8 @@ app.whenReady().then(async () => {
         console.log(`[Hotkey] Registered: ${mainHotkey} → toggle main window`);
     }
 
-    // Register Ctrl+Shift+V → PaliGlance vision popup
-    const glanceHotkey = process.platform === 'darwin' ? 'Command+Shift+V' : 'Ctrl+Shift+V';
+    // Register hotkey: PaliGlance vision popup
+    const glanceHotkey = getAccelerator('Command+Shift+V', 'Super+Shift+V', 'Ctrl+Shift+V');
     const retGlance = globalShortcut.register(glanceHotkey, () => {
         toggleGlanceWindow();
     });
@@ -327,8 +344,8 @@ app.whenReady().then(async () => {
         console.log(`[Hotkey] Registered: ${glanceHotkey} → PaliGlance popup`);
     }
 
-    // Register Ctrl+Shift+E → open main window and switch to Email mode
-    const emailHotkey = process.platform === 'darwin' ? 'Command+Shift+E' : 'Ctrl+Shift+E';
+    // Register hotkey: open main window and switch to Email mode
+    const emailHotkey = getAccelerator('Command+Shift+E', 'Super+Shift+E', 'Ctrl+Shift+E');
     const retEmail = globalShortcut.register(emailHotkey, () => {
         if (!mainWindow) return;
         if (mainWindow.isMinimized()) mainWindow.restore();

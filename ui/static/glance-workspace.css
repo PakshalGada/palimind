@@ -16,17 +16,57 @@
 /* ── Sidebar ── */
 .glance-ws-sidebar {
     width: 260px;
-    min-width: 220px;
+    min-width: 260px;
     border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
     background: var(--panel-bg);
     overflow: hidden;
+    transition: width 0.22s cubic-bezier(0.4,0,0.2,1),
+                min-width 0.22s cubic-bezier(0.4,0,0.2,1),
+                border-color 0.22s;
+}
+
+/* Collapsed state */
+.glance-ws-sidebar.collapsed {
+    width: 48px;
+    min-width: 48px;
+    /* keep the right border */
+}
+.glance-ws-sidebar.collapsed .glance-ws-session-list,
+.glance-ws-sidebar.collapsed .glance-ws-empty,
+.glance-ws-sidebar.collapsed .glance-ws-session-card {
+    opacity: 0;
+    pointer-events: none;
+}
+.glance-ws-sidebar.collapsed .glance-ws-sidebar-title,
+.glance-ws-sidebar.collapsed #glance-ws-new-btn {
+    display: none;
+}
+.glance-ws-sidebar.collapsed .glance-ws-sidebar-header {
+    padding: 14px 0;
+    justify-content: center;
+}
+
+/* Chevron flip when collapsed */
+#glance-ws-sidebar-chevron {
+    transition: transform 0.22s cubic-bezier(0.4,0,0.2,1);
+}
+.glance-ws-sidebar.collapsed #glance-ws-sidebar-chevron {
+    transform: rotate(180deg);
 }
 .glance-ws-sidebar-header {
     padding: 14px 16px;
     border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.glance-ws-sidebar-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
 }
 .glance-ws-sidebar-title {
     display: flex;
@@ -203,13 +243,37 @@
     margin: 0;
 }
 .glance-ws-welcome-inner p { font-size: 0.9rem; margin: 0; line-height: 1.6; }
-.glance-ws-welcome-inner kbd {
+
+.glance-start-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 24px;
+    background: var(--primary-color);
+    color: var(--primary-text);
+    border: none;
+    border-radius: 12px;
+    font-size: 0.92rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    letter-spacing: 0.1px;
+}
+.glance-start-btn:hover  { background: var(--primary-hover); }
+.glance-start-btn:active { transform: scale(0.97); }
+
+.glance-ws-welcome-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+.glance-ws-welcome-hint kbd {
     background: var(--bg-active);
     border: 1px solid var(--border-color);
     border-radius: 4px;
-    padding: 2px 6px;
-    font-family: monospace;
-    font-size: 0.82rem;
+    padding: 1px 5px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
 }
 
 /* Active conversation view */
@@ -274,32 +338,58 @@
 .glance-ws-messages::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
 
 .glance-ws-msg {
-    max-width: 75%;
-    padding: 10px 14px;
-    border-radius: 12px;
-    font-size: 0.875rem;
-    line-height: 1.6;
+    word-break: break-word;
 }
+/* User bubble: right-aligned pill (consistent with PaliSpace) */
 .glance-ws-msg--user {
     align-self: flex-end;
-    background: var(--bg-active);
+    background: var(--msg-user-bg);
     color: var(--text-main);
     border: 1px solid var(--border-color);
-    border-bottom-right-radius: 4px;
+    border-radius: 18px 18px 4px 18px;
+    max-width: 78%;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    line-height: 1.6;
 }
+
+/* Assistant prose: full-width, transparent, flush left — matches PaliSpace */
 .glance-ws-msg--assistant {
     align-self: flex-start;
-    background: var(--panel-bg);
+    background: transparent;
     color: var(--text-main);
-    border: 1px solid var(--border-color);
-    border-bottom-left-radius: 4px;
-    max-width: 85%;
+    border: none;
+    border-radius: 0;
+    max-width: 100%;
+    padding: 2px 0 8px 0;
+    font-size: 0.9rem;
+    line-height: 1.7;
+    width: 100%;
 }
+.glance-ws-msg--assistant p { margin-bottom: 8px; }
 .glance-ws-msg--assistant p:last-child { margin-bottom: 0; }
+.glance-ws-msg--assistant ul,
+.glance-ws-msg--assistant ol { margin: 6px 0 6px 20px; }
+.glance-ws-msg--assistant li { margin-bottom: 4px; }
+.glance-ws-msg--assistant strong { color: var(--text-main); font-weight: 600; }
 .glance-ws-msg--assistant code {
     background: var(--bg-active);
     border-radius: 4px;
     padding: 1px 5px;
+    font-size: 0.82rem;
+    font-family: 'JetBrains Mono', monospace;
+}
+.glance-ws-msg--assistant pre {
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+    overflow-x: auto;
+    margin: 8px 0;
+}
+.glance-ws-msg--assistant pre code {
+    background: transparent;
+    padding: 0;
     font-size: 0.82rem;
 }
 .glance-ws-msg--assistant.streaming::after {
@@ -311,31 +401,93 @@
 }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
-/* Input bar */
-.glance-ws-input-bar {
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-    padding: 12px 20px;
+/* ── Input wrapper ── */
+.glance-ws-input-wrapper {
     border-top: 1px solid var(--border-color);
     background: var(--panel-bg);
     flex-shrink: 0;
 }
-.glance-ws-model-select {
-    background: var(--input-bg);
-    border: 1px solid var(--border-color);
-    color: var(--text-muted);
-    border-radius: 8px;
-    padding: 6px 10px;
-    font-size: 0.78rem;
-    font-family: 'JetBrains Mono', monospace;
+
+.glance-ws-input-bar {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 12px 16px 8px;
+    border-top: none;
+    background: transparent;
+}
+
+.glance-ws-input-footer {
+    display: flex;
+    align-items: center;
+    padding: 4px 16px 10px;
+}
+
+/* ── Send button: matches PaliSpace send-btn ── */
+.glance-ws-send-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: var(--primary-color);
+    color: var(--primary-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
     flex-shrink: 0;
-    outline: none;
-    transition: border-color 0.15s;
-    max-width: 160px;
+    transition: background 0.15s, transform 0.1s;
+    padding: 0;
 }
-.glance-ws-model-select:focus { border-color: var(--text-muted); }
+.glance-ws-send-btn:hover { background: var(--primary-hover); }
+.glance-ws-send-btn:active { transform: scale(0.95); }
+.glance-ws-send-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+/* ── Workspace model pill ── */
+.glance-ws-model-area {
+    position: relative;
+}
+
+.glance-ws-model-pill {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+.glance-ws-model-pill:hover {
+    border-color: var(--text-muted);
+    color: var(--text-main);
+}
+
+.glance-ws-model-dropdown {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    width: 320px;
+    max-height: 420px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: glanceWsDropIn 0.15s ease-out;
+}
+@keyframes glanceWsDropIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
 #glance-ws-input {
     flex: 1;
     background: var(--input-bg);
@@ -345,30 +497,16 @@
     font-family: inherit;
     font-size: 0.875rem;
     padding: 9px 14px;
-    outline: none;
+    font-family: inherit;
     resize: none;
-    line-height: 1.5;
+    min-height: 38px;
     max-height: 120px;
-    overflow-y: auto;
-    transition: border-color 0.2s;
+    line-height: 1.4;
+    outline: none;
+    transition: border-color 0.15s;
 }
-#glance-ws-input:focus { border-color: var(--text-muted); }
-#glance-ws-send-btn {
-    background: var(--primary-color);
-    border: none;
-    border-radius: 10px;
-    color: var(--primary-text);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 9px 14px;
-    transition: background 0.2s, transform 0.1s;
-    flex-shrink: 0;
-}
-#glance-ws-send-btn:hover { background: var(--primary-hover); }
-#glance-ws-send-btn:active { transform: scale(0.95); }
-#glance-ws-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+#glance-ws-input:focus { border-color: var(--text-main); }
+#glance-ws-input::placeholder { color: var(--text-muted); }
 
 /* ── Lightbox ── */
 .glance-lightbox {

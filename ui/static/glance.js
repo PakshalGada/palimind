@@ -19,7 +19,6 @@ const _g = {
     screenshotB64: null,
     isBusy: false,
     activeModel: 'gemma4:e2b',
-    webSearchEnabled: false,
 };
 
 let _glanceSessionId = generateSessionId(); // initialize eagerly; reset on each show
@@ -36,17 +35,6 @@ const inputEl    = document.getElementById('glance-input');
 const sendBtn    = document.getElementById('glance-send-btn');
 const statusDot  = document.getElementById('glance-status-dot');
 const statusText = document.getElementById('glance-status-text');
-const modelPillEl = document.getElementById('glance-model-pill');
-
-const micBtn = document.getElementById('glance-mic-btn');
-const webSearchBtn = document.getElementById('glance-web-search-btn');
-
-const cookbookBtn = document.getElementById('glance-cookbook-btn');
-const cookbookPanel = document.getElementById('glance-cookbook-panel');
-const cookbookClose = document.getElementById('glance-cookbook-close');
-const cookbookList = document.getElementById('glance-cookbook-list');
-
-let _cookbookLoaded = false;
 
 (function initTheme() {
     const savedTheme = localStorage.getItem('theme') || 'dark';
@@ -67,7 +55,9 @@ async function fetchActiveModel() {
 }
 
 function updateModelPill() {
-    if (modelPillEl) modelPillEl.textContent = _g.activeModel;
+    // Update both the popup pill label and the gmsNameSpan
+    const nameEl = document.getElementById('glance-model-name');
+    if (nameEl) nameEl.textContent = _g.activeModel;
 }
 
 fetchActiveModel();
@@ -435,83 +425,163 @@ function encodeWAV(samples, sampleRate) {
     return buffer;
 }
 
-// ── Cookbook Logic ─────────────────────────────────────────────────────────
-async function loadCookbook() {
-    if (_cookbookLoaded) return;
-    _cookbookLoaded = true;
-    try {
-        const res = await fetch('/api/cookbook/recommendations?top=8');
-        const data = await res.json();
-        const recs = data.recommendations || [];
-        cookbookList.innerHTML = '';
-        if (recs.length === 0) {
-            cookbookList.innerHTML = '<span class="glance-loading">No recommendations</span>';
-            return;
-        }
-        recs.forEach(rec => {
-            const card = document.createElement('div');
-            card.className = `glance-rec-card${rec.name === _g.activeModel ? ' selected' : ''}`;
-            card.innerHTML = `
-                <span class="glance-rec-name">${rec.name}</span>
-                <span class="glance-rec-size">${rec.params_b}B · ${rec.fit}</span>
-            `;
-            card.addEventListener('click', async () => {
-                // Apply this model
-                try {
-                    await fetch('/api/config/model', {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ model_id: rec.name }),
-                    });
-                    _g.activeModel = rec.name;
-                    updateModelPill();
-                    cookbookList.querySelectorAll('.glance-rec-card').forEach(c => c.classList.remove('selected'));
-                    card.classList.add('selected');
-                } catch (e) {
-                    console.error('[PaliGlance] Model switch failed:', e);
-                }
-                cookbookPanel.style.display = 'none';
-            });
-            cookbookList.appendChild(card);
-        });
-    } catch (e) {
-        cookbookList.innerHTML = '<span class="glance-loading">Failed to load</span>';
+// ── Unified Model Selector (popup) ────────────────────────────────────────────
+
+const _gms = {
+    open: false,
+    models: [],
+    cookbookLoaded: false,
+};
+
+const gmsBtn        = document.getElementById('glance-model-btn');
+const gmsDropdown   = document.getElementById('glance-model-dropdown');
+const gmsSearch     = document.getElementById('glance-model-search');
+const gmsModelList  = document.getElementById('glance-model-list');
+const gmsCookbook   = document.getElementById('glance-cookbook-recs');
+const gmsNameSpan   = document.getElementById('glance-model-name');
+
+function gmsOpen() {
+    if (!gmsDropdown) return;
+    _gms.open = true;
+    gmsDropdown.style.display = 'flex';
+    gmsSwitchTab('models');
+    if (gmsSearch) { gmsSearch.value = ''; gmsSearch.focus(); }
+    gmsFetchModels();
+}
+
+function gmsClose() {
+    if (!gmsDropdown) return;
+    _gms.open = false;
+    gmsDropdown.style.display = 'none';
+}
+
+function gmsSwitchTab(tab) {
+    const modelsPanel   = document.getElementById('glance-ms-models');
+    const cookbookPanel = document.getElementById('glance-ms-cookbook');
+    document.querySelectorAll('.glance-ms-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === tab);
+    });
+    if (modelsPanel)   modelsPanel.style.display   = tab === 'models'   ? 'flex' : 'none';
+    if (cookbookPanel) cookbookPanel.style.display = tab === 'cookbook' ? 'flex' : 'none';
+    if (tab === 'cookbook' && !_gms.cookbookLoaded) {
+        _gms.cookbookLoaded = true;
+        gmsLoadCookbook();
     }
 }
 
-if (cookbookBtn) {
-    cookbookBtn.addEventListener('click', () => {
-        if (cookbookPanel.style.display === 'none') {
-            cookbookPanel.style.display = 'flex';
-            loadCookbook();
-        } else {
-            cookbookPanel.style.display = 'none';
+async function gmsFetchModels() {
+    if (gmsModelList) gmsModelList.innerHTML = '<span class="glance-loading">Fetching models...</span>';
+    try {
+        const res  = await fetch('/api/models');
+        const data = await res.json();
+        _gms.models = data.models || [];
+        _g.activeModel = data.current_model || _g.activeModel;
+        if (gmsNameSpan) gmsNameSpan.textContent = _g.activeModel;
+        updateModelPill();
+
+        if (_gms.models.length === 0) {
+            const msg  = data.status === 'offline' ? 'Ollama is offline' : 'No models installed';
+            const hint = data.status === 'offline' ? 'Start Ollama and retry' : 'Run: ollama pull llama3.2';
+            gmsModelList.innerHTML = `
+                <div class="glance-empty-state">
+                    <span>${msg}</span>
+                    <span class="glance-empty-hint">${hint}</span>
+                    <button class="glance-retry-btn" onclick="gmsFetchModels()">Retry</button>
+                </div>`;
+            return;
         }
-    });
+        gmsRenderModels();
+    } catch (e) {
+        if (gmsModelList) gmsModelList.innerHTML = '<span class="glance-loading">Connection error</span>';
+    }
 }
-if (cookbookClose) {
-    cookbookClose.addEventListener('click', () => {
-        cookbookPanel.style.display = 'none';
+
+function gmsRenderModels() {
+    if (!gmsModelList) return;
+    const q = gmsSearch ? gmsSearch.value.toLowerCase() : '';
+    const filtered = q
+        ? _gms.models.filter(m => m.model_id.toLowerCase().includes(q))
+        : _gms.models;
+
+    gmsModelList.innerHTML = '';
+    if (filtered.length === 0) {
+        gmsModelList.innerHTML = '<span class="glance-loading">No match</span>';
+        return;
+    }
+    filtered.forEach(m => {
+        const item = document.createElement('div');
+        item.className = 'glance-model-item' + (m.model_id === _g.activeModel ? ' active' : '');
+        item.innerHTML = `
+            <span class="glance-model-item-name">${m.display_name || m.model_id}</span>
+            <span class="glance-model-item-meta">${m.parameter_size || ''} ${m.size_gb ? m.size_gb + 'GB' : ''}</span>
+        `;
+        item.addEventListener('click', () => gmsSelectModel(m.model_id));
+        gmsModelList.appendChild(item);
     });
 }
 
-if (webSearchBtn) {
-    webSearchBtn.addEventListener('click', () => {
-        _g.webSearchEnabled = !_g.webSearchEnabled;
-        webSearchBtn.classList.toggle('active', _g.webSearchEnabled);
-        webSearchBtn.title = _g.webSearchEnabled ? 'Web Search ON' : 'Web Search OFF';
-    });
+async function gmsSelectModel(modelId) {
+    _g.activeModel = modelId;
+    if (gmsNameSpan) gmsNameSpan.textContent = modelId;
+    updateModelPill();
+    gmsClose();
+    try {
+        await fetch('/api/config/model', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model_id: modelId }),
+        });
+    } catch (e) { /* fire and forget */ }
 }
 
-if (micBtn) {
-    micBtn.addEventListener('click', async () => {
-        if (_isRecording) {
-            await stopGlanceRecording();
-        } else {
-            await startGlanceRecording();
+async function gmsLoadCookbook() {
+    if (!gmsCookbook) return;
+    try {
+        const res  = await fetch('/api/cookbook/recommendations?top=8');
+        const data = await res.json();
+        const recs = data.recommendations || [];
+        if (recs.length === 0) {
+            gmsCookbook.innerHTML = '<span class="glance-loading">No recommendations</span>';
+            return;
         }
+        gmsCookbook.innerHTML = '';
+        recs.forEach(rec => {
+            const card = document.createElement('div');
+            card.className = 'glance-rec-card' + (rec.name === _g.activeModel ? ' selected' : '');
+            card.innerHTML = `
+                <span class="glance-rec-name">${rec.name}</span>
+                <span class="glance-rec-size">${rec.params_b}B · ${rec.fit}</span>`;
+            card.addEventListener('click', () => gmsSelectModel(rec.name));
+            gmsCookbook.appendChild(card);
+        });
+    } catch (e) {
+        gmsCookbook.innerHTML = '<span class="glance-loading">Failed to load</span>';
+    }
+}
+
+if (gmsBtn) {
+    gmsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        _gms.open ? gmsClose() : gmsOpen();
     });
 }
+document.addEventListener('click', (e) => {
+    if (_gms.open && gmsDropdown && !gmsDropdown.contains(e.target) && e.target !== gmsBtn) {
+        gmsClose();
+    }
+});
+if (gmsSearch) {
+    gmsSearch.addEventListener('input', gmsRenderModels);
+}
+document.querySelectorAll('.glance-ms-tab').forEach(tab => {
+    tab.addEventListener('click', (e) => {
+        e.stopPropagation();
+        gmsSwitchTab(tab.dataset.tab);
+    });
+});
+
+// (web search and mic removed from popup — not available in minimal mode)
+
 
 sendBtn.addEventListener('click', sendQuery);
 

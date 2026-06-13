@@ -156,7 +156,7 @@ def chat(
 
     from core.config import load_config
     config = load_config(target_dir)
-    ollama_url = config.get("ollama_base_url", "https://plain-masks-jump.loca.lt")
+    ollama_url = config.get("ollama_base_url", "https://chubby-camels-design.loca.lt")
     chat_model = config.get("chat_model", "gemma4:e2b")
 
     from core.agent import needs_retrieval, reformulate_query
@@ -371,7 +371,7 @@ def swarm(
     target_dir = path.resolve()
     from core.config import load_config
     config = load_config(target_dir)
-    ollama_url = config.get("ollama_base_url", "https://plain-masks-jump.loca.lt")
+    ollama_url = config.get("ollama_base_url", "https://chubby-camels-design.loca.lt")
     chat_model = config.get("chat_model", "gemma4:e4b")
     
     print_header("Agent Swarm")
@@ -396,7 +396,7 @@ def document(
     target_dir = path.resolve()
     from core.config import load_config
     config = load_config(target_dir)
-    ollama_url = config.get("ollama_base_url", "https://plain-masks-jump.loca.lt")
+    ollama_url = config.get("ollama_base_url", "https://chubby-camels-design.loca.lt")
     chat_model = config.get("chat_model", "gemma4:e4b")
     
     print_header(f"Document Mode: {file_path}")
