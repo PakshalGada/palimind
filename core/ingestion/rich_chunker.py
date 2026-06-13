@@ -36,6 +36,7 @@ class RichChunk:
     chunk_type: str                  # "text" | "table" | "caption" | "heading"
     chunk_index: int
     section_title: str = ""
+    subsection: str = ""
     parent_section: str = ""
     page_number: int | None = None
     doc_year: int | None = None
@@ -136,51 +137,77 @@ def extract_entity_name(text_sample: str) -> str:
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
-def _split_by_sections(text: str) -> list[tuple[str, str]]:
+def _split_by_sections(text: str) -> list[tuple[str, str, str]]:
     """
-    Return (section_title, section_text) pairs, preserving order.
+    Return (section_title, subsection, section_text) tuples, preserving order.
     Tries SEC patterns first, falls back to Markdown headings, then
     ALLCAPS headings, then treats the whole text as one section.
     """
     # Collect all candidate split points with their positions and labels
-    splits: list[tuple[int, int, str]] = []  # (start, end_of_heading, label)
+    splits: list[tuple[int, int, str, int]] = []  # (start, end_of_heading, label, level)
 
-    for pattern in [_SEC_ITEM, _SEC_PART, _MD_HEADING, _ALLCAPS_HEADING]:
-        for m in pattern.finditer(text):
-            label = m.group(0).strip()
-            # Clean markdown # prefix
-            label = re.sub(r"^#+\s*", "", label)
-            splits.append((m.start(), m.end(), label))
+    for m in _SEC_PART.finditer(text):
+        label = m.group(0).strip()
+        splits.append((m.start(), m.end(), label, 1))
+        
+    for m in _SEC_ITEM.finditer(text):
+        label = m.group(0).strip()
+        splits.append((m.start(), m.end(), label, 2))
+
+    for m in _MD_HEADING.finditer(text):
+        hashes = m.group(1)
+        label = m.group(2).strip()
+        splits.append((m.start(), m.end(), label, 2 + len(hashes))) # level 3, 4, 5
+
+    for m in _ALLCAPS_HEADING.finditer(text):
+        label = m.group(0).strip()
+        splits.append((m.start(), m.end(), label, 6))
 
     if not splits:
-        return [("Preamble", text)]
+        return [("Preamble", "", text)]
 
     # Sort by position, deduplicate overlapping spans
     splits.sort(key=lambda x: x[0])
-    deduped: list[tuple[int, int, str]] = []
+    deduped: list[tuple[int, int, str, int]] = []
     last_end = -1
-    for start, end, label in splits:
+    for start, end, label, level in splits:
         if start >= last_end:
-            deduped.append((start, end, label))
+            deduped.append((start, end, label, level))
             last_end = end
 
-    sections: list[tuple[str, str]] = []
+    sections: list[tuple[str, str, str]] = []
 
     # Text before first heading
     first_start = deduped[0][0]
     if first_start > 0:
         preamble = text[:first_start].strip()
         if preamble:
-            sections.append(("Preamble", preamble))
+            sections.append(("Preamble", "", preamble))
 
-    for i, (start, end, label) in enumerate(deduped):
+    active_section = ""
+    active_subsection = ""
+    active_level = 0
+
+    for i, (start, end, label, level) in enumerate(deduped):
+        # Determine section vs subsection based on level
+        if level <= 2:
+            active_section = label
+            active_subsection = ""
+            active_level = level
+        elif active_section and level > active_level:
+            active_subsection = label
+        else:
+            active_section = label
+            active_subsection = ""
+            active_level = level
+
         # Section text goes from end-of-heading to start of next heading
         next_start = deduped[i + 1][0] if i + 1 < len(deduped) else len(text)
         section_text = text[end:next_start].strip()
         if section_text:
-            sections.append((label, section_text))
+            sections.append((active_section, active_subsection, section_text))
 
-    return sections if sections else [("Preamble", text)]
+    return sections if sections else [("Preamble", "", text)]
 
 
 def _extract_tables(text: str) -> tuple[list[str], str]:
@@ -267,9 +294,9 @@ def rich_chunk_document(
     chunks: list[RichChunk] = []
     chunk_index = 0
 
-    section_pairs = _split_by_sections(text)
+    section_tuples = _split_by_sections(text)
 
-    for section_title, section_text in section_pairs:
+    for section_title, subsection, section_text in section_tuples:
         # Extract tables before character-chunking the prose
         table_texts, remaining_text = _extract_tables(section_text)
 
@@ -283,6 +310,7 @@ def rich_chunk_document(
                 chunk_type="table",
                 chunk_index=chunk_index,
                 section_title=section_title,
+                subsection=subsection,
                 parent_section=section_title,
                 page_number=None,
                 doc_year=doc_meta.doc_year,
@@ -305,6 +333,7 @@ def rich_chunk_document(
                 chunk_type="text",
                 chunk_index=chunk_index,
                 section_title=section_title,
+                subsection=subsection,
                 parent_section=section_title,
                 page_number=None,
                 doc_year=doc_meta.doc_year,
@@ -326,6 +355,7 @@ def rich_chunk_caption(caption: str, doc_meta: DocumentMeta, chunk_index: int = 
         chunk_type="caption",
         chunk_index=chunk_index,
         section_title="",
+        subsection="",
         doc_year=doc_meta.doc_year,
         doc_type=doc_meta.doc_type,
         entity_name=doc_meta.entity_name,

@@ -9,6 +9,14 @@ from core.swarm.agents.rag import RAGAgent
 from core.swarm.agents.document import DocumentAgent
 from core.swarm.agents.router import RouterAgent, keyword_route
 
+from core.swarm.agents.planner import PlannerAgent
+from core.swarm.agents.comparator import ComparatorAgent
+from core.swarm.agents.timeline import TimelineAgent
+from core.swarm.agents.advisor import AdvisorAgent
+from core.swarm.agents.researcher import ResearcherAgent
+from core.swarm.agents.quote_extractor import QuoteExtractorAgent
+from core.swarm.agents.verifier import VerifierAgent
+
 
 class SwarmOrchestrator:
     """Orchestrates multiple agents and scales based on hardware constraints."""
@@ -36,6 +44,13 @@ class SwarmOrchestrator:
             "rag": RAGAgent(root, ollama_url, self.default_model),
             "document": DocumentAgent(root, ollama_url, self.default_model),
             "router": RouterAgent(ollama_url, self.default_model),
+            "planner": PlannerAgent(root, ollama_url, self.default_model),
+            "comparator": ComparatorAgent(ollama_url, self.default_model),
+            "timeline": TimelineAgent(ollama_url, self.default_model),
+            "advisor": AdvisorAgent(ollama_url, self.default_model),
+            "researcher": ResearcherAgent(ollama_url, self.default_model),
+            "quoteextractor": QuoteExtractorAgent(ollama_url, self.default_model),
+            "verifier": VerifierAgent(ollama_url, self.default_model),
         }
 
         # Inject handoff tools into all agents
@@ -108,6 +123,19 @@ class SwarmOrchestrator:
                     break
 
             if transfer_target and transfer_target in self.agents:
+                # Execute any non-transfer tools first (like prepare_context)
+                non_transfer_calls = [tc for tc in result.tool_calls if not tc.get("function", {}).get("name", "").startswith("transfer_to_")]
+                if non_transfer_calls:
+                    if self.max_workers > 1 and len(non_transfer_calls) > 1:
+                        tool_results = []
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                            futures = [executor.submit(current_agent.execute_tools, [tc]) for tc in non_transfer_calls]
+                            for f in concurrent.futures.as_completed(futures):
+                                tool_results.extend(f.result())
+                    else:
+                        tool_results = current_agent.execute_tools(non_transfer_calls)
+                    messages.extend(tool_results)
+
                 # Acknowledge the transfer in the message history
                 ack_results = current_agent.execute_tools(
                     [tc for tc in result.tool_calls if tc.get("function", {}).get("name", "").startswith("transfer_to_")]
@@ -150,14 +178,14 @@ class SwarmOrchestrator:
     ) -> str:
         """Run the swarm on a generic query."""
 
-        # ── If specific files are attached, go straight to DocumentAgent ──
+        # ── If specific files are attached, go straight to PlannerAgent ──
         if files:
             files_str = "\n- ".join(files)
             augmented_query = f"[User selected files:\n- {files_str}]\n\n{query}"
-            target = "document"
+            target = "planner"
             messages = [{"role": "user", "content": augmented_query}]
         elif chat_mode == "rag":
-            target = "rag"
+            target = "planner"
             messages = [{"role": "user", "content": query}]
         else:
             target = "router"
@@ -224,6 +252,10 @@ class SwarmOrchestrator:
                     current_agent = self.agents[fallback]
                     self._emit(progress_callback, f"> *Keyword-routed to **{current_agent.name}***\n\n")
                     print(f"[Swarm] Keyword fallback → {current_agent.name}")
+
+        elif target == "planner":
+            # Just let it run ReAct loop natively
+            pass
 
         # ── Run the ReAct loop on the chosen agent ────────────────────
         return self._route_via_llm(messages, current_agent, progress_callback)

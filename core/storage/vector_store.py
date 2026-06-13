@@ -129,6 +129,7 @@ class VectorStore:
                 "chunk_type": d["chunk_type"],
                 "content": d["content"],
                 "section_title": d.get("section_title", ""),
+                "subsection": d.get("subsection", ""),
                 "doc_year": d.get("doc_year"),
                 "doc_type": d.get("doc_type", "other"),
                 "entity_name": d.get("entity_name", ""),
@@ -172,7 +173,7 @@ class VectorStore:
             self._dirty = False
 
 
-def search(root: Path, query_vector: list[float], limit: int = 5) -> list[dict]:
+def search(root: Path, query_vector: list[float], limit: int = 5, candidate_ids: set[int] | None = None) -> list[dict]:
     """Return up to *limit* results closest to *query_vector*."""
     cached = _get_cached_search_data(root)
     if not cached:
@@ -181,15 +182,26 @@ def search(root: Path, query_vector: list[float], limit: int = 5) -> list[dict]:
     index, meta = cached
 
     query = np.array(query_vector, dtype=np.float32).reshape(1, -1)
-    k = min(limit, len(meta))
+    
+    # If filtering, fetch more to ensure we get enough matches after filtering
+    k = min(limit * 10 if candidate_ids is not None else limit, len(meta))
+    if candidate_ids is not None and len(meta) > 0:
+        # If the index is small enough, just fetch everything to guarantee we find the candidate chunks
+        k = len(meta)
+        
     _scores, ext_ids = index.search(query, k=k)
     top_ids = ext_ids[0]
 
     results = []
     for ext_id in top_ids:
         cid = int(ext_id)
+        if candidate_ids is not None and cid not in candidate_ids:
+            continue
+            
         if cid in meta:
             item = dict(meta[cid])
             item["chunk_db_id"] = cid
             results.append(item)
+            if len(results) >= limit:
+                break
     return results
