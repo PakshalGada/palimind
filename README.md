@@ -38,11 +38,9 @@ graph TD
     classDef python fill:#ff9,stroke:#333,stroke-width:2px;
     classDef db fill:#f96,stroke:#333,stroke-width:2px;
     
-    A class:electron
-    C class:electron
-    B class:python
-    D class:db
-    E class:db
+    class A,C electron;
+    class B python;
+    class D,E db;
 ```
 
 ### Communication Flow
