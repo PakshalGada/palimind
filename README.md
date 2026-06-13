@@ -198,17 +198,54 @@ pm email reply 7 --ai-draft "politely decline and suggest Friday instead"
 
 ## 🔧 Environment Variables & Configuration
 
-PaliMind stores its configuration in `~/.palimind/config.json` (or `.palimind/config.json` in the active directory).
+### Config File Locations
 
-**Key Configuration Defaults:**
+PaliMind uses a two-level configuration system:
+
+- **Workspace config** — `.palimind/config.json` in the current directory. Created by `pm init`. Applies only to that project.
+- **Global config** — `~/.palimind/config.json`. Applies as fallback when no workspace config exists.
+
+Workspace config always takes precedence over global.
+
+### Full Config Reference
+
+| Key | Default | Description |
+|---|---|---|
+| `embed_model` | `nomic-embed-text` | Ollama model used for document embeddings |
+| `chat_model` | `gemma4:e2b` | Ollama model used for chat and RAG queries |
+| `ollama_base_url` | `http://127.0.0.1:11434` | URL of the local Ollama instance |
+| `chunk_size` | `1000` | Token size for document chunking |
+| `retrieval_limit` | `10` | Max chunks retrieved per query |
+| `theme` | `teal` | CLI accent color theme |
+
+### CLI Theme
+
+The theme controls the accent color of the startup banner, headers, and prompt glyphs in the terminal.
+
+```bash
+pm config theme <name>
+```
+
+| Theme | Color | Personality |
+|---|---|---|
+| `teal` | Bright cyan | Default — clean, technical |
+| `purple` | Bright magenta | Hacker-core |
+| `amber` | Bright yellow | Retro terminal |
+| `blue` | Bright blue | Calm, professional |
+| `coral` | Bright red | Bold, energetic |
+
+*Note: Theme configuration is per-workspace — different project directories can have different themes. The change takes effect immediately on the next `pm` command, no restart needed.*
+
+### Example Config Block
 
 ```json
 {
   "embed_model": "nomic-embed-text",
   "chat_model": "gemma4:e2b",
-  "ollama_base_url": "https://chubby-camels-design.loca.lt",
+  "ollama_base_url": "http://localhost:11434",
   "chunk_size": 1000,
-  "retrieval_limit": 10
+  "retrieval_limit": 10,
+  "theme": "teal"
 }
 ```
 

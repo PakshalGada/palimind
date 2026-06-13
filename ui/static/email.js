@@ -12,12 +12,12 @@ const EMAIL = {
 
 /* ── Avatar colours (deterministic by initial) ─────── */
 const AVATAR_COLORS = [
-  ["#1a1a2e","#7c3aed"],["#0d1b2a","#2563eb"],["#0f2417","#16a34a"],
-  ["#2a1a1a","#dc2626"],["#1a1a0f","#ca8a04"],["#1a0f1a","#9333ea"],
-  ["#0f1a1a","#0891b2"],["#1a1505","#d97706"],
+  ["#1a1a2e", "#7c3aed"], ["#0d1b2a", "#2563eb"], ["#0f2417", "#16a34a"],
+  ["#2a1a1a", "#dc2626"], ["#1a1a0f", "#ca8a04"], ["#1a0f1a", "#9333ea"],
+  ["#0f1a1a", "#0891b2"], ["#1a1505", "#d97706"],
 ];
 function avatarColors(name) {
-  const i = (name||"?").charCodeAt(0) % AVATAR_COLORS.length;
+  const i = (name || "?").charCodeAt(0) % AVATAR_COLORS.length;
   return AVATAR_COLORS[i];
 }
 
@@ -50,13 +50,13 @@ async function loadFolderBadges() {
   try {
     const r = await fetch("/api/email/folders");
     const d = await r.json();
-    (d.folders||[]).forEach(f => {
+    (d.folders || []).forEach(f => {
       const el = document.querySelector(`[data-folder-badge="${f.id}"]`);
       if (!el) return;
       el.textContent = f.count > 0 ? f.count : "";
       el.classList.toggle("has-count", f.count > 0);
     });
-  } catch (_) {}
+  } catch (_) { }
 }
 
 /* ── Skeleton loader ───────────────────────────────── */
@@ -87,9 +87,9 @@ async function loadEmailList(reset = true) {
 
   // update list title
   const labels = {
-    inbox:"Inbox",unread:"Unread",needs_reply:"Needs Reply",
-    today:"Today",sent:"Sent",drafts:"Drafts",spam:"Spam",
-    newsletters:"Newsletters",archive:"Archive",
+    inbox: "Inbox", unread: "Unread", needs_reply: "Needs Reply",
+    today: "Today", sent: "Sent", drafts: "Drafts", spam: "Spam",
+    newsletters: "Newsletters", archive: "Archive",
   };
   const titleEl = document.getElementById("email-list-title");
   if (titleEl) titleEl.textContent = labels[EMAIL.activeFolder] || EMAIL.activeFolder;
@@ -99,16 +99,16 @@ async function loadEmailList(reset = true) {
     if (EMAIL.searchQuery) {
       const r = await fetch(`/api/email/search?q=${encodeURIComponent(EMAIL.searchQuery)}&limit=80`);
       const d = await r.json();
-      emails = (d.results||[]).map(x => ({
-        id:x.email_id, subject:x.subject||"(no subject)",
-        sender:x.sender||"", sender_name:x.sender_name||x.sender||"",
-        date:x.date||0, summary:x.snippet||"", is_read:true,
-        priority:0, spam_score:0, has_attachments:false,
+      emails = (d.results || []).map(x => ({
+        id: x.email_id, subject: x.subject || "(no subject)",
+        sender: x.sender || "", sender_name: x.sender_name || x.sender || "",
+        date: x.date || 0, summary: x.snippet || "", is_read: true,
+        priority: 0, spam_score: 0, has_attachments: false,
       }));
     } else {
       const p = new URLSearchParams({
-        folder:EMAIL.activeFolder, limit:60,
-        offset:EMAIL.page*60, sort:EMAIL.sortBy,
+        folder: EMAIL.activeFolder, limit: 60,
+        offset: EMAIL.page * 60, sort: EMAIL.sortBy,
       });
       if (EMAIL.activeAccount) p.set("account_label", EMAIL.activeAccount);
       const r = await fetch(`/api/email/list?${p}`);
@@ -119,7 +119,7 @@ async function loadEmailList(reset = true) {
     if (reset) EMAIL.emails = emails;
     else EMAIL.emails.push(...emails);
     renderEmailList();
-  } catch(e) {
+  } catch (e) {
     const list = document.getElementById("email-list-scroll");
     if (list) list.innerHTML = `<div class="email-empty">⚠ ${e.message}</div>`;
   } finally {
@@ -140,19 +140,19 @@ function renderEmailList() {
 
 function buildEmailCard(em) {
   const card = document.createElement("div");
-  card.className = `email-card${!em.is_read ? " unread" : ""}${EMAIL.selectedEmail?.id===em.id ? " active" : ""}`;
+  card.className = `email-card${!em.is_read ? " unread" : ""}${EMAIL.selectedEmail?.id === em.id ? " active" : ""}`;
   card.dataset.emailId = em.id;
 
   const name = em.sender_name || em.sender || "?";
-  const initials = name.slice(0,2).toUpperCase();
+  const initials = name.slice(0, 2).toUpperCase();
   const [bgC, fgC] = avatarColors(name);
   const dateStr = fmtDate(em.date);
   const pri = em.priority || 0;
 
   const badges = [];
-  if (pri >= 80) badges.push(`<span class="email-icon-badge priority-high">🔴 urgent</span>`);
-  else if (pri >= 60) badges.push(`<span class="email-icon-badge priority-med">🟡 high</span>`);
-  if ((em.spam_score||0) >= 70) badges.push(`<span class="email-icon-badge spam-flag">⚠ spam?</span>`);
+  if (pri >= 4) badges.push(`<span class="email-icon-badge priority-high">🔴 urgent</span>`);
+  else if (pri >= 3) badges.push(`<span class="email-icon-badge priority-med">🟡 high</span>`);
+  if ((em.spam_score || 0) >= 70) badges.push(`<span class="email-icon-badge spam-flag">⚠ spam?</span>`);
   if (em.has_attachments) badges.push(`<span class="email-icon-badge attachment">📎</span>`);
 
   card.innerHTML = `
@@ -177,9 +177,9 @@ async function openEmail(id) {
   document.querySelectorAll(".email-card").forEach(c =>
     c.classList.toggle("active", c.dataset.emailId == id)
   );
-  const empty  = document.getElementById("email-viewer-empty");
+  const empty = document.getElementById("email-viewer-empty");
   const viewer = document.getElementById("email-viewer-main");
-  if (empty)  empty.style.display = "none";
+  if (empty) empty.style.display = "none";
   if (viewer) {
     viewer.classList.add("active");
     document.getElementById("email-viewer-body-text").textContent = "";
@@ -195,229 +195,347 @@ async function openEmail(id) {
     if (card) { card.classList.remove("unread"); card.querySelector(".email-unread-dot")?.remove(); }
     renderViewer(em);
     renderAISidebar(em);
-  } catch(e) { toast("Failed to load email: "+e.message, "error"); }
+  } catch (e) { toast("Failed to load email: " + e.message, "error"); }
 }
 
 function renderViewer(em) {
-  const s = (id,v) => { const el=document.getElementById(id); if(el) el.innerHTML=v; };
+  const s = (id, v) => { const el = document.getElementById(id); if (el) el.innerHTML = v; };
   s("email-viewer-subject", esc(em.subject));
-  s("email-viewer-from", `From: <span>${esc(em.sender_name||em.sender)}</span> &lt;${esc(em.sender)}&gt;`);
-  s("email-viewer-to",   `To: <span>${esc(em.recipients||"")}</span>`);
+  s("email-viewer-from", `From: <span>${esc(em.sender_name || em.sender)}</span> &lt;${esc(em.sender)}&gt;`);
+  s("email-viewer-to", `To: <span>${esc(em.recipients || "")}</span>`);
   const ccEl = document.getElementById("email-viewer-cc");
   if (ccEl) { ccEl.style.display = em.cc ? "" : "none"; ccEl.innerHTML = em.cc ? `CC: <span>${esc(em.cc)}</span>` : ""; }
   const dateEl = document.getElementById("email-viewer-date");
-  if (dateEl) dateEl.textContent = em.date ? new Date(em.date*1000).toLocaleString() : "";
+  if (dateEl) dateEl.textContent = em.date ? new Date(em.date * 1000).toLocaleString() : "";
   const bodyEl = document.getElementById("email-viewer-body-text");
-  if (bodyEl) { bodyEl.classList.remove("loading-shimmer"); bodyEl.textContent = em.body_text||"(no body)"; }
+  if (bodyEl) {
+    bodyEl.classList.remove("loading-shimmer");
+
+    // Add target="_blank" hook to DOMPurify if not added
+    if (!DOMPurify.isHookAdded) {
+      DOMPurify.addHook("afterSanitizeAttributes", function (node) {
+        if ("target" in node) {
+          node.setAttribute("target", "_blank");
+          node.setAttribute("rel", "noopener noreferrer");
+        }
+      });
+      DOMPurify.isHookAdded = true;
+    }
+
+    if (em.body_html) {
+      bodyEl.innerHTML = `<div class="email-render-frame">${DOMPurify.sanitize(em.body_html)}</div>`;
+    } else if (em.body_text) {
+      const escaped = esc(em.body_text).replace(/\n/g, "<br/>");
+      bodyEl.innerHTML = `<div class="email-body-text email-render-frame">${escaped}</div>`;
+    } else {
+      bodyEl.textContent = "(no body)";
+    }
+  }
   const attEl = document.getElementById("email-viewer-attachments");
   if (attEl) {
     if (em.attachments?.length) {
-      attEl.innerHTML = em.attachments.map(a=>`<div class="attachment-chip">📎 ${esc(a.filename)} <span>(${fmtBytes(a.size_bytes)})</span></div>`).join("");
+      attEl.innerHTML = em.attachments.map(a => `<div class="attachment-chip">📎 ${esc(a.filename)} <span>(${fmtBytes(a.size_bytes)})</span></div>`).join("");
       attEl.style.display = "flex";
     } else { attEl.style.display = "none"; }
   }
 }
 
 function renderAISidebar(em) {
-  const p2 = em.p2_meta||{};
-  const s = (id,v) => { const el=document.getElementById(id); if(el) el.innerHTML=v||'<span style="color:var(--text-muted)">—</span>'; };
-  s("ai-summary",       esc(em.summary||""));
-  s("ai-priority-exp",  em.priority ? `Score: ${em.priority}/100` : "");
-  s("ai-tags",          em.tags ? em.tags.split(",").map(t=>`<span class="email-icon-badge">${esc(t.trim())}</span>`).join(" ") : "");
-  s("ai-needs-reply",   p2.needs_reply ? `<span class="email-icon-badge priority-high">Reply needed</span> ${esc(p2.reply_reason||"")}` : "No reply needed");
-  s("ai-spam",          (p2.spam_status && p2.spam_status!=="safe") ? `<span class="email-icon-badge spam-flag">${esc(p2.spam_status)}</span> ${esc(p2.spam_reason||"")}` : "Clean");
-  s("ai-suggested-reply","AI reply available – click Insert below.");
+  const p2 = em.p2_meta || {};
+  const s = (id, v) => { const el = document.getElementById(id); if (el) el.innerHTML = v || '<span style="color:var(--text-muted)">—</span>'; };
+  s("ai-summary", esc(em.summary || ""));
+  s("ai-priority-exp", em.priority ? `Score: ${em.priority}/5` : "");
+  s("ai-tags", em.tags ? em.tags.split(",").map(t => `<span class="email-icon-badge">${esc(t.trim())}</span>`).join(" ") : "");
+  s("ai-needs-reply", p2.needs_reply ? `<span class="email-icon-badge priority-high">Reply needed</span> ${esc(p2.reply_reason || "")}` : "No reply needed");
+  s("ai-spam", (p2.spam_status && p2.spam_status !== "safe") ? `<span class="email-icon-badge spam-flag">${esc(p2.spam_status)}</span> ${esc(p2.spam_reason || "")}` : "Clean");
+  s("ai-suggested-reply", "AI reply available – click Insert below.");
   const btn = document.getElementById("ai-insert-reply-btn");
   if (btn) btn.dataset.emailId = em.id;
+
+  const analyzeBtn = document.getElementById("ai-drawer-analyze-btn");
+  if (analyzeBtn) {
+    analyzeBtn.style.display = "inline-block";
+    analyzeBtn.onclick = () => analyzeEmail(em.id);
+    if (!em.summary && !em.tags && !em.priority) {
+      analyzeBtn.textContent = "Generate";
+    } else {
+      analyzeBtn.textContent = "Regenerate";
+    }
+  }
+}
+
+async function analyzeEmail(emailId) {
+  const btn = document.getElementById("ai-drawer-analyze-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Analyzing..."; }
+  try {
+    const res = await fetch(`/api/email/analyze/${emailId}`, { method: "POST" });
+    if (!res.ok) throw new Error(await res.text());
+    toast("AI analysis complete! Reloading...", "success");
+    // Reload currently selected email
+    if (EMAIL.selectedEmail?.id === emailId) {
+      await openEmail(emailId);
+    }
+  } catch (err) {
+    console.error(err);
+    toast("Failed to analyze email", "error");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Generate"; }
+  }
 }
 
 /* ── Compose ───────────────────────────────────────── */
-function openCompose(replyTo=null) {
-  EMAIL.composeReplyId = replyTo?.id||null;
+function openCompose(replyTo = null) {
+  EMAIL.composeReplyId = replyTo?.id || null;
   document.getElementById("compose-modal-overlay")?.classList.add("open");
   document.getElementById("compose-modal-title").textContent = replyTo ? `Re: ${replyTo.subject}` : "New Message";
-  document.getElementById("compose-to").value      = replyTo?.sender||"";
-  document.getElementById("compose-cc").value      = "";
+  document.getElementById("compose-to").value = replyTo?.sender || "";
+  document.getElementById("compose-cc").value = "";
   document.getElementById("compose-subject").value = replyTo ? `Re: ${replyTo.subject}` : "";
-  document.getElementById("compose-body").value    = "";
+  document.getElementById("compose-body").value = "";
 }
 function closeCompose() { document.getElementById("compose-modal-overlay")?.classList.remove("open"); }
 
 async function sendCompose() {
   const body = document.getElementById("compose-body").value.trim();
-  if (!body) { toast("Body is empty.","error"); return; }
+  if (!body) { toast("Body is empty.", "error"); return; }
   try {
     if (EMAIL.composeReplyId) {
-      const r = await fetch("/api/email/reply",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({email_id:EMAIL.composeReplyId,body,dry_run:false})});
-      const d = await r.json(); if(d.error) throw new Error(d.error);
+      const r = await fetch("/api/email/reply", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email_id: EMAIL.composeReplyId, body, dry_run: false })
+      });
+      const d = await r.json(); if (d.error) throw new Error(d.error);
     } else {
       const to = document.getElementById("compose-to").value.trim();
-      if (!to) { toast("Recipient required.","error"); return; }
+      if (!to) { toast("Recipient required.", "error"); return; }
       const acct = EMAIL.accounts[0]?.label;
-      if (!acct) { toast("No account configured.","error"); return; }
-      const r = await fetch("/api/email/compose",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({account_label:acct,to:[to],
-          subject:document.getElementById("compose-subject").value.trim(),body})});
-      const d = await r.json(); if(d.error) throw new Error(d.error);
+      if (!acct) { toast("No account configured.", "error"); return; }
+      const r = await fetch("/api/email/compose", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          account_label: acct, to: [to],
+          subject: document.getElementById("compose-subject").value.trim(), body
+        })
+      });
+      const d = await r.json(); if (d.error) throw new Error(d.error);
     }
-    closeCompose(); toast("Sent!","success");
-  } catch(e) { toast("Send failed: "+e.message,"error"); }
+    closeCompose(); toast("Sent!", "success");
+  } catch (e) { toast("Send failed: " + e.message, "error"); }
 }
 
 async function aiDraftCompose() {
   const intent = prompt("Describe what you want to write:");
   if (!intent) return;
-  toast("Generating draft…","info");
+  toast("Generating draft…", "info");
   try {
-    const r = await fetch("/api/email/ai/draft",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({intent,recipient:document.getElementById("compose-to").value.trim(),
-        email_id:EMAIL.composeReplyId})});
+    const r = await fetch("/api/email/ai/draft", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        intent, recipient: document.getElementById("compose-to").value.trim(),
+        email_id: EMAIL.composeReplyId
+      })
+    });
     const d = await r.json();
-    if (d.draft) { document.getElementById("compose-body").value=d.draft; toast("Draft ready!","success"); }
-  } catch(e) { toast("Draft failed: "+e.message,"error"); }
+    if (d.draft) { document.getElementById("compose-body").value = d.draft; toast("Draft ready!", "success"); }
+  } catch (e) { toast("Draft failed: " + e.message, "error"); }
 }
 
 /* ── Actions ───────────────────────────────────────── */
 async function archiveEmail(id) {
-  await fetch("/api/email/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email_id:id})});
-  EMAIL.emails = EMAIL.emails.filter(e=>e.id!==id);
-  if (EMAIL.selectedEmail?.id===id) {
-    EMAIL.selectedEmail=null;
+  await fetch("/api/email/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email_id: id }) });
+  EMAIL.emails = EMAIL.emails.filter(e => e.id !== id);
+  if (EMAIL.selectedEmail?.id === id) {
+    EMAIL.selectedEmail = null;
     document.getElementById("email-viewer-main")?.classList.remove("active");
-    document.getElementById("email-viewer-empty").style.display="flex";
+    document.getElementById("email-viewer-empty").style.display = "flex";
   }
-  renderEmailList(); toast("Archived.","success");
+  renderEmailList(); toast("Archived.", "success");
 }
 async function markEmailRead(id, isRead) {
-  await fetch(isRead?"/api/email/mark_read":"/api/email/mark_unread",{method:"POST",
-    headers:{"Content-Type":"application/json"},body:JSON.stringify({email_id:id})});
-  const em=EMAIL.emails.find(e=>e.id===id); if(em) em.is_read=isRead;
-  renderEmailList(); toast(isRead?"Marked read.":"Marked unread.","info");
+  await fetch(isRead ? "/api/email/mark_read" : "/api/email/mark_unread", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email_id: id })
+  });
+  const em = EMAIL.emails.find(e => e.id === id); if (em) em.is_read = isRead;
+  renderEmailList(); toast(isRead ? "Marked read." : "Marked unread.", "info");
 }
 async function reminderPrompt(id) {
   const due = prompt("Remind when? (e.g. tomorrow / 2026-06-20):");
   if (!due) return;
-  const r = await fetch("/api/email/reminders",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({email_id:id,due,auto_note:true})});
-  const d=await r.json(); d.error ? toast(d.error,"error") : toast("Reminder set!","success");
+  const r = await fetch("/api/email/reminders", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email_id: id, due, auto_note: true })
+  });
+  const d = await r.json(); d.error ? toast(d.error, "error") : toast("Reminder set!", "success");
 }
 
 /* ── Sync ──────────────────────────────────────────── */
 async function syncEmail() {
-  if (!EMAIL.accounts.length) { toast("No accounts configured.","info"); return; }
-  const btn=document.getElementById("email-sync-btn"); if(btn) btn.textContent="Syncing…";
+  if (!EMAIL.accounts.length) { toast("No accounts configured.", "info"); return; }
+  const btn = document.getElementById("email-sync-btn"); if (btn) btn.textContent = "Syncing…";
   try {
     for (const a of EMAIL.accounts) {
-      await fetch("/api/email/sync",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({account_label:a.label,limit:50,run_ai:true})});
+      await fetch("/api/email/sync", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ account_label: a.label, limit: 50, run_ai: true })
+      });
     }
-    toast("Sync complete!","success");
+    toast("Sync complete!", "success");
     await loadFolderBadges(); await loadEmailList();
-  } catch(e) { toast("Sync error: "+e.message,"error"); }
-  finally { if(btn) btn.textContent="Sync"; }
+  } catch (e) { toast("Sync error: " + e.message, "error"); }
+  finally { if (btn) btn.textContent = "Sync"; }
 }
 
-/* ── Ask inbox ─────────────────────────────────────── */
-async function askInbox() {
-  const inp=document.getElementById("inbox-chat-input"); if(!inp) return;
-  const q=inp.value.trim(); if(!q) return;
-  const res=document.getElementById("inbox-chat-result");
-  if(res){res.textContent="Thinking…";res.classList.add("visible");}
+/* ── Drawers ───────────────────────────────────────── */
+function closeAllDrawers() {
+  document.querySelectorAll('.email-drawer').forEach(d => d.classList.remove('open'));
+}
+
+function openDrawer(id) {
+  closeAllDrawers();
+  const d = document.getElementById(id);
+  if (d) d.classList.add('open');
+}
+
+async function sendChatDrawerMessage() {
+  const inp = document.getElementById("drawer-chat-input");
+  const msgs = document.getElementById("drawer-chat-messages");
+  if (!inp || !msgs) return;
+  const q = inp.value.trim();
+  if (!q) return;
+
+  msgs.innerHTML += `<div class="message user"><div class="message-content">${esc(q)}</div></div>`;
+  inp.value = "";
+  msgs.scrollTop = msgs.scrollHeight;
+
+  const thinkingId = "msg-" + Date.now();
+  msgs.innerHTML += `<div class="message assistant" id="${thinkingId}"><div class="message-content">Thinking…</div></div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+
   try {
-    const r=await fetch("/api/email/ask",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:q})});
-    const d=await r.json();
-    if(res){
-      res.textContent=d.answer||d.error||"No answer.";
-      if(d.citations?.length) res.textContent+="\n\nSources:"+d.citations.map(c=>`\n• [#${c.id}] ${c.subject} — ${c.sender}`).join("");
+    const r = await fetch("/api/email/ask", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: q })
+    });
+    const d = await r.json();
+    const el = document.getElementById(thinkingId);
+    if (el) {
+      let content = esc(d.answer || d.error || "No answer.");
+      if (d.citations?.length) {
+        const citationHTML = d.citations.map(c => `
+          <a href="#" onclick="openEmail(${c.id}); return false;" class="citation-card">
+            <div class="citation-subject">${esc(c.subject || "(no subject)")}</div>
+            <div class="citation-meta">
+              <span class="citation-sender">${esc(c.sender)}</span>
+              <span class="citation-id">#${c.id}</span>
+            </div>
+          </a>
+        `).join("");
+        content += `
+          <div class="citation-section">
+            <div class="citation-header">Sources</div>
+            <div class="citation-list">${citationHTML}</div>
+          </div>
+        `;
+      }
+      el.querySelector(".message-content").innerHTML = content;
     }
-  } catch(e){ if(res) res.textContent="Error: "+e.message; }
-  inp.value="";
+  } catch (e) {
+    const el = document.getElementById(thinkingId);
+    if (el) el.querySelector(".message-content").textContent = "Error: " + e.message;
+  }
+  msgs.scrollTop = msgs.scrollHeight;
 }
 
 /* ── Polling ───────────────────────────────────────── */
-let _poll=null;
-function startEmailPolling(){if(_poll)return;_poll=setInterval(()=>loadFolderBadges(),60000);}
-function stopEmailPolling(){if(_poll){clearInterval(_poll);_poll=null;}}
+let _poll = null;
+function startEmailPolling() { if (_poll) return; _poll = setInterval(() => loadFolderBadges(), 60000); }
+function stopEmailPolling() { if (_poll) { clearInterval(_poll); _poll = null; } }
 
 /* ── Toast ─────────────────────────────────────────── */
-function toast(msg, type="info") {
-  const c=document.getElementById("email-toast-container"); if(!c) return;
-  const t=document.createElement("div"); t.className=`email-toast ${type}`; t.textContent=msg;
+function toast(msg, type = "info") {
+  const c = document.getElementById("email-toast-container"); if (!c) return;
+  const t = document.createElement("div"); t.className = `email-toast ${type}`; t.textContent = msg;
   c.appendChild(t);
-  setTimeout(()=>{t.style.animation="toastOut 0.3s ease forwards";setTimeout(()=>t.remove(),320);},3200);
+  setTimeout(() => { t.style.animation = "toastOut 0.3s ease forwards"; setTimeout(() => t.remove(), 320); }, 3200);
 }
 
 /* ── Helpers ───────────────────────────────────────── */
-function esc(s){if(!s)return"";return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
-function fmtDate(ts){
-  if(!ts)return"";
-  const d=new Date(ts*1000),n=new Date(),h=(n-d)/3600000;
-  if(h<24&&d.getDate()===n.getDate())return d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-  if(h<168)return d.toLocaleDateString([],{weekday:"short"});
-  return d.toLocaleDateString([],{month:"short",day:"numeric"});
+function esc(s) { if (!s) return ""; return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function fmtDate(ts) {
+  if (!ts) return "";
+  const d = new Date(ts * 1000), n = new Date(), h = (n - d) / 3600000;
+  if (h < 24 && d.getDate() === n.getDate()) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (h < 168) return d.toLocaleDateString([], { weekday: "short" });
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
-function fmtBytes(b){if(!b)return"0 B";if(b<1024)return b+" B";if(b<1048576)return(b/1024).toFixed(1)+" KB";return(b/1048576).toFixed(1)+" MB";}
+function fmtBytes(b) { if (!b) return "0 B"; if (b < 1024) return b + " B"; if (b < 1048576) return (b / 1024).toFixed(1) + " KB"; return (b / 1048576).toFixed(1) + " MB"; }
 
 /* ── Wire DOM events ───────────────────────────────── */
 function wireEmailEvents() {
   // folders
-  document.querySelectorAll(".folder-item").forEach(el=>{
-    el.addEventListener("click",()=>{
-      document.querySelectorAll(".folder-item").forEach(f=>f.classList.remove("active"));
+  document.querySelectorAll(".folder-item").forEach(el => {
+    el.addEventListener("click", () => {
+      document.querySelectorAll(".folder-item").forEach(f => f.classList.remove("active"));
       el.classList.add("active");
-      EMAIL.activeFolder=el.dataset.folder; EMAIL.searchQuery="";
-      const si=document.getElementById("email-search-input"); if(si) si.value="";
+      EMAIL.activeFolder = el.dataset.folder; EMAIL.searchQuery = "";
+      const si = document.getElementById("email-search-input"); if (si) si.value = "";
       loadEmailList();
     });
   });
   // search
-  document.getElementById("email-search-input")?.addEventListener("input",e=>{
+  document.getElementById("email-search-input")?.addEventListener("input", e => {
     clearTimeout(EMAIL.searchDebounce);
-    EMAIL.searchDebounce=setTimeout(()=>{EMAIL.searchQuery=e.target.value.trim();loadEmailList();},380);
+    EMAIL.searchDebounce = setTimeout(() => { EMAIL.searchQuery = e.target.value.trim(); loadEmailList(); }, 380);
   });
   // account
-  document.getElementById("email-account-sel")?.addEventListener("change",e=>{
-    EMAIL.activeAccount=e.target.value||null; loadEmailList();
+  document.getElementById("email-account-sel")?.addEventListener("change", e => {
+    EMAIL.activeAccount = e.target.value || null; loadEmailList();
   });
   // toolbar
-  document.getElementById("email-sync-btn")?.addEventListener("click",syncEmail);
-  document.getElementById("email-compose-btn")?.addEventListener("click",()=>openCompose());
+  document.getElementById("email-sync-btn")?.addEventListener("click", syncEmail);
+  document.getElementById("email-compose-btn")?.addEventListener("click", () => openCompose());
   // compose
-  document.getElementById("compose-close-btn")?.addEventListener("click",closeCompose);
-  document.getElementById("compose-send-btn")?.addEventListener("click",sendCompose);
-  document.getElementById("compose-draft-btn")?.addEventListener("click",aiDraftCompose);
-  document.getElementById("compose-cancel-btn")?.addEventListener("click",closeCompose);
-  document.getElementById("compose-modal-overlay")?.addEventListener("click",e=>{if(e.target.id==="compose-modal-overlay")closeCompose();});
+  document.getElementById("compose-close-btn")?.addEventListener("click", closeCompose);
+  document.getElementById("compose-send-btn")?.addEventListener("click", sendCompose);
+  document.getElementById("compose-draft-btn")?.addEventListener("click", aiDraftCompose);
+  document.getElementById("compose-cancel-btn")?.addEventListener("click", closeCompose);
+  document.getElementById("compose-modal-overlay")?.addEventListener("click", e => { if (e.target.id === "compose-modal-overlay") closeCompose(); });
   // viewer actions
-  document.getElementById("email-action-reply")?.addEventListener("click",()=>EMAIL.selectedEmail&&openCompose(EMAIL.selectedEmail));
-  document.getElementById("email-action-reply-all")?.addEventListener("click",()=>EMAIL.selectedEmail&&openCompose(EMAIL.selectedEmail));
-  document.getElementById("email-action-archive")?.addEventListener("click",()=>EMAIL.selectedEmail&&archiveEmail(EMAIL.selectedEmail.id));
-  document.getElementById("email-action-mark-read")?.addEventListener("click",()=>EMAIL.selectedEmail&&markEmailRead(EMAIL.selectedEmail.id,true));
-  document.getElementById("email-action-mark-unread")?.addEventListener("click",()=>EMAIL.selectedEmail&&markEmailRead(EMAIL.selectedEmail.id,false));
-  document.getElementById("email-action-remind")?.addEventListener("click",()=>EMAIL.selectedEmail&&reminderPrompt(EMAIL.selectedEmail.id));
-  document.getElementById("email-action-delete")?.addEventListener("click",()=>{if(EMAIL.selectedEmail&&confirm("Delete?"))archiveEmail(EMAIL.selectedEmail.id);});
+  document.getElementById("email-action-reply")?.addEventListener("click", () => EMAIL.selectedEmail && openCompose(EMAIL.selectedEmail));
+  document.getElementById("email-action-reply-all")?.addEventListener("click", () => EMAIL.selectedEmail && openCompose(EMAIL.selectedEmail));
+  document.getElementById("email-action-archive")?.addEventListener("click", () => EMAIL.selectedEmail && archiveEmail(EMAIL.selectedEmail.id));
+  document.getElementById("email-action-mark-read")?.addEventListener("click", () => EMAIL.selectedEmail && markEmailRead(EMAIL.selectedEmail.id, true));
+  document.getElementById("email-action-mark-unread")?.addEventListener("click", () => EMAIL.selectedEmail && markEmailRead(EMAIL.selectedEmail.id, false));
+  document.getElementById("email-action-remind")?.addEventListener("click", () => EMAIL.selectedEmail && reminderPrompt(EMAIL.selectedEmail.id));
+  document.getElementById("email-action-delete")?.addEventListener("click", () => { if (EMAIL.selectedEmail && confirm("Delete?")) archiveEmail(EMAIL.selectedEmail.id); });
   // AI insert
-  document.getElementById("ai-insert-reply-btn")?.addEventListener("click",async()=>{
-    if(!EMAIL.selectedEmail)return;
-    openCompose(EMAIL.selectedEmail); toast("Generating AI reply…","info");
-    try{
-      const r=await fetch("/api/email/ai/draft",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email_id:EMAIL.selectedEmail.id,intent:"helpful professional reply"})});
-      const d=await r.json(); if(d.draft){document.getElementById("compose-body").value=d.draft;toast("Draft inserted!","success");}
-    }catch(_){}
+  document.getElementById("ai-insert-reply-btn")?.addEventListener("click", async () => {
+    if (!EMAIL.selectedEmail) return;
+    openCompose(EMAIL.selectedEmail); toast("Generating AI reply…", "info");
+    try {
+      const r = await fetch("/api/email/ai/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email_id: EMAIL.selectedEmail.id, intent: "helpful professional reply" }) });
+      const d = await r.json(); if (d.draft) { document.getElementById("compose-body").value = d.draft; toast("Draft inserted!", "success"); }
+    } catch (_) { }
   });
-  // old inline ask (keep for backward compat)
-  document.getElementById("inbox-chat-send-btn")?.addEventListener("click",askInbox);
-  document.getElementById("inbox-chat-input")?.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();askInbox();}});
+  // Drawer toggles
+  document.getElementById("email-ask-palimind-btn")?.addEventListener("click", () => openDrawer("email-chat-drawer"));
+  document.getElementById("email-ai-insights-btn")?.addEventListener("click", () => openDrawer("email-ai-drawer"));
+  document.getElementById("ai-drawer-close")?.addEventListener("click", closeAllDrawers);
+  document.getElementById("chat-drawer-close")?.addEventListener("click", closeAllDrawers);
+  document.getElementById("drawer-chat-send-btn")?.addEventListener("click", sendChatDrawerMessage);
+  document.getElementById("drawer-chat-input")?.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChatDrawerMessage(); }
+  });
   // sort
-  document.getElementById("email-sort-btn")?.addEventListener("click",()=>{
-    EMAIL.sortBy=EMAIL.sortBy==="date"?"priority":"date";
-    const b=document.getElementById("email-sort-btn");if(b)b.textContent=EMAIL.sortBy==="date"?"↓ Date":"↓ Priority";
+  document.getElementById("email-sort-btn")?.addEventListener("click", () => {
+    EMAIL.sortBy = EMAIL.sortBy === "date" ? "priority" : "date";
+    const b = document.getElementById("email-sort-btn"); if (b) b.textContent = EMAIL.sortBy === "date" ? "↓ Date" : "↓ Priority";
     loadEmailList();
   });
   // infinite scroll
-  document.getElementById("email-list-scroll")?.addEventListener("scroll",function(){
-    if(this.scrollTop+this.clientHeight>=this.scrollHeight-120&&!EMAIL.loading&&EMAIL.emails.length>=60){
+  document.getElementById("email-list-scroll")?.addEventListener("scroll", function () {
+    if (this.scrollTop + this.clientHeight >= this.scrollHeight - 120 && !EMAIL.loading && EMAIL.emails.length >= 60) {
       EMAIL.page++; loadEmailList(false);
     }
   });
@@ -425,69 +543,32 @@ function wireEmailEvents() {
   // ── Accounts panel ────────────────────────────────
   document.getElementById("email-accounts-btn")?.addEventListener("click", openAccountsPanel);
   document.getElementById("email-accounts-panel-close")?.addEventListener("click", closeAccountsPanel);
-  document.getElementById("email-accounts-panel")?.addEventListener("click", e=>{if(e.target.id==="email-accounts-panel")closeAccountsPanel();});
+  document.getElementById("email-accounts-panel")?.addEventListener("click", e => { if (e.target.id === "email-accounts-panel") closeAccountsPanel(); });
   document.getElementById("accounts-panel-add-btn")?.addEventListener("click", openAddAccount);
 
   // ── Add Account modal ──────────────────────────────
   document.getElementById("add-account-close-btn")?.addEventListener("click", closeAddAccount);
   document.getElementById("add-account-cancel-btn")?.addEventListener("click", closeAddAccount);
-  document.getElementById("add-account-modal-overlay")?.addEventListener("click", e=>{if(e.target.id==="add-account-modal-overlay")closeAddAccount();});
+  document.getElementById("add-account-modal-overlay")?.addEventListener("click", e => { if (e.target.id === "add-account-modal-overlay") closeAddAccount(); });
   document.getElementById("add-account-save-btn")?.addEventListener("click", saveAccount);
 
 
-  document.getElementById("email-ask-btn")?.addEventListener("click", openAskPanel);
+  document.getElementById("email-ask-btn")?.addEventListener("click", () => openDrawer("email-chat-drawer"));
   document.getElementById("email-stats-btn")?.addEventListener("click", openStatsPanel);
   document.getElementById("email-scan-spam-btn")?.addEventListener("click", scanSpam);
   document.getElementById("email-scan-reply-btn")?.addEventListener("click", scanNeedsReply);
   document.getElementById("email-watch-btn")?.addEventListener("click", toggleWatch);
 
-  // Ask panel wiring
-  document.getElementById("email-ask-panel-close")?.addEventListener("click", closeAskPanel);
-  document.getElementById("email-ask-panel")?.addEventListener("click", e=>{if(e.target.id==="email-ask-panel")closeAskPanel();});
-  document.getElementById("ask-panel-send-btn")?.addEventListener("click", sendAskPanel);
-  document.getElementById("ask-panel-input")?.addEventListener("keydown", e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendAskPanel();}});
-
   // Stats panel wiring
   document.getElementById("email-stats-panel-close")?.addEventListener("click", closeStatsPanel);
-  document.getElementById("email-stats-panel")?.addEventListener("click", e=>{if(e.target.id==="email-stats-panel")closeStatsPanel();});
+  document.getElementById("email-stats-panel")?.addEventListener("click", e => { if (e.target.id === "email-stats-panel") closeStatsPanel(); });
 }
 
 /* ═══════════════════════════════════════════════════
    NEW FEATURES
    ═══════════════════════════════════════════════════ */
 
-/* ── Ask Inbox Panel ─────────────────────────────── */
-function openAskPanel() {
-  const p = document.getElementById("email-ask-panel");
-  if (p) { p.style.display = "flex"; document.getElementById("ask-panel-input")?.focus(); }
-}
-function closeAskPanel() {
-  const p = document.getElementById("email-ask-panel"); if (p) p.style.display = "none";
-}
-async function sendAskPanel() {
-  const inp = document.getElementById("ask-panel-input"); if (!inp) return;
-  const q = inp.value.trim(); if (!q) return;
-  const res = document.getElementById("ask-panel-result");
-  const cit = document.getElementById("ask-panel-citations");
-  if (res) { res.textContent = "⏳ Thinking…"; }
-  if (cit) { cit.innerHTML = ""; }
-  try {
-    const r = await fetch("/api/email/ask", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({question: q})
-    });
-    const d = await r.json();
-    if (res) res.textContent = d.answer || d.error || "No answer.";
-    if (cit && d.citations?.length) {
-      cit.innerHTML = d.citations.map(c =>
-        `<span class="citation-chip" title="${esc(c.sender)}">[#${c.id}] ${esc((c.subject||"").slice(0,35))}</span>`
-      ).join("");
-    }
-  } catch(e) {
-    if (res) res.textContent = "Error: " + e.message;
-  }
-  inp.value = "";
-}
+/* ── (Removed old ask panel logic) ─────────────────────────────── */
 
 /* ── Stats Panel ─────────────────────────────────── */
 function openStatsPanel() {
@@ -544,7 +625,7 @@ async function loadStats() {
         <div class="stats-section-title">Top Contacts</div>
         ${s.top_contacts.map(([addr, name, count]) => `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-color);font-size:0.8rem;">
-            <span style="color:var(--text-main)">${esc(name||addr)}</span>
+            <span style="color:var(--text-main)">${esc(name || addr)}</span>
             <span style="color:var(--text-muted)">${count} emails</span>
           </div>`).join("")}
       ` : ""}
@@ -553,7 +634,7 @@ async function loadStats() {
         ${s.last_sync_at ? ` · Last sync: ${fmtDate(s.last_sync_at)}` : ""}
       </div>
     `;
-  } catch(e) {
+  } catch (e) {
     body.innerHTML = `<div class="email-stats-loading">Error: ${esc(e.message)}</div>`;
   }
 }
@@ -563,14 +644,14 @@ async function scanSpam() {
   const btn = document.getElementById("email-scan-spam-btn"); if (!btn) return;
   btn.textContent = "Scanning…"; btn.disabled = true;
   try {
-    const r = await fetch("/api/email/spam/scan", {method:"POST"});
+    const r = await fetch("/api/email/spam/scan", { method: "POST" });
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     toast(`Spam scan done — ${d.flagged ?? 0} flagged`, "success");
     await loadFolderBadges();
     // If already on spam folder, reload
     if (EMAIL.activeFolder === "spam") loadEmailList();
-  } catch(e) {
+  } catch (e) {
     toast("Spam scan failed: " + e.message, "error");
   } finally {
     btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Scan Spam`;
@@ -584,13 +665,13 @@ async function scanNeedsReply() {
   btn.textContent = "Scanning…"; btn.disabled = true;
   try {
     // Reuse newsletters scan endpoint pattern — call p2 scan via spam router
-    const r = await fetch("/api/email/p2/scan-reply", {method:"POST"});
+    const r = await fetch("/api/email/p2/scan-reply", { method: "POST" });
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     toast(`Reply scan done — ${d.flagged ?? 0} need reply`, "success");
     await loadFolderBadges();
     if (EMAIL.activeFolder === "needs_reply") loadEmailList();
-  } catch(e) {
+  } catch (e) {
     // fallback — server may not expose p2 endpoint yet
     toast("Reply scan not available yet. Run 'pm email scan-reply' from terminal.", "info");
   } finally {
@@ -622,13 +703,13 @@ function startWatch() {
       const accounts = EMAIL.accounts;
       for (const a of accounts) {
         await fetch("/api/email/sync", {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({account_label:a.label, limit:10, run_ai:false})
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ account_label: a.label, limit: 10, run_ai: false })
         });
       }
       await loadFolderBadges();
-      if (txt) txt.textContent = `Watching · ${new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}`;
-    } catch(_) {
+      if (txt) txt.textContent = `Watching · ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+    } catch (_) {
       if (txt) txt.textContent = "Watch error";
     }
   }, 60000);
@@ -675,8 +756,8 @@ async function renderAccountsPanel() {
       return;
     }
     body.innerHTML = accounts.map(a => {
-      const initial = (a.label||a.email||"?").slice(0,2).toUpperCase();
-      const [bgC, fgC] = avatarColors(a.label||a.email);
+      const initial = (a.label || a.email || "?").slice(0, 2).toUpperCase();
+      const [bgC, fgC] = avatarColors(a.label || a.email);
       return `
         <div class="acct-card" data-acct-label="${esc(a.label)}">
           <div class="acct-card-left">
@@ -702,7 +783,7 @@ async function renderAccountsPanel() {
       <div style="padding:14px 0 4px;font-size:0.72rem;color:var(--text-muted);border-top:1px solid var(--border-color);margin-top:8px">
         Credentials are encrypted with Fernet and stored locally in <code style="font-family:monospace">~/.palimind/email.db</code>.
       </div>`;
-  } catch(e) {
+  } catch (e) {
     body.innerHTML = `<div class="email-stats-loading">⚠ ${esc(e.message)}</div>`;
   }
 }
@@ -712,14 +793,14 @@ async function syncAccountFrom(label) {
   btn.textContent = "Syncing…"; btn.disabled = true;
   try {
     const r = await fetch("/api/email/sync", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({account_label:label, limit:50, run_ai:true})
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ account_label: label, limit: 50, run_ai: true })
     });
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     toast(`Synced ${d.stored ?? 0} new emails from ${label}`, "success");
     await loadFolderBadges(); await loadEmailList();
-  } catch(e) {
+  } catch (e) {
     toast("Sync failed: " + e.message, "error");
   } finally {
     btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Sync`;
@@ -745,7 +826,7 @@ async function deleteAccount(label) {
     renderAccountsPanel();
     await loadFolderBadges();
     await loadEmailList();
-  } catch(e) {
+  } catch (e) {
     toast("Delete failed: " + e.message, "error");
   }
 }
@@ -765,11 +846,11 @@ function closeAddAccount() {
 }
 
 const PROVIDER_PRESETS = {
-  gmail:    { imap_host:"imap.gmail.com",         imap_port:993, smtp_host:"smtp.gmail.com",         smtp_port:465 },
-  outlook:  { imap_host:"outlook.office365.com",  imap_port:993, smtp_host:"smtp.office365.com",     smtp_port:587 },
-  yahoo:    { imap_host:"imap.mail.yahoo.com",    imap_port:993, smtp_host:"smtp.mail.yahoo.com",    smtp_port:465 },
-  fastmail: { imap_host:"imap.fastmail.com",      imap_port:993, smtp_host:"smtp.fastmail.com",      smtp_port:465 },
-  proton:   { imap_host:"127.0.0.1",              imap_port:1143, smtp_host:"127.0.0.1",             smtp_port:1025 },
+  gmail: { imap_host: "imap.gmail.com", imap_port: 993, smtp_host: "smtp.gmail.com", smtp_port: 465 },
+  outlook: { imap_host: "outlook.office365.com", imap_port: 993, smtp_host: "smtp.office365.com", smtp_port: 587 },
+  yahoo: { imap_host: "imap.mail.yahoo.com", imap_port: 993, smtp_host: "smtp.mail.yahoo.com", smtp_port: 465 },
+  fastmail: { imap_host: "imap.fastmail.com", imap_port: 993, smtp_host: "smtp.fastmail.com", smtp_port: 465 },
+  proton: { imap_host: "127.0.0.1", imap_port: 1143, smtp_host: "127.0.0.1", smtp_port: 1025 },
 };
 
 function acctPreset(provider) {
@@ -784,21 +865,21 @@ function acctPreset(provider) {
 }
 
 async function saveAccount() {
-  const label    = document.getElementById("acct-label").value.trim();
-  const email    = document.getElementById("acct-email").value.trim();
+  const label = document.getElementById("acct-label").value.trim();
+  const email = document.getElementById("acct-email").value.trim();
   const password = document.getElementById("acct-password").value;
   const imapHost = document.getElementById("acct-imap-host").value.trim();
   const imapPort = parseInt(document.getElementById("acct-imap-port").value) || 993;
   const smtpHost = document.getElementById("acct-smtp-host").value.trim();
   const smtpPort = parseInt(document.getElementById("acct-smtp-port").value) || 465;
   const username = document.getElementById("acct-username").value.trim();
-  const useSsl   = document.getElementById("acct-ssl").checked;
+  const useSsl = document.getElementById("acct-ssl").checked;
   const testConn = document.getElementById("acct-test").checked;
 
   const status = document.getElementById("add-account-status");
 
-  if (!label)    { status.textContent = "⚠ Label is required."; return; }
-  if (!email)    { status.textContent = "⚠ Email address is required."; return; }
+  if (!label) { status.textContent = "⚠ Label is required."; return; }
+  if (!email) { status.textContent = "⚠ Email address is required."; return; }
   if (!password) { status.textContent = "⚠ Password is required."; return; }
   if (!imapHost) { status.textContent = "⚠ IMAP host is required."; return; }
   if (!smtpHost) { status.textContent = "⚠ SMTP host is required."; return; }
@@ -810,11 +891,11 @@ async function saveAccount() {
   try {
     const r = await fetch("/api/email/accounts", {
       method: "POST",
-      headers: {"Content-Type": "application/json"},
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        label, email_address:email, password,
-        imap_host:imapHost, imap_port:imapPort,
-        smtp_host:smtpHost, smtp_port:smtpPort,
+        label, email_address: email, password,
+        imap_host: imapHost, imap_port: imapPort,
+        smtp_host: smtpHost, smtp_port: smtpPort,
         username: username || null,
         use_ssl: useSsl,
         test_connection: testConn,
@@ -825,8 +906,8 @@ async function saveAccount() {
     toast(`Account "${label}" added successfully!`, "success");
     closeAddAccount();
     // Clear form
-    ["acct-label","acct-email","acct-password","acct-imap-host","acct-smtp-host","acct-username"].forEach(id=>{
-      const el = document.getElementById(id); if(el) el.value = "";
+    ["acct-label", "acct-email", "acct-password", "acct-imap-host", "acct-smtp-host", "acct-username"].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = "";
     });
     document.getElementById("acct-imap-port").value = "993";
     document.getElementById("acct-smtp-port").value = "465";
@@ -834,7 +915,7 @@ async function saveAccount() {
     await loadEmailAccounts();
     // Offer sync
     toast(`Run Sync or open Accounts to sync "${label}"`, "info");
-  } catch(e) {
+  } catch (e) {
     status.textContent = "⚠ " + e.message;
     status.style.color = "#f87171";
   } finally {

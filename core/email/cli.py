@@ -25,7 +25,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from core.cli.ui import console, print_error, print_header, print_info, print_success
+from core.cli.ui import console, print_error, print_header, print_info, print_success, create_progress
 from core.email.exceptions import EmailError
 
 app = typer.Typer(
@@ -190,7 +190,7 @@ def list_accounts():
         print_info("No email accounts configured. Run 'pm email add' to add one.")
         return
 
-    table = Table(box=box.ROUNDED, show_header=True, header_style="bold cyan")
+    table = Table(box=box.SIMPLE, show_header=True, header_style="bold dim")
     table.add_column("#", justify="right", style="cyan", width=4)
     table.add_column("Label", style="bold")
     table.add_column("Email", style="cyan")
@@ -280,14 +280,7 @@ def sync(
         fetch_task = None
         ai_task = None
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            console=console,
-            transient=False,
-        ) as progress:
+        with create_progress() as progress:
 
             def on_progress(phase: str, current: int, total: int) -> None:
                 nonlocal fetch_task, ai_task
@@ -363,7 +356,7 @@ def list_emails(
         print_info("No emails found. Run 'pm email sync' to fetch emails.")
         return
 
-    table = Table(box=box.SIMPLE_HEAVY, show_header=True, header_style="bold cyan", expand=True)
+    table = Table(box=box.SIMPLE, show_header=True, header_style="bold dim", expand=True)
     table.add_column("#", justify="right", style="cyan", width=5)
     table.add_column("●", width=2)
     table.add_column("Account", max_width=12, style="yellow", no_wrap=True)
@@ -425,7 +418,7 @@ def unread(
         print_info("No unread emails.")
         return
 
-    table = Table(box=box.SIMPLE_HEAVY, show_header=True, header_style="bold cyan", expand=True)
+    table = Table(box=box.SIMPLE, show_header=True, header_style="bold dim", expand=True)
     table.add_column("#", justify="right", style="cyan", width=5)
     table.add_column("From", max_width=22)
     table.add_column("Subject", max_width=36)
@@ -541,7 +534,7 @@ def search(
         print_info("No matching emails found.")
         return
 
-    table = Table(box=box.SIMPLE_HEAVY, show_header=True, header_style="bold cyan", expand=True)
+    table = Table(box=box.SIMPLE, show_header=True, header_style="bold dim", expand=True)
     table.add_column("#", justify="right", style="cyan", width=5)
     table.add_column("Score", justify="right", width=7)
     table.add_column("From", max_width=20)
