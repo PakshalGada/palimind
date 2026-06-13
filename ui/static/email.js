@@ -150,8 +150,8 @@ function buildEmailCard(em) {
   const pri = em.priority || 0;
 
   const badges = [];
-  if (pri >= 80) badges.push(`<span class="email-icon-badge priority-high">🔴 urgent</span>`);
-  else if (pri >= 60) badges.push(`<span class="email-icon-badge priority-med">🟡 high</span>`);
+  if (pri >= 4) badges.push(`<span class="email-icon-badge priority-high">🔴 urgent</span>`);
+  else if (pri >= 3) badges.push(`<span class="email-icon-badge priority-med">🟡 high</span>`);
   if ((em.spam_score || 0) >= 70) badges.push(`<span class="email-icon-badge spam-flag">⚠ spam?</span>`);
   if (em.has_attachments) badges.push(`<span class="email-icon-badge attachment">📎</span>`);
 
@@ -244,7 +244,7 @@ function renderAISidebar(em) {
   const p2 = em.p2_meta || {};
   const s = (id, v) => { const el = document.getElementById(id); if (el) el.innerHTML = v || '<span style="color:var(--text-muted)">—</span>'; };
   s("ai-summary", esc(em.summary || ""));
-  s("ai-priority-exp", em.priority ? `Score: ${em.priority}/100` : "");
+  s("ai-priority-exp", em.priority ? `Score: ${em.priority}/5` : "");
   s("ai-tags", em.tags ? em.tags.split(",").map(t => `<span class="email-icon-badge">${esc(t.trim())}</span>`).join(" ") : "");
   s("ai-needs-reply", p2.needs_reply ? `<span class="email-icon-badge priority-high">Reply needed</span> ${esc(p2.reply_reason || "")}` : "No reply needed");
   s("ai-spam", (p2.spam_status && p2.spam_status !== "safe") ? `<span class="email-icon-badge spam-flag">${esc(p2.spam_status)}</span> ${esc(p2.spam_reason || "")}` : "Clean");
