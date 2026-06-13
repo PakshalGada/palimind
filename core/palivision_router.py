@@ -52,6 +52,8 @@ class PalivisionRequest(BaseModel):
     chat_model: str = DEFAULT_CHAT_MODEL
     # Web search toggle
     web_search: bool = False
+    # Prior conversation history
+    messages: list[dict] = []
 
 
 @router.post("/analyze")
@@ -133,22 +135,23 @@ async def analyze_screen(req: PalivisionRequest):
                 except Exception:
                     pass
 
+            ollama_messages = [{"role": "system", "content": system_prompt}]
+            
+            for prior in req.messages:
+                role = prior.get("role")
+                content = prior.get("content", "")
+                if role in ("user", "assistant") and content:
+                    ollama_messages.append({"role": role, "content": content})
+                    
+            ollama_messages.append({"role": "user", "content": req.user_prompt})
+
             async with httpx.AsyncClient(timeout=120.0) as client:
                 async with client.stream(
                     "POST",
                     f"{_ollama_url}/api/chat",
                     json={
                         "model": req.chat_model,
-                        "messages": [
-                            {
-                                "role": "system",
-                                "content": system_prompt
-                            },
-                            {
-                                "role": "user",
-                                "content": req.user_prompt
-                            }
-                        ],
+                        "messages": ollama_messages,
                         "stream": True
                     }
                 ) as response:
@@ -233,6 +236,7 @@ class GlanceSessionSaveRequest(BaseModel):
     screen_summary: str = ""      # OCR/vision summary — for memory retrieval
     screenshot_b64: str = ""      # Raw base64 PNG of the captured screen
     ocr_text: str = ""            # Full OCR text extracted from screen
+    chat_model: str = ""          # NEW: Selected Ollama chat model
 
 
 @router.post("/session/save")
@@ -253,6 +257,8 @@ async def save_glance_session(req: GlanceSessionSaveRequest):
             existing["screenshot_b64"] = req.screenshot_b64
         if req.ocr_text:
             existing["ocr_text"] = req.ocr_text
+        if req.chat_model:
+            existing["chat_model"] = req.chat_model
     else:
         data["sessions"].insert(0, {
             "id": req.session_id,
@@ -261,6 +267,7 @@ async def save_glance_session(req: GlanceSessionSaveRequest):
             "screen_summary": req.screen_summary,
             "screenshot_b64": req.screenshot_b64,
             "ocr_text": req.ocr_text,
+            "chat_model": req.chat_model,
             "created_at": int(time.time()),
             "updated_at": int(time.time()),
         })
@@ -273,6 +280,14 @@ async def get_glance_sessions():
     """Return all saved PaliGlance sessions for the PaliSpace sidebar."""
     data = load_glance_sessions()
     return data
+
+
+@router.delete("/session/{session_id}")
+async def delete_glance_session(session_id: str):
+    data = load_glance_sessions()
+    data["sessions"] = [s for s in data["sessions"] if s["id"] != session_id]
+    save_glance_sessions(data)
+    return {"status": "deleted"}
 
 
 # ── Memory Integration ────────────────────────────────────────────────────

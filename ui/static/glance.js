@@ -144,7 +144,11 @@ function appendMessage(role, text) {
 
     const div = document.createElement('div');
     div.className = `glance-msg glance-msg-${role}`;
-    div.textContent = text;
+    if (role === 'user') {
+        div.textContent = text;
+    } else {
+        div.innerHTML = formatMarkdown(text);
+    }
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return div;
@@ -256,6 +260,7 @@ async function sendQuery() {
                         screen_summary: _glanceScreenSummary,
                         screenshot_b64: _g.screenshotB64 || '',
                         ocr_text: _glanceScreenSummary || '',
+                        chat_model: _g.activeModel,
                     }),
                 }).catch(err => console.warn('[PaliGlance] Session save failed:', err));
 

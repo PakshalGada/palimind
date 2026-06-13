@@ -293,6 +293,10 @@ app.whenReady().then(async () => {
         if (glanceWindow) glanceWindow.hide();
     });
 
+    ipcMain.handle('glance:open', async () => {
+        await toggleGlanceWindow();
+    });
+
     // 7. Create the PaliGlance popup window (hidden, kept alive for instant re-show)
     createGlanceWindow();
 

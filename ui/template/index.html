@@ -602,11 +602,14 @@
             <div class="glance-workspace" id="glance-workspace">
                 <!-- Glance sidebar: session list -->
                 <aside class="glance-ws-sidebar">
-                    <div class="glance-ws-sidebar-header">
+                    <div class="glance-ws-sidebar-header" style="display: flex; justify-content: space-between; align-items: center;">
                         <span class="glance-ws-sidebar-title">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/></svg>
                             Screen History
                         </span>
+                        <button id="glance-ws-new-btn" class="icon-btn" title="New Analysis" style="padding: 4px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        </button>
                     </div>
                     <div id="glance-ws-session-list" class="glance-ws-session-list">
                         <div class="glance-ws-empty">
@@ -623,7 +626,12 @@
                         <div class="glance-ws-welcome-inner">
                             <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.3"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/></svg>
                             <h2>PaliGlance</h2>
-                            <p>Select a past screen analysis, or press <kbd>Ctrl+Shift+V</kbd> to start a new one.</p>
+                            <p>Select a past screen analysis, or start a new one.</p>
+                            <button id="glance-ws-launch-btn" class="glance-launch-btn">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/></svg>
+                              Open PaliGlance
+                            </button>
+                            <span class="glance-ws-kbd-hint">or press <kbd>Ctrl+Shift+V</kbd></span>
                         </div>
                     </div>
 
@@ -633,6 +641,9 @@
                         <div class="glance-ws-screenshot-panel" id="glance-ws-screenshot-panel">
                             <img id="glance-ws-screenshot-img" src="" alt="Screen capture" class="glance-ws-screenshot-thumb" title="Click to expand" />
                             <div class="glance-ws-meta" id="glance-ws-meta"></div>
+                            <button id="glance-ws-toggle-screenshot" class="icon-btn" title="Toggle screenshot" style="margin-left: auto;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                            </button>
                         </div>
 
                         <!-- Messages -->
@@ -640,6 +651,7 @@
 
                         <!-- Continue chat input -->
                         <div class="glance-ws-input-bar">
+                            <select id="glance-ws-model-select" class="glance-ws-model-select" title="Select model"></select>
                             <textarea id="glance-ws-input" placeholder="Continue this analysis…" rows="1"></textarea>
                             <button id="glance-ws-send-btn" title="Send">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>

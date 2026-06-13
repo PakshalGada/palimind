@@ -22,4 +22,5 @@ contextBridge.exposeInMainWorld('glanceAPI', {
 contextBridge.exposeInMainWorld('electronBridge', {
   onSwitchMode: (callback) =>
     ipcRenderer.on('switch-mode', (_event, mode) => callback(mode)),
+  openGlance: () => ipcRenderer.invoke('glance:open'),
 });

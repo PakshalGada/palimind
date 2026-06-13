@@ -2193,6 +2193,7 @@ async function loadGlanceWorkspace() {
         const data = await res.json();
         _glanceWsSessions = data.sessions || [];
         renderGlanceWsSidebar(_glanceWsSessions);
+        await populateGlanceWsModelSelect();
     } catch (e) {
         console.error('[PaliGlance WS] Failed to load sessions:', e);
     }
@@ -2223,32 +2224,73 @@ function renderGlanceWsSidebar(sessions) {
             ? new Date(sess.created_at * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
             : '';
 
+        const msgCount = (sess.messages || []).length;
+        const badge = msgCount > 0
+            ? `<span class="glance-ws-card-badge">${msgCount}</span>`
+            : '';
+
         // Thumbnail from saved screenshot
         const thumbHtml = sess.screenshot_b64
             ? `<img class="glance-ws-card-thumb" src="data:image/png;base64,${sess.screenshot_b64}" alt="Screenshot" />`
-            : `<div class="glance-ws-card-thumb glance-ws-card-thumb--empty"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/></svg></div>`;
+            : `<div class="glance-ws-card-thumb--empty"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/></svg></div>`;
 
         const preview = (sess.messages || []).find(m => m.role === 'user')?.content?.slice(0, 60) || 'Screen analysis';
 
         card.innerHTML = `
             ${thumbHtml}
             <div class="glance-ws-card-body">
-                <span class="glance-ws-card-title">${sess.title || 'Screen — ' + ts}</span>
+                <div class="glance-ws-card-header">
+                    <span class="glance-ws-card-title">${sess.title || 'Screen — ' + ts}</span>
+                    ${badge}
+                </div>
                 <span class="glance-ws-card-preview">${preview}</span>
                 <span class="glance-ws-card-ts">${ts}</span>
-            </div>`;
+            </div>
+            <button class="glance-ws-card-del" title="Delete" data-id="${sess.id}">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>`;
 
-        card.addEventListener('click', () => openGlanceSession(sess));
+        card.querySelector('.glance-ws-card-del')?.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const id = e.currentTarget.dataset.id;
+            await fetch(`/api/palivision/session/${id}`, { method: 'DELETE' });
+            _glanceWsSessions = _glanceWsSessions.filter(s => s.id !== id);
+            if (_glanceWsActiveSess?.id === id) {
+                _glanceWsActiveSess = null;
+                document.getElementById('glance-ws-welcome').style.display = '';
+                document.getElementById('glance-ws-convo').style.display = 'none';
+            }
+            renderGlanceWsSidebar(_glanceWsSessions);
+        });
+
+        card.addEventListener('click', function() {
+            openGlanceSession(sess, this);
+        });
         listEl.appendChild(card);
     });
 }
 
-function openGlanceSession(sess) {
+async function populateGlanceWsModelSelect() {
+    const sel = document.getElementById('glance-ws-model-select');
+    if (!sel) return;
+    try {
+        const res = await fetch('/api/config');
+        const data = await res.json();
+        const models = data.available_models || [data.chat_model || 'gemma4:e2b'];
+        sel.innerHTML = models.map(m =>
+            `<option value="${m}">${m}</option>`
+        ).join('');
+        // Default to active session's model if available
+        if (_glanceWsActiveSess?.chat_model) sel.value = _glanceWsActiveSess.chat_model;
+    } catch (e) {}
+}
+
+function openGlanceSession(sess, cardEl) {
     _glanceWsActiveSess = sess;
 
     // Mark active in sidebar
     document.querySelectorAll('.glance-ws-session-card').forEach(c => c.classList.remove('active'));
-    event?.currentTarget?.classList.add('active');
+    if (cardEl) cardEl.classList.add('active');
 
     const welcome = document.getElementById('glance-ws-welcome');
     const convo   = document.getElementById('glance-ws-convo');
@@ -2276,9 +2318,12 @@ function openGlanceSession(sess) {
             : '';
         const msgCount = (sess.messages || []).length;
         metaEl.innerHTML = [
-            ts ? `<span class="glance-meta-item">🕒 ${ts}</span>` : '',
-            sess.ocr_text ? `<span class="glance-meta-item">📝 ${sess.ocr_text.slice(0, 80)}${sess.ocr_text.length > 80 ? '…' : ''}</span>` : '',
-            `<span class="glance-meta-item">💬 ${msgCount} message${msgCount !== 1 ? 's' : ''}</span>`,
+            ts ? `<span class="glance-meta-item">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${ts}</span>` : '',
+            sess.ocr_text ? `<span class="glance-meta-item">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg> ${sess.ocr_text.slice(0, 80)}${sess.ocr_text.length > 80 ? '…' : ''}</span>` : '',
+            `<span class="glance-meta-item">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> ${msgCount} message${msgCount !== 1 ? 's' : ''}</span>`,
         ].filter(Boolean).join('');
     }
 
@@ -2312,6 +2357,18 @@ document.getElementById('glance-ws-screenshot-img')?.addEventListener('click', (
         }
     });
     document.body.appendChild(overlay);
+});
+
+document.getElementById('glance-ws-toggle-screenshot')?.addEventListener('click', () => {
+    const panel = document.getElementById('glance-ws-screenshot-panel');
+    if (!panel) return;
+    panel.classList.toggle('collapsed');
+    const btn = document.getElementById('glance-ws-toggle-screenshot');
+    if (panel.classList.contains('collapsed')) {
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+    } else {
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>';
+    }
 });
 
 // Continue-chat: send a new query in the context of the active session
@@ -2349,8 +2406,9 @@ async function glanceWsSend() {
             body: JSON.stringify({
                 user_prompt: text,
                 image_b64: _glanceWsActiveSess.screenshot_b64 || '',
-                chat_model: _glanceWsActiveSess.chat_model || 'gemma4:e2b',
+                chat_model: document.getElementById('glance-ws-model-select')?.value || _glanceWsActiveSess.chat_model || 'gemma4:e2b',
                 web_search: false,
+                messages: _glanceWsActiveSess.messages || [],
             }),
         });
 
@@ -2374,7 +2432,7 @@ async function glanceWsSend() {
                     if (p.type === 'screen_context') continue;
                     const token = p.token || '';
                     if (token) {
-                        if (first) { asstDiv.innerHTML = ''; first = false; }
+                        if (first) { asstDiv.innerHTML = ''; asstDiv.classList.add('streaming'); first = false; }
                         fullText += token;
                         asstDiv.innerHTML = formatMarkdown(fullText);
                         msgsEl.scrollTop = msgsEl.scrollHeight;
@@ -2400,12 +2458,14 @@ async function glanceWsSend() {
                     title: _glanceWsActiveSess.title,
                     messages: _glanceWsActiveSess.messages,
                     screen_summary: _glanceWsActiveSess.screen_summary || '',
+                    chat_model: document.getElementById('glance-ws-model-select')?.value || _glanceWsActiveSess.chat_model || 'gemma4:e2b',
                 }),
             }).catch(() => {});
         }
     } catch (err) {
         asstDiv.textContent = `Error: ${err.message}`;
     } finally {
+        asstDiv.classList.remove('streaming');
         _gwsInput.disabled = false;
         if (_gwsSendBtn) _gwsSendBtn.disabled = false;
         _gwsInput.focus();
@@ -2420,4 +2480,41 @@ _gwsInput?.addEventListener('input', () => {
     _gwsInput.style.height = 'auto';
     _gwsInput.style.height = Math.min(_gwsInput.scrollHeight, 120) + 'px';
 });
+
+// ── PaliGlance Countdown ────────────────────────────────────────────────
+
+function showGlanceCountdown() {
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'glance-countdown-overlay';
+    overlay.innerHTML = `
+        <div class="glance-countdown-modal">
+            <div class="glance-countdown-number" id="glance-countdown-num">3</div>
+            <p class="glance-countdown-label">Select or focus the screen or window you want PaliGlance to analyze</p>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    let count = 3;
+    const numEl = document.getElementById('glance-countdown-num');
+    const tick = setInterval(() => {
+        count--;
+        if (count > 0) {
+            numEl.textContent = count;
+            numEl.classList.remove('glance-countdown-pop');
+            void numEl.offsetWidth; // force reflow to re-trigger animation
+            numEl.classList.add('glance-countdown-pop');
+        } else {
+            clearInterval(tick);
+            overlay.remove();
+            // Fire the IPC to trigger the actual capture
+            if (window.electronBridge?.openGlance) {
+                window.electronBridge.openGlance();
+            }
+        }
+    }, 1000);
+}
+
+document.getElementById('glance-ws-launch-btn')?.addEventListener('click', showGlanceCountdown);
+document.getElementById('glance-ws-new-btn')?.addEventListener('click', showGlanceCountdown);
 

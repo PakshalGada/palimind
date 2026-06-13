@@ -194,14 +194,15 @@ html, body {
     border: 1px solid var(--border-color);
     color: var(--text-main);
     border-radius: 16px 16px 4px 16px;
+    max-width: 80%;
 }
 
 .glance-msg-assistant {
     align-self: flex-start;
     background: transparent;
     color: var(--text-main);
-    max-width: 95%;
-    padding: 9px 4px;
+    max-width: 100%;
+    padding: 9px 6px;
 }
 
 .glance-thinking {
@@ -298,11 +299,14 @@ html, body {
     font-family: 'JetBrains Mono', monospace;
     letter-spacing: 0.2px;
     -webkit-app-region: no-drag;
-    cursor: default;
+    cursor: pointer;
     max-width: 140px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+.glance-model-pill:hover {
+    border-color: var(--text-muted);
 }
 
 .glance-msg-assistant pre,
