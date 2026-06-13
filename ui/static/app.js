@@ -14,6 +14,7 @@ const btnClearSelection = document.getElementById("btn-clear-selection");
 
 const chatInput = document.getElementById("chat-input");
 const btnSend = document.getElementById("btn-send");
+const btnWebSearch = document.getElementById("btn-web-search");
 const btnMic = document.getElementById("btn-mic");
 const messagesContainer = document.getElementById("messages-container");
 
@@ -195,19 +196,24 @@ function setChatDisabled(disabled) {
   chatInput.disabled = disabled;
   btnSend.disabled = disabled;
   btnMic.disabled = disabled;
+  if (btnWebSearch) btnWebSearch.disabled = disabled;
 
   if (disabled) {
     chatInput.placeholder = "Please wait, indexing this field...";
     btnMic.style.opacity = "0.4";
     btnSend.style.opacity = "0.4";
+    if (btnWebSearch) btnWebSearch.style.opacity = "0.4";
     btnMic.style.pointerEvents = "none";
     btnSend.style.pointerEvents = "none";
+    if (btnWebSearch) btnWebSearch.style.pointerEvents = "none";
   } else {
     chatInput.placeholder = "Ask anything.";
     btnMic.style.opacity = "1";
     btnSend.style.opacity = "1";
+    if (btnWebSearch) btnWebSearch.style.opacity = "1";
     btnMic.style.pointerEvents = "auto";
     btnSend.style.pointerEvents = "auto";
+    if (btnWebSearch) btnWebSearch.style.pointerEvents = "auto";
   }
 }
 
@@ -916,7 +922,8 @@ async function sendMessage() {
 
   try {
     const chatMode = chatModeCheckbox && chatModeCheckbox.checked ? "llm" : "rag";
-    let url = `/api/chat?q=${encodeURIComponent(text)}&chat_mode=${chatMode}`;
+    const webSearch = btnWebSearch && btnWebSearch.classList.contains("active") ? "true" : "false";
+    let url = `/api/chat?q=${encodeURIComponent(text)}&chat_mode=${chatMode}&web_search=${webSearch}`;
     if (activeSessionId) url += `&session_id=${activeSessionId}`;
     if (agentId) url += `&agent_id=${agentId}`;
     
@@ -1022,6 +1029,11 @@ btnSend.addEventListener("click", () => {
   wasVoiceInput = false;
   sendMessage();
 });
+if (btnWebSearch) {
+  btnWebSearch.addEventListener("click", () => {
+    btnWebSearch.classList.toggle("active");
+  });
+}
 chatInput.addEventListener("keypress", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();

@@ -541,7 +541,7 @@ button:active {
     gap: 12px;
     background: var(--input-bg);
     border: 1px solid var(--border-color);
-    border-radius: 32px;
+    border-radius: 50px;
     padding: 8px 16px;
     transition:
         border-color 0.2s,
@@ -598,7 +598,8 @@ button:active {
 }
 
 .mic-btn,
-.send-btn {
+.send-btn,
+.web-search-btn {
     background: transparent;
     padding: 8px;
     border-radius: 50%;
@@ -609,9 +610,18 @@ button:active {
 }
 
 .mic-btn:hover,
-.send-btn:hover {
+.send-btn:hover,
+.web-search-btn:hover {
     background: var(--bg-active);
     color: var(--text-main);
+}
+
+.web-search-btn.active {
+    color: var(--primary-color);
+    background: transparent;
+}
+.web-search-btn.active svg {
+    filter: drop-shadow(0 0 8px var(--primary-color));
 }
 
 .send-btn {
@@ -1926,7 +1936,7 @@ input:disabled {
     min-width: 0;
     max-width: calc(100vw - 48px);
     padding: 8px 10px 8px 16px;
-    border-radius: 18px;
+    border-radius: 50px;
     background: var(--surface-raised);
     box-shadow:
         0 1px 0 rgba(255, 255, 255, 0.04) inset,
@@ -1946,11 +1956,15 @@ input:disabled {
 }
 
 .mic-btn,
-.send-btn {
+.send-btn,
+.web-search-btn {
     width: 36px;
     height: 36px;
     min-width: 36px;
     padding: 0;
+}
+.web-search-btn:focus {
+    outline: none;
 }
 
 .model-switcher-area {
@@ -2222,7 +2236,8 @@ input:disabled {
     }
 
     .mic-btn,
-    .send-btn {
+    .send-btn,
+    .web-search-btn {
         width: 34px;
         height: 34px;
         min-width: 34px;

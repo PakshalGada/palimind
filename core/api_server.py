@@ -732,7 +732,7 @@ async def remove_agent(req: Request):
     return {"error": "Agent not found or is default"}
 
 @app.get("/api/chat")
-async def chat_stream(q: str, session_id: str | None = None, files: str | None = None, chat_mode: str = "rag", agent_id: str | None = None):
+async def chat_stream(q: str, session_id: str | None = None, files: str | None = None, chat_mode: str = "rag", agent_id: str | None = None, web_search: str = "false"):
     if not state.active_field:
         async def err_stream():
             yield f"data: {json.dumps({'type': 'error', 'text': 'No active field'})}\n\n"
@@ -866,6 +866,8 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
 
         diagnostics_report = None
 
+        is_web_search = web_search.lower() == "true"
+
         if needs_retrieval_fast:
             standalone_query = await asyncio.to_thread(
                 reformulate_query, q, history_to_send or [], ollama_url, chat_model
@@ -878,7 +880,8 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
                 history=history_to_send,
                 files_filter=files_filter,
                 mid_term_summary=mid_term_summary,
-                session_id=active_sess_id
+                session_id=active_sess_id,
+                web_search=is_web_search
             )
         else:
             from core.generative.responder import generate_response_stream
@@ -887,6 +890,11 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
             prompt = agent_system_prompt or "You are a helpful assistant."
             if mid_term_summary:
                 prompt = f"{prompt}\n\nConversation Summary so far:\n{mid_term_summary}"
+
+            if is_web_search:
+                from core.web_search import perform_web_search
+                web_context = await asyncio.to_thread(perform_web_search, q)
+                prompt = f"{prompt}\n\n{web_context}"
 
             context = RetrievedContext(text_contexts=(), image_paths=(), sources=())
             

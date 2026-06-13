@@ -101,6 +101,7 @@ def _agent_query_stream(
     files_filter: list[str] | None = None,
     mid_term_summary: str | None = None,
     session_id: str | None = None,
+    web_search: bool = False,
 ) -> tuple[RetrievedContext, object, object | None]:
     """
     Agentic query stream using AgentPlanner.
@@ -144,6 +145,14 @@ def _agent_query_stream(
             context_text = f"{context_text}\n\nPast Conversation Context:\n{chat_context}"
         else:
             context_text = f"Past Conversation Context:\n{chat_context}"
+
+    if web_search:
+        from core.web_search import perform_web_search
+        web_context = perform_web_search(query)
+        if context_text:
+            context_text = f"{context_text}\n\n{web_context}"
+        else:
+            context_text = web_context
 
     # 4. Build task-specific system prompt
     task_prompt = get_task_system_prompt(
@@ -198,6 +207,7 @@ def query_stream(
     files_filter: list[str] | None = None,
     mid_term_summary: str | None = None,
     session_id: str | None = None,
+    web_search: bool = False,
 ) -> QueryStream:
     """
     Public query stream interface.
@@ -236,6 +246,7 @@ def query_stream(
             files_filter=files_filter,
             mid_term_summary=mid_term_summary,
             session_id=session_id,
+            web_search=web_search,
         )
 
 
@@ -249,6 +260,7 @@ def query_stream_with_diagnostics(
     files_filter: list[str] | None = None,
     mid_term_summary: str | None = None,
     session_id: str | None = None,
+    web_search: bool = False,
 ) -> tuple[RetrievedContext, object, object | None]:
     """
     Extended query stream that also returns the DiagnosticsReport.
@@ -268,6 +280,7 @@ def query_stream_with_diagnostics(
             files_filter=files_filter,
             mid_term_summary=mid_term_summary,
             session_id=session_id,
+            web_search=web_search,
         )
     except Exception as exc:
         logger.warning(
@@ -285,6 +298,7 @@ def query_stream_with_diagnostics(
             files_filter=files_filter,
             mid_term_summary=mid_term_summary,
             session_id=session_id,
+            web_search=web_search,
         )
         return context, stream, None
 
@@ -299,6 +313,7 @@ def _legacy_query_stream(
     files_filter: list[str] | None = None,
     mid_term_summary: str | None = None,
     session_id: str | None = None,
+    web_search: bool = False,
 ) -> QueryStream:
     """Legacy retrieval fallback (original single-pass pipeline)."""
     import concurrent.futures
@@ -324,6 +339,14 @@ def _legacy_query_stream(
             joined_context = f"{joined_context}\n\nPast Conversation Context:\n{chat_context}"
         else:
             joined_context = f"Past Conversation Context:\n{chat_context}"
+
+    if web_search:
+        from core.web_search import perform_web_search
+        web_context = perform_web_search(query)
+        if joined_context:
+            joined_context = f"{joined_context}\n\n{web_context}"
+        else:
+            joined_context = web_context
 
     prompt = system_prompt if system_prompt is not None else _default_system_prompt()
     if mid_term_summary:
