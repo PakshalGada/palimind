@@ -1,87 +1,64 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Palimind V2 Boardroom</title>
-        <link rel="stylesheet" href="/ui/static/styles.css" />
-        <link rel="stylesheet" href="/ui/static/email.css" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono&display=swap"
-            rel="stylesheet"
-        />
-        <link
-            rel="stylesheet"
-            href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css"
-        />
-    </head>
-    <body>
-        <div class="app-container">
-            <!-- Sidebar / Status -->
-            <aside class="sidebar">
-                <div class="logo">
-                    <h2>Palimind</h2>
-                    <button
-                        id="btn-settings"
-                        class="icon-btn"
-                        title="Settings"
-                        aria-label="Open settings"
-                        style="margin-left: auto"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        >
-                            <circle cx="12" cy="12" r="3"></circle>
-                            <path
-                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-                            ></path>
-                        </svg>
-                    </button>
-                </div>
 
-                <!-- Mode navigation -->
-                <nav class="sidebar-nav" aria-label="Workspace mode">
-                    <button class="sidebar-nav-item active" id="nav-fields" aria-label="Fields mode">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-                        Fields
-                    </button>
-                    <button class="sidebar-nav-item" id="nav-email" aria-label="Email mode">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-                        Email
-                    </button>
-                </nav>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Palimind V2 Boardroom</title>
+    <link rel="stylesheet" href="/ui/static/styles.css" />
+    <link rel="stylesheet" href="/ui/static/email.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" />
+</head>
 
-                <div id="fields-sidebar-content">
+<body>
+    <div class="app-container">
+        <!-- Sidebar / Status -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h2>Palimind</h2>
+                <button id="btn-settings" class="icon-btn" title="Settings" aria-label="Open settings"
+                    style="margin-left: auto">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z">
+                        </path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Mode navigation -->
+            <nav class="sidebar-nav" aria-label="Workspace mode">
+                <button class="sidebar-nav-item active" id="nav-fields" aria-label="Fields mode">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    Fields
+                </button>
+                <button class="sidebar-nav-item" id="nav-email" aria-label="Email mode">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="4" width="20" height="16" rx="2" />
+                        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                    </svg>
+                    Email
+                </button>
+            </nav>
+
+            <div id="fields-sidebar-content">
                 <div class="fields-container">
                     <div class="fields-header">
                         <h3>Your Fields</h3>
-                        <button
-                            id="btn-add-field"
-                            class="icon-btn"
-                            title="Add Field"
-                            aria-label="Add field"
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                            >
+                        <button id="btn-add-field" class="icon-btn" title="Add Field" aria-label="Add field">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
                                 <line x1="12" y1="5" x2="12" y2="19"></line>
                                 <line x1="5" y1="12" x2="19" y2="12"></line>
                             </svg>
@@ -90,11 +67,7 @@
                     <ul id="fields-list" class="fields-list">
                         <!-- Fields populated via JS -->
                     </ul>
-                    <button
-                        id="btn-update-active"
-                        class="action-btn"
-                        style="display: none"
-                    >
+                    <button id="btn-update-active" class="action-btn" style="display: none">
                         Sync Active Field
                     </button>
                 </div>
@@ -103,23 +76,11 @@
                 <div class="sessions-sidebar-container">
                     <div class="sessions-sidebar-header">
                         <h3>Active Sessions</h3>
-                        <button
-                            id="btn-add-session"
-                            class="icon-btn"
-                            title="New Session"
-                            aria-label="Create new session"
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="14"
-                                height="14"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                            >
+                        <button id="btn-add-session" class="icon-btn" title="New Session"
+                            aria-label="Create new session">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
                                 <line x1="12" y1="5" x2="12" y2="19"></line>
                                 <line x1="5" y1="12" x2="19" y2="12"></line>
                             </svg>
@@ -131,11 +92,7 @@
                 </div>
 
                 <!-- VS Code-like File Explorer -->
-                <div
-                    id="file-explorer-container"
-                    class="file-explorer-container"
-                    style="display: none"
-                >
+                <div id="file-explorer-container" class="file-explorer-container" style="display: none">
                     <div class="explorer-header">
                         <h3>Workspace Files</h3>
                     </div>
@@ -143,248 +100,192 @@
                         <!-- File tree populated via JS -->
                     </div>
                 </div>
-                </div><!-- /#fields-sidebar-content -->
-            </aside>
+            </div><!-- /#fields-sidebar-content -->
+        </aside>
 
-            <!-- Main Chat Area -->
-            <main class="chat-area" id="main-area">
-                <!-- Welcome Overlay (Shown when no field is active) -->
-                <div id="welcome-screen" class="welcome-screen">
-                    <div class="welcome-content">
-                        <h1>Welcome to Palimind</h1>
-                        <p>Your private, local-first AI workspace.</p>
-                        <button id="btn-welcome-add" class="primary-btn">
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="20"
-                                height="20"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                            >
-                                <path
-                                    d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-                                ></path>
-                                <line x1="12" y1="11" x2="12" y2="17"></line>
-                                <line x1="9" y1="14" x2="15" y2="14"></line>
-                            </svg>
-                            Select a Directory to Create a Field
-                        </button>
+        <!-- Main Chat Area -->
+        <main class="chat-area" id="main-area">
+            <!-- Welcome Overlay (Shown when no field is active) -->
+            <div id="welcome-screen" class="welcome-screen">
+                <div class="welcome-content">
+                    <h1>Welcome to Palimind</h1>
+                    <p>Your private, local-first AI workspace.</p>
+                    <button id="btn-welcome-add" class="primary-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z">
+                            </path>
+                            <line x1="12" y1="11" x2="12" y2="17"></line>
+                            <line x1="9" y1="14" x2="15" y2="14"></line>
+                        </svg>
+                        Select a Directory to Create a Field
+                    </button>
+                </div>
+            </div>
+
+            <!-- Active Chat Interface -->
+            <div id="chat-interface" class="chat-interface" style="display: none">
+                <div class="chat-header">
+                    <span id="active-field-title" class="active-field-badge"></span>
+                </div>
+
+                <!-- Indexing progress bar -->
+                <div id="indexing-progress-container" class="indexing-progress-container" style="display: none">
+                    <div class="progress-bar-label" id="progress-bar-label">
+                        Indexing Field...
+                    </div>
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill"></div>
                     </div>
                 </div>
 
-                <!-- Active Chat Interface -->
-                <div
-                    id="chat-interface"
-                    class="chat-interface"
-                    style="display: none"
-                >
-                    <div class="chat-header">
-                        <span
-                            id="active-field-title"
-                            class="active-field-badge"
-                        ></span>
-                    </div>
+                <div id="messages-container" class="messages"></div>
+                <div class="chat-empty-hero" aria-hidden="true">
+                    <h1>Ask Palimind</h1>
+                    <p>Search your field, reason over files, or start a new thread.</p>
+                </div>
 
-                    <!-- Indexing progress bar -->
-                    <div
-                        id="indexing-progress-container"
-                        class="indexing-progress-container"
-                        style="display: none"
-                    >
-                        <div class="progress-bar-label" id="progress-bar-label">
-                            Indexing Field...
-                        </div>
-                        <div class="progress-bar-track">
-                            <div class="progress-bar-fill"></div>
-                        </div>
+                <div class="input-area">
+                    <div class="chat-mode-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="chat-mode-checkbox" checked>
+                            <span class="toggle-slider">
+                                <span class="toggle-label document-mode">Document</span>
+                                <span class="toggle-label llm-mode">LLM</span>
+                            </span>
+                        </label>
                     </div>
-
-                    <div id="messages-container" class="messages"></div>
-                    <div class="chat-empty-hero" aria-hidden="true">
-                        <h1>Ask Palimind</h1>
-                        <p>Search your field, reason over files, or start a new thread.</p>
+                    <div class="input-wrapper">
+                        <div id="mentions-popup" class="mentions-popup" style="display: none;"></div>
+                        <textarea id="chat-input" rows="1" aria-label="Chat message"></textarea>
+                        <button id="btn-web-search" class="web-search-btn" title="Toggle Web Search"
+                            aria-label="Toggle web search">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="2" y1="12" x2="22" y2="12"></line>
+                                <path
+                                    d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
+                                </path>
+                            </svg>
+                        </button>
+                        <button id="btn-mic" class="mic-btn" title="Voice Input" aria-label="Start voice input">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                <line x1="12" y1="19" x2="12" y2="22"></line>
+                            </svg>
+                        </button>
+                        <button id="btn-send" class="send-btn" title="Send message" aria-label="Send message">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <line x1="12" y1="19" x2="12" y2="5"></line>
+                                <polyline points="5 12 12 5 19 12"></polyline>
+                            </svg>
+                        </button>
                     </div>
-
-                    <div class="input-area">
-                        <div class="chat-mode-toggle">
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="chat-mode-checkbox" checked>
-                                <span class="toggle-slider">
-                                    <span class="toggle-label document-mode">Document</span>
-                                    <span class="toggle-label llm-mode">LLM</span>
-                                </span>
-                            </label>
-                        </div>
-                        <div class="input-wrapper">
-                            <div id="mentions-popup" class="mentions-popup" style="display: none;"></div>
-                            <textarea
-                                id="chat-input"
-                                rows="1"
-                                aria-label="Chat message"
-                            ></textarea>
-                            <button
-                                id="btn-web-search"
-                                class="web-search-btn"
-                                title="Toggle Web Search"
-                                aria-label="Toggle web search"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <circle cx="12" cy="12" r="10"></circle>
-                                    <line x1="2" y1="12" x2="22" y2="12"></line>
-                                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-                                </svg>
-                            </button>
-                            <button
-                                id="btn-mic"
-                                class="mic-btn"
-                                title="Voice Input"
-                                aria-label="Start voice input"
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="20"
-                                    height="20"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                >
-                                    <path
-                                        d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"
-                                    ></path>
-                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                                    <line
-                                        x1="12"
-                                        y1="19"
-                                        x2="12"
-                                        y2="22"
-                                    ></line>
-                                </svg>
-                            </button>
-                            <button
-                                id="btn-send"
-                                class="send-btn"
-                                title="Send message"
-                                aria-label="Send message"
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="20"
-                                    height="20"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                >
-                                    <line x1="12" y1="19" x2="12" y2="5"></line>
-                                    <polyline points="5 12 12 5 19 12"></polyline>
-                                </svg>
-                            </button>
-                        </div>
-                        <!-- Model Switcher Pill -->
-                        <div id="model-switcher-area" class="model-switcher-area">
-                            <button
-                                id="model-switcher-pill"
-                                class="model-switcher-pill"
-                                title="Switch Model"
-                                aria-label="Switch model"
-                                aria-haspopup="dialog"
-                                aria-expanded="false"
-                                aria-controls="model-switcher-dropdown"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                                <span id="model-switcher-name">Loading...</span>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                            </button>
-                            <!-- Dropdown (hidden by default) -->
-                            <div
-                                id="model-switcher-dropdown"
-                                class="model-switcher-dropdown"
-                                role="dialog"
-                                aria-label="Model selection"
-                                style="display:none"
-                            >
-                                <!-- Tab Bar -->
-                                <div class="ms-tab-bar" role="tablist" aria-label="Model menu sections">
-                                    <button
-                                        class="ms-tab active"
-                                        data-tab="models"
-                                        role="tab"
-                                        aria-selected="true"
-                                        aria-controls="ms-panel-models"
-                                    >Models</button>
-                                    <button
-                                        class="ms-tab"
-                                        data-tab="cookbook"
-                                        role="tab"
-                                        aria-selected="false"
-                                        aria-controls="ms-panel-cookbook"
-                                    >Cookbook</button>
+                    <!-- Model Switcher Pill -->
+                    <div id="model-switcher-area" class="model-switcher-area">
+                        <button id="model-switcher-pill" class="model-switcher-pill" title="Switch Model"
+                            aria-label="Switch model" aria-haspopup="dialog" aria-expanded="false"
+                            aria-controls="model-switcher-dropdown">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path
+                                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z">
+                                </path>
+                            </svg>
+                            <span id="model-switcher-name">Loading...</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                        <!-- Dropdown (hidden by default) -->
+                        <div id="model-switcher-dropdown" class="model-switcher-dropdown" role="dialog"
+                            aria-label="Model selection" style="display:none">
+                            <!-- Tab Bar -->
+                            <div class="ms-tab-bar" role="tablist" aria-label="Model menu sections">
+                                <button class="ms-tab active" data-tab="models" role="tab" aria-selected="true"
+                                    aria-controls="ms-panel-models">Models</button>
+                                <button class="ms-tab" data-tab="cookbook" role="tab" aria-selected="false"
+                                    aria-controls="ms-panel-cookbook">Cookbook</button>
+                            </div>
+                            <!-- Models Tab -->
+                            <div id="ms-panel-models" class="ms-panel" role="tabpanel">
+                                <div class="model-search-container">
+                                    <input type="text" id="model-search-input" class="model-search-input"
+                                        placeholder="Search models..." autocomplete="off" aria-label="Search models" />
                                 </div>
-                                <!-- Models Tab -->
-                                <div id="ms-panel-models" class="ms-panel" role="tabpanel">
-                                    <div class="model-search-container">
-                                        <input
-                                            type="text"
-                                            id="model-search-input"
-                                            class="model-search-input"
-                                            placeholder="Search models..."
-                                            autocomplete="off"
-                                            aria-label="Search models"
-                                        />
-                                    </div>
-                                    <div id="model-list" class="model-list" role="listbox" aria-label="Available models">
-                                        <div class="model-list-loading">Loading models...</div>
-                                    </div>
+                                <div id="model-list" class="model-list" role="listbox" aria-label="Available models">
+                                    <div class="model-list-loading">Loading models...</div>
                                 </div>
-                                <!-- Cookbook Tab -->
-                                <div
-                                    id="ms-panel-cookbook"
-                                    class="ms-panel"
-                                    role="tabpanel"
-                                    hidden
-                                >
-                                    <div id="hw-card" class="hw-summary-card">
-                                        <span class="model-menu-state">Detecting hardware...</span>
-                                    </div>
-                                    <div class="ms-rec-header">
-                                        <span class="ms-rec-title">Recommended for your hardware</span>
-                                    </div>
-                                    <div id="rec-grid" class="recommendation-grid"></div>
+                            </div>
+                            <!-- Cookbook Tab -->
+                            <div id="ms-panel-cookbook" class="ms-panel" role="tabpanel" hidden>
+                                <div id="hw-card" class="hw-summary-card">
+                                    <span class="model-menu-state">Detecting hardware...</span>
                                 </div>
+                                <div class="ms-rec-header">
+                                    <span class="ms-rec-title">Recommended for your hardware</span>
+                                </div>
+                                <div id="rec-grid" class="recommendation-grid"></div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </main>
+            </div>
+        </main>
 
-            <!-- ============================================================
+        <!-- ============================================================
                  EMAIL WORKSPACE
                  ============================================================ -->
-            <div class="email-workspace" id="email-workspace" role="main" aria-label="Email Workspace">
+        <div class="email-workspace" id="email-workspace" role="main" aria-label="Email Workspace">
 
             <!-- Toolbar -->
             <div class="email-toolbar">
                 <input type="text" id="email-search-input" placeholder="Search emails…" aria-label="Search emails" />
                 <select class="email-account-select" id="email-account-sel" aria-label="Select account"></select>
+                <button class="email-toolbar-btn" id="email-ask-palimind-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                    Ask Palimind
+                </button>
                 <button class="email-toolbar-btn" id="email-accounts-btn" title="Manage email accounts">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="20" cy="7" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4"/><circle cx="9" cy="7" r="4"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="20" cy="7" r="4" />
+                        <path d="M6 21v-2a4 4 0 0 1 4-4h4" />
+                        <circle cx="9" cy="7" r="4" />
+                    </svg>
                     Accounts
                 </button>
                 <button class="email-toolbar-btn" id="email-sync-btn">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10" />
+                        <polyline points="1 20 1 14 7 14" />
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                    </svg>
                     Sync
                 </button>
                 <button class="email-toolbar-btn primary" id="email-compose-btn">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
                     Compose
                 </button>
             </div>
@@ -437,23 +338,48 @@
                     <!-- AI Actions -->
                     <div class="folder-section-label" style="margin-top:12px">AI Actions</div>
                     <button class="email-action-sidebar-btn" id="email-ask-btn" title="Ask your inbox a question">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                            <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
                         Ask Inbox
                     </button>
                     <button class="email-action-sidebar-btn" id="email-stats-btn" title="View email statistics">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="20" x2="18" y2="10" />
+                            <line x1="12" y1="20" x2="12" y2="4" />
+                            <line x1="6" y1="20" x2="6" y2="14" />
+                        </svg>
                         Stats
                     </button>
                     <button class="email-action-sidebar-btn" id="email-scan-spam-btn" title="Scan inbox for spam">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path
+                                d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                            <line x1="12" y1="9" x2="12" y2="13" />
+                            <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
                         Scan Spam
                     </button>
-                    <button class="email-action-sidebar-btn" id="email-scan-reply-btn" title="Detect emails needing a reply">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+                    <button class="email-action-sidebar-btn" id="email-scan-reply-btn"
+                        title="Detect emails needing a reply">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 17 4 12 9 7" />
+                            <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+                        </svg>
                         Scan Needs-Reply
                     </button>
                     <button class="email-action-sidebar-btn" id="email-watch-btn" title="Toggle email watch mode">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <polyline points="12 6 12 12 16 14" />
+                        </svg>
                         <span id="email-watch-label">Start Watch</span>
                     </button>
                     <div class="email-watch-status" id="email-watch-status" style="display:none">
@@ -468,17 +394,12 @@
                         <button class="email-list-sort" id="email-sort-btn">↓ Date</button>
                     </div>
                     <div class="email-list-scroll" id="email-list-scroll"></div>
-                    <!-- Ask your inbox -->
-                    <div class="inbox-chat">
-                        <input type="text" id="inbox-chat-input" placeholder="Ask your inbox…" aria-label="Ask inbox question" />
-                        <button class="inbox-chat-send" id="inbox-chat-send-btn">Ask</button>
-                    </div>
-                    <div class="inbox-chat-result" id="inbox-chat-result"></div>
                 </div><!-- /.email-list-col -->
 
                 <!-- Email viewer + AI sidebar -->
                 <div class="email-viewer-col">
-                    <div class="email-viewer-empty" id="email-viewer-empty" style="display:flex">Select an email to read</div>
+                    <div class="email-viewer-empty" id="email-viewer-empty" style="display:flex">Select an email to read
+                    </div>
 
                     <div class="email-viewer-main" id="email-viewer-main">
                         <div class="email-viewer-header">
@@ -497,51 +418,88 @@
                             <button class="email-action-btn" id="email-action-remind">🔔 Remind</button>
                             <button class="email-action-btn" id="email-action-archive">Archive</button>
                             <button class="email-action-btn danger" id="email-action-delete">Delete</button>
+                            <button class="email-action-btn" id="email-ai-insights-btn" style="margin-left: auto;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" style="margin-right:4px;">
+                                    <path
+                                        d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+                                </svg>
+                                AI Insights
+                            </button>
                         </div>
-                        <div class="email-viewer-split">
-                            <div class="email-body-scroll">
-                                <div class="email-body-text" id="email-viewer-body-text"></div>
-                                <div class="email-attachments" id="email-viewer-attachments" style="display:none"></div>
-                            </div>
-                            <!-- AI Sidebar -->
-                            <div class="email-ai-sidebar">
-                                <div class="ai-sidebar-header">
-                                    <span class="ai-sidebar-title">AI Insights</span>
-                                </div>
-                                <div class="ai-sidebar-scroll">
-                                    <div class="ai-section">
-                                        <div class="ai-section-label">Summary</div>
-                                        <div class="ai-section-body" id="ai-summary"></div>
-                                    </div>
-                                    <div class="ai-section">
-                                        <div class="ai-section-label">Needs Reply</div>
-                                        <div class="ai-section-body" id="ai-needs-reply"></div>
-                                    </div>
-                                    <div class="ai-section">
-                                        <div class="ai-section-label">Tags</div>
-                                        <div class="ai-section-body" id="ai-tags"></div>
-                                    </div>
-                                    <div class="ai-section">
-                                        <div class="ai-section-label">Priority</div>
-                                        <div class="ai-section-body" id="ai-priority-exp"></div>
-                                    </div>
-                                    <div class="ai-section">
-                                        <div class="ai-section-label">Spam Analysis</div>
-                                        <div class="ai-section-body" id="ai-spam"></div>
-                                    </div>
-                                    <div class="ai-section">
-                                        <div class="ai-section-label">Suggested Reply</div>
-                                        <div class="ai-section-body" id="ai-suggested-reply"></div>
-                                        <button class="ai-insert-btn" id="ai-insert-reply-btn">Insert AI Reply</button>
-                                    </div>
-                                </div>
-                            </div><!-- /.email-ai-sidebar -->
+                        <div class="email-body-scroll">
+                            <div class="email-body-text" id="email-viewer-body-text"></div>
+                            <div class="email-attachments" id="email-viewer-attachments" style="display:none"></div>
                         </div>
                     </div><!-- /#email-viewer-main -->
                 </div><!-- /.email-viewer-col -->
 
             </div><!-- /.email-body -->
 
+            <!-- ── Slide-out Drawers ─────────────────────── -->
+            <!-- AI Insights Drawer -->
+            <div class="email-drawer" id="email-ai-drawer">
+                <div class="ai-sidebar-header">
+                    <span class="ai-sidebar-title">AI Insights</span>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <button class="email-action-btn" id="ai-drawer-analyze-btn"
+                            style="padding:4px 8px;font-size:0.75rem;display:none;">Generate</button>
+                        <button class="drawer-close-btn" id="ai-drawer-close">&times;</button>
+                    </div>
+                </div>
+                <div class="ai-sidebar-scroll">
+                    <div class="ai-section">
+                        <div class="ai-section-label">Summary</div>
+                        <div class="ai-section-body" id="ai-summary"></div>
+                    </div>
+                    <div class="ai-section">
+                        <div class="ai-section-label">Needs Reply</div>
+                        <div class="ai-section-body" id="ai-needs-reply"></div>
+                    </div>
+                    <div class="ai-section">
+                        <div class="ai-section-label">Tags</div>
+                        <div class="ai-section-body" id="ai-tags"></div>
+                    </div>
+                    <div class="ai-section">
+                        <div class="ai-section-label">Priority</div>
+                        <div class="ai-section-body" id="ai-priority-exp"></div>
+                    </div>
+                    <div class="ai-section">
+                        <div class="ai-section-label">Spam Analysis</div>
+                        <div class="ai-section-body" id="ai-spam"></div>
+                    </div>
+                    <div class="ai-section">
+                        <div class="ai-section-label">Suggested Reply</div>
+                        <div class="ai-section-body" id="ai-suggested-reply"></div>
+                        <button class="ai-insert-btn" id="ai-insert-reply-btn">Insert AI Reply</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Palimind Chat Drawer -->
+            <div class="email-drawer" id="email-chat-drawer">
+                <div class="ai-sidebar-header">
+                    <span class="ai-sidebar-title">Ask Palimind</span>
+                    <button class="drawer-close-btn" id="chat-drawer-close">&times;</button>
+                </div>
+                <div class="messages" id="drawer-chat-messages">
+                    <div class="message assistant">
+                        <div class="message-content">Hi! I can help you find emails, summarize threads, or draft
+                            replies. What do you need?</div>
+                    </div>
+                </div>
+                <div class="drawer-input-area">
+                    <textarea id="drawer-chat-input" placeholder="Ask about your inbox..."></textarea>
+                    <button id="drawer-chat-send-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13" />
+                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
             <!-- ── Ask Inbox Panel ─────────────────────── -->
             <div class="email-panel-overlay" id="email-ask-panel" style="display:none">
                 <div class="email-panel">
@@ -551,7 +509,8 @@
                     </div>
                     <div class="email-panel-body">
                         <div class="email-panel-input-row">
-                            <input type="text" id="ask-panel-input" placeholder="e.g. Any emails about invoices last week?" />
+                            <input type="text" id="ask-panel-input"
+                                placeholder="e.g. Any emails about invoices last week?" />
                             <button class="email-panel-send-btn" id="ask-panel-send-btn">Ask</button>
                         </div>
                         <div class="email-panel-result" id="ask-panel-result"></div>
@@ -579,7 +538,8 @@
                     <div class="email-panel-header">
                         <span>Email Accounts</span>
                         <div style="display:flex;gap:8px;align-items:center">
-                            <button class="email-panel-send-btn" id="accounts-panel-add-btn" style="font-size:0.78rem;padding:5px 12px">+ Add Account</button>
+                            <button class="email-panel-send-btn" id="accounts-panel-add-btn"
+                                style="font-size:0.78rem;padding:5px 12px">+ Add Account</button>
                             <button class="email-panel-close" id="email-accounts-panel-close">&times;</button>
                         </div>
                     </div>
@@ -589,321 +549,253 @@
                 </div>
             </div>
 
-            </div><!-- /#email-workspace -->
-        </div><!-- /.app-container -->
+        </div><!-- /#email-workspace -->
+    </div><!-- /.app-container -->
 
-        <!-- Compose Modal -->
-        <div class="compose-modal-overlay" id="compose-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="compose-modal-title">
-            <div class="compose-modal">
-                <div class="compose-header">
-                    <span class="compose-title" id="compose-modal-title">New Message</span>
-                    <button class="compose-close" id="compose-close-btn" aria-label="Close compose">&times;</button>
+    <!-- Compose Modal -->
+    <div class="compose-modal-overlay" id="compose-modal-overlay" role="dialog" aria-modal="true"
+        aria-labelledby="compose-modal-title">
+        <div class="compose-modal">
+            <div class="compose-header">
+                <span class="compose-title" id="compose-modal-title">New Message</span>
+                <button class="compose-close" id="compose-close-btn" aria-label="Close compose">&times;</button>
+            </div>
+            <div class="compose-fields">
+                <div class="compose-field">
+                    <span class="compose-field-label">To</span>
+                    <input type="text" id="compose-to" placeholder="recipient@example.com" />
                 </div>
-                <div class="compose-fields">
-                    <div class="compose-field">
-                        <span class="compose-field-label">To</span>
-                        <input type="text" id="compose-to" placeholder="recipient@example.com" />
-                    </div>
-                    <div class="compose-field">
-                        <span class="compose-field-label">CC</span>
-                        <input type="text" id="compose-cc" placeholder="Optional" />
-                    </div>
-                    <div class="compose-field">
-                        <span class="compose-field-label">BCC</span>
-                        <input type="text" id="compose-bcc" placeholder="Optional" />
-                    </div>
-                    <div class="compose-field">
-                        <span class="compose-field-label">Subject</span>
-                        <input type="text" id="compose-subject" placeholder="Subject" />
-                    </div>
+                <div class="compose-field">
+                    <span class="compose-field-label">CC</span>
+                    <input type="text" id="compose-cc" placeholder="Optional" />
                 </div>
-                <textarea class="compose-body" id="compose-body" placeholder="Write your message…"></textarea>
-                <div class="compose-footer">
-                    <button class="compose-btn" id="compose-draft-btn">✨ AI Draft</button>
-                    <button class="compose-btn" id="compose-cancel-btn">Cancel</button>
-                    <button class="compose-btn send-compose" id="compose-send-btn">Send</button>
+                <div class="compose-field">
+                    <span class="compose-field-label">BCC</span>
+                    <input type="text" id="compose-bcc" placeholder="Optional" />
+                </div>
+                <div class="compose-field">
+                    <span class="compose-field-label">Subject</span>
+                    <input type="text" id="compose-subject" placeholder="Subject" />
                 </div>
             </div>
-        </div>
-
-        <!-- Toast container -->
-        <div class="email-toast-container" id="email-toast-container" aria-live="polite"></div>
-
-        <!-- Add Account Modal -->
-        <div class="compose-modal-overlay" id="add-account-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="add-account-modal-title" style="align-items:center;justify-content:center">
-            <div class="compose-modal" style="max-height:92vh;overflow-y:auto">
-                <div class="compose-header">
-                    <span class="compose-title" id="add-account-modal-title">Add Email Account</span>
-                    <button class="compose-close" id="add-account-close-btn" aria-label="Close">&times;</button>
-                </div>
-                <div class="compose-fields">
-                    <div class="compose-field">
-                        <span class="compose-field-label">Label</span>
-                        <input type="text" id="acct-label" placeholder="e.g. personal / work" autocomplete="off" />
-                    </div>
-                    <div class="compose-field">
-                        <span class="compose-field-label">Email</span>
-                        <input type="email" id="acct-email" placeholder="you@example.com" autocomplete="email" />
-                    </div>
-                    <div class="compose-field">
-                        <span class="compose-field-label">Password</span>
-                        <input type="password" id="acct-password" placeholder="App password / IMAP password" autocomplete="new-password" />
-                    </div>
-                </div>
-                <!-- IMAP section -->
-                <div style="padding:10px 20px 0;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted)">IMAP (Incoming)</div>
-                <div class="compose-fields">
-                    <div class="compose-field">
-                        <span class="compose-field-label">Host</span>
-                        <input type="text" id="acct-imap-host" placeholder="imap.gmail.com" autocomplete="off" />
-                    </div>
-                    <div class="compose-field">
-                        <span class="compose-field-label">Port</span>
-                        <input type="number" id="acct-imap-port" placeholder="993" value="993" style="width:80px" />
-                    </div>
-                </div>
-                <!-- SMTP section -->
-                <div style="padding:10px 20px 0;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted)">SMTP (Outgoing)</div>
-                <div class="compose-fields">
-                    <div class="compose-field">
-                        <span class="compose-field-label">Host</span>
-                        <input type="text" id="acct-smtp-host" placeholder="smtp.gmail.com" autocomplete="off" />
-                    </div>
-                    <div class="compose-field">
-                        <span class="compose-field-label">Port</span>
-                        <input type="number" id="acct-smtp-port" placeholder="465" value="465" style="width:80px" />
-                    </div>
-                </div>
-                <div class="compose-fields">
-                    <div class="compose-field">
-                        <span class="compose-field-label">Username</span>
-                        <input type="text" id="acct-username" placeholder="Optional — defaults to email address" autocomplete="off" />
-                    </div>
-                </div>
-                <div style="padding:8px 20px;display:flex;align-items:center;gap:8px;border-top:1px solid var(--border-color)">
-                    <input type="checkbox" id="acct-ssl" checked style="cursor:pointer" />
-                    <label for="acct-ssl" style="font-size:0.82rem;color:var(--text-muted);cursor:pointer">Use SSL/TLS</label>
-                    <input type="checkbox" id="acct-test" style="cursor:pointer;margin-left:16px" />
-                    <label for="acct-test" style="font-size:0.82rem;color:var(--text-muted);cursor:pointer">Test connection on add</label>
-                </div>
-                <!-- Quick-fill presets -->
-                <div style="padding:6px 20px;display:flex;gap:6px;flex-wrap:wrap;border-top:1px solid var(--border-color)">
-                    <span style="font-size:0.72rem;color:var(--text-muted);align-self:center">Quick-fill:</span>
-                    <button class="compose-btn" onclick="acctPreset('gmail')" style="font-size:0.72rem;padding:3px 10px">Gmail</button>
-                    <button class="compose-btn" onclick="acctPreset('outlook')" style="font-size:0.72rem;padding:3px 10px">Outlook</button>
-                    <button class="compose-btn" onclick="acctPreset('yahoo')" style="font-size:0.72rem;padding:3px 10px">Yahoo</button>
-                    <button class="compose-btn" onclick="acctPreset('fastmail')" style="font-size:0.72rem;padding:3px 10px">Fastmail</button>
-                    <button class="compose-btn" onclick="acctPreset('proton')" style="font-size:0.72rem;padding:3px 10px">Proton</button>
-                </div>
-                <div class="compose-footer">
-                    <div id="add-account-status" style="font-size:0.78rem;color:var(--text-muted);flex:1"></div>
-                    <button class="compose-btn" id="add-account-cancel-btn">Cancel</button>
-                    <button class="compose-btn send-compose" id="add-account-save-btn">Add Account</button>
-                </div>
+            <textarea class="compose-body" id="compose-body" placeholder="Write your message…"></textarea>
+            <div class="compose-footer">
+                <button class="compose-btn" id="compose-draft-btn">✨ AI Draft</button>
+                <button class="compose-btn" id="compose-cancel-btn">Cancel</button>
+                <button class="compose-btn send-compose" id="compose-send-btn">Send</button>
             </div>
         </div>
+    </div>
 
-        <!-- Settings Modal -->
-        <div
-            id="settings-modal"
-            class="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="settings-title"
-            style="display: none"
-        >
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2 id="settings-title">Settings</h2>
-                    <button
-                        id="btn-close-settings"
-                        class="icon-btn"
-                        title="Close Settings"
-                        aria-label="Close settings"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="20"
-                            height="20"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        >
-                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                    </button>
+    <!-- Toast container -->
+    <div class="email-toast-container" id="email-toast-container" aria-live="polite"></div>
+
+    <!-- Add Account Modal -->
+    <div class="compose-modal-overlay" id="add-account-modal-overlay" role="dialog" aria-modal="true"
+        aria-labelledby="add-account-modal-title" style="align-items:center;justify-content:center">
+        <div class="compose-modal" style="max-height:92vh;overflow-y:auto">
+            <div class="compose-header">
+                <span class="compose-title" id="add-account-modal-title">Add Email Account</span>
+                <button class="compose-close" id="add-account-close-btn" aria-label="Close">&times;</button>
+            </div>
+            <div class="compose-fields">
+                <div class="compose-field">
+                    <span class="compose-field-label">Label</span>
+                    <input type="text" id="acct-label" placeholder="e.g. personal / work" autocomplete="off" />
                 </div>
-                <div class="modal-body">
-                    <div class="settings-group">
-                        <label>Manage Agents</label>
-                        <button id="btn-manage-agents" class="action-btn" style="margin-top: 0;">Open Agents Menu</button>
-                    </div>
-                    <div class="settings-group">
-                        <label>Theme Mode</label>
-                        <div class="theme-switch-container">
-                            <button
-                                id="btn-theme-light"
-                                class="theme-toggle-btn"
-                            >
-                                Light Mode
-                            </button>
-                            <button
-                                id="btn-theme-dark"
-                                class="theme-toggle-btn active"
-                            >
-                                Night Mode
-                            </button>
-                        </div>
-                    </div>
+                <div class="compose-field">
+                    <span class="compose-field-label">Email</span>
+                    <input type="email" id="acct-email" placeholder="you@example.com" autocomplete="email" />
+                </div>
+                <div class="compose-field">
+                    <span class="compose-field-label">Password</span>
+                    <input type="password" id="acct-password" placeholder="App password / IMAP password"
+                        autocomplete="new-password" />
                 </div>
             </div>
-        </div>
-
-        <!-- Manage Agents Modal -->
-        <div
-            id="agents-modal"
-            class="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="agents-title"
-            style="display: none"
-        >
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2 id="agents-title">Manage Agents</h2>
-                    <button
-                        id="btn-close-agents"
-                        class="icon-btn"
-                        title="Close Agents"
-                        aria-label="Close agents"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="20"
-                            height="20"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        >
-                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                    </button>
+            <!-- IMAP section -->
+            <div
+                style="padding:10px 20px 0;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted)">
+                IMAP (Incoming)</div>
+            <div class="compose-fields">
+                <div class="compose-field">
+                    <span class="compose-field-label">Host</span>
+                    <input type="text" id="acct-imap-host" placeholder="imap.gmail.com" autocomplete="off" />
                 </div>
-                <div class="modal-body">
-                    <div class="agents-list-container">
-                        <h3>Your Agents</h3>
-                        <ul id="agents-list" class="agents-list"></ul>
-                    </div>
-                    <div class="agent-edit-form">
-                        <h3 id="agent-form-title">Create New Agent</h3>
-                        <input type="hidden" id="agent-id-input" />
-                        <label>Name (e.g. Coder)</label>
-                        <input type="text" id="agent-name-input" placeholder="Agent Name" />
-                        
-                        <label>Description</label>
-                        <input type="text" id="agent-desc-input" placeholder="Agent Description" />
-                        
-                        <label>System Prompt</label>
-                        <textarea id="agent-prompt-input" rows="4" placeholder="You are a..."></textarea>
-                        
-                        <div class="agent-form-actions">
-                            <button id="btn-save-agent" class="primary-btn">Save Agent</button>
-                            <button id="btn-clear-agent-form" class="action-btn">Clear</button>
-                        </div>
-                    </div>
+                <div class="compose-field">
+                    <span class="compose-field-label">Port</span>
+                    <input type="number" id="acct-imap-port" placeholder="993" value="993" style="width:80px" />
                 </div>
             </div>
-        </div>
-
-        <!-- Directory Picker Modal -->
-        <div
-            id="dir-picker-modal"
-            class="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="dir-picker-title"
-            style="display: none"
-        >
-            <div class="modal-content dir-picker-content">
-                <div class="modal-header">
-                    <h2 id="dir-picker-title">Choose Workspace Directory</h2>
-                    <button
-                        id="btn-close-dir-picker"
-                        class="icon-btn"
-                        title="Cancel"
-                        aria-label="Close directory picker"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="20"
-                            height="20"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        >
-                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                    </button>
+            <!-- SMTP section -->
+            <div
+                style="padding:10px 20px 0;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted)">
+                SMTP (Outgoing)</div>
+            <div class="compose-fields">
+                <div class="compose-field">
+                    <span class="compose-field-label">Host</span>
+                    <input type="text" id="acct-smtp-host" placeholder="smtp.gmail.com" autocomplete="off" />
                 </div>
-                <div class="modal-body dir-picker-body">
-                    <div class="dir-picker-path-row">
-                        <button
-                            id="btn-dir-up"
-                            class="icon-btn"
-                            title="Go Up"
-                            aria-label="Go up one directory"
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                            >
-                                <line x1="19" y1="12" x2="5" y2="12"></line>
-                                <polyline points="12 19 5 12 12 5"></polyline>
-                            </svg>
+                <div class="compose-field">
+                    <span class="compose-field-label">Port</span>
+                    <input type="number" id="acct-smtp-port" placeholder="465" value="465" style="width:80px" />
+                </div>
+            </div>
+            <div class="compose-fields">
+                <div class="compose-field">
+                    <span class="compose-field-label">Username</span>
+                    <input type="text" id="acct-username" placeholder="Optional — defaults to email address"
+                        autocomplete="off" />
+                </div>
+            </div>
+            <div
+                style="padding:8px 20px;display:flex;align-items:center;gap:8px;border-top:1px solid var(--border-color)">
+                <input type="checkbox" id="acct-ssl" checked style="cursor:pointer" />
+                <label for="acct-ssl" style="font-size:0.82rem;color:var(--text-muted);cursor:pointer">Use
+                    SSL/TLS</label>
+                <input type="checkbox" id="acct-test" style="cursor:pointer;margin-left:16px" />
+                <label for="acct-test" style="font-size:0.82rem;color:var(--text-muted);cursor:pointer">Test connection
+                    on add</label>
+            </div>
+            <!-- Quick-fill presets -->
+            <div style="padding:6px 20px;display:flex;gap:6px;flex-wrap:wrap;border-top:1px solid var(--border-color)">
+                <span style="font-size:0.72rem;color:var(--text-muted);align-self:center">Quick-fill:</span>
+                <button class="compose-btn" onclick="acctPreset('gmail')"
+                    style="font-size:0.72rem;padding:3px 10px">Gmail</button>
+                <button class="compose-btn" onclick="acctPreset('outlook')"
+                    style="font-size:0.72rem;padding:3px 10px">Outlook</button>
+                <button class="compose-btn" onclick="acctPreset('yahoo')"
+                    style="font-size:0.72rem;padding:3px 10px">Yahoo</button>
+                <button class="compose-btn" onclick="acctPreset('fastmail')"
+                    style="font-size:0.72rem;padding:3px 10px">Fastmail</button>
+                <button class="compose-btn" onclick="acctPreset('proton')"
+                    style="font-size:0.72rem;padding:3px 10px">Proton</button>
+            </div>
+            <div class="compose-footer">
+                <div id="add-account-status" style="font-size:0.78rem;color:var(--text-muted);flex:1"></div>
+                <button class="compose-btn" id="add-account-cancel-btn">Cancel</button>
+                <button class="compose-btn send-compose" id="add-account-save-btn">Add Account</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title"
+        style="display: none">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="settings-title">Settings</h2>
+                <button id="btn-close-settings" class="icon-btn" title="Close Settings" aria-label="Close settings">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-group">
+                    <label>Manage Agents</label>
+                    <button id="btn-manage-agents" class="action-btn" style="margin-top: 0;">Open Agents Menu</button>
+                </div>
+                <div class="settings-group">
+                    <label>Theme Mode</label>
+                    <div class="theme-switch-container">
+                        <button id="btn-theme-light" class="theme-toggle-btn">
+                            Light Mode
                         </button>
-                        <input
-                            type="text"
-                            id="dir-current-path-input"
-                            aria-label="Current directory path"
-                            readonly
-                        />
-                    </div>
-                    <div class="dir-picker-list" id="dir-picker-list">
-                        <!-- Populated dynamically -->
-                    </div>
-                    <div class="dir-picker-footer">
-                        <button id="btn-select-dir-confirm" class="primary-btn">
-                            Select Current Folder
+                        <button id="btn-theme-dark" class="theme-toggle-btn active">
+                            Night Mode
                         </button>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/marked-katex-extension/lib/index.umd.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
-        <script src="/ui/static/email.js"></script>
-        <script src="/ui/static/app.js?v=2"></script>
-    </body>
+    <!-- Manage Agents Modal -->
+    <div id="agents-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="agents-title"
+        style="display: none">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="agents-title">Manage Agents</h2>
+                <button id="btn-close-agents" class="icon-btn" title="Close Agents" aria-label="Close agents">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="agents-list-container">
+                    <h3>Your Agents</h3>
+                    <ul id="agents-list" class="agents-list"></ul>
+                </div>
+                <div class="agent-edit-form">
+                    <h3 id="agent-form-title">Create New Agent</h3>
+                    <input type="hidden" id="agent-id-input" />
+                    <label>Name (e.g. Coder)</label>
+                    <input type="text" id="agent-name-input" placeholder="Agent Name" />
+
+                    <label>Description</label>
+                    <input type="text" id="agent-desc-input" placeholder="Agent Description" />
+
+                    <label>System Prompt</label>
+                    <textarea id="agent-prompt-input" rows="4" placeholder="You are a..."></textarea>
+
+                    <div class="agent-form-actions">
+                        <button id="btn-save-agent" class="primary-btn">Save Agent</button>
+                        <button id="btn-clear-agent-form" class="action-btn">Clear</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Directory Picker Modal -->
+    <div id="dir-picker-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="dir-picker-title"
+        style="display: none">
+        <div class="modal-content dir-picker-content">
+            <div class="modal-header">
+                <h2 id="dir-picker-title">Choose Workspace Directory</h2>
+                <button id="btn-close-dir-picker" class="icon-btn" title="Cancel" aria-label="Close directory picker">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body dir-picker-body">
+                <div class="dir-picker-path-row">
+                    <button id="btn-dir-up" class="icon-btn" title="Go Up" aria-label="Go up one directory">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="19" y1="12" x2="5" y2="12"></line>
+                            <polyline points="12 19 5 12 12 5"></polyline>
+                        </svg>
+                    </button>
+                    <input type="text" id="dir-current-path-input" aria-label="Current directory path" readonly />
+                </div>
+                <div class="dir-picker-list" id="dir-picker-list">
+                    <!-- Populated dynamically -->
+                </div>
+                <div class="dir-picker-footer">
+                    <button id="btn-select-dir-confirm" class="primary-btn">
+                        Select Current Folder
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked-katex-extension/lib/index.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
+    <script src="/ui/static/email.js"></script>
+    <script src="/ui/static/app.js?v=2"></script>
+</body>
+
 </html>
