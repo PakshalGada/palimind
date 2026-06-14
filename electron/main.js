@@ -193,9 +193,11 @@ function createGlanceWindow() {
 async function toggleGlanceWindow() {
     if (!glanceWindow) return;
 
+    // Always restart the chat. If it's already visible, hide it to capture the screen underneath.
     if (glanceWindow.isVisible()) {
         glanceWindow.hide();
-        return;
+        // Give the OS compositor a moment to remove the window from the screen
+        await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     // Step 1: Capture screenshot before the popup appears

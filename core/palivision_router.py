@@ -19,6 +19,7 @@ The frontend reads the SSE stream and appends each token to the chat UI.
 
 import json
 import logging
+from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks
@@ -35,7 +36,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/palivision", tags=["palivision"])
 
 # Ollama server — same address PaliMind already uses
-OLLAMA_BASE_URL = "https://chubby-camels-design.loca.lt"
+OLLAMA_BASE_URL = "https://cuddly-lines-rhyme.loca.lt"
 
 # Default chat model — matches PaliMind's existing default
 DEFAULT_CHAT_MODEL = "gemma4:e2b"
@@ -74,9 +75,19 @@ async def analyze_screen(req: PalivisionRequest):
     logger.info("[Palivision] Starting OCR analysis...")
     ocr_text = extract_text_from_b64(req.image_b64)
 
-    # --- Step 2: Try to get a vision description (optional) ---
+    # --- Step 2: Resolve Ollama URL once (used for both vision + chat) ---
+    _glance_root = Path.home() / ".palimind"
+    _global_cfg_path = _glance_root / "config.json"
+    _ollama_url = OLLAMA_BASE_URL
+    if _global_cfg_path.exists():
+        try:
+            _ollama_url = json.loads(_global_cfg_path.read_text("utf-8")).get("ollama_base_url", OLLAMA_BASE_URL)
+        except Exception:
+            pass
+
+    # --- Step 3: Try to get a vision description (optional) ---
     logger.info("[Palivision] Attempting vision model analysis...")
-    vision_description = await describe_screenshot(req.image_b64)
+    vision_description = await describe_screenshot(req.image_b64, ollama_url=_ollama_url)
 
     # --- Step 3: Build the system prompt that gives the AI context about the screen ---
     context_sections = []
@@ -125,15 +136,7 @@ async def analyze_screen(req: PalivisionRequest):
         try:
             yield f"data: {json.dumps({'type': 'screen_context', 'summary': ocr_text[:200] if ocr_text else ''})}\n\n"
 
-            # Read Ollama URL from global config (not hardcoded constant)
-            _glance_root = Path.home() / ".palimind"
-            _global_cfg_path = _glance_root / "config.json"
-            _ollama_url = OLLAMA_BASE_URL
-            if _global_cfg_path.exists():
-                try:
-                    _ollama_url = json.loads(_global_cfg_path.read_text("utf-8")).get("ollama_base_url", OLLAMA_BASE_URL)
-                except Exception:
-                    pass
+            # Ollama URL already resolved above — reuse via closure
 
             ollama_messages = [{"role": "system", "content": system_prompt}]
             

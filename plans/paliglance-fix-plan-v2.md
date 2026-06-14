@@ -18,7 +18,7 @@ Two failure modes:
 
 **B. Localtunnel active but returns HTML** — localtunnel shows a "click to bypass" warning page for unknown visitors. The request gets back `text/html` not JSON → `json.loads()` throws → catches → returns `[]` → same "No models found" result. Fix: add `bypass-tunnel-reminder: lol` header.
 
-In both cases, the fallback to `https://chubby-camels-design.loca.lt` is never tried.
+In both cases, the fallback to `https://cuddly-lines-rhyme.loca.lt` is never tried.
 
 **Proof:** `get_models()` has `ollama_url = config.get("ollama_base_url", "https://plain-masks-jump.loca.lt")` and `_fetch_ollama_models_blocking` has no localhost fallback and no localtunnel bypass header.
 
@@ -102,7 +102,7 @@ def _fetch_ollama_models_blocking(ollama_url: str) -> list[dict]:
 
     # Fallback: try local Ollama if configured URL failed
     if "localhost" not in base and "127.0.0.1" not in base:
-        local_result = _try_fetch("https://chubby-camels-design.loca.lt/api/tags")
+        local_result = _try_fetch("https://cuddly-lines-rhyme.loca.lt/api/tags")
         if local_result is not None:
             return local_result
 
@@ -118,7 +118,7 @@ async def get_models():
     config = {}
     if state.active_field:
         config = load_config(state.active_field)
-    ollama_url = config.get("ollama_base_url", "https://chubby-camels-design.loca.lt")   # default to local
+    ollama_url = config.get("ollama_base_url", "https://cuddly-lines-rhyme.loca.lt")   # default to local
     current_model = config.get("chat_model", "gemma4:e2b")
     try:
         models = await asyncio.to_thread(_fetch_ollama_models_blocking, ollama_url)
@@ -148,7 +148,7 @@ config.get("ollama_base_url", "https://plain-masks-jump.loca.lt")
 Replace all with:
 
 ```python
-config.get("ollama_base_url", "https://chubby-camels-design.loca.lt")
+config.get("ollama_base_url", "https://cuddly-lines-rhyme.loca.lt")
 ```
 
 Affected lines: `get_models()` (line ~1064), `get_config()` (line ~1119).
@@ -157,7 +157,7 @@ Same change in `palivision_router.py`:
 
 ```python
 # Line ~38
-OLLAMA_BASE_URL = "https://chubby-camels-design.loca.lt"   # was: "https://plain-masks-jump.loca.lt"
+OLLAMA_BASE_URL = "https://cuddly-lines-rhyme.loca.lt"   # was: "https://plain-masks-jump.loca.lt"
 ```
 
 ---

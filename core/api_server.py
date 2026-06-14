@@ -777,7 +777,7 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
         from core.config import load_config
         from core.querying import query_stream_with_diagnostics
         config = load_config(state.active_field)
-        ollama_url = config.get("ollama_base_url", "https://chubby-camels-design.loca.lt")
+        ollama_url = config.get("ollama_base_url", "https://cuddly-lines-rhyme.loca.lt")
         chat_model = config.get("chat_model", "llama3")
 
         agent_system_prompt = None
@@ -1063,7 +1063,7 @@ def _fetch_ollama_models_blocking(ollama_url: str) -> list[dict]:
 
     # Fallback: try local Ollama if configured URL failed
     if "localhost" not in base and "127.0.0.1" not in base:
-        local_result = _try_fetch("https://chubby-camels-design.loca.lt/api/tags")
+        local_result = _try_fetch("https://cuddly-lines-rhyme.loca.lt/api/tags")
         if local_result is not None:
             return local_result
 
@@ -1077,7 +1077,7 @@ async def get_models():
     config = {}
     if state.active_field:
         config = load_config(state.active_field)
-    ollama_url = config.get("ollama_base_url", "https://chubby-camels-design.loca.lt")
+    ollama_url = config.get("ollama_base_url", "https://cuddly-lines-rhyme.loca.lt")
     current_model = config.get("chat_model", "gemma4:e2b")
     try:
         models = await asyncio.to_thread(_fetch_ollama_models_blocking, ollama_url)
@@ -1138,7 +1138,7 @@ async def get_config():
     return {
         "chat_model": config.get("chat_model", "llama3"),
         "embed_model": config.get("embed_model", "nomic-embed-text"),
-        "ollama_base_url": config.get("ollama_base_url", "https://chubby-camels-design.loca.lt"),
+        "ollama_base_url": config.get("ollama_base_url", "https://cuddly-lines-rhyme.loca.lt"),
     }
 
 

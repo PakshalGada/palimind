@@ -4,7 +4,9 @@
   "description": "A minimal Electron wrapper for an existing FastAPI application",
   "main": "electron/main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "start-windows": "electron .",
+    "start-linux": "electron . --no-sandbox"
   },
   "author": "Migration Engineer",
   "license": "MIT",
