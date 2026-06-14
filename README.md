@@ -1,7 +1,7 @@
 <div align="center">
 
 #  PaliMind
-> 📸 ![PaliMind UI](/assets/palimind.jpeg)
+>  ![PaliMind UI](/assets/palimind.jpeg)
 
 
 ### Local-First AI Intelligence OS — Private, Powerful, and Entirely On Your Machine.
@@ -78,7 +78,7 @@ PaliSpace is the core RAG (Retrieval-Augmented Generation) engine. Point it at a
        ![PaliSpace UI](https://github.com/your-username/palimind/raw/main/docs/assets/palispace.png)
 -->
 
-> 📸 ![PaliSpace UI](/assets/palispace.png)
+>  ![PaliSpace UI](/assets/palispace.png)
 
 ### Use Cases
 
@@ -162,7 +162,7 @@ PaliMail is a **fully local, terminal-first email client** with AI-powered triag
        ![PaliMail TUI](./docs/assets/palimail.png)
 -->
 
-> 📸 ![PaliMail UI](/assets/palimail.png)
+>  ![PaliMail UI](/assets/palimail.png)
 
 ### Use Cases
 
@@ -251,7 +251,7 @@ PaliVision is PaliMind's **screen analysis engine**. It captures your current sc
        ![PaliVision](./docs/assets/palivision.png)
 -->
 
-> 📸 ![PaliGlance](/assets/paliglance.png)
+>  ![PaliGlance](/assets/paliglance.png)
 
 ### Use Cases
 
@@ -400,13 +400,6 @@ The script:
 
 > **Note:** Core backend changes should degrade gracefully when Ollama is not running.
 
----
-
-## 📄 License
-
-Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for full details.
-
----
 
 <div align="center">
 
