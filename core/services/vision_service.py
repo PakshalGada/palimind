@@ -22,7 +22,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 # Fallback — overridden at call time by _resolve_ollama_url() reading global config
-OLLAMA_BASE_URL = "https://cuddly-lines-rhyme.loca.lt"
+OLLAMA_BASE_URL = "http://localhost:11434"
 
 # Ordered by preference: fastest/lightest first.
 # moondream (~1.7 GB) is the recommended default.

@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/palivision", tags=["palivision"])
 
 # Ollama server — same address PaliMind already uses
-OLLAMA_BASE_URL = "https://cuddly-lines-rhyme.loca.lt"
+OLLAMA_BASE_URL = "http://localhost:11434"
 
 # Default chat model — matches PaliMind's existing default
 DEFAULT_CHAT_MODEL = "gemma4:e2b"

@@ -44,7 +44,7 @@ DEFAULTS = {
     ],
     "doc_extensions": [".pdf", ".docx", ".pptx", ".xlsx"],
     "image_extensions": [".png", ".jpg", ".jpeg", ".webp"],
-    "ollama_base_url": "https://cuddly-lines-rhyme.loca.lt",
+    "ollama_base_url": "http://localhost:11434",
 }
 
 

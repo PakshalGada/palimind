@@ -45,7 +45,7 @@ def _get_ollama_settings() -> tuple[str, str]:
         config = load_config(_Path.cwd())
     except Exception:
         config = {}
-    url = config.get("ollama_base_url", "https://cuddly-lines-rhyme.loca.lt")
+    url = config.get("ollama_base_url", "http://localhost:11434")
     model = config.get("chat_model", "gemma3:latest")
     return url, model
 
