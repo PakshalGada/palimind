@@ -1,290 +1,1703 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>PaliMind — Local-First AI Intelligence OS</title>
-  <meta name="description" content="Index documents, chat with a local LLM, manage email, analyze your screen — all 100% offline. No cloud. No subscriptions."/>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="landing.css"/>
-</head>
-<body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="PaliMind — Local-First AI Intelligence OS. Your models, your hardware, your data."
+    />
+    <title>PaliMind — A Self-Hosted AI Workspace</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 4L16 22L6 22Z' fill='%234dabf7'/%3E%3Cpath d='M16 8L16 22L24 22Z' fill='%234dabf7' opacity='0.6'/%3E%3Cpath d='M4 24Q10 20 16 24Q22 28 28 24' stroke='%234dabf7' stroke-width='2.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <style>
+      :root {
+        /* PaliMind theme adapted from Odysseus */
+        --bg: #0a0a0a;
+        --bg2: #111111;
+        --panel: #111;
+        --panel2: #181818;
+        --fg: #d8dfe8;
+        --heading: #e8e8e8;
+        --muted: #666666;
+        --border: #222222;
+        --accent: #4dabf7;
+        --accent2: #81d4fa;
+        --green: #51cf66;
+        --gold: #ff9f43;
+        --red: #f06595;
+        --radius: 8px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+        scroll-padding-top: 60px;
+      }
+      .hero,
+      section {
+        scroll-snap-align: start;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      section:nth-of-type(odd) {
+        background-color: #111111;
+        background-image: radial-gradient(
+          circle,
+          rgba(77, 171, 247, 0.075) 1px,
+          transparent 1.4px
+        );
+        background-size: 24px 24px;
+      }
+      section:nth-of-type(even) {
+        background-color: var(--bg);
+        background-image: radial-gradient(
+          circle,
+          rgba(77, 171, 247, 0.06) 1px,
+          transparent 1.4px
+        );
+        background-size: 24px 24px;
+      }
+      .hero,
+      section {
+        opacity: 0;
+        transform: translateY(24px);
+        transition:
+          opacity 0.6s cubic-bezier(0.2, 0.7, 0.2, 1),
+          transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+      }
+      .hero.in,
+      section.in {
+        opacity: 1;
+        transform: none;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-snap-type: none;
+        }
+        .hero,
+        section {
+          opacity: 1 !important;
+          transform: none !important;
+          transition: none;
+        }
+      }
+      #features .feature {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      #features.in .feature {
+        animation: domino-in 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+      }
+      #features.in .feature:nth-child(1) {
+        animation-delay: 0.04s;
+      }
+      #features.in .feature:nth-child(2) {
+        animation-delay: 0.09s;
+      }
+      #features.in .feature:nth-child(3) {
+        animation-delay: 0.14s;
+      }
+      #features.in .feature:nth-child(4) {
+        animation-delay: 0.19s;
+      }
+      #features.in .feature:nth-child(5) {
+        animation-delay: 0.24s;
+      }
+      #features.in .feature:nth-child(6) {
+        animation-delay: 0.29s;
+      }
+      #features.in .feature:nth-child(7) {
+        animation-delay: 0.34s;
+      }
+      #features.in .feature:nth-child(8) {
+        animation-delay: 0.39s;
+      }
+      #features.in .feature:nth-child(9) {
+        animation-delay: 0.44s;
+      }
+      @keyframes domino-in {
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      body {
+        margin: 0;
+        background:
+          radial-gradient(
+            1100px 520px at 82% -10%,
+            rgba(77, 171, 247, 0.08),
+            transparent 60%
+          ),
+          radial-gradient(
+            900px 520px at 0% 0%,
+            rgba(30, 80, 200, 0.12),
+            transparent 55%
+          ),
+          var(--bg);
+        color: var(--fg);
+        font-family:
+          "Fira Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 0 22px;
+      }
 
-<!-- NAV -->
-<nav>
-  <a class="nav-logo" href="#">pali<span>mind</span></a>
-  <ul>
-    <li><a href="#products">Products</a></li>
-    <li><a href="#features">Features</a></li>
-    <li><a href="#how">Get Started</a></li>
-    <li><a href="#team">Team</a></li>
-  </ul>
-  <a class="nav-gh" href="https://github.com/PakshalGada/palimind" target="_blank">
-    <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-    GitHub
-  </a>
-</nav>
+      /* Nav */
+      nav {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        backdrop-filter: blur(10px);
+        background: rgba(10, 10, 10, 0.88);
+        border-bottom: 1px solid var(--border);
+      }
+      nav .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 60px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+        font-size: 17px;
+        letter-spacing: 0.2px;
+        color: var(--heading);
+      }
+      .brand .boat {
+        color: var(--accent);
+        flex-shrink: 0;
+      }
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 22px;
+      }
+      .nav-links a {
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .nav-links a:hover {
+        color: var(--fg);
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 16px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 14px;
+        border: 1px solid var(--border);
+        color: var(--fg);
+        background: var(--panel);
+        transition:
+          transform 0.12s ease,
+          border-color 0.12s ease,
+          background 0.12s ease;
+      }
+      .btn:hover {
+        transform: translateY(-1px);
+        border-color: var(--accent);
+      }
+      .btn.primary {
+        background: linear-gradient(135deg, var(--accent), var(--accent2));
+        color: #000;
+        border: none;
+      }
+      .btn.primary:hover {
+        filter: brightness(1.1);
+      }
 
-<!-- HERO -->
-<header class="hero">
-  <div class="badge-row animate">
-    <span class="badge"><span class="dot"></span> 100% Local</span>
-    <span class="badge">Python + Electron</span>
-    <span class="badge">MIT License</span>
-    <span class="badge">Ollama Powered</span>
-  </div>
-  <h1 class="animate d1">Your Private <span class="hl">AI Workspace</span><br/>Entirely on Your Machine.</h1>
-  <p class="animate d2">Index documents, chat with a local LLM, manage email with AI triage, and analyze your screen — all without sending a single byte to the cloud.</p>
-  <div class="cta-row animate d3">
-    <a class="btn btn-primary" href="#how">Get Started</a>
-    <a class="btn btn-secondary" href="https://github.com/PakshalGada/palimind" target="_blank">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-      View on GitHub
-    </a>
-  </div>
-</header>
+      /* Hero */
+      .hero {
+        padding: 86px 0 40px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+      }
+      #hero-flow {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        pointer-events: none;
+        opacity: 0.9;
+      }
+      .hero .wrap {
+        position: relative;
+        z-index: 2;
+      }
+      .hero h1,
+      .hero .lede,
+      .hero .wordmark {
+        text-shadow: 0 2px 20px rgba(0, 0, 0, 0.45);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #hero-flow {
+          display: none;
+        }
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12.5px;
+        color: var(--muted);
+        border: 1px solid var(--border);
+        background: var(--panel);
+        padding: 5px 12px;
+        border-radius: 999px;
+        margin-bottom: 22px;
+      }
+      .badge .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--green);
+        box-shadow: 0 0 8px var(--green);
+      }
+      .hero-logo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        color: var(--accent);
+        margin-bottom: 4px;
+      }
+      .hero-logo svg {
+        filter: drop-shadow(0 4px 18px rgba(77, 171, 247, 0.25));
+      }
+      .hero-logo .wordmark {
+        font-size: clamp(30px, 6vw, 44px);
+        font-weight: 700;
+        color: var(--heading);
+        letter-spacing: -0.01em;
+        line-height: 1;
+      }
+      .hero h1 {
+        font-size: clamp(32px, 5.4vw, 52px);
+        line-height: 1.12;
+        margin: 0 0 18px;
+        letter-spacing: -0.01em;
+        font-weight: 700;
+        color: var(--heading);
+      }
+      .hero h1 .grad {
+        background: linear-gradient(120deg, var(--accent), var(--accent2));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .hero .slogan {
+        font-style: italic;
+        color: var(--accent);
+        font-size: 12px;
+        margin: 0 0 24px;
+        letter-spacing: 0.3px;
+        opacity: 0.9;
+      }
+      .hero p.lede {
+        font-size: clamp(16px, 2.4vw, 20px);
+        color: var(--muted);
+        max-width: 680px;
+        margin: 0 auto 30px;
+      }
+      .hero-cta {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
 
-<hr class="divider"/>
+      /* terminal origin card */
+      .term-intro {
+        color: var(--fg);
+        font-size: clamp(13px, 1.8vw, 15px);
+        margin: 34px auto 0;
+        max-width: 560px;
+      }
+      .term {
+        max-width: 620px;
+        margin: 12px auto 0;
+        text-align: left;
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+      }
+      .term-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 5px 6px 5px 12px;
+        border-bottom: 1px solid var(--border);
+        background: #111;
+      }
+      .term-bar .ttl {
+        color: var(--muted);
+        font-size: 12px;
+        font-family: "Fira Code", ui-monospace, monospace;
+      }
+      .term-bar .winbtns {
+        display: flex;
+        gap: 1px;
+      }
+      .term-bar .winbtns span {
+        cursor: pointer;
+      }
+      .term {
+        transition:
+          opacity 0.18s ease,
+          transform 0.18s ease;
+      }
+      .term.term-min {
+        max-width: max-content;
+        border-radius: 999px;
+        box-shadow: 0 6px 22px rgba(0, 0, 0, 0.4);
+      }
+      .term.term-min .term-bar {
+        border-bottom: none;
+        border-radius: 999px;
+        padding: 7px 10px 7px 16px;
+        gap: 12px;
+        background: var(--panel);
+      }
+      .term.term-min pre {
+        display: none;
+      }
+      .term.term-closed {
+        opacity: 0;
+        transform: scale(0.96);
+        pointer-events: none;
+        height: 0;
+        margin: 0 auto;
+        border: 0;
+        overflow: hidden;
+      }
+      .term-reopen {
+        display: none;
+        margin: 14px auto 0;
+        font-family: "Fira Code", monospace;
+        font-size: 12px;
+        color: var(--muted);
+        background: none;
+        border: 1px dashed var(--border);
+        border-radius: 6px;
+        padding: 5px 12px;
+        cursor: pointer;
+      }
+      .term-reopen:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+      .term-reopen.show {
+        display: inline-block;
+      }
+      .term-bar .winbtns span {
+        width: 28px;
+        height: 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1;
+      }
+      .term-bar .winbtns span:hover {
+        background: rgba(77, 171, 247, 0.12);
+        color: var(--fg);
+      }
+      .term-bar .winbtns span.x:hover {
+        background: #c0392b;
+        color: #fff;
+      }
+      .term pre {
+        margin: 0;
+        padding: 18px 16px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13.5px;
+        color: var(--fg);
+        line-height: 1.7;
+        white-space: pre-wrap;
+      }
+      .term .cs {
+        color: var(--accent);
+      }
+      .term .cm {
+        color: #828997;
+      }
+      .term-cursor {
+        display: inline-block;
+        color: var(--fg);
+        font-weight: 400;
+        animation: term-blink 1.05s steps(1) infinite;
+      }
+      @keyframes term-blink {
+        50% {
+          opacity: 0;
+        }
+      }
 
-<!-- PRODUCTS -->
-<section id="products">
-  <div class="section-label">Three Products, One Platform</div>
-  <div class="section-title">Everything You Need. Nothing in the Cloud.</div>
-  <p class="section-desc">PaliMind bundles three standalone AI products under one unified CLI and desktop UI.</p>
+      /* Sections */
+      section {
+        padding: 60px 0;
+      }
+      .eyebrow {
+        color: var(--accent);
+        font-weight: 700;
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .eyebrow svg {
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+      }
+      h2.h {
+        font-size: clamp(19px, 2.7vw, 26px);
+        margin: 8px 0 12px;
+        letter-spacing: -0.01em;
+        color: var(--heading);
+        font-weight: 700;
+      }
+      .sub {
+        color: var(--muted);
+        max-width: 620px;
+      }
+      .center {
+        text-align: center;
+      }
+      .center .sub {
+        margin: 0 auto;
+      }
 
-  <div class="products">
-    <!-- PaliSpace -->
-    <div class="product-card animate">
-      <div class="product-icon space">🗂</div>
-      <h3>PaliSpace <span class="hotkey">Ctrl+Shift+Space</span></h3>
-      <p>Multimodal RAG workspace — point it at any folder, index every document, and chat with your codebase, research papers, or notes in natural language. Agent swarm, episodic memory, and voice I/O built in.</p>
-    </div>
-    <!-- PaliMail -->
-    <div class="product-card animate d1">
-      <div class="product-icon mail">📧</div>
-      <h3>PaliMail <span class="hotkey">Ctrl+Shift+E</span></h3>
-      <p>Fully local terminal-first email client with AI-powered triage. IMAP/SMTP sync, encrypted credentials, AI summaries, priority scoring, spam detection, and smart reply drafting — all from your CLI.</p>
-    </div>
-    <!-- PaliVision -->
-    <div class="product-card animate d2">
-      <div class="product-icon vision">👁</div>
-      <h3>PaliVision <span class="hotkey">Ctrl+Shift+V</span></h3>
-      <p>Screen-aware AI assistant. Captures your screen, runs OCR + vision LLM analysis, and streams contextual answers about whatever is visible — errors, docs, UIs, anything.</p>
-    </div>
-  </div>
-</section>
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-top: 36px;
+      }
+      .feature {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 22px;
+        transition:
+          transform 0.14s ease,
+          border-color 0.14s ease;
+      }
+      .feature:hover {
+        transform: translateY(-3px);
+        border-color: var(--accent);
+      }
+      .feature .ico {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(
+          135deg,
+          rgba(77, 171, 247, 0.12),
+          rgba(30, 80, 200, 0.18)
+        );
+        border: 1px solid var(--border);
+        color: var(--accent);
+        margin-bottom: 14px;
+      }
+      .feature h3 {
+        margin: 0 0 6px;
+        font-size: 16.5px;
+        color: var(--heading);
+      }
+      .feature p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
 
-<hr class="divider"/>
+      /* Previews — expanding hover carousel */
+      .previews {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 480px;
+        max-width: 1180px;
+        margin: 36px auto 0;
+      }
+      .preview-panel {
+        position: relative;
+        flex: 1 1 0;
+        min-width: 0;
+        height: 360px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        cursor: pointer;
+        background: linear-gradient(180deg, var(--panel), var(--panel2));
+        transition:
+          flex-grow 0.5s cubic-bezier(0.2, 0.7, 0.2, 1),
+          height 0.5s cubic-bezier(0.2, 0.7, 0.2, 1),
+          border-color 0.25s ease;
+      }
+      .previews:hover .preview-panel {
+        flex-grow: 0.5;
+        height: 300px;
+      }
+      .preview-panel:hover,
+      .preview-panel:focus-visible,
+      .preview-panel.is-active {
+        flex-grow: 8 !important;
+        height: 480px !important;
+        border-color: var(--accent);
+      }
+      .preview-panel .ph {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 12.5px;
+        opacity: 0.7;
+        text-align: center;
+        padding: 8px;
+        z-index: 2;
+      }
+      .preview-panel img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: top left;
+        z-index: 1;
+        opacity: 0.4;
+        transition: opacity 0.3s ease;
+        background: transparent;
+      }
+      .preview-panel:hover img,
+      .preview-panel:focus-visible img,
+      .preview-panel.is-active img {
+        opacity: 1;
+      }
 
-<!-- FEATURES -->
-<section id="features">
-  <div class="section-label">Capabilities</div>
-  <div class="section-title">Built for Power Users.</div>
-  <p class="section-desc">Every feature runs locally via Ollama. No API keys. No quotas. No data leaks.</p>
+      .preview-panel .label {
+        position: absolute;
+        z-index: 3;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 14px 16px;
+        background: linear-gradient(0deg, rgba(0, 0, 0, 0.9), transparent);
+        color: var(--heading);
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      .preview-panel .label .t {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+        font-weight: 700;
+        font-size: 14px;
+      }
+      .preview-panel .label .ico {
+        color: var(--accent);
+        flex-shrink: 0;
+      }
+      .preview-panel .label .desc {
+        font-weight: 400;
+        font-size: 12.5px;
+        line-height: 1.35;
+        color: rgba(255, 255, 255, 0.82);
+        white-space: normal;
+        max-height: 0;
+        opacity: 0;
+        overflow: hidden;
+        transition:
+          max-height 0.4s ease,
+          opacity 0.4s ease;
+      }
+      .preview-panel:hover .label .desc,
+      .preview-panel:focus-visible .label .desc,
+      .preview-panel.is-active .label .desc {
+        max-height: 64px;
+        opacity: 1;
+      }
+      @media (max-width: 760px) {
+        .previews {
+          flex-direction: column;
+          height: auto;
+          touch-action: pan-y;
+        }
+        .preview-panel {
+          height: 190px;
+          flex: none;
+          width: 100%;
+        }
+        .preview-panel.is-active {
+          height: 280px !important;
+        }
+        .previews:hover .preview-panel,
+        .preview-panel:hover {
+          flex: none !important;
+        }
+        .preview-panel .label .desc {
+          max-height: 64px;
+          opacity: 1;
+        }
+      }
 
-  <div class="features-grid">
-    <div class="feat-card animate">
-      <div class="feat-icon blue">💬</div>
-      <h4>Chat &amp; Agents</h4>
-      <p>Multi-turn chat plus autonomous agents — Researcher, Comparator, Advisor, Document — that plan, retrieve, and synthesize across your files.</p>
-    </div>
-    <div class="feat-card animate d1">
-      <div class="feat-icon orange">🔧</div>
-      <h4>Multimodal RAG</h4>
-      <p>Semantic search over PDF, DOCX, PPTX, XLSX, images, code, and Markdown. Hybrid BM25 + vector retrieval with CrossEncoder reranking.</p>
-    </div>
-    <div class="feat-card animate d2">
-      <div class="feat-icon green">🧠</div>
-      <h4>Agent Swarm</h4>
-      <p>Multi-agent orchestrator decomposes complex queries into sub-tasks, runs parallel retrieval, and synthesizes a unified report.</p>
-    </div>
-    <div class="feat-card animate d3">
-      <div class="feat-icon pink">📧</div>
-      <h4>Email Assistant</h4>
-      <p>AI summaries, style-matched draft replies, auto-tagging, and spam triage over IMAP/SMTP. Encrypted credentials.</p>
-    </div>
-    <div class="feat-card animate d4">
-      <div class="feat-icon blue">🔍</div>
-      <h4>Deep Research</h4>
-      <p>Multi-step research runs that gather, read, and synthesize sources into a written report with inline citations.</p>
-    </div>
-    <div class="feat-card animate d5">
-      <div class="feat-icon orange">📊</div>
-      <h4>Compare</h4>
-      <p>Point at multiple documents and get structured side-by-side comparisons with per-year parallel retrieval.</p>
-    </div>
-    <div class="feat-card animate d6">
-      <div class="feat-icon green">💾</div>
-      <h4>Memory</h4>
-      <p>Persistent episodic memory the assistant builds up and recalls across all your conversations. Mid-term summaries + long-term embeddings.</p>
-    </div>
-    <div class="feat-card animate d5">
-      <div class="feat-icon pink">🎤</div>
-      <h4>Voice I/O <span class="tag">STT+TTS</span></h4>
-      <p>Speech-to-Text via Faster-Whisper and Text-to-Speech via Kokoro-ONNX for hands-free interactions.</p>
-    </div>
-    <div class="feat-card animate d6">
-      <div class="feat-icon blue">🔒</div>
-      <h4>Private by Default</h4>
-      <p>Runs on your machine against your own endpoints. No telemetry, no cloud. Credentials encrypted via Fernet AES-128.</p>
-    </div>
-  </div>
-</section>
+      /* Fullscreen bg */
+      .has-bg-video {
+        position: relative;
+        overflow: hidden;
+      }
+      .has-bg-video .sec-bg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        background: radial-gradient(circle at center, #111 0%, #0a0a0a 100%);
+        z-index: 0;
+        pointer-events: none;
+      }
+      .has-bg-video .sec-bg-tint {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        pointer-events: none;
+        background:
+          radial-gradient(
+            900px 520px at 78% 18%,
+            rgba(77, 171, 247, 0.06),
+            transparent 60%
+          ),
+          radial-gradient(
+            760px 520px at 8% 88%,
+            rgba(30, 80, 200, 0.1),
+            transparent 58%
+          ),
+          linear-gradient(
+            180deg,
+            rgba(10, 10, 10, 0.86),
+            rgba(10, 10, 10, 0.62) 42%,
+            rgba(10, 10, 10, 0.92)
+          );
+      }
+      .has-bg-video .wrap {
+        position: relative;
+        z-index: 2;
+      }
 
-<hr class="divider"/>
+      /* Get started */
+      .start {
+        background: linear-gradient(180deg, var(--panel), var(--bg2));
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 40px;
+        text-align: center;
+      }
+      .codeblock {
+        display: inline-flex;
+        align-items: center;
+        gap: 14px;
+        margin: 18px auto 8px;
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px 16px;
+        font-family: ui-monospace, monospace;
+        font-size: 14px;
+        color: var(--fg);
+        text-align: left;
+      }
+      .codeblock .prompt {
+        color: var(--accent);
+      }
+      .codeblock .copy-btn {
+        background: none;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 12px;
+        padding: 4px 10px;
+        font-family: inherit;
+        transition:
+          border-color 0.12s ease,
+          color 0.12s ease;
+      }
+      .codeblock .copy-btn:hover {
+        border-color: var(--accent);
+        color: var(--fg);
+      }
+      .codeblock .copy-btn.copied {
+        border-color: var(--green);
+        color: var(--green);
+      }
+      .pill-row {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 44px;
+      }
+      .pill {
+        font-size: 12.5px;
+        color: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 5px 12px;
+        background: var(--panel);
+      }
 
-<!-- IMAGE WALL -->
-<section id="gallery">
-  <div class="section-label">In Action</div>
-  <div class="section-title">See PaliMind at Work.</div>
-  <p class="section-desc">Screenshots from the desktop app, terminal CLI, and PaliVision screen analysis.</p>
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 30px 0;
+        color: var(--muted);
+        font-size: 13px;
+        scroll-snap-align: end;
+      }
+      footer .wrap {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
 
-  <div class="image-wall">
-    <!-- Replace src with your actual screenshots -->
-    <div class="wall-item animate">
-      <img src="https://placehold.co/720x420/0f1219/4fc3f7?text=PaliSpace+Desktop+UI" alt="PaliSpace Desktop UI"/>
-      <div class="wall-caption">palispace — desktop workspace with agent chat</div>
-    </div>
-    <div class="wall-item animate d1">
-      <img src="https://placehold.co/720x420/0f1219/f0a050?text=PaliMail+Terminal" alt="PaliMail Terminal"/>
-      <div class="wall-caption">palimail — terminal email client with AI triage</div>
-    </div>
-    <div class="wall-item animate d2">
-      <img src="https://placehold.co/720x420/0f1219/f06292?text=PaliVision+Screen+Analysis" alt="PaliVision Screen Analysis"/>
-      <div class="wall-caption">palivision — screen-aware AI assistant</div>
-    </div>
-    <div class="wall-item animate d3">
-      <img src="https://placehold.co/720x420/0f1219/3dd68c?text=CLI+RAG+Chat" alt="CLI RAG Chat"/>
-      <div class="wall-caption">pm chat — interactive RAG agent session</div>
-    </div>
-  </div>
-</section>
-
-<hr class="divider"/>
-
-<!-- HOW -->
-<section id="how">
-  <div class="section-label">Get Started</div>
-  <div class="section-title">Up and Running in 5 Minutes.</div>
-  <p class="section-desc">PaliMind requires Python 3.10+, Node.js 18+, and Ollama.</p>
-
-  <div class="steps">
-    <div class="step animate">
-      <div class="step-num">01</div>
-      <div class="step-body">
-        <h4>Install Ollama &amp; Pull Models</h4>
-        <p><code>curl -fsSL https://ollama.com/install.sh | sh</code><br/>
-        <code>ollama pull nomic-embed-text</code> · <code>ollama pull gemma4:e2b</code> · <code>ollama pull llava</code></p>
+      @media (max-width: 820px) {
+        .grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .nav-links a:not(.btn) {
+          display: none;
+        }
+        .codeblock {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          align-items: flex-start;
+          overflow-wrap: anywhere;
+        }
+        .codeblock > span {
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+        .codeblock .copy-btn {
+          margin-left: auto;
+        }
+      }
+      @media (max-width: 520px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <div class="wrap">
+        <div class="brand">
+          <svg
+            class="boat"
+            viewBox="0 0 32 32"
+            width="24"
+            height="24"
+            aria-hidden="true"
+          >
+            <path d="M16 4L16 22L6 22Z" fill="currentColor" />
+            <path d="M16 8L16 22L24 22Z" fill="currentColor" opacity="0.6" />
+            <path
+              d="M4 24Q10 20 16 24Q22 28 28 24"
+              stroke="currentColor"
+              stroke-width="2.5"
+              fill="none"
+              stroke-linecap="round"
+            />
+          </svg>
+          PaliMind
+        </div>
+        <div class="nav-links">
+          <a href="#features">Features</a>
+          <a href="#previews">See it in action</a>
+          <a href="#how">Architecture</a>
+          <a href="#start">Setup</a>
+          <a
+            class="btn"
+            href="https://github.com/PakshalGada/palimind"
+            target="_blank"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.7 18.3 5 18.3 5c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .4.2.7.8.6 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"
+              />
+            </svg>
+            GitHub
+          </a>
+        </div>
       </div>
-    </div>
-    <div class="step animate d1">
-      <div class="step-num">02</div>
-      <div class="step-body">
-        <h4>Clone &amp; Install</h4>
-        <p><code>git clone https://github.com/PakshalGada/palimind.git && cd palimind</code><br/>
-        <code>python -m venv .venv && source .venv/bin/activate</code><br/>
-        <code>pip install -e . && npm install</code></p>
+    </nav>
+
+    <!-- HERO -->
+    <header class="hero">
+      <canvas id="hero-flow" aria-hidden="true"></canvas>
+      <div class="wrap">
+        <div class="hero-logo">
+          <svg viewBox="0 0 32 32" width="48" height="48" aria-hidden="true">
+            <path d="M16 4L16 22L6 22Z" fill="currentColor" />
+            <path d="M16 8L16 22L24 22Z" fill="currentColor" opacity="0.6" />
+            <path
+              d="M4 24Q10 20 16 24Q22 28 28 24"
+              stroke="currentColor"
+              stroke-width="2.5"
+              fill="none"
+              stroke-linecap="round"
+            />
+          </svg>
+          <span class="wordmark">PaliMind</span>
+        </div>
+        <p class="slogan">Local-First AI Intelligence OS</p>
+        <h1>
+          Your Private <span class="grad">AI Workspace</span>,<br />running
+          entirely on your machine.
+        </h1>
+        <p class="lede">
+          Index documents, chat with a local LLM, manage email with AI triage,
+          and analyze your screen. All 100% offline. No cloud. No subscriptions.
+        </p>
+        <div class="hero-cta">
+          <a class="btn primary" href="#start">Get started</a>
+          <a
+            class="btn"
+            href="https://github.com/PakshalGada/palimind"
+            target="_blank"
+            >View on GitHub</a
+          >
+        </div>
       </div>
-    </div>
-    <div class="step animate d2">
-      <div class="step-num">03</div>
-      <div class="step-body">
-        <h4>Launch</h4>
-        <p><code>pm ui</code> for the full desktop app, or <code>pm chat</code> for headless CLI mode.</p>
+    </header>
+
+    <!-- FEATURES -->
+    <section id="features">
+      <div class="wrap">
+        <div class="center">
+          <div class="eyebrow">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" /></svg
+            >Everything, self-hosted
+          </div>
+          <h2 class="h">Three Products. One Platform.</h2>
+          <p class="sub">
+            PaliMind bundles three standalone AI products under one unified CLI
+            and desktop UI.
+          </p>
+        </div>
+        <div class="grid">
+          <div class="feature">
+            <span class="ico"
+              ><svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                /></svg
+            ></span>
+            <h3>PaliSpace</h3>
+            <p>
+              The core RAG engine. Point it at any folder and it indexes every
+              document into a 4-bit quantized local vector store.
+            </p>
+          </div>
+          <div class="feature">
+            <span class="ico"
+              ><svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="m22 7-10 5L2 7" /></svg
+            ></span>
+            <h3>PaliMail</h3>
+            <p>
+              A fully local email client with an AI layer on top. IMAP/SMTP, AI
+              summaries, priority scoring, and smart drafting.
+            </p>
+          </div>
+          <div class="feature">
+            <span class="ico"
+              ><svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                /></svg
+            ></span>
+            <h3>PaliGlance</h3>
+            <p>
+              Screen-aware AI. Captures your screen, extracts text via EasyOCR,
+              and answers contextually about anything visible.
+            </p>
+          </div>
+          <div class="feature">
+            <span class="ico"
+              ><svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="M21 21l-4.3-4.3" /></svg
+            ></span>
+            <h3>Agent Swarm</h3>
+            <p>
+              Run <code>pm swarm</code> to decompose queries into parallel
+              sub-tasks across multiple agents, synthesized into one report.
+            </p>
+          </div>
+          <div class="feature">
+            <span class="ico"
+              ><svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <ellipse cx="12" cy="5" rx="9" ry="3" />
+                <path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5" />
+                <path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3" /></svg
+            ></span>
+            <h3>Episodic Memory</h3>
+            <p>
+              Every conversation turn is embedded and stored in a global vector
+              store for long-term context retention.
+            </p>
+          </div>
+          <div class="feature">
+            <span class="ico"
+              ><svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="2" y="3" width="8" height="18" rx="1" />
+                <rect x="14" y="3" width="8" height="18" rx="1" /></svg
+            ></span>
+            <h3>Hardware Cookbook</h3>
+            <p>
+              Detects GPU, VRAM, and RAM, and recommends models that fit from a
+              catalog of 270+ options.
+            </p>
+          </div>
+          <div class="feature">
+            <span class="ico"
+              ><svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"
+                />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="22" />
+                <line x1="8" y1="22" x2="16" y2="22" /></svg
+            ></span>
+            <h3>Voice I/O</h3>
+            <p>
+              Local Speech-to-Text via Faster-Whisper and Text-to-Speech via
+              Kokoro-ONNX. No cloud audio APIs.
+            </p>
+          </div>
+          <div class="feature">
+            <span class="ico"
+              ><svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9m-9 9a9 9 0 0 1 9-9"
+                /></svg
+            ></span>
+            <h3>Web Search</h3>
+            <p>
+              DuckDuckGo search + Scrapling injects live web context into RAG
+              queries or PaliGlance sessions.
+            </p>
+          </div>
+          <div class="feature">
+            <span class="ico"
+              ><svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg
+            ></span>
+            <h3>Private by default</h3>
+            <p>
+              Email credentials encrypted with Fernet AES-128. All inference
+              on-device via Ollama. No telemetry.
+            </p>
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="step animate d3">
-      <div class="step-num">04</div>
-      <div class="step-body">
-        <h4>No GPU? Use Google Colab</h4>
-        <p>Run <code>colab_setup.py</code> on a free Colab GPU runtime — it installs Ollama, pulls models, and tunnels the endpoint to your local PaliMind via LocalTunnel.</p>
+    </section>
+
+    <!-- The one-shot prompt it started from -->
+    <section style="padding-top: 0">
+      <div class="wrap" style="text-align: center">
+        <p class="term-intro">
+          Launch the desktop app directly from your terminal:
+        </p>
+        <div class="term">
+          <div class="term-bar">
+            <span class="ttl">user@palimind: ~</span>
+            <span class="winbtns"
+              ><span data-term="min" title="Minimize">&#8211;</span
+              ><span class="x" data-term="close" title="Close"
+                >&#10005;</span
+              ></span
+            >
+          </div>
+          <pre id="term-pre"><span class="cs">&gt;</span> pm ui</pre>
+        </div>
+        <button class="term-reopen" type="button">
+          &#10005; reopen terminal
+        </button>
       </div>
-    </div>
-  </div>
-</section>
+    </section>
 
-<hr class="divider"/>
+    <!-- PREVIEWS — hover/tap to expand + view -->
+    <section id="previews">
+      <div class="wrap">
+        <div class="center">
+          <div class="eyebrow">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" />
+              <circle cx="12" cy="12" r="3" /></svg
+            >See it in action
+          </div>
+          <h2 class="h">Hover or tap to take a closer look</h2>
+          <p class="sub center">
+            Each panel expands to reveal a screenshot of the real UI. Swipe on
+            mobile to move through them.
+          </p>
+        </div>
+        <div class="previews">
+          <div class="preview-panel" tabindex="0">
+            <img
+              src="docs/deepresearch.gif"
+              alt="Deep Research Demo"
+              loading="lazy"
+            />
+            <div class="label">
+              <span class="t"
+                ><svg
+                  class="ico"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="M21 21l-4.3-4.3" /></svg
+                >Deep Research</span
+              ><span class="desc"
+                >Agent Swarm decomposing complex queries into parallel research
+                tasks.</span
+              >
+            </div>
+          </div>
+          <div class="preview-panel" tabindex="0">
+            <img src="docs/palivision.gif" alt="PaliGlance UI" loading="lazy" />
+            <div class="label">
+              <span class="t"
+                ><svg
+                  class="ico"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                  /></svg
+                >PaliGlance</span
+              ><span class="desc"
+                >Screen-aware AI assistant. Trigger with Ctrl+Shift+V
+                anywhere.</span
+              >
+            </div>
+          </div>
+          <div class="preview-panel" tabindex="0">
+            <img src="docs/palispace.gif" alt="PaliSpace UI" loading="lazy" />
+            <div class="label">
+              <span class="t"
+                ><svg
+                  class="ico"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                  /></svg
+                >PaliSpace</span
+              ><span class="desc"
+                >The AI workspace. Chat with your indexed folders using
+                specialized agents.</span
+              >
+            </div>
+          </div>
+          <div class="preview-panel" tabindex="0">
+            <img src="docs/palimail.gif" alt="PaliMail UI" loading="lazy" />
+            <div class="label">
+              <span class="t"
+                ><svg
+                  class="ico"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="2" y="4" width="20" height="16" rx="2" />
+                  <path d="m22 7-10 5L2 7" /></svg
+                >PaliMail</span
+              ><span class="desc"
+                >Terminal email client powered by AI triage and smart
+                compose.</span
+              >
+            </div>
+          </div>
+          <div class="preview-panel" tabindex="0">
+            <img src="docs/cookbook.gif" alt="Cookbook UI" loading="lazy" />
+            <div class="label">
+              <span class="t"
+                ><svg
+                  class="ico"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="3" y="4" width="7" height="16" rx="1" />
+                  <rect x="14" y="4" width="7" height="16" rx="1" /></svg
+                >Model Cookbook</span
+              ><span class="desc"
+                >Hardware-aware model recommendations. Switch models on the
+                fly.</span
+              >
+            </div>
+          </div>
+          <div class="preview-panel" tabindex="0">
+            <img
+              src="docs/webscraping.gif"
+              alt="Web Scraping Demo"
+              loading="lazy"
+            />
+            <div class="label">
+              <span class="t"
+                ><svg
+                  class="ico"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9m-9 9a9 9 0 0 1 9-9"
+                  /></svg
+                >Web Scraping</span
+              ><span class="desc"
+                >DuckDuckGo and Scrapling integration extracting live web
+                context.</span
+              >
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
-<!-- TECH STACK -->
-<section id="tech">
-  <div class="section-label">Built With</div>
-  <div class="section-title">Tech Stack</div>
-  <div class="tech-row">
-    <span class="tech-pill">Python 3.10+</span>
-    <span class="tech-pill">FastAPI</span>
-    <span class="tech-pill">Uvicorn</span>
-    <span class="tech-pill">Electron</span>
-    <span class="tech-pill">Node.js</span>
-    <span class="tech-pill">Ollama</span>
-    <span class="tech-pill">SQLite FTS5</span>
-    <span class="tech-pill">TurboVec</span>
-    <span class="tech-pill">Sentence-Transformers</span>
-    <span class="tech-pill">EasyOCR</span>
-    <span class="tech-pill">Faster-Whisper</span>
-    <span class="tech-pill">Kokoro-ONNX</span>
-    <span class="tech-pill">Typer + Rich</span>
-    <span class="tech-pill">Fernet AES-128</span>
-    <span class="tech-pill">Vanilla JS</span>
-  </div>
-</section>
+    <!-- HOW IT STARTED -->
+    <section id="how" class="has-bg-video">
+      <div class="sec-bg"></div>
+      <div class="sec-bg-tint"></div>
+      <div class="wrap">
+        <div class="eyebrow">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="m15.6 8.4-2.1 5.1-5.1 2.1 2.1-5.1z" /></svg
+          >Architecture
+        </div>
+        <h2 class="h">Built for power and privacy.</h2>
+        <p class="sub" style="max-width: 760px">
+          PaliMind uses a dual-layer architecture. A Python/FastAPI backend
+          handles the heavy lifting — RAG, vector search, email syncing, and
+          Ollama integration — ensuring your data stays out of the cloud.
+        </p>
+        <p class="sub" style="max-width: 760px; margin-top: 14px">
+          The frontend is a lightweight Electron wrapper that connects to the
+          local API via REST and SSE, giving you a native desktop experience
+          with global hotkeys, without sacrificing privacy or performance.
+        </p>
+      </div>
+    </section>
 
-<hr class="divider"/>
+    <!-- GET STARTED -->
+    <section id="start">
+      <div class="wrap">
+        <div class="start">
+          <div class="eyebrow">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M4 17l6-5-6-5" />
+              <path d="M12 19h8" /></svg
+            >Get started
+          </div>
+          <h2 class="h" style="margin-bottom: 6px">PaliMind is yours.</h2>
+          <p class="sub center" style="margin: 0 auto">
+            Requires Python 3.10+, Node.js 18+, and Ollama.
+          </p>
+          <div class="codeblock">
+            <span
+              ><span class="prompt">$</span> git clone
+              https://github.com/PakshalGada/palimind.git &amp;&amp; cd
+              palimind<br /><span class="prompt">$</span> python -m venv .venv
+              &amp;&amp; source .venv/bin/activate<br /><span class="prompt"
+                >$</span
+              >
+              pip install -e . &amp;&amp; npm install<br /><span class="prompt"
+                >$</span
+              >
+              pm ui</span
+            >
+          </div>
+          <div>
+            <a
+              class="btn primary"
+              href="https://github.com/PakshalGada/palimind"
+              target="_blank"
+              style="margin-top: 14px"
+              >View on GitHub</a
+            >
+          </div>
+          <div class="pill-row">
+            <span class="pill">Ollama</span>
+            <span class="pill">FastAPI</span>
+            <span class="pill">Electron</span>
+            <span class="pill">SQLite FTS5</span>
+            <span class="pill">100% Local</span>
+          </div>
+        </div>
+      </div>
+    </section>
 
-<!-- TEAM -->
-<section id="team">
-  <div class="section-label">Team</div>
-  <div class="section-title">Contributors</div>
-  <p class="section-desc">Built by a team of five for privacy-first AI.</p>
+    <footer>
+      <div class="wrap">
+        <div>
+          &copy; 2026 PaliMind Team &middot; Pakshal Gada, Pratham Kataria, Om
+          Upadhyay, Manthan Chheda, Janak Gohil
+        </div>
+        <div>Built with ❤️ for privacy-first AI. MIT License.</div>
+      </div>
+    </footer>
 
-  <div class="team-grid">
-    <div class="team-card animate">
-      <div class="team-avatar">PG</div>
-      <h4>Pakshal Gada</h4>
-      <p>PaliSpace · RAG Architecture</p>
-    </div>
-    <div class="team-card animate d1">
-      <div class="team-avatar">PK</div>
-      <h4>Pratham Kataria</h4>
-      <p>PaliVision · Desktop App</p>
-    </div>
-    <div class="team-card animate d2">
-      <div class="team-avatar">OU</div>
-      <h4>Om Upadhyay</h4>
-      <p>PaliMail · TUI</p>
-    </div>
-    <div class="team-card animate d3">
-      <div class="team-avatar">MC</div>
-      <h4>Manthan Chheda</h4>
-      <p>Hotkey Implementation</p>
-    </div>
-    <div class="team-card animate d4">
-      <div class="team-avatar">JG</div>
-      <h4>Janak Gohil</h4>
-      <p>UI Polishing</p>
-    </div>
-  </div>
-</section>
+    <script>
+      // Hero background: Perlin flow field
+      (function () {
+        var canvas = document.getElementById("hero-flow");
+        if (!canvas) return;
+        if (
+          window.matchMedia &&
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        )
+          return;
+        var hero = canvas.parentElement,
+          ctx = canvas.getContext("2d");
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var W,
+          H,
+          t = 0,
+          particles = [];
+        var COLORS = ["#4dabf7", "#81d4fa", "#51cf66"];
+        var FADE = "rgba(10,10,10,0.06)";
+        function n2(x, y) {
+          var n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+          return n - Math.floor(n);
+        }
+        function noise(x, y) {
+          var ix = Math.floor(x),
+            iy = Math.floor(y),
+            fx = x - ix,
+            fy = y - iy;
+          var a = n2(ix, iy),
+            b = n2(ix + 1, iy),
+            c = n2(ix, iy + 1),
+            d = n2(ix + 1, iy + 1);
+          var ux = fx * fx * (3 - 2 * fx),
+            uy = fy * fy * (3 - 2 * fy);
+          return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+        }
+        function resize() {
+          W = hero.clientWidth;
+          H = hero.clientHeight;
+          canvas.width = W * dpr;
+          canvas.height = H * dpr;
+          canvas.style.width = W + "px";
+          canvas.style.height = H + "px";
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          if (!particles.length) {
+            for (var i = 0; i < 260; i++)
+              particles.push({
+                x: Math.random() * W,
+                y: Math.random() * H,
+                life: Math.random(),
+                c: COLORS[i % COLORS.length],
+              });
+          }
+        }
+        resize();
+        window.addEventListener("resize", resize);
+        function draw() {
+          requestAnimationFrame(draw);
+          ctx.fillStyle = FADE;
+          ctx.fillRect(0, 0, W, H);
+          for (var i = 0; i < particles.length; i++) {
+            var p = particles[i];
+            var ang =
+              noise(p.x * 0.004 + t * 0.0008, p.y * 0.004 + 100) * Math.PI * 6;
+            var sp = 1 + noise(p.x * 0.003, p.y * 0.003 + 50) * 1.5;
+            p.x += Math.cos(ang) * sp;
+            p.y += Math.sin(ang) * sp;
+            p.life -= 0.001;
+            if (p.life <= 0 || p.x < 0 || p.x > W || p.y < 0 || p.y > H) {
+              p.x = Math.random() * W;
+              p.y = Math.random() * H;
+              p.life = 1;
+            }
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 1.1, 0, Math.PI * 2);
+            ctx.fillStyle = p.c;
+            ctx.globalAlpha = p.life * 0.18;
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+          t++;
+        }
+        draw();
+      })();
 
-<!-- FOOTER -->
-<footer>
-  <p>Built with ❤️ for privacy-first AI — no cloud, no subscriptions, no data leaks.</p>
-  <p style="margin-top:.5rem"><a href="https://github.com/PakshalGada/palimind">GitHub</a> · MIT License</p>
-</footer>
+      // Typewriter for the origin terminal
+      (function () {
+        var pre = document.getElementById("term-pre");
+        if (!pre) return;
+        var lines = [
+          { p: '<span class="cs">&gt;</span> ', t: "pm ui --verbose" },
+          { p: '<span class="cm">[+] Waking up the Agent Swarm...</span>', t: "" },
+          { p: '<span class="cm">[+] Severing all cloud connections... OK</span>', t: "" },
+          { p: '<span class="cm">[+] Telling OpenAI we are on a break... OK</span>', t: "" },
+          { p: '<span class="cm">[+] Allocating local VRAM for episodic memory...</span>', t: "" },
+          { p: '<span class="cm">[+] Starting FastAPI backend on port 8000...</span>', t: "" },
+          { p: '<span class="cm">[+] Launching Electron Desktop UI...</span>\n<span class="cs">&gt;</span> ', t: "" }
+        ];
+        var CURSOR = '<span class="term-cursor">|</span>';
+        var TYPE_MS = 80;
+        var done = [],
+          li = 0,
+          timer = null;
 
-<!-- Scroll animation observer -->
-<script>
-const obs = new IntersectionObserver((entries) => {
-  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); }});
-}, { threshold: 0.15 });
-document.querySelectorAll('.animate').forEach(el => obs.observe(el));
+        function render(partial) {
+          pre.innerHTML =
+            done.join("\n") + (done.length ? "\n" : "") + partial + CURSOR;
+        }
+        function typeLine() {
+          var ln = lines[li],
+            i = 0;
+          (function step() {
+            if (i <= ln.t.length) {
+              render(ln.p + ln.t.slice(0, i));
+              i++;
+              timer = setTimeout(step, TYPE_MS);
+            } else {
+              done.push(ln.p + ln.t);
+              li++;
+              if (li >= lines.length) timer = setTimeout(reset, 4000);
+              else timer = setTimeout(typeLine, 800);
+            }
+          })();
+        }
+        function reset() {
+          clearTimeout(timer);
+          done = [];
+          li = 0;
+          typeLine();
+        }
 
-// Add visible class trigger to animation
-const style = document.createElement('style');
-style.textContent = `.animate:not(.visible){opacity:0;transform:translateY(20px)}.animate.visible{opacity:1;transform:translateY(0);transition:opacity .6s ease,transform .6s ease}.animate.d1.visible{transition-delay:.1s}.animate.d2.visible{transition-delay:.2s}.animate.d3.visible{transition-delay:.3s}.animate.d4.visible{transition-delay:.4s}.animate.d5.visible{transition-delay:.5s}.animate.d6.visible{transition-delay:.6s}`;
-document.head.appendChild(style);
-</script>
+        if ("IntersectionObserver" in window) {
+          var io2 = new IntersectionObserver(
+            function (entries) {
+              entries.forEach(function (e) {
+                if (e.isIntersecting) reset();
+              });
+            },
+            { threshold: 0.45 },
+          );
+          io2.observe(pre);
+        } else {
+          reset();
+        }
+      })();
 
-</body>
-</html>
+      // Previews: hovering/tapping a panel expands it
+      (function () {
+        var panels = [].slice.call(document.querySelectorAll(".preview-panel"));
+        if (!panels.length) return;
+        var active = -1;
+        function setActive(i) {
+          active = (i + panels.length) % panels.length;
+          panels.forEach(function (panel, k) {
+            var on = k === active;
+            panel.classList.toggle("is-active", on);
+            panel.setAttribute("aria-expanded", on ? "true" : "false");
+          });
+        }
+        panels.forEach(function (p, i) {
+          p.setAttribute("aria-expanded", "false");
+          p.addEventListener("mouseenter", function () {
+            setActive(i);
+          });
+          p.addEventListener("focus", function () {
+            setActive(i);
+          });
+          p.addEventListener("mouseleave", function () {
+            if (
+              !window.matchMedia ||
+              !window.matchMedia("(hover: none)").matches
+            ) {
+              p.classList.remove("is-active");
+              p.setAttribute("aria-expanded", "false");
+            }
+          });
+          p.addEventListener("click", function () {
+            setActive(i);
+          });
+        });
+        var strip = document.querySelector(".previews");
+        var sx = null,
+          sy = null;
+        if (strip) {
+          strip.addEventListener(
+            "touchstart",
+            function (e) {
+              if (!e.touches.length) return;
+              sx = e.touches[0].clientX;
+              sy = e.touches[0].clientY;
+            },
+            { passive: true },
+          );
+          strip.addEventListener(
+            "touchend",
+            function (e) {
+              if (sx === null || sy === null || !e.changedTouches.length)
+                return;
+              var dx = e.changedTouches[0].clientX - sx;
+              var dy = e.changedTouches[0].clientY - sy;
+              if (Math.abs(dx) > 42 && Math.abs(dx) > Math.abs(dy) * 1.25) {
+                setActive((active < 0 ? 0 : active) + (dx < 0 ? 1 : -1));
+              }
+              sx = sy = null;
+            },
+            { passive: true },
+          );
+        }
+      })();
+
+      // Domino reveal
+      (function () {
+        var els = document.querySelectorAll(".hero, section");
+        if (!("IntersectionObserver" in window)) {
+          els.forEach(function (e) {
+            e.classList.add("in");
+          });
+          return;
+        }
+        var io = new IntersectionObserver(
+          function (entries) {
+            entries.forEach(function (e) {
+              if (e.isIntersecting) {
+                e.target.classList.add("in");
+                io.unobserve(e.target);
+              }
+            });
+          },
+          { threshold: 0.12, rootMargin: "0px 0px -8% 0px" },
+        );
+        els.forEach(function (e) {
+          io.observe(e);
+        });
+      })();
+
+      // Fake terminal window buttons
+      (function () {
+        var term = document.querySelector(".term");
+        var reopen = document.querySelector(".term-reopen");
+        if (!term) return;
+        term.querySelectorAll(".winbtns [data-term]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            var act = b.getAttribute("data-term");
+            if (act === "min") term.classList.toggle("term-min");
+            else if (act === "close") {
+              term.classList.add("term-closed");
+              if (reopen) reopen.classList.add("show");
+            }
+          });
+        });
+        if (reopen)
+          reopen.addEventListener("click", function () {
+            term.classList.remove("term-closed", "term-min");
+            reopen.classList.remove("show");
+          });
+      })();
+    </script>
+
