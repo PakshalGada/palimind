@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PaliMind — Local-First AI Intelligence OS</title>
+  <meta name="description" content="Index documents, chat with a local LLM, manage email, analyze your screen — all 100% offline. No cloud. No subscriptions."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="landing.css"/>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="#">pali<span>mind</span></a>
+  <ul>
+    <li><a href="#products">Products</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#how">Get Started</a></li>
+    <li><a href="#team">Team</a></li>
+  </ul>
+  <a class="nav-gh" href="https://github.com/PakshalGada/palimind" target="_blank">
+    <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="badge-row animate">
+    <span class="badge"><span class="dot"></span> 100% Local</span>
+    <span class="badge">Python + Electron</span>
+    <span class="badge">MIT License</span>
+    <span class="badge">Ollama Powered</span>
+  </div>
+  <h1 class="animate d1">Your Private <span class="hl">AI Workspace</span><br/>Entirely on Your Machine.</h1>
+  <p class="animate d2">Index documents, chat with a local LLM, manage email with AI triage, and analyze your screen — all without sending a single byte to the cloud.</p>
+  <div class="cta-row animate d3">
+    <a class="btn btn-primary" href="#how">Get Started</a>
+    <a class="btn btn-secondary" href="https://github.com/PakshalGada/palimind" target="_blank">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      View on GitHub
+    </a>
+  </div>
+</header>
+
+<hr class="divider"/>
+
+<!-- PRODUCTS -->
+<section id="products">
+  <div class="section-label">Three Products, One Platform</div>
+  <div class="section-title">Everything You Need. Nothing in the Cloud.</div>
+  <p class="section-desc">PaliMind bundles three standalone AI products under one unified CLI and desktop UI.</p>
+
+  <div class="products">
+    <!-- PaliSpace -->
+    <div class="product-card animate">
+      <div class="product-icon space">🗂</div>
+      <h3>PaliSpace <span class="hotkey">Ctrl+Shift+Space</span></h3>
+      <p>Multimodal RAG workspace — point it at any folder, index every document, and chat with your codebase, research papers, or notes in natural language. Agent swarm, episodic memory, and voice I/O built in.</p>
+    </div>
+    <!-- PaliMail -->
+    <div class="product-card animate d1">
+      <div class="product-icon mail">📧</div>
+      <h3>PaliMail <span class="hotkey">Ctrl+Shift+E</span></h3>
+      <p>Fully local terminal-first email client with AI-powered triage. IMAP/SMTP sync, encrypted credentials, AI summaries, priority scoring, spam detection, and smart reply drafting — all from your CLI.</p>
+    </div>
+    <!-- PaliVision -->
+    <div class="product-card animate d2">
+      <div class="product-icon vision">👁</div>
+      <h3>PaliVision <span class="hotkey">Ctrl+Shift+V</span></h3>
+      <p>Screen-aware AI assistant. Captures your screen, runs OCR + vision LLM analysis, and streams contextual answers about whatever is visible — errors, docs, UIs, anything.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="section-label">Capabilities</div>
+  <div class="section-title">Built for Power Users.</div>
+  <p class="section-desc">Every feature runs locally via Ollama. No API keys. No quotas. No data leaks.</p>
+
+  <div class="features-grid">
+    <div class="feat-card animate">
+      <div class="feat-icon blue">💬</div>
+      <h4>Chat &amp; Agents</h4>
+      <p>Multi-turn chat plus autonomous agents — Researcher, Comparator, Advisor, Document — that plan, retrieve, and synthesize across your files.</p>
+    </div>
+    <div class="feat-card animate d1">
+      <div class="feat-icon orange">🔧</div>
+      <h4>Multimodal RAG</h4>
+      <p>Semantic search over PDF, DOCX, PPTX, XLSX, images, code, and Markdown. Hybrid BM25 + vector retrieval with CrossEncoder reranking.</p>
+    </div>
+    <div class="feat-card animate d2">
+      <div class="feat-icon green">🧠</div>
+      <h4>Agent Swarm</h4>
+      <p>Multi-agent orchestrator decomposes complex queries into sub-tasks, runs parallel retrieval, and synthesizes a unified report.</p>
+    </div>
+    <div class="feat-card animate d3">
+      <div class="feat-icon pink">📧</div>
+      <h4>Email Assistant</h4>
+      <p>AI summaries, style-matched draft replies, auto-tagging, and spam triage over IMAP/SMTP. Encrypted credentials.</p>
+    </div>
+    <div class="feat-card animate d4">
+      <div class="feat-icon blue">🔍</div>
+      <h4>Deep Research</h4>
+      <p>Multi-step research runs that gather, read, and synthesize sources into a written report with inline citations.</p>
+    </div>
+    <div class="feat-card animate d5">
+      <div class="feat-icon orange">📊</div>
+      <h4>Compare</h4>
+      <p>Point at multiple documents and get structured side-by-side comparisons with per-year parallel retrieval.</p>
+    </div>
+    <div class="feat-card animate d6">
+      <div class="feat-icon green">💾</div>
+      <h4>Memory</h4>
+      <p>Persistent episodic memory the assistant builds up and recalls across all your conversations. Mid-term summaries + long-term embeddings.</p>
+    </div>
+    <div class="feat-card animate d5">
+      <div class="feat-icon pink">🎤</div>
+      <h4>Voice I/O <span class="tag">STT+TTS</span></h4>
+      <p>Speech-to-Text via Faster-Whisper and Text-to-Speech via Kokoro-ONNX for hands-free interactions.</p>
+    </div>
+    <div class="feat-card animate d6">
+      <div class="feat-icon blue">🔒</div>
+      <h4>Private by Default</h4>
+      <p>Runs on your machine against your own endpoints. No telemetry, no cloud. Credentials encrypted via Fernet AES-128.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- IMAGE WALL -->
+<section id="gallery">
+  <div class="section-label">In Action</div>
+  <div class="section-title">See PaliMind at Work.</div>
+  <p class="section-desc">Screenshots from the desktop app, terminal CLI, and PaliVision screen analysis.</p>
+
+  <div class="image-wall">
+    <!-- Replace src with your actual screenshots -->
+    <div class="wall-item animate">
+      <img src="https://placehold.co/720x420/0f1219/4fc3f7?text=PaliSpace+Desktop+UI" alt="PaliSpace Desktop UI"/>
+      <div class="wall-caption">palispace — desktop workspace with agent chat</div>
+    </div>
+    <div class="wall-item animate d1">
+      <img src="https://placehold.co/720x420/0f1219/f0a050?text=PaliMail+Terminal" alt="PaliMail Terminal"/>
+      <div class="wall-caption">palimail — terminal email client with AI triage</div>
+    </div>
+    <div class="wall-item animate d2">
+      <img src="https://placehold.co/720x420/0f1219/f06292?text=PaliVision+Screen+Analysis" alt="PaliVision Screen Analysis"/>
+      <div class="wall-caption">palivision — screen-aware AI assistant</div>
+    </div>
+    <div class="wall-item animate d3">
+      <img src="https://placehold.co/720x420/0f1219/3dd68c?text=CLI+RAG+Chat" alt="CLI RAG Chat"/>
+      <div class="wall-caption">pm chat — interactive RAG agent session</div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- HOW -->
+<section id="how">
+  <div class="section-label">Get Started</div>
+  <div class="section-title">Up and Running in 5 Minutes.</div>
+  <p class="section-desc">PaliMind requires Python 3.10+, Node.js 18+, and Ollama.</p>
+
+  <div class="steps">
+    <div class="step animate">
+      <div class="step-num">01</div>
+      <div class="step-body">
+        <h4>Install Ollama &amp; Pull Models</h4>
+        <p><code>curl -fsSL https://ollama.com/install.sh | sh</code><br/>
+        <code>ollama pull nomic-embed-text</code> · <code>ollama pull gemma4:e2b</code> · <code>ollama pull llava</code></p>
+      </div>
+    </div>
+    <div class="step animate d1">
+      <div class="step-num">02</div>
+      <div class="step-body">
+        <h4>Clone &amp; Install</h4>
+        <p><code>git clone https://github.com/PakshalGada/palimind.git && cd palimind</code><br/>
+        <code>python -m venv .venv && source .venv/bin/activate</code><br/>
+        <code>pip install -e . && npm install</code></p>
+      </div>
+    </div>
+    <div class="step animate d2">
+      <div class="step-num">03</div>
+      <div class="step-body">
+        <h4>Launch</h4>
+        <p><code>pm ui</code> for the full desktop app, or <code>pm chat</code> for headless CLI mode.</p>
+      </div>
+    </div>
+    <div class="step animate d3">
+      <div class="step-num">04</div>
+      <div class="step-body">
+        <h4>No GPU? Use Google Colab</h4>
+        <p>Run <code>colab_setup.py</code> on a free Colab GPU runtime — it installs Ollama, pulls models, and tunnels the endpoint to your local PaliMind via LocalTunnel.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- TECH STACK -->
+<section id="tech">
+  <div class="section-label">Built With</div>
+  <div class="section-title">Tech Stack</div>
+  <div class="tech-row">
+    <span class="tech-pill">Python 3.10+</span>
+    <span class="tech-pill">FastAPI</span>
+    <span class="tech-pill">Uvicorn</span>
+    <span class="tech-pill">Electron</span>
+    <span class="tech-pill">Node.js</span>
+    <span class="tech-pill">Ollama</span>
+    <span class="tech-pill">SQLite FTS5</span>
+    <span class="tech-pill">TurboVec</span>
+    <span class="tech-pill">Sentence-Transformers</span>
+    <span class="tech-pill">EasyOCR</span>
+    <span class="tech-pill">Faster-Whisper</span>
+    <span class="tech-pill">Kokoro-ONNX</span>
+    <span class="tech-pill">Typer + Rich</span>
+    <span class="tech-pill">Fernet AES-128</span>
+    <span class="tech-pill">Vanilla JS</span>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- TEAM -->
+<section id="team">
+  <div class="section-label">Team</div>
+  <div class="section-title">Contributors</div>
+  <p class="section-desc">Built by a team of five for privacy-first AI.</p>
+
+  <div class="team-grid">
+    <div class="team-card animate">
+      <div class="team-avatar">PG</div>
+      <h4>Pakshal Gada</h4>
+      <p>PaliSpace · RAG Architecture</p>
+    </div>
+    <div class="team-card animate d1">
+      <div class="team-avatar">PK</div>
+      <h4>Pratham Kataria</h4>
+      <p>PaliVision · Desktop App</p>
+    </div>
+    <div class="team-card animate d2">
+      <div class="team-avatar">OU</div>
+      <h4>Om Upadhyay</h4>
+      <p>PaliMail · TUI</p>
+    </div>
+    <div class="team-card animate d3">
+      <div class="team-avatar">MC</div>
+      <h4>Manthan Chheda</h4>
+      <p>Hotkey Implementation</p>
+    </div>
+    <div class="team-card animate d4">
+      <div class="team-avatar">JG</div>
+      <h4>Janak Gohil</h4>
+      <p>UI Polishing</p>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>Built with ❤️ for privacy-first AI — no cloud, no subscriptions, no data leaks.</p>
+  <p style="margin-top:.5rem"><a href="https://github.com/PakshalGada/palimind">GitHub</a> · MIT License</p>
+</footer>
+
+<!-- Scroll animation observer -->
+<script>
+const obs = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); }});
+}, { threshold: 0.15 });
+document.querySelectorAll('.animate').forEach(el => obs.observe(el));
+
+// Add visible class trigger to animation
+const style = document.createElement('style');
+style.textContent = `.animate:not(.visible){opacity:0;transform:translateY(20px)}.animate.visible{opacity:1;transform:translateY(0);transition:opacity .6s ease,transform .6s ease}.animate.d1.visible{transition-delay:.1s}.animate.d2.visible{transition-delay:.2s}.animate.d3.visible{transition-delay:.3s}.animate.d4.visible{transition-delay:.4s}.animate.d5.visible{transition-delay:.5s}.animate.d6.visible{transition-delay:.6s}`;
+document.head.appendChild(style);
+</script>
+
+</body>
+</html>
