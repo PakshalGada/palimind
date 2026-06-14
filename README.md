@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🧠 PaliMind
+#  PaliMind
+> 📸 ![PaliMind UI](/assets/palimind.jpeg)
+
 
 ### Local-First AI Intelligence OS — Private, Powerful, and Entirely On Your Machine.
 
@@ -76,7 +78,7 @@ PaliSpace is the core RAG (Retrieval-Augmented Generation) engine. Point it at a
        ![PaliSpace UI](https://github.com/your-username/palimind/raw/main/docs/assets/palispace.png)
 -->
 
-> 📸 *Drop a screenshot of the PaliSpace desktop UI here.*
+> 📸 ![PaliSpace UI](/assets/palispace.png)
 
 ### Use Cases
 
@@ -97,7 +99,6 @@ PaliSpace is the core RAG (Retrieval-Augmented Generation) engine. Point it at a
 | **AI Agents** | Built-in Research, Compare, Advise, Swarm, and Document agents — plus custom agents |
 | **Web Search** | Integrated DuckDuckGo search + Scrapling for real-time context augmentation |
 | **Voice I/O** | Speech-to-Text (Faster-Whisper) and Text-to-Speech (Kokoro-ONNX) |
-| **Hotkey Capture** | Global `Ctrl+Shift+E` captures selected text directly into a Field |
 
 ### How to Use
 
@@ -161,7 +162,7 @@ PaliMail is a **fully local, terminal-first email client** with AI-powered triag
        ![PaliMail TUI](./docs/assets/palimail.png)
 -->
 
-> 📸 *Drop a screenshot of the PaliMail terminal interface here.*
+> 📸 ![PaliMail UI](/assets/palimail.png)
 
 ### Use Cases
 
@@ -250,7 +251,7 @@ PaliVision is PaliMind's **screen analysis engine**. It captures your current sc
        ![PaliVision](./docs/assets/palivision.png)
 -->
 
-> 📸 *Drop a screenshot of the PaliVision screen analysis UI here.*
+> 📸 ![PaliGlance](/assets/paliglance.png)
 
 ### Use Cases
 
