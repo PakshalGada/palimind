@@ -201,14 +201,30 @@ async function toggleGlanceWindow() {
     // Step 1: Capture screenshot before the popup appears
     let screenshotDataUrl = null;
     try {
-        const sources = await desktopCapturer.getSources({
-            types: ['screen'],
-            thumbnailSize: { width: 1920, height: 1080 },
-        });
-        if (sources && sources.length > 0) {
-            const raw = sources[0].thumbnail.toDataURL();
-            if (raw && raw.startsWith('data:image')) {
-                screenshotDataUrl = raw;
+        if (process.platform === 'linux' && (process.env.XDG_SESSION_TYPE === 'wayland' || process.env.HYPRLAND_INSTANCE_SIGNATURE)) {
+            const os = require('os');
+            const fs = require('fs');
+            const tempPath = path.join(os.tmpdir(), `paliglance_${Date.now()}.png`);
+            try {
+                execSync(`grim "${tempPath}"`);
+                const imgData = fs.readFileSync(tempPath);
+                screenshotDataUrl = `data:image/png;base64,${imgData.toString('base64')}`;
+                fs.unlinkSync(tempPath);
+            } catch (waylandErr) {
+                console.error('[PaliGlance] grim capture failed:', waylandErr);
+            }
+        }
+        
+        if (!screenshotDataUrl) {
+            const sources = await desktopCapturer.getSources({
+                types: ['screen'],
+                thumbnailSize: { width: 1920, height: 1080 },
+            });
+            if (sources && sources.length > 0) {
+                const raw = sources[0].thumbnail.toDataURL();
+                if (raw && raw.startsWith('data:image')) {
+                    screenshotDataUrl = raw;
+                }
             }
         }
     } catch (err) {
@@ -262,8 +278,68 @@ function toggleMainWindow() {
 }
 
 // ==========================================
-// Application Lifecycle State Machine
+// Wayland-Compatible PaliGlance SSE Trigger
 // ==========================================
+
+/**
+ * Subscribes to the FastAPI /api/events SSE stream to listen for 'glance_open' events.
+ * This is the Wayland-native approach: instead of relying on Electron globalShortcuts
+ * (which are unreliable on Hyprland/Wayland), a Hyprland bind fires:
+ *   curl -s -X POST http://127.0.0.1:8000/api/glance/open
+ * FastAPI broadcasts a 'glance_open' SSE event, and Electron reacts here.
+ * Auto-reconnects on disconnect with a 2-second delay.
+ */
+function subscribeToGlanceEvents() {
+    const tryConnect = () => {
+        const req = http.get(`${SERVER_URL}/api/events`, (res) => {
+            console.log('[GlanceSSE] Connected to event stream.');
+            let buffer = '';
+
+            res.on('data', (chunk) => {
+                buffer += chunk.toString();
+                // SSE messages end with double newline
+                const messages = buffer.split('\n\n');
+                buffer = messages.pop(); // Keep incomplete message in buffer
+
+                for (const msg of messages) {
+                    const dataLine = msg.split('\n').find(l => l.startsWith('data: '));
+                    if (!dataLine) continue;
+                    try {
+                        const event = JSON.parse(dataLine.slice(6));
+                        if (event.type === 'glance_open') {
+                            console.log('[GlanceSSE] Received glance_open event — toggling PaliGlance.');
+                            toggleGlanceWindow();
+                        }
+                    } catch (e) {
+                        // Ignore malformed SSE data lines
+                    }
+                }
+            });
+
+            res.on('end', () => {
+                console.warn('[GlanceSSE] Stream ended. Reconnecting in 2s...');
+                setTimeout(tryConnect, 2000);
+            });
+
+            res.on('error', (err) => {
+                console.error('[GlanceSSE] Stream error:', err.message, '— Reconnecting in 2s...');
+                setTimeout(tryConnect, 2000);
+            });
+        });
+
+        req.on('error', (err) => {
+            // Server not yet up or connection refused — retry silently
+            setTimeout(tryConnect, 2000);
+        });
+
+        // Don't time out — we want a persistent connection
+        req.setTimeout(0);
+    };
+
+    tryConnect();
+}
+
+
 
 // Electron waits for initialization to complete
 app.whenReady().then(async () => {
@@ -300,7 +376,13 @@ app.whenReady().then(async () => {
     // 7. Create the PaliGlance popup window (hidden, kept alive for instant re-show)
     createGlanceWindow();
 
-    // macOS specific recreation behavior (handling dock clicks)
+    // 8. Subscribe to FastAPI SSE stream for Wayland-compatible glance_open trigger.
+    //    Hyprland keybinds can't reliably use Electron globalShortcuts on Wayland,
+    //    so we instead fire: curl -s -X POST http://127.0.0.1:8000/api/glance/open
+    //    from a Hyprland bind, and Electron reacts to the SSE event here.
+    subscribeToGlanceEvents();
+
+
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });

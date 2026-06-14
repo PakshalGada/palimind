@@ -2226,20 +2226,7 @@ async function loadGlanceWorkspace() {
 document.getElementById('glance-ws-start-btn')?.addEventListener('click', showGlanceCountdown);
 document.getElementById('glance-ws-new-btn')?.addEventListener('click', showGlanceCountdown);
 
-// ── Sidebar toggle ────────────────────────────────────────────────────────────
-(function initGlanceSidebarToggle() {
-    const sidebar  = document.getElementById('glance-ws-sidebar');
-    const toggleBtn = document.getElementById('glance-ws-sidebar-toggle');
-    if (!sidebar || !toggleBtn) return;
 
-    let collapsed = false;
-
-    toggleBtn.addEventListener('click', () => {
-        collapsed = !collapsed;
-        sidebar.classList.toggle('collapsed', collapsed);
-        toggleBtn.title = collapsed ? 'Show Screen History' : 'Hide Screen History';
-    });
-})();
 
 function renderGlanceWsSidebar(sessions) {
     const listEl = document.getElementById('glance-ws-session-list');

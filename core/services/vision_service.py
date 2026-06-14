@@ -60,7 +60,7 @@ async def describe_screenshot(image_b64: str, ollama_url: str | None = None) -> 
         "Be specific and factual."
     )
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         for model_name in VISION_MODELS_TO_TRY:
             try:
                 logger.info(f"[Palivision Vision] Trying Ollama vision model: {model_name}")

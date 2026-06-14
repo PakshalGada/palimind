@@ -25,25 +25,11 @@
                 <div class="logo">
                     <h2 class="sidebar-wordmark">Palimind</h2>
                     <button
-                        id="btn-sidebar-toggle"
-                        class="icon-btn sidebar-toggle-btn"
-                        title="Collapse sidebar"
-                        aria-label="Toggle sidebar"
-                        style="margin-left: auto"
-                    >
-                        <!-- Panel-left chevron icon -->
-                        <svg id="sidebar-toggle-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                             fill="none" stroke="currentColor" stroke-width="2"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="3" width="18" height="18" rx="2"/>
-                            <line x1="9" y1="3" x2="9" y2="21"/>
-                        </svg>
-                    </button>
-                    <button
                         id="btn-settings"
                         class="icon-btn"
                         title="Settings"
                         aria-label="Open settings"
+                        style="margin-left: auto"
                     >
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -80,7 +66,7 @@
                     </button>
                 </nav>
 
-            <div id="fields-sidebar-content">
+            <div id="fields-sidebar-content" style="display: flex; flex-direction: column; gap: 40px; flex: 1;">
                 <div class="fields-container">
                     <div class="fields-header">
                         <h3>Your Fields</h3>
@@ -101,8 +87,18 @@
                     </button>
                 </div>
 
+                <!-- VS Code-like File Explorer -->
+                <div id="file-explorer-container" class="file-explorer-container" style="display: none; flex: 1; min-height: 200px;">
+                    <div class="explorer-header">
+                        <h3>Workspace Files</h3>
+                    </div>
+                    <div id="file-tree" class="file-tree" style="flex: 1; overflow-y: auto;">
+                        <!-- File tree populated via JS -->
+                    </div>
+                </div>
+
                 <!-- Sessions Panel (Moved from main area to sidebar) -->
-                <div class="sessions-sidebar-container">
+                <div class="sessions-sidebar-container" style="flex: 2; display: flex; flex-direction: column;">
                     <div class="sessions-sidebar-header">
                         <h3>Active Sessions</h3>
                         <button id="btn-add-session" class="icon-btn" title="New Session"
@@ -115,24 +111,13 @@
                             </svg>
                         </button>
                     </div>
-                    <div id="session-tabs" class="session-list">
+                    <div id="session-tabs" class="session-list" style="flex: 1; max-height: none;">
                         <!-- Sessions populated via JS -->
                     </div>
                 </div>
-
-
-
-                <!-- VS Code-like File Explorer -->
-                <div id="file-explorer-container" class="file-explorer-container" style="display: none">
-                    <div class="explorer-header">
-                        <h3>Workspace Files</h3>
-                    </div>
-                    <div id="file-tree" class="file-tree">
-                        <!-- File tree populated via JS -->
-                    </div>
-                </div>
             </div><!-- /#fields-sidebar-content -->
-        </aside>
+            </aside>
+
 
         <!-- Main Chat Area -->
         <main class="chat-area" id="main-area">
@@ -595,9 +580,6 @@
                             <button id="glance-ws-new-btn" class="icon-btn" title="New Analysis">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                             </button>
-                            <button id="glance-ws-sidebar-toggle" class="icon-btn" title="Toggle sidebar">
-                                <svg id="glance-ws-sidebar-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                            </button>
                         </div>
                     </div>
                     <div id="glance-ws-session-list" class="glance-ws-session-list">
@@ -607,7 +589,7 @@
                         </div>
                     </div>
                 </aside>
-
+            
                 <!-- Glance main: conversation viewer -->
                 <main class="glance-ws-main" id="glance-ws-main">
                     <div class="glance-ws-welcome" id="glance-ws-welcome">
@@ -951,47 +933,6 @@
         <script src="/ui/static/email.js"></script>
         <script src="/ui/static/app.js?v=2"></script>
 
-        <!-- Floating sidebar reveal tab (shown only when sidebar is collapsed) -->
-        <button id="sidebar-reveal-tab" class="sidebar-reveal-tab" title="Show sidebar" aria-label="Show sidebar" style="display:none">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 18 15 12 9 6"/>
-            </svg>
-        </button>
 
-        <script>
-        (function() {
-            const sidebar   = document.getElementById('main-sidebar');
-            const toggleBtn = document.getElementById('btn-sidebar-toggle');
-            const revealTab = document.getElementById('sidebar-reveal-tab');
-            if (!sidebar || !toggleBtn) return;
-
-            let collapsed = false;
-
-            function collapse() {
-                collapsed = true;
-                sidebar.classList.add('sidebar-collapsed');
-                if (revealTab) revealTab.style.display = 'flex';
-                toggleBtn.title = 'Show sidebar';
-                localStorage.setItem('sidebar-collapsed', '1');
-            }
-            function expand() {
-                collapsed = false;
-                sidebar.classList.remove('sidebar-collapsed');
-                if (revealTab) revealTab.style.display = 'none';
-                toggleBtn.title = 'Collapse sidebar';
-                localStorage.setItem('sidebar-collapsed', '0');
-            }
-
-            toggleBtn.addEventListener('click', () => collapsed ? expand() : collapse());
-            if (revealTab) revealTab.addEventListener('click', expand);
-
-            // Restore state from last session
-            if (localStorage.getItem('sidebar-collapsed') === '1') collapse();
-        })();
-        </script>
     </body>
-</html>
-
 </html>

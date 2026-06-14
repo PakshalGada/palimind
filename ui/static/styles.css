@@ -97,65 +97,11 @@ body {
     overflow-x: hidden;
     flex-shrink: 0;
     transition:
-        width 0.25s cubic-bezier(0.4,0,0.2,1),
-        min-width 0.25s cubic-bezier(0.4,0,0.2,1),
-        padding 0.25s cubic-bezier(0.4,0,0.2,1),
+        width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+        min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+        padding 0.25s cubic-bezier(0.4, 0, 0.2, 1),
         border-color 0.25s,
         background-color 0.3s;
-}
-
-/* ── Collapsed sidebar ── */
-.sidebar.sidebar-collapsed {
-    width: 0;
-    min-width: 0;
-    padding: 0;
-    border-right-color: transparent;
-    overflow: hidden;
-}
-.sidebar.sidebar-collapsed > *:not(.sidebar-reveal-tab) {
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.15s;
-}
-
-/* Floating reveal tab — body-level element, shown via JS when sidebar is collapsed */
-.sidebar-reveal-tab {
-    position: fixed;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 400;
-    background: var(--panel-bg);
-    border: 1px solid var(--border-color);
-    border-left: none;
-    border-radius: 0 8px 8px 0;
-    padding: 10px 7px;
-    cursor: pointer;
-    color: var(--text-muted);
-    transition: color 0.15s, background 0.15s, box-shadow 0.15s;
-    box-shadow: 2px 0 12px rgba(0,0,0,0.12);
-    align-items: center;
-    justify-content: center;
-    animation: revealTabIn 0.2s ease-out;
-}
-.sidebar-reveal-tab:hover {
-    color: var(--text-main);
-    background: var(--bg-active);
-    box-shadow: 2px 0 16px rgba(0,0,0,0.2);
-}
-@keyframes revealTabIn {
-    from { opacity: 0; transform: translateY(-50%) translateX(-6px); }
-    to   { opacity: 1; transform: translateY(-50%) translateX(0); }
-}
-
-/* Toggle button — subtle */
-.sidebar-toggle-btn {
-    opacity: 0.45;
-    transition: opacity 0.15s;
-    flex-shrink: 0;
-}
-.sidebar-toggle-btn:hover {
-    opacity: 1;
 }
 
 .sidebar::-webkit-scrollbar {
@@ -471,7 +417,7 @@ button:active {
     position: relative;
     background: var(--bg-color);
     min-height: 0;
-    min-width: 0;
+    min-width: 800px;
 }
 
 .chat-header {
@@ -548,7 +494,7 @@ button:active {
     line-height: 1.6;
     font-size: 0.95rem;
     color: var(--text-main);
-    width: 100%;
+    width: 800px;
 }
 
 .user-message .message-content {
@@ -608,8 +554,8 @@ button:active {
         box-shadow 0.2s,
         width 0.2s ease,
         max-width 0.2s ease;
-    width: 600px;
-    min-width: 600px;
+    width: 800px;
+    min-width: 800px;
     max-width: 900px;
     margin: 0 auto;
 }
@@ -631,17 +577,53 @@ button:active {
     z-index: -1;
     pointer-events: none;
     background: radial-gradient(circle, var(--text-main) 0%, transparent 60%);
-    mask-image: repeating-linear-gradient(to right, #000 0, #000 6px, transparent 6px, transparent 10px), repeating-linear-gradient(to bottom, #000 0, #000 6px, transparent 6px, transparent 10px);
+    mask-image:
+        repeating-linear-gradient(
+            to right,
+            #000 0,
+            #000 6px,
+            transparent 6px,
+            transparent 10px
+        ),
+        repeating-linear-gradient(
+            to bottom,
+            #000 0,
+            #000 6px,
+            transparent 6px,
+            transparent 10px
+        );
     mask-composite: intersect;
-    -webkit-mask-image: repeating-linear-gradient(to right, #000 0, #000 6px, transparent 6px, transparent 10px), repeating-linear-gradient(to bottom, #000 0, #000 6px, transparent 6px, transparent 10px);
+    -webkit-mask-image:
+        repeating-linear-gradient(
+            to right,
+            #000 0,
+            #000 6px,
+            transparent 6px,
+            transparent 10px
+        ),
+        repeating-linear-gradient(
+            to bottom,
+            #000 0,
+            #000 6px,
+            transparent 6px,
+            transparent 10px
+        );
     -webkit-mask-composite: source-in;
     animation: pixel-circle-glow 3s ease-out forwards;
 }
 
 @keyframes pixel-circle-glow {
-    0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
-    20% { opacity: 0.15; }
-    100% { transform: translate(-50%, -50%) scale(1.4); opacity: 0; }
+    0% {
+        transform: translate(-50%, -50%) scale(0.6);
+        opacity: 0;
+    }
+    20% {
+        opacity: 0.15;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1.4);
+        opacity: 0;
+    }
 }
 
 #chat-input {
@@ -1594,7 +1576,7 @@ button:active {
 .model-empty-hint {
     font-size: 0.75rem;
     color: var(--text-muted);
-    font-family: 'JetBrains Mono', monospace;
+    font-family: "JetBrains Mono", monospace;
 }
 .model-retry-btn {
     margin-top: 6px;
@@ -1608,7 +1590,9 @@ button:active {
     cursor: pointer;
     transition: background 0.15s;
 }
-.model-retry-btn:hover { background: var(--border-color); }
+.model-retry-btn:hover {
+    background: var(--border-color);
+}
 .model-active-dot {
     width: 6px;
     height: 6px;
@@ -1943,10 +1927,12 @@ input:disabled {
 .messages {
     gap: 24px;
     padding: 24px 40px 24px;
+    align-items: center;
 }
 
 .message {
-    max-width: 860px;
+    max-width: 800px;
+    width: 100%;
     min-width: 0;
 }
 
@@ -2024,7 +2010,7 @@ input:disabled {
 }
 
 .input-wrapper {
-    width: min(100%, 760px);
+    width: min(100%, 800px);
     min-width: 0;
     max-width: calc(100vw - 48px);
     padding: 8px 10px 8px 16px;
@@ -2060,7 +2046,7 @@ input:disabled {
 }
 
 .model-switcher-area {
-    width: min(100%, 760px);
+    width: min(100%, 800px);
     margin-top: 0;
 }
 

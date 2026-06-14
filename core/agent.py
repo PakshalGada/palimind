@@ -109,7 +109,7 @@ def reformulate_query(query: str, history: list[dict], ollama_url: str, model: s
     }
 
     try:
-        with httpx.Client(timeout=15.0) as client:
+        with httpx.Client(timeout=60.0) as client:
             resp = client.post(url, json=payload)
             resp.raise_for_status()
             data = resp.json()

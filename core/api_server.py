@@ -59,6 +59,14 @@ if UI_DIR.exists():
         glance_file = UI_DIR / "template" / "glance.html"
         return glance_file.read_text("utf-8")
 
+# -- PaliGlance Wayland trigger endpoint --
+# Called by Hyprland keybind via: curl -s -X POST http://127.0.0.1:8000/api/glance/open
+# Broadcasts a 'glance_open' event over SSE so Electron's main process can react.
+@app.post("/api/glance/open")
+async def trigger_glance_open():
+    await broadcast_event({"type": "glance_open"})
+    return {"status": "ok"}
+
 # -- Global State & Config --
 GLOBAL_CONFIG_PATH = Path.home() / ".palimind_global.json"
 GLOBAL_AGENTS_PATH = Path.home() / ".palimind_agents.json"
