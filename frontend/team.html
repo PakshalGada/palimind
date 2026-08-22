@@ -2,6 +2,39 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<!--
+  Paliteams standalone guest/host page.
+
+  WHY THIS EXISTS BESIDES frontend/src/views/Teams.tsx:
+  This file is a self-contained, zero-build page served by the host app at
+  /team so ANY device on the LAN (phone, tablet, another laptop) can join or
+  host without installing anything. Teams.tsx is the same feature embedded
+  in the main React/Tauri app.
+
+  THE TWO FILES ARE PARALLEL IMPLEMENTATIONS OF ONE PROTOCOL — if you change
+  either side, mirror the change in the other:
+
+    REST   POST /api/teams/create                     {field_path}
+             -> {code, session_id, host_token, host_ip, port}
+           POST /api/teams/{sid}/invite                hdr X-Teams-Host-Token
+           POST /api/teams/{sid}/end                   hdr X-Teams-Host-Token
+           POST /api/teams/{sid}/kick/{seat}           hdr X-Teams-Host-Token
+           GET  /api/teams/{sid}/guests                hdr X-Teams-Host-Token
+           GET  /api/teams/{sid}/messages?after=N      hdr X-Teams-Host-Token
+    WS     /ws/team/{session_id}?token=<invite|session_token>
+           client -> {type:"join", display_name, permission:"view"|"query"}
+                     {type:"query", text} | {type:"ping"}
+           server -> {type:"joined", field_name, permission, session_token}
+                     {type:"stream_chunk", text} | {type:"stream_end"}
+                     {type:"kicked"} | {type:"error", message} | {type:"pong"}
+    TOKENS invite code = PALI- + base64(json{session_id,host_ip,port,token,expires}),
+           single-use, consumed server-side only AFTER a successful join.
+           The `joined` reply carries a multi-use session_token stored under
+           localStorage key "paliteams_st_<session_id>" and used for all
+           reconnects. Client pings every 25s; reconnects up to 5 times with
+           exponential backoff (1s..15s).
+-->
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Paliteams</title>
 <style>
@@ -119,6 +152,10 @@
     <h3>Connected guests</h3>
     <div id="host-guests"><div class="error-text">No guests yet.</div></div>
   </div>
+  <div class="card" id="host-chat-card" style="display:none">
+    <h3>Session chat</h3>
+    <div id="host-chat"><div class="error-text">No messages yet.</div></div>
+  </div>
 </main>
 
 <main id="pane-guest">
@@ -153,7 +190,9 @@ function switchTab(which) {
 }
 
 /* ---------------- Host ---------------- */
-let hostState = { session_id: null, field: null, pollTimer: null };
+let hostState = { session_id: null, host_token: null, field: null, pollTimer: null, msg_count: 0 };
+
+const hostHeaders = () => ({ 'X-Teams-Host-Token': hostState.host_token || '' });
 
 async function hostLoadFields() {
   try {
@@ -190,17 +229,20 @@ async function hostCreate() {
   const data = await res.json();
   if (data.error) { alert(data.error); return; }
   hostState.session_id = data.session_id;
+  hostState.host_token = data.host_token;
   hostState.field = field;
   $('host-active').style.display = 'block';
   $('host-guests-card').style.display = 'block';
+  $('host-chat-card').style.display = 'block';
   $('host-code').textContent = data.code;
   $('host-session-label').textContent = 'Sharing: ' + field;
   hostStartPoll();
 }
 
 async function hostInvite() {
-  const res = await fetch(`/api/teams/${hostState.session_id}/invite`, { method: 'POST' });
+  const res = await fetch(`/api/teams/${hostState.session_id}/invite`, { method: 'POST', headers: hostHeaders() });
   const data = await res.json();
+  if (data.error) { alert(data.error); return; }
   if (data.code) $('host-code').textContent = data.code;
 }
 
@@ -211,17 +253,48 @@ function copyCode() {
 
 async function hostEnd() {
   if (!hostState.session_id) return;
-  await fetch(`/api/teams/${hostState.session_id}/end`, { method: 'POST' });
+  await fetch(`/api/teams/${hostState.session_id}/end`, { method: 'POST', headers: hostHeaders() });
   clearInterval(hostState.pollTimer);
   hostState.session_id = null;
+  hostState.host_token = null;
+  hostState.msg_count = 0;
   $('host-active').style.display = 'none';
   $('host-guests-card').style.display = 'none';
+  $('host-chat-card').style.display = 'none';
+}
+
+async function hostPollChat() {
+  try {
+    const res = await fetch(
+      `/api/teams/${hostState.session_id}/messages?after=${hostState.msg_count}`,
+      { headers: hostHeaders() },
+    );
+    const data = await res.json();
+    if (!data.messages || !data.messages.length) return;
+    const box = $('host-chat');
+    if (hostState.msg_count === 0) box.innerHTML = '';
+    for (const m of data.messages) {
+      const div = document.createElement('div');
+      div.className = 'msg ' + (m.sender_type === 'guest' ? 'me' : 'ai');
+      const who = document.createElement('div');
+      who.className = 'name';
+      who.textContent = m.sender_type === 'guest' ? m.sender_name : 'AI';
+      // content is guest/host text — always escaped
+      const body = document.createElement('div');
+      body.textContent = m.content;
+      div.appendChild(who);
+      div.appendChild(body);
+      box.appendChild(div);
+    }
+    hostState.msg_count += data.messages.length;
+    box.scrollTop = box.scrollHeight;
+  } catch (e) {}
 }
 
 async function hostPollGuests() {
   if (!hostState.session_id) return;
   try {
-    const res = await fetch(`/api/teams/${hostState.session_id}/guests`);
+    const res = await fetch(`/api/teams/${hostState.session_id}/guests`, { headers: hostHeaders() });
     const data = await res.json();
     const wrap = $('host-guests');
     if (!data.guests || !data.guests.length) {
@@ -232,9 +305,16 @@ async function hostPollGuests() {
     for (const g of data.guests) {
       const row = document.createElement('div');
       row.className = 'guest-row';
-      row.innerHTML =
-        '<div><div>' + g.display_name + '</div>' +
-        '<div class="meta">' + g.query_count + ' ' + (g.query_count === 1 ? 'query' : 'queries') + '</div></div>';
+      // Guest-supplied display_name must never pass through innerHTML (XSS).
+      const info = document.createElement('div');
+      const nameEl = document.createElement('div');
+      nameEl.textContent = g.display_name;
+      const metaEl = document.createElement('div');
+      metaEl.className = 'meta';
+      metaEl.textContent = g.query_count + ' ' + (g.query_count === 1 ? 'query' : 'queries');
+      info.appendChild(nameEl);
+      info.appendChild(metaEl);
+      row.appendChild(info);
       const kickBtn = document.createElement('button');
       kickBtn.className = 'danger';
       kickBtn.textContent = 'Kick';
@@ -246,13 +326,14 @@ async function hostPollGuests() {
 }
 
 function hostKick(token) {
-  fetch(`/api/teams/${hostState.session_id}/kick/${token}`, { method: 'POST' });
+  fetch(`/api/teams/${hostState.session_id}/kick/${token}`, { method: 'POST', headers: hostHeaders() });
 }
 
 function hostStartPoll() {
   clearInterval(hostState.pollTimer);
   hostPollGuests();
-  hostState.pollTimer = setInterval(hostPollGuests, 3000);
+  hostPollChat();
+  hostState.pollTimer = setInterval(() => { hostPollGuests(); hostPollChat(); }, 3000);
 }
 
 hostLoadFields();
@@ -261,6 +342,18 @@ hostLoadFields();
 let ws = null;
 let guestJoined = false;
 let thinking = false;
+// Keepalive ping cadence and reconnect budget (mirror of Teams.tsx).
+const WS_HEARTBEAT_MS = 25000;
+const WS_MAX_RECONNECT = 5;
+let heartbeatTimer = null;
+
+function startHeartbeat(sock) {
+  clearInterval(heartbeatTimer);
+  heartbeatTimer = setInterval(() => {
+    if (sock.readyState === WebSocket.OPEN) sock.send(JSON.stringify({ type: 'ping' }));
+  }, WS_HEARTBEAT_MS);
+}
+function stopHeartbeat() { clearInterval(heartbeatTimer); heartbeatTimer = null; }
 
 function setGuestStatus(text, cls) {
   const el = $('guest-status');
@@ -303,76 +396,127 @@ function guestJoin() {
     $('guest-error').textContent = 'Invalid invite code: ' + e.message;
     return;
   }
-  const url = 'ws://' + payload.host_ip + ':' + payload.port +
-    '/ws/team/' + payload.session_id + '?token=' + payload.token;
-  setGuestStatus('Connecting...', 'thinking');
-  try {
-    ws = new WebSocket(url);
-  } catch (e) {
-    $('guest-error').textContent = 'Failed to open connection: ' + e.message;
-    setGuestStatus('Not connected');
-    return;
-  }
-  ws.onopen = () => {
-    ws.send(JSON.stringify({ type: 'join', display_name: name, permission: 'query' }));
-  };
-  ws.onmessage = (ev) => {
-    const msg = JSON.parse(ev.data);
-    if (msg.type === 'joined') {
-      guestJoined = true;
-      setGuestStatus('Connected to ' + msg.field_name, 'connected');
-      $('guest-chat').style.display = 'flex';
-      $('guest-code').disabled = true;
-      $('guest-name').disabled = true;
-      $('btn-join').disabled = true;
-      addMessage('sys', 'Joined shared Palispace: ' + msg.field_name);
-    } else if (msg.type === 'kicked') {
-      guestJoined = false;
-      setGuestStatus('Not connected', 'disconnected');
-      $('guest-kicked').style.display = 'block';
-      $('guest-chat').style.display = 'none';
-      ws.close();
-    } else if (msg.type === 'stream_chunk') {
-      if (thinking) {
-        const t = $('guest-messages').querySelector('.msg.ai.thinking');
-        if (t) { t.classList.remove('thinking'); t.dataset.acc = ''; t.innerHTML = '<div class="name">AI</div>'; }
+  // Prefer the session token minted at our first successful join so
+  // refreshes/reconnects never re-burn the single-use invite.
+  const sessionKey = 'paliteams_st_' + payload.session_id;
+
+  let attempts = 0;
+  let kickedLocal = false;
+  let joinRejected = false;
+  let stopped = false;
+
+  const connectOnce = () => {
+    if (stopped || kickedLocal || joinRejected) return;
+    const savedToken = localStorage.getItem(sessionKey);
+    const credToken = savedToken || payload.token;
+    const url = 'ws://' + payload.host_ip + ':' + payload.port +
+      '/ws/team/' + payload.session_id + '?token=' + encodeURIComponent(credToken);
+    setGuestStatus('Connecting...', 'thinking');
+    try {
+      ws = new WebSocket(url);
+    } catch (e) {
+      $('guest-error').textContent = 'Failed to open connection: ' + e.message;
+      setGuestStatus('Not connected');
+      return;
+    }
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'join', display_name: name, permission: 'query' }));
+      startHeartbeat(ws);
+    };
+    ws.onmessage = (ev) => {
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch { return; }
+      if (msg.type === 'joined') {
+        guestJoined = true;
+        attempts = 0;
+        if (msg.session_token) {
+          try { localStorage.setItem(sessionKey, msg.session_token); } catch (e) {}
+        }
+        setGuestStatus('Connected to ' + msg.field_name, 'connected');
+        $('guest-chat').style.display = 'flex';
+        $('guest-code').disabled = true;
+        $('guest-name').disabled = true;
+        $('btn-join').disabled = true;
+        addMessage('sys', 'Joined shared Palispace: ' + msg.field_name);
+      } else if (msg.type === 'kicked') {
+        kickedLocal = true;
+        guestJoined = false;
+        stopHeartbeat();
+        try { localStorage.removeItem(sessionKey); } catch (e) {}
+        setGuestStatus('Not connected', 'disconnected');
+        $('guest-kicked').style.display = 'block';
+        $('guest-chat').style.display = 'none';
+        ws.close();
+      } else if (msg.type === 'stream_chunk') {
+        if (thinking) {
+          const t = $('guest-messages').querySelector('.msg.ai.thinking');
+          if (t) { t.classList.remove('thinking'); t.dataset.acc = ''; t.innerHTML = '<div class="name">AI</div>'; }
+          thinking = false;
+          setGuestStatus('Connected', 'connected');
+        }
+        const last = $('guest-messages').lastElementChild;
+        if (last && last.classList.contains('ai')) {
+          const acc = (last.dataset.acc || '') + msg.text;
+          last.dataset.acc = acc;
+          last.innerHTML = '<div class="name">AI</div>' + escapeHtml(acc);
+        } else {
+          const bubble = addMessage('ai', msg.text);
+          bubble.dataset.acc = msg.text;
+        }
+        $('guest-messages').scrollTop = $('guest-messages').scrollHeight;
+      } else if (msg.type === 'stream_end') {
         thinking = false;
         setGuestStatus('Connected', 'connected');
+      } else if (msg.type === 'error') {
+        if (!guestJoined) {
+          // Auth/invite failures must not be overwritten by the generic
+          // onclose message, and must not trigger reconnects.
+          joinRejected = true;
+          stopHeartbeat();
+          setGuestStatus('Not connected', 'disconnected');
+          $('guest-error').textContent = msg.message || 'Could not join.';
+          try { ws.close(); } catch (e) {}
+          return;
+        }
+        if (thinking) {
+          const t = $('guest-messages').querySelector('.msg.ai.thinking');
+          if (t) t.remove();
+          thinking = false;
+        }
+        setGuestStatus('Connected', 'connected');
+        addMessage('ai', '(error) ' + msg.message);
+        $('guest-input').disabled = false;
       }
-      const last = $('guest-messages').lastElementChild;
-      if (last && last.classList.contains('ai')) {
-        const acc = (last.dataset.acc || '') + msg.text;
-        last.dataset.acc = acc;
-        last.innerHTML = '<div class="name">AI</div>' + escapeHtml(acc);
+    };
+    ws.onclose = () => {
+      stopHeartbeat();
+      // Kicked / rejected-at-join / stopped: the right UI is already showing.
+      if (kickedLocal || joinRejected || stopped) return;
+      if (guestJoined) {
+        guestJoined = false;
+        $('guest-chat').style.display = 'none';
+        $('guest-code').disabled = false;
+        $('guest-name').disabled = false;
+        $('btn-join').disabled = false;
+        if (attempts < WS_MAX_RECONNECT) {
+          attempts += 1;
+          const delay = Math.min(15000, 1000 * 2 ** (attempts - 1));
+          addMessage('sys', 'Connection lost — retrying in ' + (delay / 1000) + 's (' + attempts + '/' + WS_MAX_RECONNECT + ')...');
+          setGuestStatus('Reconnecting in ' + (delay / 1000) + 's...', 'thinking');
+          setTimeout(connectOnce, delay);
+        } else {
+          setGuestStatus('Disconnected', 'disconnected');
+          addMessage('sys', 'Could not reconnect.');
+        }
       } else {
-        const bubble = addMessage('ai', msg.text);
-        bubble.dataset.acc = msg.text;
+        $('guest-error').textContent = 'Connection refused — is the host app running on the same network with Paliteams LAN mode enabled? Check the host machine\'s firewall.';
+        setGuestStatus('Not connected', 'disconnected');
       }
-      $('guest-messages').scrollTop = $('guest-messages').scrollHeight;
-    } else if (msg.type === 'stream_end') {
-      thinking = false;
-      setGuestStatus('Connected', 'connected');
-    } else if (msg.type === 'error') {
-      if (thinking) {
-        const t = $('guest-messages').querySelector('.msg.ai.thinking');
-        if (t) t.remove();
-        thinking = false;
-      }
-      setGuestStatus('Connected', 'connected');
-      addMessage('ai', '(error) ' + msg.message);
-      $('guest-input').disabled = false;
-    }
+    };
+    ws.onerror = () => {};
   };
-  ws.onclose = () => {
-    if (guestJoined) {
-      setGuestStatus('Disconnected', 'disconnected');
-      addMessage('sys', 'Connection closed.');
-    } else if (ws) {
-      $('guest-error').textContent = 'Connection refused — is the host app running and on the same network?';
-      setGuestStatus('Not connected', 'disconnected');
-    }
-  };
-  ws.onerror = () => {};
+
+  connectOnce();
 }
 
 function guestSend() {

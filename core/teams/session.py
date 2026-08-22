@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -63,9 +64,43 @@ class TeamSession:
     session_id: str
     field_path: str
     created_at: float = field(default_factory=time.time)
+    # Secret held only by the host UI; authorises end/kick/invite/guests.
+    # Generated in api_server.create_team_session.
+    host_token: str = ""
     guests: dict[str, GuestConnection] = field(default_factory=dict)
     message_history: list[dict] = field(default_factory=list)
-    _inference_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    inference_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    # Lazily built RAG engine for this session's Palispace. Built once and
+    # reused across queries so config/graph/reranker loads aren't repeated
+    # per guest question.
+    _engine: object | None = None
+
+    def get_engine(self):
+        """Return this session's DocumentEngine, building it on first use.
+
+        Queries are serialised by ``inference_lock`` so the engine is never
+        used from two threads at once within a session.
+        """
+        if self._engine is None:
+            from pathlib import Path as _Path
+
+            from core.document.engine import DocumentEngine
+
+            self._engine = DocumentEngine(_Path(self.field_path))
+        return self._engine
+
+    def check_host_token(self, candidate: str | None) -> bool:
+        """Constant-time check of a candidate against this session's host token."""
+        if not self.host_token or not candidate:
+            return False
+        return secrets.compare_digest(str(candidate), self.host_token)
+
+    def last_activity(self) -> float:
+        """Timestamp of the most recent activity across all guests."""
+        latest = self.created_at
+        for g in self.guests.values():
+            latest = max(latest, g.last_active)
+        return latest
 
     def add_guest(
         self, token: str, display_name: str, permission: str = "view"

@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import logging
+import os
+import time
 
 from core.teams.session import TeamSession
 
 logger = logging.getLogger(__name__)
+
+# A shared session is reaped after this many seconds with no connected
+# guest and no query activity. Override with PALIMIND_TEAMS_IDLE_TTL.
+DEFAULT_IDLE_TTL_SECONDS = int(os.environ.get("PALIMIND_TEAMS_IDLE_TTL", str(6 * 3600)))
 
 
 class TeamSessionManager:
@@ -31,6 +37,26 @@ class TeamSessionManager:
             logger.warning("[TEAMS] end_session: unknown id %s", session_id)
         else:
             logger.debug("[TEAMS] session ended (id=%s)", session_id)
+
+    def sweep(self, idle_seconds: float = DEFAULT_IDLE_TTL_SECONDS) -> list[str]:
+        """End stale sessions; returns the list of ended session ids.
+
+        A session is stale when no guest websocket is currently attached AND
+        nothing happened since ``idle_seconds`` ago. Sessions with a live
+        connection are never reaped regardless of age.
+        """
+        now = time.time()
+        doomed = [
+            sid
+            for sid, s in self._sessions.items()
+            if not any(g.websocket is not None for g in s.guests.values())
+            and now - s.last_activity() > idle_seconds
+        ]
+        for sid in doomed:
+            self.end_session(sid)
+        if doomed:
+            logger.info("[TEAMS] sweep reaped %d idle session(s)", len(doomed))
+        return doomed
 
 
 _manager: TeamSessionManager | None = None

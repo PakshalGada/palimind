@@ -14,12 +14,15 @@ async def run_chat_pipeline(
     query: str,
     field_path: str,
     mode: str = "document",
+    engine: "DocumentEngine | None" = None,
 ) -> "asyncio.AsyncIterator[str]":
     """Run the host's real document-RAG pipeline for a guest query.
 
     Yields answer tokens as plain text chunks. Retrieval is rooted strictly
-    at ``field_path``: a fresh DocumentEngine is constructed for that folder
-    only, so a guest can never reach the host's other Palispaces.
+    at ``field_path``: the DocumentEngine used here is bound to that folder
+    only, so a guest can never reach the host's other Palispaces. Pass a
+    cached ``engine`` (e.g. ``session.get_engine()``) to avoid rebuilding
+    per query.
 
     The pipeline (retrieval + generation) is blocking, so it runs in a
     thread executor; chunks are fed back over an asyncio.Queue so the event
@@ -30,9 +33,15 @@ async def run_chat_pipeline(
     if mode != "document":
         logger.warning("[TEAMS] unsupported mode %r, falling back to document", mode)
 
-    engine = DocumentEngine(Path(field_path))
+    if engine is None:
+        engine = DocumentEngine(Path(field_path))
     queue: "asyncio.Queue[tuple[str, str | None]]" = asyncio.Queue()
     stop = threading.Event()
+    loop = asyncio.get_running_loop()
+
+    def _emit(kind: str, value: str | None) -> None:
+        # asyncio.Queue is not thread-safe; schedule the put on the loop.
+        loop.call_soon_threadsafe(queue.put_nowait, (kind, value))
 
     def _run() -> None:
         try:
@@ -40,13 +49,12 @@ async def run_chat_pipeline(
             for token in engine.stream_answer(query, context):
                 if stop.is_set():
                     return
-                queue.put_nowait(("token", token))
-            queue.put_nowait(("end", None))
+                _emit("token", token)
+            _emit("end", None)
         except Exception as e:
             logger.warning("[TEAMS] pipeline error: %s", e)
-            queue.put_nowait(("error", str(e)))
+            _emit("error", str(e))
 
-    loop = asyncio.get_running_loop()
     task = loop.run_in_executor(None, _run)
 
     try:

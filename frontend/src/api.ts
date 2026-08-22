@@ -17,15 +17,18 @@ async function parse<T>(res: Response, label: string): Promise<T> {
   return (data ?? {}) as T;
 }
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+async function get<T>(path: string, headers?: Record<string, string>): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, { headers });
   return parse<T>(res, `GET ${path}`);
 }
 
-async function post<T>(path: string, body?: unknown): Promise<T> {
+async function post<T>(path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    headers: {
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...headers,
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   return parse<T>(res, `POST ${path}`);
@@ -178,14 +181,16 @@ export const api = {
   },
   teams: {
     create: (fieldPath: string) =>
-      post<{ code?: string; session_id?: string; error?: string }>('/teams/create', { field_path: fieldPath }),
-    invite: (sessionId: string) =>
-      post<{ code?: string; session_id?: string; error?: string }>(`/teams/${sessionId}/invite`),
-    end: (sessionId: string) =>
-      post<{ status?: string; error?: string }>(`/teams/${sessionId}/end`),
-    kick: (sessionId: string, token: string) =>
-      post<{ status?: string; error?: string }>(`/teams/${sessionId}/kick/${token}`),
-    guests: (sessionId: string) =>
-      get<{ guests?: { token: string; display_name: string; query_count: number; connected_at: number; last_active: number }[]; error?: string }>(`/teams/${sessionId}/guests`),
+      post<{ code?: string; session_id?: string; host_token?: string; error?: string }>('/teams/create', { field_path: fieldPath }),
+    invite: (sessionId: string, hostToken: string) =>
+      post<{ code?: string; session_id?: string; error?: string }>(`/teams/${sessionId}/invite`, undefined, { 'X-Teams-Host-Token': hostToken }),
+    end: (sessionId: string, hostToken: string) =>
+      post<{ status?: string; error?: string }>(`/teams/${sessionId}/end`, undefined, { 'X-Teams-Host-Token': hostToken }),
+    kick: (sessionId: string, token: string, hostToken: string) =>
+      post<{ status?: string; error?: string }>(`/teams/${sessionId}/kick/${token}`, undefined, { 'X-Teams-Host-Token': hostToken }),
+    guests: (sessionId: string, hostToken: string) =>
+      get<{ guests?: { token: string; display_name: string; query_count: number; connected_at: number; last_active: number }[]; error?: string }>(`/teams/${sessionId}/guests`, { 'X-Teams-Host-Token': hostToken }),
+    messages: (sessionId: string, hostToken: string, after = 0) =>
+      get<{ messages?: { sender_type: string; sender_name: string; content: string; timestamp: number }[]; total?: number; error?: string }>(`/teams/${sessionId}/messages?after=${after}`, { 'X-Teams-Host-Token': hostToken }),
   },
 };

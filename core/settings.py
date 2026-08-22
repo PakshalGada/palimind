@@ -80,3 +80,19 @@ AGENT_CHAT_LIMIT: int = _env_int("PALIMIND_AGENT_CHAT_LIMIT", 300)
 TEAMS_MAX_QUERIES_PER_MINUTE: int = _env_int(
     "PALIMIND_TEAMS_MAX_QUERIES_PER_MINUTE", 10
 )
+
+# Paliteams — opt-in LAN exposure. When true the API server binds 0.0.0.0 so
+# guests on the same network can reach /ws/team and /team. Default stays
+# loopback-only (127.0.0.1). LAN mode must only be enabled together with the
+# teams security controls (field allowlist, host token, WS origin check).
+TEAMS_LAN_MODE: bool = _env_bool("PALIMIND_TEAMS_LAN", False)
+
+# Bind address derived from TEAMS_LAN_MODE.
+SERVER_HOST: str = "0.0.0.0" if TEAMS_LAN_MODE else "127.0.0.1"
+
+# Master switch for Paliteams. When false, /api/teams/create refuses new
+# shares (existing sessions keep working until ended).
+ENABLE_TEAMS: bool = _env_bool("PALIMIND_ENABLE_TEAMS", True)
+
+# Idle seconds before an unattended shared session is reaped.
+TEAMS_IDLE_TTL_SECONDS: int = _env_int("PALIMIND_TEAMS_IDLE_TTL", 6 * 3600)

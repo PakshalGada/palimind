@@ -295,15 +295,20 @@ def ui(
             print_success("Ollama already running on :11434")
 
         if not port_up(port):
+            from core.settings import SERVER_HOST, TEAMS_LAN_MODE
+
             print_info(f"Starting API server on :{port}...")
             backend_proc = spawn(
                 [sys.executable, str(root_dir / "core" / "api_server.py"),
-                 "--host", "127.0.0.1", "--port", str(port)],
+                 "--host", SERVER_HOST, "--port", str(port)],
+                env={**os.environ, "PALIMIND_SERVER_PORT": str(port)},
             )
             if not wait_port(port, 60):
                 print_error(f"API server failed to start on :{port}")
                 raise typer.Exit(1)
-            print_success(f"API server running on :{port}")
+            print_success(f"API server running on :{port} ({SERVER_HOST})")
+            if TEAMS_LAN_MODE:
+                print_success("Paliteams LAN mode ON — guests on this network can join shared Palispaces")
         else:
             print_success(f"API server already running on :{port}")
 
