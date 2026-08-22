@@ -29,6 +29,7 @@ export default function InputArea() {
     refreshSessions,
     setThinkingText,
     setAgentStates,
+    setAgentLoading,
   } = useApp();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -236,7 +237,21 @@ export default function InputArea() {
 
     setThinkingText("Thinking...");
     setAgentStates([]);
+    setAgentLoading(null);
     const thinkingBaseRef = { current: "Thinking..." };
+
+    // When an agent is being invoked in this PaliSpace, surface the same
+    // animated profile-picture loading the Agents view uses.
+    const mentionAtStart = text.match(/^@([\w-]+)/);
+    if (mentionAtStart) {
+      const agent = allAgents.find((a) => a.name === mentionAtStart[1]);
+      if (agent) {
+        setAgentLoading({
+          seed: agent.color_seed || agent.id + agent.name,
+          name: agent.name,
+        });
+      }
+    }
 
     const startTime = Date.now();
     let totalThoughtDuration = "";
@@ -260,6 +275,7 @@ export default function InputArea() {
       clearInterval(timerInterval);
       setThinkingText("");
       setAgentStates([]);
+      setAgentLoading(null);
       setIsGenerating(false);
       refreshSessions().then(() => {
         if (messagesContainer) messagesContainer.innerHTML = "";
@@ -449,6 +465,7 @@ export default function InputArea() {
         clearInterval(timerInterval);
         setThinkingText("");
         setAgentStates([]);
+        setAgentLoading(null);
         if (!contentDiv) {
           contentDiv = document.createElement("div");
           contentDiv.className = "message-content";
@@ -471,6 +488,7 @@ export default function InputArea() {
         clearInterval(timerInterval);
         setThinkingText("");
         setAgentStates([]);
+        setAgentLoading(null);
         eventSource.close();
         setIsGenerating(false);
         refreshSessions().then(() => {
@@ -483,6 +501,7 @@ export default function InputArea() {
       clearInterval(timerInterval);
       setThinkingText("");
       setAgentStates([]);
+      setAgentLoading(null);
       eventSource.close();
       setIsGenerating(false);
       refreshSessions().then(() => {
@@ -500,6 +519,7 @@ export default function InputArea() {
     setAttachedFiles,
     setIsGenerating,
     refreshSessions,
+    allAgents,
   ]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -642,7 +662,7 @@ export default function InputArea() {
                   }}
                   onMouseEnter={() => setMentionIndex(i)}
                 >
-                  <AgentAvatar seed={a.id + a.name} thinking={!!a.running} size={20} />
+                  <AgentAvatar seed={a.color_seed || a.id + a.name} thinking={!!a.running} size={20} />
                   <span className="agent-mention-name">@{a.name}</span>
                 </div>
               ))}

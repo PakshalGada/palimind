@@ -173,7 +173,7 @@ export default function SettingsModal() {
             />
             <div className="settings-actions">
               <button
-                className="action-btn"
+                className="action-btn primary"
                 onClick={saveOcKey}
                 disabled={ocKeyBusy || !ocKeyInput.trim()}
               >
@@ -219,7 +219,7 @@ export default function SettingsModal() {
               onChange={(e) => setPersonaPrompt(e.target.value)}
             />
             <div className="settings-actions">
-              <button className="action-btn" onClick={savePersona}>Save Persona</button>
+              <button className="action-btn primary" onClick={savePersona}>Save Persona</button>
               {personaStatus && <span className="settings-status">{personaStatus}</span>}
             </div>
           </div>

@@ -34,7 +34,7 @@ export default function AgentAvatar({
 
   useEffect(() => {
     if (!thinking) return;
-    const id = setInterval(() => setTick(t => t + 1), 400);
+    const id = setInterval(() => setTick(t => t + 1), 120);
     return () => clearInterval(id);
   }, [thinking]);
 
@@ -42,9 +42,11 @@ export default function AgentAvatar({
     const base = hashSeed(seed) % 360;
     const rand = mulberry32(base + tick * 7919);
     return Array.from({ length: GRID * GRID }, () => {
-      const h = (base + rand() * 44 - 22 + 360) % 360;
-      const s = 48 + rand() * 30;
-      const l = 34 + rand() * 34;
+      // Keep every cell within the same colour family: a small hue drift
+      // around the base, with light/dark variation for depth.
+      const h = (base + rand() * 14 - 7 + 360) % 360;
+      const s = 46 + rand() * 26;
+      const l = 32 + rand() * 40;
       return `hsl(${h.toFixed(0)}, ${s.toFixed(0)}%, ${l.toFixed(0)}%)`;
     });
   }, [seed, tick]);

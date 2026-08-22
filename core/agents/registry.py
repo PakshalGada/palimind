@@ -19,6 +19,12 @@ def get_registry() -> AgentCatalog:
     if _registry is None:
         with _registry_lock:
             if _registry is None:
+                from core.agents.presets import seed_preset_agents
+
+                try:
+                    seed_preset_agents()
+                except Exception as e:
+                    print(f"[agents] preset seeding failed: {e}")
                 _registry = AgentCatalog()
                 _registry.load()
     return _registry

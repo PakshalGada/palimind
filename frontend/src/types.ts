@@ -95,6 +95,13 @@ export interface AgentDefinition {
   shell_access: boolean;
   enabled: boolean;
   context_fields?: string[];
+  color_seed?: string;
+}
+
+export interface AgentChatMessage {
+  role: 'user' | 'agent';
+  content: string;
+  timestamp: number;
 }
 
 export interface AgentListItem extends AgentDefinition {

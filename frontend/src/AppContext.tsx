@@ -38,6 +38,7 @@ interface AppState {
   thinkingText: string;
   agentStates: AgentState[];
   selectedAgentId: string | null;
+  agentLoading: { seed: string; name: string } | null;
 }
 
 interface AppContextType extends AppState {
@@ -64,6 +65,7 @@ interface AppContextType extends AppState {
   setThinkingText: React.Dispatch<React.SetStateAction<string>>;
   setAgentStates: React.Dispatch<React.SetStateAction<AgentState[]>>;
   setSelectedAgentId: (id: string | null) => void;
+  setAgentLoading: (v: { seed: string; name: string } | null) => void;
   refreshFields: () => Promise<void>;
   refreshSessions: () => Promise<void>;
   refreshFileTree: () => Promise<void>;
@@ -96,6 +98,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [thinkingText, setThinkingText] = useState('');
   const [agentStates, setAgentStates] = useState<AgentState[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [agentLoading, setAgentLoading] = useState<{ seed: string; name: string } | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   const toastId = useRef(0);
@@ -208,6 +211,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         thinkingText, setThinkingText,
         agentStates, setAgentStates,
         selectedAgentId, setSelectedAgentId,
+        agentLoading, setAgentLoading,
         refreshFields, refreshSessions, refreshFileTree,
         abortController, setAbortController,
       }}

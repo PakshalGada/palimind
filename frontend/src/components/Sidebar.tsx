@@ -502,7 +502,7 @@ export default function Sidebar() {
                 className={`session-tab agent-sidebar-tab${a.id === selectedAgentId ? " active" : ""}`}
                 onClick={() => setSelectedAgentId(a.id)}
               >
-                <AgentAvatar seed={a.id + a.name} thinking={!!a.running} size={20} />
+                <AgentAvatar seed={a.color_seed || a.id + a.name} thinking={!!a.running} size={20} />
                 <span className="session-tab-name">{a.name}</span>
                 <span
                   className={`agent-status-dot${a.running ? " running" : ""}${!a.enabled ? " off" : ""}`}

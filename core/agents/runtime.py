@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from core.agents.catalog import AgentDefinition
+from core.agents.chat import append_chat
 from core.agents.memory import append_memory, read_memory
 from core.llm.mixture_of_expert.agents import run_agent
 from core.llm.mixture_of_expert.tools import set_tool_context
@@ -316,6 +317,7 @@ async def run_with_definition(
     run_id = str(uuid.uuid4())
     ra = await register_running(definition.id, run_id)
     loop = asyncio.get_running_loop()
+    append_chat(definition.id, "user", input)
 
     def thread_emit(event_type: str, payload: dict) -> None:
         if emit is None:
@@ -397,6 +399,7 @@ async def run_with_definition(
 
     duration = time.time() - start
     record_run(definition.id, run_id, input, output, status, duration)
+    append_chat(definition.id, "agent", output)
 
     if definition.memory_scope != "none":
         try:

@@ -1,4 +1,4 @@
-import type { AgentDefinition, AgentListItem, DirItem, GlanceSession, GraphData, HardwareData, MemoryEntry, ModelItem, Recommendation, RunRecord, ToolMeta, TreeNode } from './types';
+import type { AgentChatMessage, AgentDefinition, AgentListItem, DirItem, GlanceSession, GraphData, HardwareData, MemoryEntry, ModelItem, Recommendation, RunRecord, ToolMeta, TreeNode } from './types';
 
 const BASE = '/api';
 
@@ -88,6 +88,8 @@ export const api = {
       get<{ entries: MemoryEntry[]; total: number; page: number; per_page: number }>(
         `/agents/${agentId}/memory?page=${page}&per_page=${perPage}`,
       ),
+    chat: (agentId: string) => get<{ messages?: AgentChatMessage[] }>(`/agents/${agentId}/chat`),
+    clearChat: (agentId: string) => del<{ error?: string; status?: string }>(`/agents/${agentId}/chat`),
     deleteMemoryEntry: (agentId: string, index: number) =>
       del<{ error?: string; status?: string }>(`/agents/${agentId}/memory?index=${index}`),
     clearMemory: (agentId: string) => post<{ error?: string; status?: string }>(`/agents/${agentId}/memory/clear`),

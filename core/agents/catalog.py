@@ -48,6 +48,11 @@ class AgentDefinition:
     shell_access: bool
     enabled: bool
     context_fields: list[str] = field(default_factory=list)
+    color_seed: str = ""
+
+    @property
+    def avatar_seed(self) -> str:
+        return self.color_seed or f"{self.id}{self.name}"
 
     # ── construction helpers ────────────────────────────────────────────
 
@@ -74,6 +79,7 @@ class AgentDefinition:
         enabled: bool = True,
         context_fields: list[str] | None = None,
         field_root: Path | None = None,
+        color_seed: str = "",
     ) -> "AgentDefinition":
         created_at = _now_iso()
         defn = cls(
@@ -98,6 +104,7 @@ class AgentDefinition:
             shell_access=shell_access,
             enabled=enabled,
             context_fields=list(context_fields or []),
+            color_seed=color_seed,
         )
         defn.set_memory_file(field_root)
         return defn
@@ -131,6 +138,7 @@ class AgentDefinition:
         cleaned.setdefault("shell_access", False)
         cleaned.setdefault("enabled", True)
         cleaned.setdefault("context_fields", [])
+        cleaned.setdefault("color_seed", "")
         return cls(**cleaned)
 
     # ── memory file ─────────────────────────────────────────────────────

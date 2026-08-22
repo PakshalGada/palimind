@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { formatMarkdown } from '../utils/markdown';
 import AgentAvatar from '../components/AgentAvatar';
-import { ThinkingOrb } from 'thinking-orbs';
 import { useApp } from '../AppContext';
 import type { AgentDefinition, AgentListItem, MemoryEntry, ModelItem, RunRecord, ToolMeta } from '../types';
 
@@ -49,6 +48,12 @@ function fmtTime(ts?: number): string {
   return new Date(ts * 1000).toLocaleString();
 }
 
+function fmtClock(ts?: number): string {
+  if (!ts) return '';
+  const ms = ts < 1e12 ? ts * 1000 : ts;
+  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 export default function Agents() {
   const { selectedAgentId, setSelectedAgentId } = useApp();
   const [agents, setAgents] = useState<AgentListItem[]>([]);
@@ -85,9 +90,36 @@ export default function Agents() {
   useEffect(() => { refresh(); }, [refresh]);
   useEffect(() => { notifyChanged(); }, [notifyChanged]); // sync sidebar once mounted
 
+  // Load the persisted conversation for the selected agent so chats that
+  // happened in PaliSpace (@mention) or in earlier sessions stay visible.
+  useEffect(() => {
+    if (!selectedAgentId) return;
+    let cancelled = false;
+    api.agents.chat(selectedAgentId).then(d => {
+      if (cancelled || !d.messages) return;
+      setMessagesByAgent(prev => {
+        if (prev[selectedAgentId] && prev[selectedAgentId].some(m => m.pending)) return prev;
+        return {
+          ...prev,
+          [selectedAgentId]: d.messages!.map(m => ({
+            role: m.role as 'user' | 'agent',
+            content: m.content,
+            steps: [],
+            pending: false,
+            waiting: null,
+            error: '',
+            timestamp: m.timestamp * 1000,
+          })),
+        };
+      });
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedAgentId]);
+
   const selected = agents.find(a => a.id === selectedAgentId) || null;
   const messages = selectedAgentId ? (messagesByAgent[selectedAgentId] || []) : [];
   const agentWorking = messages.length > 0 && messages[messages.length - 1].role === 'agent' && messages[messages.length - 1].pending;
+  const agentSeed = selected ? (selected.color_seed || selected.id + selected.name) : '';
 
   const sendMessage = useCallback(async (agentId: string, text: string) => {
     const now = Date.now();
@@ -146,6 +178,12 @@ export default function Agents() {
     await api.agents.cancel(agentId);
   }, []);
 
+  const clearConversation = useCallback(async (agentId: string) => {
+    if (!window.confirm('Clear this conversation? The chat log on disk will be deleted.')) return;
+    try { await api.agents.clearChat(agentId); } catch {}
+    setMessagesByAgent(prev => ({ ...prev, [agentId]: [] }));
+  }, []);
+
   return (
     <div className="agents-view">
       {listError && (
@@ -172,11 +210,20 @@ export default function Agents() {
       ) : selected ? (
         <div className="agent-chat-pane">
           <div className="agent-chat-header">
-            <AgentAvatar seed={selected.id + selected.name} thinking={agentWorking} size={36} />
+            <AgentAvatar seed={agentSeed} thinking={agentWorking} size={38} />
             <div className="agent-chat-header-info">
               <h2>{selected.name}</h2>
-              <span className="agent-chat-sub">{selected.model || 'default model'} · {selected.tools.length} tools</span>
+              <span className={`agent-chat-status${agentWorking ? ' working' : ''}`}>
+                <span className="agent-chat-status-dot" />
+                {agentWorking ? 'active now' : 'online'}
+              </span>
             </div>
+            <span className="agent-chat-sub">{selected.model || 'default model'} · {selected.tools.length} tools</span>
+            <button className="icon-btn" data-tooltip="Clear conversation" onClick={() => clearConversation(selected.id)}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+              </svg>
+            </button>
             <button className="icon-btn" data-tooltip="Configure" onClick={() => setShowConfig(true)}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3" />
@@ -185,7 +232,7 @@ export default function Agents() {
             </button>
           </div>
 
-          <AgentChatThread messages={messages} agentSeed={selected.id + selected.name} agentId={selected.id} />
+          <AgentChatThread messages={messages} agentSeed={agentSeed} agentId={selected.id} />
 
           <AgentChatInput
             agentId={selected.id}
@@ -661,13 +708,22 @@ function ChatMessageItem({
   if (msg.role === 'user') {
     return (
       <div className="agent-msg user">
-        <div className="agent-msg-bubble user">{msg.content}</div>
+        <div className="agent-msg-bubble user">
+          <span className="agent-msg-text">{msg.content}</span>
+          <span className="agent-msg-meta">
+            <span className="agent-msg-time">{fmtClock(msg.timestamp)}</span>
+            <svg className="msg-tick" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M9.5 16.5 5 12l1.4-1.4 3.1 3.1 8-8L19 7.1l-9.5 9.4z" />
+              <path d="M9.5 20.5 5 16l1.4-1.4 3.1 3.1 8-8L19 10.1l-9.5 10.4z" />
+            </svg>
+          </span>
+        </div>
       </div>
     );
   }
   return (
     <div className="agent-msg agent">
-      <AgentAvatar seed={agentSeed} thinking={msg.pending} size={24} />
+      <AgentAvatar seed={agentSeed} thinking={msg.pending} size={30} />
       <div className="agent-msg-body">
         {msg.steps.length > 0 && (
           <details className="agent-msg-chain">
@@ -679,12 +735,17 @@ function ChatMessageItem({
         )}
         {msg.pending && !msg.content && !msg.error && (
           <div className="agent-thinking">
-            <ThinkingOrb state="solving" size={20} style={{ background: 'transparent' }} />
-            <span className="agent-thinking-text">Thinking...</span>
+            <AgentAvatar seed={agentSeed} thinking size={26} />
+            <span className="agent-thinking-text">typing…</span>
           </div>
         )}
         {msg.content && (
-          <div className="agent-msg-bubble agent" dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.content) }} />
+          <div className="agent-msg-bubble agent">
+            <div className="agent-msg-rich" dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.content) }} />
+            <span className="agent-msg-meta">
+              <span className="agent-msg-time">{fmtClock(msg.timestamp)}</span>
+            </span>
+          </div>
         )}
         {msg.error && <div className="agent-msg-error">{msg.error}</div>}
         {msg.waiting && <ApprovalCard agentId={agentId} tool={msg.waiting.tool} args={msg.waiting.args} />}

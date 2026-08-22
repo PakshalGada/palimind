@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
 from core.agents.catalog import AgentDefinition
+from core.agents.chat import clear_chat, read_chat
 from core.agents.registry import get_registry
 from core.agents.runtime import (
     cancel_agent,
@@ -166,6 +167,17 @@ async def run_agent(agent_id: str, req: Request):
         yield 'data: {"type": "done"}\n\n'
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@router.get("/{agent_id}/chat")
+async def agent_chat(agent_id: str):
+    return {"messages": read_chat(agent_id)}
+
+
+@router.delete("/{agent_id}/chat")
+async def delete_agent_chat(agent_id: str):
+    clear_chat(agent_id)
+    return {"status": "success"}
 
 
 @router.post("/{agent_id}/cancel")

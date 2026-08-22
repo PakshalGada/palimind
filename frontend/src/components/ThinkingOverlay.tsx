@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useApp } from "../AppContext";
 import { ThinkingOrb } from "thinking-orbs";
+import AgentAvatar from "./AgentAvatar";
 
 const AGENT_BADGES = ["1", "2", "3", "4"];
 
@@ -36,11 +37,32 @@ const DEFAULT_AGENTS = [
 ];
 
 export default function ThinkingOverlay() {
-  const { isGenerating, thinkingText, agentStates, chatMode, llmSubMode } = useApp();
+  const { isGenerating, thinkingText, agentStates, chatMode, llmSubMode, agentLoading } = useApp();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   try {
     if (!isGenerating) return null;
+
+    // When an agent was called from this PaliSpace, mirror the Agent
+    // view's animated profile-picture loading indicator.
+    if (agentLoading) {
+      return (
+        <div className="thinking-overlay">
+          <div className="agent-call-card">
+            <div className="agent-call-card-left">
+              <AgentAvatar seed={agentLoading.seed} thinking size={34} />
+              <div className="agent-call-card-info">
+                <span className="agent-call-card-title">{agentLoading.name}</span>
+                <span className="agent-call-card-status">online · responding…</span>
+              </div>
+            </div>
+            {thinkingText && (
+              <span className="moe-card-status-text">{thinkingText}</span>
+            )}
+          </div>
+        </div>
+      );
+    }
 
     const isMoeActive = (chatMode === "llm" && llmSubMode === "moe") || agentStates.length > 0;
 
