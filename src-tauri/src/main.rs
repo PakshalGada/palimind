@@ -52,12 +52,40 @@ fn find_python(project_root: &PathBuf) -> String {
         project_root.join(".venv").join("Scripts").join("python.exe"),
         project_root.join("venv").join("Scripts").join("python.exe"),
     ];
-    for p in &candidates {
-        if p.exists() {
-            return p.to_string_lossy().into_owned();
+    let mut fallbacks: Vec<String> = candidates
+        .iter()
+        .filter(|p| p.exists())
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
+    // System interpreters — verified below for backend dependencies
+    fallbacks.push("python3".to_string());
+    fallbacks.push("python".to_string());
+
+    for py in &fallbacks {
+        let ok = Command::new(py)
+            .args(["-c", "import fastapi, uvicorn"])
+            .stdin(Stdio::null())
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        if ok {
+            return py.clone();
         }
+        // Direct probe failed — retry through a login shell so the user's
+        // profile (mise/rbenv-style version managers, venv activation, …)
+        // is applied even when launched from a desktop entry.
+        let ok_login = Command::new("sh")
+            .args(["-lc", &format!("command -v {py} >/dev/null && {py} -c \"import fastapi, uvicorn\"")])
+            .stdin(Stdio::null())
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        if ok_login {
+            return format!("sh|-lc|{}", py);
+        }
+        eprintln!("[Palimind] Python '{}' missing backend deps, trying next…", py);
     }
-    // Fallback to system python3
+    eprintln!("[Palimind] No Python with fastapi/uvicorn found — using 'python3' anyway.");
     "python3".to_string()
 }
 
@@ -171,18 +199,35 @@ fn main() {
         eprintln!("[Palimind] Using Python: {}", python_cmd);
         eprintln!("[Palimind] Project root: {}", project_root.display());
 
-        // Redirect stdin/stdout/stderr to /dev/null so that when Tauri's
-        // PTY disconnects the Python process never gets EIO on its stdio fds.
-        let devnull_in  = File::open("/dev/null").ok().map(Stdio::from).unwrap_or_else(Stdio::null);
-        let devnull_out = File::open("/dev/null").ok().map(Stdio::from).unwrap_or_else(Stdio::null);
-        let devnull_err = File::open("/dev/null").ok().map(Stdio::from).unwrap_or_else(Stdio::null);
+        // Redirect stdout/stderr to a log file so backend crashes are
+        // diagnosable; stdin from /dev/null so the child never gets EIO.
+        let devnull_in = File::open("/dev/null").ok().map(Stdio::from).unwrap_or_else(Stdio::null);
+        let log_path = std::env::temp_dir().join("palimind-backend.log");
+        let log_file = File::create(&log_path).ok();
+        let log_out = log_file
+            .as_ref()
+            .and_then(|f| f.try_clone().ok())
+            .map(Stdio::from)
+            .unwrap_or_else(Stdio::null);
+        let log_err = log_file.map(Stdio::from).unwrap_or_else(Stdio::null);
+        eprintln!("[Palimind] Backend log: {}", log_path.display());
 
-        let backend_child = Command::new(&python_cmd)
-            .args(["-m", "core.api_server"])
+        let mut backend_cmd = if python_cmd.starts_with("sh|-lc|") {
+            // Login-shell resolution marker: "sh|-lc|<python>"
+            let inner = python_cmd.trim_start_matches("sh|-lc|");
+            let mut cmd = Command::new("sh");
+            cmd.args(["-lc", &format!("exec {} -m core.api_server", inner)]);
+            cmd
+        } else {
+            let mut cmd = Command::new(&python_cmd);
+            cmd.args(["-m", "core.api_server"]);
+            cmd
+        };
+        let backend_child = backend_cmd
             .current_dir(&project_root)
             .stdin(devnull_in)
-            .stdout(devnull_out)
-            .stderr(devnull_err)
+            .stdout(log_out)
+            .stderr(log_err)
             .spawn();
 
         // Wait for the server to be ready (up to ~30 s)

@@ -192,7 +192,6 @@ def ui(
     path: Path = typer.Option(Path("."), "--path", "-p", help="Workspace path"),
     port: int = typer.Option(8000, "--port", help="Backend API port (window loads http://127.0.0.1:<port>/ui)"),
     skip_install: bool = typer.Option(False, "--skip-install", help="Skip dependency install and frontend build"),
-    skip_build: bool = typer.Option(False, "--skip-build", help="Skip rebuilding the desktop app"),
     keep_backend: bool = typer.Option(False, "--keep-backend", help="Keep Ollama/API server running after the app closes"),
 ):
     """One command to launch everything: installs dependencies, runs OpenCode auth,
@@ -264,12 +263,10 @@ def ui(
             else:
                 print_success("Frontend dependencies installed")
 
-            print_info("Building frontend...")
-            subprocess.run([npm, "run", "build"], cwd=str(frontend_dir), check=True)
-            print_success("Frontend built")
-        elif not (frontend_dir / "dist").exists():
-            print_error("frontend/dist missing — rerun without --skip-install")
+        if not (frontend_dir / "dist").exists():
+            print_error("frontend/dist missing — build it once with 'cd frontend && npm run build'")
             raise typer.Exit(1)
+        print_success("Frontend ready")
 
         opencode_bin = shutil.which("opencode")
         if opencode_bin is None:
@@ -311,20 +308,12 @@ def ui(
             print_success(f"API server already running on :{port}")
 
         npm = "npm.cmd" if os.name == "nt" else "npm"
-        release_bin = root_dir / "src-tauri" / "target" / "release" / ("palimind.exe" if os.name == "nt" else "palimind")
-        if not skip_build:
-            if not (root_dir / "node_modules").exists():
-                print_info("Installing root dependencies (npm install)...")
-                subprocess.run([npm, "install"], cwd=str(root_dir), check=True)
-            print_info("Building Palimind app (tauri build — first run compiles Rust)...")
-            subprocess.run([npm, "run", "build"], cwd=str(root_dir), check=True)
-            print_success("Palimind app built")
-        if release_bin.exists():
-            print_info("Opening Palimind...")
-            subprocess.Popen([str(release_bin)])
-        else:
-            print_info("No release build found — starting Tauri dev (first run compiles Rust)...")
-            subprocess.run([npm, "run", "dev"], cwd=str(root_dir))
+        print_info("Starting Palimind via 'tauri dev' (no release build)...")
+        try:
+            subprocess.run([npm, "run", "dev"], cwd=str(root_dir), check=True)
+        except subprocess.CalledProcessError as e:
+            print_error(f"Tauri dev failed (exit {e.returncode}).")
+            raise typer.Exit(1)
 
         print_success("Palimind closed.")
 
