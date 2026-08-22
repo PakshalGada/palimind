@@ -386,10 +386,10 @@ export default function Sidebar() {
           Agents
         </button>
         <button
-          className="sidebar-nav-item"
+          className={`sidebar-nav-item${activeView === "teams" ? " active" : ""}`}
           aria-label="Paliteams"
           title="Share this Palispace over the LAN"
-          onClick={() => { window.location.href = "/team"; }}
+          onClick={() => setActiveView("teams")}
         >
           <svg
             width="14"

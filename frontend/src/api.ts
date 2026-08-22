@@ -176,4 +176,16 @@ export const api = {
     deleteSession: (id: string) => del<{ status?: string }>(`/palivision/session/${id}`),
     updateMemory: (body: unknown) => post<{ status?: string }>('/palivision/memory/update', body),
   },
+  teams: {
+    create: (fieldPath: string) =>
+      post<{ code?: string; session_id?: string; error?: string }>('/teams/create', { field_path: fieldPath }),
+    invite: (sessionId: string) =>
+      post<{ code?: string; session_id?: string; error?: string }>(`/teams/${sessionId}/invite`),
+    end: (sessionId: string) =>
+      post<{ status?: string; error?: string }>(`/teams/${sessionId}/end`),
+    kick: (sessionId: string, token: string) =>
+      post<{ status?: string; error?: string }>(`/teams/${sessionId}/kick/${token}`),
+    guests: (sessionId: string) =>
+      get<{ guests?: { token: string; display_name: string; query_count: number; connected_at: number; last_active: number }[]; error?: string }>(`/teams/${sessionId}/guests`),
+  },
 };

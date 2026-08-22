@@ -10,6 +10,7 @@ import DirectoryPicker from './components/DirectoryPicker';
 import KnowledgeGraph from './components/KnowledgeGraph';
 import ToastContainer from './components/ToastContainer';
 import Agents from './views/Agents';
+import Teams from './views/Teams';
 
 export default function App() {
   const {
@@ -80,6 +81,8 @@ export default function App() {
         <PaliVisionWorkspace />
       ) : activeView === "agents" ? (
         <Agents />
+      ) : activeView === "teams" ? (
+        <Teams />
       ) : activeField ? (
         <ChatArea />
       ) : (
