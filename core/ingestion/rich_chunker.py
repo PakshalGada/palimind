@@ -38,13 +38,23 @@ class RichChunk:
     section_title: str = ""
     subsection: str = ""
     parent_section: str = ""
+    main_section: str = ""           # Top-level SEC section (e.g. "Item 1 Business", "Item 1A Risk Factors")
     page_number: int | None = None
     doc_year: int | None = None
+    fiscal_year: int | None = None   # Alias for doc_year
     doc_type: str = "other"
     entity_name: str = ""
     word_count: int = 0
     token_estimate: int = 0
     file_path: str = ""
+    media_start_ts: float | None = None   # Video/audio transcript chunk start (seconds)
+    media_end_ts: float | None = None     # Video/audio transcript chunk end (seconds)
+
+    def __post_init__(self):
+        if self.fiscal_year is None and self.doc_year is not None:
+            self.fiscal_year = self.doc_year
+        elif self.fiscal_year is not None and self.doc_year is None:
+            self.doc_year = self.fiscal_year
 
 
 # ── Section pattern matchers ───────────────────────────────────────────────────
@@ -137,11 +147,14 @@ def extract_entity_name(text_sample: str) -> str:
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
-def _split_by_sections(text: str) -> list[tuple[str, str, str]]:
+def _split_by_sections(text: str) -> list[tuple[str, str, str, str]]:
     """
-    Return (section_title, subsection, section_text) tuples, preserving order.
+    Return (section_title, subsection, main_section, section_text) tuples, preserving order.
     Tries SEC patterns first, falls back to Markdown headings, then
     ALLCAPS headings, then treats the whole text as one section.
+    
+    ``main_section`` tracks the current top-level SEC heading (Item/PART)
+    so that every chunk can be traced back to its containing section.
     """
     # Collect all candidate split points with their positions and labels
     splits: list[tuple[int, int, str, int]] = []  # (start, end_of_heading, label, level)
@@ -164,7 +177,7 @@ def _split_by_sections(text: str) -> list[tuple[str, str, str]]:
         splits.append((m.start(), m.end(), label, 6))
 
     if not splits:
-        return [("Preamble", "", text)]
+        return [("Preamble", "", "", text)]
 
     # Sort by position, deduplicate overlapping spans
     splits.sort(key=lambda x: x[0])
@@ -175,39 +188,48 @@ def _split_by_sections(text: str) -> list[tuple[str, str, str]]:
             deduped.append((start, end, label, level))
             last_end = end
 
-    sections: list[tuple[str, str, str]] = []
+    sections: list[tuple[str, str, str, str]] = []
 
     # Text before first heading
     first_start = deduped[0][0]
     if first_start > 0:
         preamble = text[:first_start].strip()
         if preamble:
-            sections.append(("Preamble", "", preamble))
+            sections.append(("Preamble", "", "", preamble))
 
     active_section = ""
     active_subsection = ""
+    active_main_section = ""
     active_level = 0
 
     for i, (start, end, label, level) in enumerate(deduped):
         # Determine section vs subsection based on level
         if level <= 2:
+            # Top-level: SEC Part/Item
+            active_main_section = label
             active_section = label
             active_subsection = ""
             active_level = level
         elif active_section and level > active_level:
+            # Subsection within current section
             active_subsection = label
+            # Keep active_section as the containing section
         else:
+            # Equal or lower level than active — becomes new section
             active_section = label
             active_subsection = ""
             active_level = level
+            # If this is also a top-level SEC heading, update main_section too
+            if level <= 2:
+                active_main_section = label
 
         # Section text goes from end-of-heading to start of next heading
         next_start = deduped[i + 1][0] if i + 1 < len(deduped) else len(text)
         section_text = text[end:next_start].strip()
         if section_text:
-            sections.append((active_section, active_subsection, section_text))
+            sections.append((active_section, active_subsection, active_main_section, section_text))
 
-    return sections if sections else [("Preamble", "", text)]
+    return sections if sections else [("Preamble", "", "", text)]
 
 
 def _extract_tables(text: str) -> tuple[list[str], str]:
@@ -283,20 +305,30 @@ def _token_estimate(text: str) -> int:
 def rich_chunk_document(
     text: str,
     doc_meta: DocumentMeta,
-    chunk_size: int = 800,
-    chunk_overlap: int = 150,
+    chunk_size: int = 3000,
+    chunk_overlap: int = 500,
+    doc_extensions: list[str] | None = None,
 ) -> list[RichChunk]:
     """
     Hierarchical chunker: split by section → detect tables → character-chunk text.
+
+    For 10-K / financial filings, uses larger chunks (3000 chars, 500 overlap)
+    to preserve complete subsections.
 
     Returns a list of :class:`RichChunk` objects with full metadata attached.
     """
     chunks: list[RichChunk] = []
     chunk_index = 0
 
+    # Use larger chunks for financial documents
+    is_financial = doc_meta.doc_type in ("10-K", "10-Q", "annual_report")
+    if is_financial:
+        chunk_size = max(chunk_size, 3000)
+        chunk_overlap = max(chunk_overlap, 500)
+
     section_tuples = _split_by_sections(text)
 
-    for section_title, subsection, section_text in section_tuples:
+    for section_title, subsection, main_section, section_text in section_tuples:
         # Extract tables before character-chunking the prose
         table_texts, remaining_text = _extract_tables(section_text)
 
@@ -311,7 +343,8 @@ def rich_chunk_document(
                 chunk_index=chunk_index,
                 section_title=section_title,
                 subsection=subsection,
-                parent_section=section_title,
+                main_section=main_section,
+                parent_section=main_section if main_section else section_title,
                 page_number=None,
                 doc_year=doc_meta.doc_year,
                 doc_type=doc_meta.doc_type,
@@ -334,7 +367,8 @@ def rich_chunk_document(
                 chunk_index=chunk_index,
                 section_title=section_title,
                 subsection=subsection,
-                parent_section=section_title,
+                main_section=main_section,
+                parent_section=main_section if main_section else section_title,
                 page_number=None,
                 doc_year=doc_meta.doc_year,
                 doc_type=doc_meta.doc_type,
@@ -356,6 +390,8 @@ def rich_chunk_caption(caption: str, doc_meta: DocumentMeta, chunk_index: int = 
         chunk_index=chunk_index,
         section_title="",
         subsection="",
+        main_section="",
+        parent_section="",
         doc_year=doc_meta.doc_year,
         doc_type=doc_meta.doc_type,
         entity_name=doc_meta.entity_name,

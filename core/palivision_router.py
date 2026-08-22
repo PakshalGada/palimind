@@ -317,7 +317,7 @@ async def update_glance_memory(req: GlanceMemoryRequest, background_tasks: Backg
 
     # Import the same memory pipeline used by the main chat
     from core.storage.chat_store import ChatVectorStore
-    from core.retrieval.embedder import generate_embeddings_batch
+    from core.embedder import generate_embeddings_batch
     import uuid
 
     # Load global config for model settings

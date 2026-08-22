@@ -1,0 +1,2 @@
+[env]
+LIBCLANG_PATH = "/usr/lib/llvm21/lib"

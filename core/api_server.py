@@ -1,5 +1,9 @@
 import asyncio
 import json
+import os as _os
+import platform
+import subprocess
+import sys as _sys
 import tkinter as tk
 import uuid
 import time
@@ -7,10 +11,41 @@ from tkinter import filedialog
 from pathlib import Path
 from typing import AsyncGenerator, Any
 
-from fastapi import FastAPI, Request, Response
+
+def _detach_stdio() -> None:
+    """
+    Redirect OS-level file descriptors 1 (stdout) and 2 (stderr) to /dev/null.
+
+    When Tauri spawns this server without explicitly redirecting its child
+    stdio, the server inherits Tauri's PTY.  If that PTY later disconnects
+    (window hide, resize, close) any write to fd 1 or fd 2 raises
+    [Errno 5] EIO / [Errno 9] EBADF, which propagates as an unhandled
+    OSError through the SSE generators and appears in the UI as
+    "Stream error: [Errno 5] Input/output error".
+
+    Using os.dup2() operates at the C level, so it protects every codepath:
+    Python print(), sys.stdout.write(), C-extensions, uvicorn's logger, etc.
+    The redirect is intentionally permanent for the life of the server process.
+    """
+    try:
+        devnull_fd = _os.open(_os.devnull, _os.O_WRONLY)
+        try:
+            _os.dup2(devnull_fd, 1)   # stdout → /dev/null
+            _os.dup2(devnull_fd, 2)   # stderr → /dev/null
+        finally:
+            _os.close(devnull_fd)
+        # Also redirect the Python-level objects so sys.stdout.write() is safe
+        _sys.stdout = open(_os.devnull, "w", encoding="utf-8")
+        _sys.stderr = open(_os.devnull, "w", encoding="utf-8")
+    except Exception:
+        pass  # never crash the server over a logging redirect
+
+
+from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.responses import StreamingResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 import uvicorn
 
 from core.api import (
@@ -23,8 +58,23 @@ from core.api import (
 )
 from core.audio_stt import transcribe_wav_bytes
 from core.audio_tts import text_to_speech_bytes
-from core.email_api_router import router as email_router
+from core.session_store import (
+    load_sessions,
+    save_sessions,
+    add_new_session,
+    set_active_session_id,
+    delete_session,
+    append_message_to_session,
+    background_update_memory,
+)
+from core.document.stream import document_mode_stream
+from core.llm.stream import llm_mode_stream, moe_mode_stream
 from core.palivision_router import router as palivision_router
+from core.agents.api import router as agents_router
+
+
+app = FastAPI(title="Palimind V2 API")
+
 
 app = FastAPI(title="Palimind V2 API")
 
@@ -36,116 +86,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(email_router)
 app.include_router(palivision_router)
+app.include_router(agents_router)
 
-UI_DIR = Path(__file__).parent.parent / "ui"
+
+
+UI_DIR = Path(__file__).parent.parent / "frontend" / "dist"
+
+
+class SPAStaticFiles(StaticFiles):
+    """Serve index.html for unknown paths so the SPA can route client-side."""
+
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException:
+            pass
+        # File/dir not found → fall back to the SPA entry point
+        try:
+            return await super().get_response("index.html", scope)
+        except Exception:
+            raise
+
+
 if UI_DIR.exists():
-    app.mount("/ui/static", StaticFiles(directory=UI_DIR / "static"), name="static")
-
-    @app.get("/ui", response_class=HTMLResponse)
-    @app.get("/ui/", response_class=HTMLResponse)
-    async def serve_ui():
-        index_file = UI_DIR / "template" / "index.html"
-        return index_file.read_text("utf-8")
-
-    @app.get("/ui/hotkey", response_class=HTMLResponse)
-    async def serve_hotkey():
-        hotkey_file = UI_DIR / "template" / "hotkey.html"
-        return hotkey_file.read_text("utf-8")
-
     @app.get("/ui/glance", response_class=HTMLResponse)
     async def serve_glance():
-        glance_file = UI_DIR / "template" / "glance.html"
+        glance_file = UI_DIR / "glance.html"
         return glance_file.read_text("utf-8")
+
+    app.mount("/ui", SPAStaticFiles(directory=UI_DIR, html=True), name="ui")
+
+
 
 # -- Global State & Config --
 GLOBAL_CONFIG_PATH = Path.home() / ".palimind_global.json"
-GLOBAL_AGENTS_PATH = Path.home() / ".palimind_agents.json"
-
-def get_default_agents():
-    return [
-        {
-            "id": "research",
-            "name": "Research",
-            "description": "researches deep in the documents.",
-            "system_prompt": (
-                "You are an expert Research Agent. Your goal is to provide deep, analytical, and highly structured insights based "
-                "on the provided context. Follow these reasoning steps:\n"
-                "1. Break down the user's query into core concepts.\n"
-                "2. Systematically search the context for evidence matching these concepts.\n"
-                "3. Synthesize your findings into a comprehensive report, using clear headings, bullet points, and logical flow.\n"
-                "Always favor precision and factual accuracy over assumption. Cite your sources clearly using inline brackets [filename] "
-                "for every claim."
-            ),
-            "is_default": True
-        },
-        {
-            "id": "compare",
-            "name": "Compare",
-            "description": "multi document comparison",
-            "system_prompt": (
-                "You are an expert Comparison Agent. Your goal is to analyze multiple documents and provide a structured, objective "
-                "comparison. Follow these reasoning steps:\n"
-                "1. Identify the key entities, concepts, or documents being compared.\n"
-                "2. Establish clear criteria for comparison (e.g., pros/cons, similarities/differences, performance metrics).\n"
-                "3. Present your analysis using tables or structured bullet points for maximum clarity.\n"
-                "Always cite your sources clearly using inline brackets [filename]."
-            ),
-            "is_default": True
-        },
-        {
-            "id": "advise",
-            "name": "Advise",
-            "description": "advises",
-            "system_prompt": (
-                "You are an expert Advisory Agent. Your goal is to provide highly practical, actionable, and logical advice. "
-                "Follow these reasoning steps:\n"
-                "1. Analyze the user's situation and goals based on the query.\n"
-                "2. Evaluate the provided context for constraints, best practices, and relevant solutions.\n"
-                "3. Present clear recommendations, ordered by priority, explaining the 'why' behind each piece of advice.\n"
-                "Always cite your sources clearly using inline brackets [filename]."
-            ),
-            "is_default": True
-        },
-        {
-            "id": "swarm",
-            "name": "Swarm",
-            "description": "Multi-agent orchestrator for queries.",
-            "system_prompt": "I am the Swarm Orchestrator. (Backend handled)",
-            "is_default": True
-        },
-        {
-            "id": "document",
-            "name": "DocumentAgent",
-            "description": "Deep dive analysis of specific files (select a file first).",
-            "system_prompt": "I am the Document Agent. (Backend handled)",
-            "is_default": True
-        }
-    ]
-
-def load_agents() -> list[dict]:
-    defaults = get_default_agents()
-    if GLOBAL_AGENTS_PATH.exists():
-        try:
-            data = json.loads(GLOBAL_AGENTS_PATH.read_text("utf-8"))
-            saved = data.get("agents", [])
-            saved_ids = {a["id"] for a in saved}
-            for d in defaults:
-                if d["id"] not in saved_ids:
-                    saved.append(d)
-            return saved
-        except Exception:
-            return defaults
-    else:
-        save_agents(defaults)
-        return defaults
-
-def save_agents(agents: list[dict]):
-    try:
-        GLOBAL_AGENTS_PATH.write_text(json.dumps({"agents": agents}, indent=2), "utf-8")
-    except Exception as e:
-        print(f"Failed to save agents: {e}")
 
 class AppState:
     active_field: Path | None = None
@@ -178,6 +153,48 @@ class AppState:
 state = AppState()
 state.load()
 
+# -- Clipboard capture state --
+captured_text: str = ""
+
+def _read_clipboard() -> str:
+    """Read clipboard text using platform-specific tools.
+
+    On Wayland (Hyprland etc.), the frontend reads clipboard via JS
+    ``navigator.clipboard.readText()``, which is more reliable than
+    subprocess calls. This function is purely a fallback.
+    """
+    system = platform.system()
+    try:
+        if system == "Linux":
+            # Wayland (wl-paste) first, then X11 (xclip) fallback
+            for cmd in [
+                ["wl-paste", "--no-newline"],
+                ["wl-paste"],
+                ["xclip", "-selection", "clipboard", "-o"],
+            ]:
+                try:
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+                    if result.returncode == 0 and result.stdout.strip():
+                        return result.stdout.strip()
+                except FileNotFoundError:
+                    continue
+                except (subprocess.TimeoutExpired, UnicodeDecodeError):
+                    continue
+        elif system == "Darwin":
+            result = subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=3)
+            if result.returncode == 0:
+                return result.stdout.strip()
+        elif system == "Windows":
+            result = subprocess.run(
+                ["powershell", "-command", "Get-Clipboard"],
+                capture_output=True, text=True, timeout=3,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+    except Exception:
+        pass
+    return ""
+
 # -- Global Event Listeners for Watcher notifications --
 EVENT_LISTENERS = set()
 
@@ -203,6 +220,15 @@ async def background_index_field(path: Path):
         await asyncio.to_thread(update_index, path)
         update_watcher(path)
         
+        try:
+            from core.config import load_config
+            cfg = load_config(path)
+            ollama_url = cfg.get("ollama_base_url", "http://localhost:11434")
+            from core.document.graph import build_doc_graph
+            await asyncio.to_thread(build_doc_graph, path, ollama_url)
+        except Exception as e:
+            print(f"Background graph build failed: {e}")
+        
         state.is_indexing = False
         state.indexing_status = ""
         await broadcast_event({
@@ -220,58 +246,6 @@ async def background_index_field(path: Path):
             "type": "indexing_error",
             "message": f"Failed to index [{path.name}]: {str(e)}"
         })
-
-async def background_update_memory(root: Path, session_id: str, new_user_msg: str, new_bot_msg: str):
-    await asyncio.sleep(2) # Allow Ollama to breathe and prioritize new user queries
-    from core.config import load_config
-    from core.generative.summariser import summarise_conversation
-    from core.storage.chat_store import ChatVectorStore
-    from core.retrieval.embedder import generate_embeddings_batch
-    import uuid
-
-    config = load_config(root)
-    ollama_url = config.get("ollama_base_url")
-    chat_model = config.get("chat_model")
-    embed_model = config.get("embed_model")
-    
-    # 1. Update mid-term summary
-    sessions_data = load_sessions(root)
-    target_sess = next((s for s in sessions_data.get("sessions", []) if s["id"] == session_id), None)
-    if not target_sess:
-        return
-        
-    recent_messages = target_sess.get("messages", [])[-6:]
-    previous_summary = target_sess.get("summary", "")
-    
-    try:
-        new_summary = await asyncio.to_thread(
-            summarise_conversation,
-            recent_messages,
-            previous_summary,
-            ollama_url,
-            chat_model
-        )
-        if new_summary:
-            target_sess["summary"] = new_summary
-            save_sessions(root, sessions_data)
-    except Exception as e:
-        print(f"Failed to update summary: {e}")
-        
-    # 2. Update long-term episodic memory
-    turn_content = f"User: {new_user_msg}\nAssistant: {new_bot_msg}"
-    try:
-        embs = await asyncio.to_thread(generate_embeddings_batch, [turn_content], ollama_url, embed_model)
-        if embs and embs[0]:
-            chunk_id = int(uuid.uuid4().int % (2**63))
-            with ChatVectorStore(root) as vstore:
-                vstore.insert([{
-                    "vector": embs[0],
-                    "chunk_id": chunk_id,
-                    "session_id": session_id,
-                    "content": turn_content
-                }])
-    except Exception as e:
-        print(f"Failed to update episodic memory: {e}")
 
 def handle_watcher_change(root: Path):
     print(f"Watcher: detected file changes in {root}. Syncing index...")
@@ -298,6 +272,66 @@ def handle_watcher_change(root: Path):
 def update_watcher(path: Path | None):
     # Watcher is disabled. Syncing only occurs when user manually triggers it.
     pass
+
+
+def _add_capture_to_field(root: Path, text: str) -> dict:
+    """Index a captured text snippet into a field's vector DB and rebuild the knowledge graph."""
+    from core.config import load_config
+    from core.embedder import generate_embedding
+    from core.storage.vector_store import VectorStore
+    from core.storage.db import get_connection, upsert_file, insert_chunks
+    from core.document.graph import build_doc_graph
+
+    config = load_config(root)
+
+    # Generate embedding
+    embedding = generate_embedding(
+        text, config["ollama_base_url"], config["embed_model"], root
+    )
+    if not embedding:
+        return {"error": "Failed to generate embedding"}
+
+    capture_id = str(uuid.uuid4())[:8]
+    capture_path = f"_captures_/{capture_id}.md"
+
+    conn = get_connection(root)
+    try:
+        file_id = upsert_file(conn, capture_path, capture_id, time.time())
+
+        chunk_db_ids = insert_chunks(conn, file_id, [
+            (0, "capture", text, "Capture", "", "", None, None, None),
+        ])
+
+        # Insert into vector store
+        with VectorStore(root) as vstore:
+            vstore.insert([{
+                "vector": embedding,
+                "chunk_db_id": chunk_db_ids[0],
+                "file_path": capture_path,
+                "chunk_index": 0,
+                "chunk_type": "capture",
+                "content": text,
+                "section_title": "Capture",
+                "subsection": "",
+                "main_section": "Captures",
+                "parent_section": "",
+                "doc_year": None,
+                "doc_type": "capture",
+                "entity_name": "",
+            }])
+
+        conn.commit()
+    finally:
+        conn.close()
+
+    # Rebuild knowledge graph in background
+    try:
+        graph = build_doc_graph(root, config["ollama_base_url"])
+    except Exception as e:
+        print(f"[capture] graph rebuild failed: {e}")
+
+    return {"status": "success", "capture_id": capture_id}
+
 
 def build_file_tree(root: Path) -> list[dict]:
     def walk(path: Path) -> list[dict]:
@@ -328,22 +362,92 @@ def build_file_tree(root: Path) -> list[dict]:
             pass
         return items
     return walk(root)
-
 @app.on_event("startup")
 async def startup_event():
     state.loop = asyncio.get_running_loop()
+
+    from core.agents.registry import set_registry_field
+    from core.agents.scheduler import start_scheduler, stop_scheduler
+
+    set_registry_field(state.active_field)
+    start_scheduler(state.loop)
+
     if state.active_field:
         update_watcher(state.active_field)
 
+
 @app.on_event("shutdown")
 async def shutdown_event():
+    from core.agents.scheduler import stop_scheduler
+
+    stop_scheduler()
     if state.watcher:
         try:
             state.watcher.stop()
         except Exception:
             pass
 
+
+def _on_field_changed(field: Path | None) -> None:
+    """Repoint the agent registry at the active field (no-op before startup)."""
+    try:
+        import asyncio as _aio
+
+        from core.agents.registry import set_registry_field
+
+        if _aio.get_running_loop() is not None:
+            set_registry_field(field)
+    except RuntimeError:
+        pass
+
 # -- Endpoints --
+
+# ── Hotkey capture endpoints ────────────────────────────────────────────
+
+@app.get("/")
+async def health_check():
+    """Root health check used by helper scripts."""
+    return {"status": "ok", "app": "Palimind"}
+
+
+@app.post("/api/select")
+async def select_field(req: Request):
+    """Save captured text to the chosen field's vector DB and knowledge graph."""
+    global captured_text
+    data = await req.json()
+    path_str = data.get("path")
+
+    if path_str is None:
+        captured_text = ""
+        return {"status": "cancelled"}
+
+    field_path = Path(path_str).resolve()
+    if not field_path.is_dir():
+        return {"error": f"Field directory not found: {field_path}"}
+
+    # Use text from frontend (preferred, reliable across all platforms)
+    text = data.get("text", "").strip()
+
+    # Fallback: read clipboard if frontend didn't send text
+    if not text:
+        if not captured_text:
+            captured_text = await asyncio.to_thread(_read_clipboard)
+        text = captured_text
+
+    if not text:
+        return {"error": "No text to capture — copy text first, then retry"}
+
+    try:
+        result = await asyncio.to_thread(_add_capture_to_field, field_path, text)
+        if "error" in result:
+            return result
+        captured_text = ""
+        return {"status": "success", "message": "Captured text saved to field"}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"error": f"Failed to save capture: {str(e)}"}
+
 
 @app.get("/api/fields")
 async def get_fields():
@@ -443,15 +547,21 @@ async def add_field(req: Request):
         return {"error": f"Directory not found: {path}"}
     
     path_key = str(path)
-    if path_key not in state.fields:
+    is_new = path_key not in state.fields
+    if is_new:
         state.fields.append(path_key)
     
     state.active_field = path
     state.save()
 
-    # Start background indexing task
-    asyncio.create_task(background_index_field(path))
-    return {"status": "indexing", "field": path_key}
+    # Index only the first time this folder is selected as a field.
+    # Subsequent syncs happen via the "Sync Active Field" button.
+    if is_new:
+        asyncio.create_task(background_index_field(path))
+        _on_field_changed(path)
+        return {"status": "indexing", "field": path_key}
+    _on_field_changed(path)
+    return {"status": "ok", "field": path_key}
 
 @app.post("/api/fields/remove")
 async def remove_field(req: Request):
@@ -467,8 +577,9 @@ async def remove_field(req: Request):
     if state.active_field and str(state.active_field) == path_key:
         state.active_field = None
         update_watcher(None)
-        
+
     state.save()
+    _on_field_changed(state.active_field)
     return {"status": "success"}
 
 @app.post("/api/fields/set_active")
@@ -486,10 +597,9 @@ async def set_active_field(req: Request):
     if str(path) not in state.fields:
         state.fields.append(str(path))
     state.save()
-    
-    # Start background indexing task
-    asyncio.create_task(background_index_field(path))
-    return {"status": "indexing", "active_field": str(path)}
+    _on_field_changed(path)
+
+    return {"status": "ok", "active_field": str(path)}
 
 @app.post("/api/update")
 async def api_update():
@@ -497,6 +607,20 @@ async def api_update():
         return {"error": "No active field"}
     try:
         result = await asyncio.to_thread(update_index, state.active_field)
+        
+        # Fire and forget graph build so we don't block the UI
+        async def _build_graph():
+            try:
+                from core.config import load_config
+                cfg = load_config(state.active_field)
+                ollama_url = cfg.get("ollama_base_url", "http://localhost:11434")
+                from core.document.graph import build_doc_graph
+                await asyncio.to_thread(build_doc_graph, state.active_field, ollama_url)
+            except Exception as e:
+                print(f"Background graph build failed: {e}")
+                
+        asyncio.create_task(_build_graph())
+        
         return {
             "status": "success",
             "indexed_files": result.indexed_files,
@@ -504,127 +628,6 @@ async def api_update():
         }
     except Exception as e:
         return {"error": str(e)}
-
-# -- Session Helper Functions --
-
-def get_sessions_file(root: Path) -> Path:
-    return root / ".palimind" / "sessions.json"
-
-def load_sessions(root: Path) -> dict:
-    file_path = get_sessions_file(root)
-    if not file_path.exists():
-        default_sess_id = str(uuid.uuid4())
-        data = {
-            "active_session_id": default_sess_id,
-            "sessions": [
-                {
-                    "id": default_sess_id,
-                    "name": "Default Session",
-                    "created_at": time.time(),
-                    "messages": []
-                }
-            ]
-        }
-        save_sessions(root, data)
-        return data
-    try:
-        data = json.loads(file_path.read_text("utf-8"))
-        if not data.get("sessions"):
-            default_sess_id = str(uuid.uuid4())
-            data = {
-                "active_session_id": default_sess_id,
-                "sessions": [
-                    {
-                        "id": default_sess_id,
-                        "name": "Default Session",
-                        "created_at": time.time(),
-                        "messages": []
-                    }
-                ]
-            }
-            save_sessions(root, data)
-        return data
-    except Exception:
-        default_sess_id = str(uuid.uuid4())
-        data = {
-            "active_session_id": default_sess_id,
-            "sessions": [
-                {
-                    "id": default_sess_id,
-                    "name": "Default Session",
-                    "created_at": time.time(),
-                    "messages": []
-                }
-            ]
-        }
-        save_sessions(root, data)
-        return data
-
-def save_sessions(root: Path, data: dict):
-    file_path = get_sessions_file(root)
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-    file_path.write_text(json.dumps(data, indent=2), "utf-8")
-
-def add_new_session(root: Path, name: str) -> dict:
-    data = load_sessions(root)
-    sess_id = str(uuid.uuid4())
-    data["sessions"].append({
-        "id": sess_id,
-        "name": name,
-        "created_at": time.time(),
-        "messages": []
-    })
-    data["active_session_id"] = sess_id
-    save_sessions(root, data)
-    return data
-
-def set_active_session_id(root: Path, session_id: str) -> dict:
-    data = load_sessions(root)
-    exists = any(s["id"] == session_id for s in data["sessions"])
-    if exists:
-        data["active_session_id"] = session_id
-        save_sessions(root, data)
-    return data
-
-def delete_session(root: Path, session_id: str) -> dict:
-    data = load_sessions(root)
-    sessions = data["sessions"]
-    data["sessions"] = [s for s in sessions if s["id"] != session_id]
-    if not data["sessions"]:
-        default_sess_id = str(uuid.uuid4())
-        data["sessions"] = [
-            {
-                "id": default_sess_id,
-                "name": "Default Session",
-                "created_at": time.time(),
-                "messages": []
-            }
-        ]
-        data["active_session_id"] = default_sess_id
-    elif data["active_session_id"] == session_id:
-        data["active_session_id"] = data["sessions"][0]["id"]
-    save_sessions(root, data)
-    return data
-
-def append_message_to_session(root: Path, session_id: str, role: str, content: str, sources: list[str] = None):
-    data = load_sessions(root)
-    for sess in data["sessions"]:
-        if sess["id"] == session_id:
-            if sess["name"] in ["Default Session", "New Session"]:
-                if role == "user":
-                    short_name = content[:30] + "..." if len(content) > 30 else content
-                    sess["name"] = short_name
-            
-            msg = {
-                "role": role,
-                "content": content,
-                "timestamp": time.time()
-            }
-            if sources:
-                msg["sources"] = sources
-            sess["messages"].append(msg)
-            break
-    save_sessions(root, data)
 
 # -- Endpoints --
 
@@ -693,303 +696,219 @@ async def get_files_tree():
     tree = await asyncio.to_thread(build_file_tree, state.active_field)
     return {"tree": tree}
 
-@app.get("/api/agents")
-async def get_agents():
-    return {"agents": load_agents()}
+def list_directory_shallow(root: Path, subpath: str) -> list[dict]:
+    target = root / subpath if subpath else root
+    items = []
+    try:
+        for entry in sorted(target.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
+            if entry.name in [".palimind", ".git", "node_modules", "__pycache__", ".venv", "venv", ".idea", ".vscode"]:
+                continue
+            if entry.name.startswith("."):
+                continue
+            items.append({
+                "name": entry.name,
+                "path": str(entry.relative_to(root)),
+                "type": "directory" if entry.is_dir() else "file"
+            })
+    except Exception:
+        pass
+    return items
 
-@app.post("/api/agents/new")
-async def create_agent(req: Request):
-    data = await req.json()
-    agents = load_agents()
-    new_agent = {
-        "id": str(uuid.uuid4()),
-        "name": data.get("name", "New Agent"),
-        "description": data.get("description", ""),
-        "system_prompt": data.get("system_prompt", "You are a helpful assistant."),
-        "is_default": False
-    }
-    agents.append(new_agent)
-    save_agents(agents)
-    return {"status": "success", "agent": new_agent}
-
-@app.post("/api/agents/edit")
-async def edit_agent(req: Request):
-    data = await req.json()
-    agent_id = data.get("id")
-    agents = load_agents()
-    for i, a in enumerate(agents):
-        if a["id"] == agent_id and not a.get("is_default"):
-            agents[i]["name"] = data.get("name", a["name"])
-            agents[i]["description"] = data.get("description", a["description"])
-            agents[i]["system_prompt"] = data.get("system_prompt", a["system_prompt"])
-            save_agents(agents)
-            return {"status": "success", "agent": agents[i]}
-    return {"error": "Agent not found or is default"}
-
-@app.post("/api/agents/remove")
-async def remove_agent(req: Request):
-    data = await req.json()
-    agent_id = data.get("id")
-    agents = load_agents()
-    original_len = len(agents)
-    agents = [a for a in agents if not (a["id"] == agent_id and not a.get("is_default"))]
-    if len(agents) < original_len:
-        save_agents(agents)
-        return {"status": "success"}
-    return {"error": "Agent not found or is default"}
+@app.get("/api/files/tree/sub")
+async def get_file_tree_sub(path: str = ""):
+    if not state.active_field:
+        return {"error": "No active field"}
+    children = await asyncio.to_thread(list_directory_shallow, state.active_field, path)
+    return {"children": children}
 
 @app.get("/api/chat")
-async def chat_stream(q: str, session_id: str | None = None, files: str | None = None, chat_mode: str = "rag", agent_id: str | None = None, web_search: str = "false"):
+async def chat_stream(q: str, session_id: str | None = None, files: str | None = None, chat_mode: str = "document", web_search: str = "false", llm_sub_mode: str | None = None, think: str = "false"):
     if not state.active_field:
         async def err_stream():
             yield f"data: {json.dumps({'type': 'error', 'text': 'No active field'})}\n\n"
         return StreamingResponse(err_stream(), media_type="text/event-stream")
 
-    active_sess_id = session_id
-    history_to_send = None
-    mid_term_summary = None
-    if state.active_field:
-        sessions_data = await asyncio.to_thread(load_sessions, state.active_field)
-        if not active_sess_id:
-            active_sess_id = sessions_data.get("active_session_id")
-        
-        if active_sess_id:
-            for sess in sessions_data.get("sessions", []):
-                if sess["id"] == active_sess_id:
-                    mid_term_summary = sess.get("summary")
-                    history_to_send = []
-                    for msg in sess.get("messages", [])[-5:]:
-                        role = msg["role"]
-                        if role == "system":
-                            role = "assistant"
-                        history_to_send.append({
-                            "role": role,
-                            "content": msg["content"]
-                        })
-                    break
+    from core.config import load_config
+    from core.persona import persona_block
+    config = load_config(state.active_field)
+    ollama_url = config.get("ollama_base_url", "http://localhost:11434")
+    chat_model = config.get("chat_model", "llama3")
+    embed_model = config.get("embed_model", "nomic-embed-text")
+    if str(think).lower() in ("1", "true", "yes"):
+        chat_model = config.get("thinking_model", "") or chat_model
+    persona = persona_block(state.active_field)
+
+    # ── @agent mention routing ────────────────────────────────────────
+    stripped_q = q.lstrip()
+    if stripped_q.startswith("@"):
+        mention_parts = stripped_q[1:].split(None, 1)
+        candidate = mention_parts[0].strip() if mention_parts else ""
+        if candidate:
+            from core.agents.registry import get_registry
+            from core.agents.stream import agent_mode_stream
+
+            defn = get_registry().get(candidate)
+            if defn is not None and defn.enabled:
+                agent_input = mention_parts[1].strip() if len(mention_parts) > 1 else ""
+                return await agent_mode_stream(
+                    state.active_field,
+                    defn.name,
+                    agent_input or "Run your task.",
+                    session_id,
+                    ollama_url,
+                    chat_model,
+                )
+
+    moe_sub_mode = llm_sub_mode if (llm_sub_mode is not None and llm_sub_mode != "") else config.get("moe_sub_mode", "default")
+    long_term_limit = 0 if (chat_mode == "llm" and moe_sub_mode != "moe") else 3
+
+    from core.memory import get_hierarchical_memory
+    mem = await asyncio.to_thread(
+        get_hierarchical_memory,
+        state.active_field,
+        session_id,
+        q,
+        ollama_url,
+        embed_model,
+        5,
+        long_term_limit,
+    )
+
+    active_sess_id = mem["active_sess_id"]
+    history_to_send = mem["short_term"]
+    mid_term_summary = mem["mid_term_summary"]
+    long_term_episodes = mem["long_term_episodes"]
 
     files_filter = None
     if files:
         files_filter = [f.strip() for f in files.split(",") if f.strip()]
 
+    if chat_mode == "document":
+        return await document_mode_stream(
+            q, active_sess_id, history_to_send, mid_term_summary, files_filter,
+            ollama_url, chat_model, state.active_field, web_search,
+            long_term_episodes=long_term_episodes,
+            persona=persona,
+        )
+
+    moe_sub_mode = llm_sub_mode if (llm_sub_mode is not None and llm_sub_mode != "") else config.get("moe_sub_mode", "default")
+    if chat_mode == "llm" and moe_sub_mode == "moe":
+        orchestrator_model = config.get("moe_orchestrator_model", "") or chat_model
+        worker_model = config.get("moe_worker_model", "") or chat_model
+        return await moe_mode_stream(
+            q, active_sess_id, history_to_send, mid_term_summary,
+            files_filter, ollama_url, chat_model, state.active_field, web_search,
+            orchestrator_model=orchestrator_model, worker_model=worker_model,
+            long_term_episodes=long_term_episodes,
+        )
+
+    return await llm_mode_stream(
+        q, active_sess_id, history_to_send, mid_term_summary, files_filter,
+        ollama_url, chat_model, state.active_field, web_search,
+        long_term_episodes=long_term_episodes,
+        persona=persona,
+    )
+
+_VIDEO_EXTS = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v"}
+
+def _resolve_media_path(path_str: str) -> Path:
+    """Resolve a media path against the active field and ensure it's inside it."""
+    if not state.active_field:
+        raise StarletteHTTPException(status_code=404, detail="No active field")
+    root = state.active_field.resolve()
+    candidate = Path(path_str)
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    resolved = candidate.resolve()
+    if root != resolved and root not in resolved.parents:
+        raise StarletteHTTPException(status_code=403, detail="Path outside workspace")
+    return resolved
+
+@app.get("/api/media/info")
+async def media_info(path: str):
+    """Return content type + size for a workspace media file."""
     try:
-        from core.agent import reformulate_query, needs_retrieval
-        from core.config import load_config
-        from core.querying import query_stream_with_diagnostics
-        config = load_config(state.active_field)
-        ollama_url = config.get("ollama_base_url", "http://localhost:11434")
-        chat_model = config.get("chat_model", "llama3")
+        resolved = _resolve_media_path(path)
+    except StarletteHTTPException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from e
+    if not resolved.is_file():
+        raise HTTPException(status_code=404, detail="Media file not found")
+    import mimetypes
 
-        agent_system_prompt = None
-        if agent_id:
-            agents = await asyncio.to_thread(load_agents)
-            for a in agents:
-                if a["id"] == agent_id:
-                    agent_system_prompt = a["system_prompt"]
-                    break
+    mime = mimetypes.guess_type(resolved.name)[0] or "application/octet-stream"
+    return {"size": resolved.stat().st_size, "mime": mime}
 
-        if agent_id == "swarm":
-            async def swarm_stream():
-                try:
-                    from core.swarm.orchestrator import SwarmOrchestrator
-                    orchestrator = SwarmOrchestrator(state.active_field, ollama_url, chat_model)
-                    
-                    if files_filter:
-                        yield f"data: {json.dumps({'type': 'sources', 'sources': [Path(f).name for f in files_filter]})}\n\n"
-                    elif chat_mode == "rag":
-                        yield f"data: {json.dumps({'type': 'sources', 'sources': ['Workspace Documents']})}\n\n"
+@app.get("/api/media/stream")
+async def media_stream(request: Request, path: str):
+    """Stream a local video/audio file from the active workspace with HTTP
+    range support so the frontend player can seek."""
+    from urllib.parse import unquote
 
-                    import queue
-                    q_progress = queue.Queue()
-                    
-                    def progress_callback(msg: str):
-                        q_progress.put(msg)
+    try:
+        resolved = _resolve_media_path(unquote(path))
+    except StarletteHTTPException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from e
+    if not resolved.is_file() or resolved.suffix.lower() not in _VIDEO_EXTS | {
+        ".mp3", ".wav", ".m4a", ".flac", ".ogg",
+    }:
+        raise HTTPException(status_code=404, detail="Media file not found")
 
-                    task = asyncio.create_task(
-                        asyncio.to_thread(orchestrator.run_swarm, q, files_filter, chat_mode, progress_callback)
-                    )
-                    
-                    while not task.done():
-                        while not q_progress.empty():
-                            msg = q_progress.get()
-                            yield f"data: {json.dumps({'type': 'progress', 'text': msg})}\n\n"
-                        yield ": ping\n\n"
-                        await asyncio.sleep(0.5)
+    import mimetypes
+    import os
 
-                    while not q_progress.empty():
-                        msg = q_progress.get()
-                        yield f"data: {json.dumps({'type': 'progress', 'text': msg})}\n\n"
-                        
-                    response = task.result()
-                    
-                    if response and active_sess_id:
-                        await asyncio.to_thread(append_message_to_session, state.active_field, active_sess_id, "user", q)
-                        await asyncio.to_thread(append_message_to_session, state.active_field, active_sess_id, "system", response)
-                    
-                    yield f"data: {json.dumps({'type': 'token', 'text': response})}\n\n"
-                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                except Exception as e:
-                    yield f"data: {json.dumps({'type': 'error', 'text': f'Swarm error: {str(e)}'})}\n\n"
-            return StreamingResponse(swarm_stream(), media_type="text/event-stream")
+    mime = mimetypes.guess_type(resolved.name)[0] or "application/octet-stream"
+    file_size = resolved.stat().st_size
+    range_header = request.headers.get("range")
 
-        if agent_id == "document":
-            file_path = files_filter[0] if files_filter and len(files_filter) > 0 else None
-            if not file_path:
-                async def err_stream():
-                    yield f"data: {json.dumps({'type': 'error', 'text': 'DocumentAgent requires a selected file.'})}\n\n"
-                return StreamingResponse(err_stream(), media_type="text/event-stream")
-            
-            async def doc_stream():
-                try:
-                    from core.swarm.orchestrator import SwarmOrchestrator
-                    orchestrator = SwarmOrchestrator(state.active_field, ollama_url, chat_model)
-                    
-                    task = asyncio.create_task(
-                        asyncio.to_thread(orchestrator.run_document_mode, file_path, q)
-                    )
-                    
-                    while not task.done():
-                        yield ": ping\n\n"
-                        await asyncio.sleep(1)
-                        
-                    response = task.result()
-                    
-                    if response and active_sess_id:
-                        await asyncio.to_thread(append_message_to_session, state.active_field, active_sess_id, "user", q)
-                        await asyncio.to_thread(append_message_to_session, state.active_field, active_sess_id, "system", response)
-                    
-                    yield f"data: {json.dumps({'type': 'token', 'text': response})}\n\n"
-                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                except Exception as e:
-                    yield f"data: {json.dumps({'type': 'error', 'text': f'DocumentAgent error: {str(e)}'})}\n\n"
-            return StreamingResponse(doc_stream(), media_type="text/event-stream")
+    if range_header:
+        range_val = range_header.strip().lower()
+        if range_val.startswith("bytes="):
+            parts = range_val[6:].split("-", 1)
+            start = int(parts[0]) if parts[0].isdigit() else 0
+            end = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else min(
+                start + 4 * 1024 * 1024 - 1, file_size - 1
+            )
+            end = min(end, file_size - 1)
+            content_len = end - start + 1
 
-        if chat_mode == "llm":
-            needs_retrieval_fast = False
-        else:
-            needs_retrieval_fast = await asyncio.to_thread(
-                needs_retrieval, q, history_to_send or [], ollama_url, chat_model
+            async def _range_gen():
+                with resolved.open("rb") as f:
+                    f.seek(start)
+                    remaining = content_len
+                    while remaining > 0:
+                        chunk = f.read(min(1024 * 256, remaining))
+                        if not chunk:
+                            break
+                        remaining -= len(chunk)
+                        yield chunk
+
+            return StreamingResponse(
+                _range_gen(),
+                status_code=206,
+                headers={
+                    "Content-Range": f"bytes {start}-{end}/{file_size}",
+                    "Accept-Ranges": "bytes",
+                    "Content-Length": str(content_len),
+                    "Content-Type": mime,
+                },
             )
 
-        diagnostics_report = None
-
-        is_web_search = web_search.lower() == "true"
-
-        if needs_retrieval_fast:
-            standalone_query = await asyncio.to_thread(
-                reformulate_query, q, history_to_send or [], ollama_url, chat_model
-            )
-            context, stream, diagnostics_report = await asyncio.to_thread(
-                query_stream_with_diagnostics,
-                state.active_field,
-                standalone_query,
-                system_prompt=agent_system_prompt,
-                history=history_to_send,
-                files_filter=files_filter,
-                mid_term_summary=mid_term_summary,
-                session_id=active_sess_id,
-                web_search=is_web_search
-            )
-        else:
-            from core.generative.responder import generate_response_stream
-            from core.models import RetrievedContext
-            
-            prompt = agent_system_prompt or "You are a helpful assistant."
-            if mid_term_summary:
-                prompt = f"{prompt}\n\nConversation Summary so far:\n{mid_term_summary}"
-
-            if is_web_search:
-                from core.web_search import perform_web_search
-                web_context = await asyncio.to_thread(perform_web_search, q)
-                prompt = f"{prompt}\n\n{web_context}"
-
-            context = RetrievedContext(text_contexts=(), image_paths=(), sources=())
-            
-            stream = generate_response_stream(
-                query=q,
-                context="",
-                image_paths=[],
-                ollama_url=ollama_url,
-                chat_model=chat_model,
-                system_prompt=prompt,
-                history=history_to_send,
-                is_chat_only=True
-            )
-
-    except Exception as e:
-        error_msg = str(e)
-        async def err_stream():
-            yield f"data: {json.dumps({'type': 'error', 'text': error_msg})}\n\n"
-        return StreamingResponse(err_stream(), media_type="text/event-stream")
-
-    async def event_generator() -> AsyncGenerator[str, None]:
-        import threading
-        sources = list(context.sources) if context.sources else []
-        
-        # Emit sources with task_type metadata
-        task_type_str = ""
-        if diagnostics_report:
-            task_type_str = diagnostics_report.task_type
-        yield f"data: {json.dumps({'type': 'sources', 'sources': sources, 'task_type': task_type_str})}\n\n"
-
-        queue = asyncio.Queue()
-        loop = asyncio.get_running_loop()
-
-        def producer():
-            try:
-                for token in stream:
-                    loop.call_soon_threadsafe(queue.put_nowait, token)
-            except Exception as e:
-                loop.call_soon_threadsafe(queue.put_nowait, e)
-            finally:
-                loop.call_soon_threadsafe(queue.put_nowait, None)
-
-        threading.Thread(target=producer, daemon=True).start()
-
-        full_response = []
-        try:
+    def _full_gen():
+        with resolved.open("rb") as f:
             while True:
-                item = await queue.get()
-                if item is None:
+                chunk = f.read(1024 * 512)
+                if not chunk:
                     break
-                if isinstance(item, Exception):
-                    yield f"data: {json.dumps({'type': 'error', 'text': str(item)})}\n\n"
-                    break
-                full_response.append(item)
-                yield f"data: {json.dumps({'type': 'token', 'text': item})}\n\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'text': str(e)})}\n\n"
+                yield chunk
 
-        bot_answer = "".join(full_response)
-        if bot_answer and active_sess_id:
-            await asyncio.to_thread(
-                append_message_to_session,
-                state.active_field,
-                active_sess_id,
-                "user",
-                q
-            )
-            await asyncio.to_thread(
-                append_message_to_session,
-                state.active_field,
-                active_sess_id,
-                "system",
-                bot_answer,
-                sources
-            )
-            asyncio.create_task(background_update_memory(state.active_field, active_sess_id, q, bot_answer))
-
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
-
-        # Emit diagnostics after done (non-blocking for client)
-        if diagnostics_report:
-            try:
-                diag_dict = diagnostics_report.to_dict()
-                yield f"data: {json.dumps({'type': 'diagnostics', 'data': diag_dict})}\n\n"
-            except Exception:
-                pass
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        _full_gen(),
+        headers={
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(file_size),
+            "Content-Type": mime,
+        },
+    )
 
 @app.post("/api/voice/transcribe")
 async def voice_transcribe(request: Request):
@@ -1018,6 +937,7 @@ async def voice_synthesize(request: Request):
         return Response(content=wav_bytes, media_type="audio/wav")
     except Exception as e:
         return Response(status_code=500, content=f"Synthesis error: {str(e)}")
+
 
 # -- Model Switcher & Config Endpoints --
 
@@ -1128,6 +1048,77 @@ async def update_model(req: Request):
     return {"status": "success", "model": model_id}
 
 
+@app.get("/api/document/graph")
+async def get_document_graph():
+    """Return the document knowledge graph for the active field."""
+    if not state.active_field:
+        return {"error": "No active field", "nodes": [], "edges": []}
+    try:
+        from core.document.graph import load_doc_graph
+        from core.config import load_config as _lc
+        cfg = _lc(state.active_field)
+        ollama_url = cfg.get("ollama_base_url", "http://localhost:11434")
+        graph = await asyncio.to_thread(load_doc_graph, state.active_field, ollama_url, force_rebuild=False)
+        # If loaded graph has no nodes but index exists, force rebuild
+        if len(graph.nodes) == 0:
+            from core.storage.db import get_connection, get_all_files
+            try:
+                conn = get_connection(state.active_field)
+                files = get_all_files(conn)
+                conn.close()
+                if files:
+                    print(f"[graph] empty graph but {len(files)} files indexed — forcing rebuild")
+                    graph = await asyncio.to_thread(load_doc_graph, state.active_field, ollama_url, force_rebuild=True)
+            except Exception as check_err:
+                print(f"[graph] check error: {check_err}")
+        nodes = []
+        for nid, ndata in graph.nodes.items():
+            nodes.append({
+                "id": nid,
+                "type": ndata.get("type", "unknown"),
+                "label": ndata.get("label", nid),
+                "file_path": ndata.get("file_path", ""),
+            })
+        edges = [
+            {"source": e["source"], "target": e["target"], "relation": e["relation"]}
+            for e in graph.edges
+        ]
+        return {
+            "nodes": nodes,
+            "edges": edges,
+            "node_count": len(nodes),
+            "edge_count": len(edges),
+            "indexed_files": len(graph.file_nodes),
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"error": str(e), "nodes": [], "edges": []}
+
+
+@app.post("/api/document/graph/rebuild")
+async def rebuild_document_graph():
+    """Force rebuild the knowledge graph."""
+    if not state.active_field:
+        return {"error": "No active field"}
+    try:
+        from core.document.graph import build_doc_graph
+        from core.config import load_config as _lc
+        cfg = _lc(state.active_field)
+        ollama_url = cfg.get("ollama_base_url", "http://localhost:11434")
+        graph = await asyncio.to_thread(build_doc_graph, state.active_field, ollama_url)
+        return {
+            "status": "success",
+            "node_count": len(graph.nodes),
+            "edge_count": len(graph.edges),
+            "indexed_files": len(graph.file_nodes),
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"error": str(e)}
+
+
 @app.get("/api/config")
 async def get_config():
     """Return current config for the active field."""
@@ -1139,7 +1130,110 @@ async def get_config():
         "chat_model": config.get("chat_model", "llama3"),
         "embed_model": config.get("embed_model", "nomic-embed-text"),
         "ollama_base_url": config.get("ollama_base_url", "http://localhost:11434"),
+        "moe_orchestrator_model": config.get("moe_orchestrator_model", ""),
+        "moe_worker_model": config.get("moe_worker_model", ""),
+        "moe_sub_mode": config.get("moe_sub_mode", "default"),
+        "thinking_model": config.get("thinking_model", ""),
+        "persona_name": config.get("persona_name", ""),
+        "persona_system_prompt": config.get("persona_system_prompt", ""),
     }
+
+
+def _patch_field_config(data: dict) -> None:
+    from core.config import load_config, config_path, palimind_dir
+
+    if not state.active_field:
+        return
+    cfg = load_config(state.active_field)
+    cfg.update(data)
+    p_dir = palimind_dir(state.active_field)
+    p_dir.mkdir(parents=True, exist_ok=True)
+    cp = config_path(state.active_field)
+    cp.write_text(json.dumps(cfg, indent=2), "utf-8")
+
+
+@app.patch("/api/config/persona")
+async def update_persona(req: Request):
+    """Set the per-field persona (name + system prompt). Empty prompt disables."""
+    data = await req.json()
+    patch = {}
+    if "persona_name" in data:
+        patch["persona_name"] = str(data["persona_name"]).strip()
+    if "persona_system_prompt" in data:
+        patch["persona_system_prompt"] = str(data["persona_system_prompt"])
+    _patch_field_config(patch)
+    return {"status": "success", **patch}
+
+
+@app.patch("/api/config/thinking")
+async def update_thinking(req: Request):
+    """Set the model used by the Think toggle (falls back to chat_model when empty)."""
+    data = await req.json()
+    if "thinking_model" not in data:
+        return {"error": "thinking_model is required"}
+    thinking_model = str(data["thinking_model"])
+    _patch_field_config({"thinking_model": thinking_model})
+    try:
+        global_data = {}
+        if GLOBAL_CONFIG_PATH.exists():
+            global_data = json.loads(GLOBAL_CONFIG_PATH.read_text("utf-8"))
+        global_data["thinking_model"] = thinking_model
+        GLOBAL_CONFIG_PATH.write_text(json.dumps(global_data, indent=2), "utf-8")
+    except Exception:
+        pass
+    return {"status": "success", "thinking_model": thinking_model}
+
+
+@app.patch("/api/config/moe")
+async def update_moe_config(req: Request):
+    """Update MoE configuration for the active field."""
+    data = await req.json()
+    from core.config import load_config, config_path, palimind_dir
+    if state.active_field:
+        cfg = load_config(state.active_field)
+        if "moe_orchestrator_model" in data:
+            cfg["moe_orchestrator_model"] = data["moe_orchestrator_model"]
+        if "moe_worker_model" in data:
+            cfg["moe_worker_model"] = data["moe_worker_model"]
+        if "moe_sub_mode" in data:
+            cfg["moe_sub_mode"] = data["moe_sub_mode"]
+        p_dir = palimind_dir(state.active_field)
+        p_dir.mkdir(parents=True, exist_ok=True)
+        cp = config_path(state.active_field)
+        cp.write_text(json.dumps(cfg, indent=2), "utf-8")
+    return {"status": "success"}
+
+
+@app.get("/api/moe/hardware-check")
+async def moe_hardware_check():
+    """Check hardware constraints for current MoE config."""
+    from core.config import load_config
+    from core.llm.mixture_of_expert import estimate_hardware_requirements
+    from core.hwfit.hardware import detect_hardware
+    config = {}
+    if state.active_field:
+        config = load_config(state.active_field)
+    orch = config.get("moe_orchestrator_model", "") or config.get("chat_model", "llama3")
+    worker = config.get("moe_worker_model", "") or config.get("chat_model", "llama3")
+    try:
+        hw = await asyncio.to_thread(detect_hardware)
+        gpu_vram = max((g.vram_mb for g in hw.gpus), default=0)
+        sys_ram = hw.total_ram_mb
+        estimate = estimate_hardware_requirements(orch, worker, num_workers=4, gpu_vram_mb=gpu_vram, system_ram_mb=sys_ram)
+        return {
+            "fits_gpu": estimate.fits_gpu,
+            "fits_ram": estimate.fits_ram,
+            "vram_per_worker_mb": estimate.vram_per_worker_mb,
+            "vram_orchestrator_mb": estimate.vram_orchestrator_mb,
+            "total_vram_needed_mb": estimate.total_vram_needed_mb,
+            "total_ram_needed_mb": estimate.total_ram_needed_mb,
+            "suggested_worker": estimate.suggested_worker,
+            "suggested_orchestrator": estimate.suggested_orchestrator,
+            "gpu_vram_mb": gpu_vram,
+            "system_ram_mb": sys_ram,
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 
 # -- Cookbook / Hardware Endpoints --
@@ -1170,7 +1264,9 @@ async def get_recommendations(top: int = 20):
 
 
 def run_server(port: int = 8000):
+    _detach_stdio()
     uvicorn.run("core.api_server:app", host="127.0.0.1", port=port)
 
 if __name__ == "__main__":
+    _detach_stdio()
     run_server()

@@ -130,9 +130,13 @@ class VectorStore:
                 "content": d["content"],
                 "section_title": d.get("section_title", ""),
                 "subsection": d.get("subsection", ""),
+                "main_section": d.get("main_section", ""),
+                "parent_section": d.get("parent_section", ""),
                 "doc_year": d.get("doc_year"),
                 "doc_type": d.get("doc_type", "other"),
                 "entity_name": d.get("entity_name", ""),
+                "media_start_ts": d.get("media_start_ts"),
+                "media_end_ts": d.get("media_end_ts"),
             }
         self._dirty = True
 
@@ -164,44 +168,51 @@ class VectorStore:
                 _save_index(self.root, self._index)
             if self._meta is not None:
                 _save_meta(self.root, self._meta)
-            
+
             # Invalidate cache
             path_str = str(self.root)
             if path_str in _global_search_cache:
                 del _global_search_cache[path_str]
-                
+
             self._dirty = False
 
 
 def search(root: Path, query_vector: list[float], limit: int = 5, candidate_ids: set[int] | None = None) -> list[dict]:
-    """Return up to *limit* results closest to *query_vector*."""
+    """Return up to *limit* results closest to *query_vector*.
+
+    When *candidate_ids* filtering is active, starts with a cheap over-fetch
+    (k = limit * 10) and only escalates to scanning the whole index if that
+    doesn't yield enough matching candidates.
+    """
     cached = _get_cached_search_data(root)
     if not cached:
         return []
-    
+
     index, meta = cached
 
-    query = np.array(query_vector, dtype=np.float32).reshape(1, -1)
-    
-    # If filtering, fetch more to ensure we get enough matches after filtering
-    k = min(limit * 10 if candidate_ids is not None else limit, len(meta))
-    if candidate_ids is not None and len(meta) > 0:
-        # If the index is small enough, just fetch everything to guarantee we find the candidate chunks
-        k = len(meta)
-        
-    _scores, ext_ids = index.search(query, k=k)
-    top_ids = ext_ids[0]
+    def _run(k: int) -> list[dict]:
+        query = np.array(query_vector, dtype=np.float32).reshape(1, -1)
+        _scores, ext_ids = index.search(query, k=k)
+        results = []
+        for ext_id in ext_ids[0]:
+            cid = int(ext_id)
+            if candidate_ids is not None and cid not in candidate_ids:
+                continue
+            if cid in meta:
+                item = dict(meta[cid])
+                item["chunk_db_id"] = cid
+                results.append(item)
+                if len(results) >= limit:
+                    break
+        return results
 
-    results = []
-    for ext_id in top_ids:
-        cid = int(ext_id)
-        if candidate_ids is not None and cid not in candidate_ids:
-            continue
-            
-        if cid in meta:
-            item = dict(meta[cid])
-            item["chunk_db_id"] = cid
-            results.append(item)
-            if len(results) >= limit:
-                break
+    if candidate_ids is None:
+        return _run(min(limit, len(meta)))
+
+    # Filtered search: escalate only when needed
+    total_indexed = len(meta)
+    k = min(limit * 10, total_indexed)
+    results = _run(k)
+    if len(results) < limit and k < total_indexed:
+        results = _run(total_indexed)
     return results

@@ -33,10 +33,7 @@ from core.cli.ui import (
 
 app = typer.Typer(help="Palimind - Local Multimodal RAG CLI")
 
-# Register email sub-app
-from core.email.cli import app as email_app  # noqa: E402
 
-app.add_typer(email_app, name="email")
 
 config_app = typer.Typer(help="Manage PaliMind configuration")
 app.add_typer(config_app, name="config")
@@ -190,93 +187,10 @@ def ask(
 
 
 @app.command()
-def chat(
-    path: Path = typer.Option(Path("."), "--path", "-p", help="Path to the indexed directory"),
-):
-    """Start an interactive agent chat session."""
-    target_dir = path.resolve()
-    try:
-        require_index(target_dir)
-    except IndexNotFoundError:
-        print_error(f"No index found in [cyan]{target_dir}[/cyan]")
-        print_info("Run [bold]pm init[/bold] first to create one.")
-        raise typer.Exit(1)
-
-    from core.config import load_config
-    config = load_config(target_dir)
-    ollama_url = config.get("ollama_base_url", "http://localhost:11434")
-    chat_model = config.get("chat_model", "gemma4:e2b")
-
-    from core.agent import needs_retrieval, reformulate_query
-
-    print_startup_banner(config)
-    print_header("Interactive Agent Chat", config)
-    print_info("Type 'exit' or 'quit' to end the session.")
-
-    history = []
-
-    while True:
-        try:
-            print_chat_user_prefix()
-            user_input = input()
-            if user_input.lower() in ["exit", "quit"]:
-                break
-            if not user_input.strip():
-                continue
-
-            standalone_query = reformulate_query(user_input, history, ollama_url, chat_model)
-            
-            if needs_retrieval(standalone_query, history, ollama_url, chat_model):
-                try:
-                    with create_spinner() as spinner:
-                        spinner.add_task("Searching knowledge base...", total=None)
-                        context, stream = query_stream(target_dir, standalone_query, history=history)
-                    if context.sources:
-                        print_sources(context.sources, config)
-                except PalimindError as e:
-                    print_error(str(e))
-                    continue
-            else:
-                from core.generative.responder import generate_response_stream
-                stream = generate_response_stream(
-                    query=user_input, 
-                    context="",
-                    image_paths=[],
-                    ollama_url=ollama_url,
-                    chat_model=chat_model,
-                    system_prompt="You are a helpful assistant.",
-                    history=history,
-                    is_chat_only=True
-                )
-
-            print_chat_ai_prefix(config)
-            answer_chunks = []
-            try:
-                for token in stream:
-                    console.print(token, end="")
-                    answer_chunks.append(token)
-            except PalimindError as e:
-                console.print()
-                print_error(str(e))
-                continue
-            console.print()
-
-            history.append({"role": "user", "content": user_input})
-            history.append({"role": "assistant", "content": "".join(answer_chunks)})
-
-            if len(history) > 10:
-                history = history[-10:]
-
-        except (KeyboardInterrupt, EOFError):
-            break
-
-    print_footer("Session ended.", config)
-
-@app.command()
 def ui(
     path: Path = typer.Option(Path("."), "--path", "-p", help="Workspace path")
 ):
-    """Start the Palimind V2 Boardroom UI via Electron."""
+    """Start the Palimind V2 Boardroom UI via Tauri."""
     import subprocess
     import sys
     import os
@@ -291,19 +205,17 @@ def ui(
     
     root_dir = Path(__file__).parent.parent.parent
     
-    # Start Electron using platform-specific npm script
-    # Linux requires --no-sandbox due to SUID sandbox restrictions (start-linux)
     with create_spinner() as spinner:
-        spinner.add_task("Starting Electron...", total=None)
+        spinner.add_task("Starting Tauri App...", total=None)
         try:
             if os.name == 'nt':
-                subprocess.run(["npm.cmd", "run", "start-windows"], cwd=root_dir)
+                subprocess.run(["npm.cmd", "run", "dev"], cwd=root_dir)
             else:
-                subprocess.run(["npm", "run", "start-linux"], cwd=root_dir)
+                subprocess.run(["npm", "run", "dev"], cwd=root_dir)
         except KeyboardInterrupt:
-            print_info("Electron wrapper stopped.")
+            print_info("Tauri app stopped.")
         except Exception as e:
-            print_error(f"Failed to start Electron: {e}")
+            print_error(f"Failed to start Tauri app: {e}")
 
 
 @app.command()
@@ -433,54 +345,5 @@ def hotkey(
         print_info("Use 'start', 'stop', or 'trigger'")
         raise typer.Exit(1)
 
-@app.command()
-def swarm(
-    query: str = typer.Argument(..., help="Query for the swarm orchestrator"),
-    path: Path = typer.Option(Path("."), "--path", "-p", help="Workspace path")
-):
-    """Run a query through the Agent Swarm."""
-    target_dir = path.resolve()
-    from core.config import load_config
-    config = load_config(target_dir)
-    ollama_url = config.get("ollama_base_url", "http://localhost:11434")
-    chat_model = config.get("chat_model", "gemma4:e4b")
-    
-    print_startup_banner(config)
-    print_header("Agent Swarm", config)
-    from core.swarm.orchestrator import SwarmOrchestrator
-    orchestrator = SwarmOrchestrator(target_dir, ollama_url, chat_model)
-    
-    print_info(f"Query: {query}")
-    
-    with create_spinner() as spinner:
-        spinner.add_task("Swarm is thinking...", total=None)
-        response = orchestrator.run_swarm(query)
-    
-    console.print("[bold magenta]Swarm:[/bold magenta] ", end="")
-    console.print(response)
 
-@app.command()
-def document(
-    file_path: str = typer.Argument(..., help="Path to the document to analyze"),
-    query: str = typer.Argument(..., help="What to do with the document"),
-    path: Path = typer.Option(Path("."), "--path", "-p", help="Workspace path")
-):
-    """Run Document Mode on a specific file."""
-    target_dir = path.resolve()
-    from core.config import load_config
-    config = load_config(target_dir)
-    ollama_url = config.get("ollama_base_url", "http://localhost:11434")
-    chat_model = config.get("chat_model", "gemma4:e4b")
-    
-    print_startup_banner(config)
-    print_header(f"Document Mode: {file_path}", config)
-    from core.swarm.orchestrator import SwarmOrchestrator
-    orchestrator = SwarmOrchestrator(target_dir, ollama_url, chat_model)
-    
-    with create_spinner() as spinner:
-        spinner.add_task("Analyzing document...", total=None)
-        response = orchestrator.run_document_mode(file_path, query)
-    
-    console.print("[bold magenta]DocumentAgent:[/bold magenta] ", end="")
-    console.print(response)
 

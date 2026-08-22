@@ -1,9 +1,3 @@
-"""
-Public programmatic API for Palimind.
-
-Import from here when building CLI, TUI, or GUI frontends. Core modules raise
-domain exceptions; this module re-exports the main operations and result types.
-"""
 from __future__ import annotations
 
 from core.exceptions import (
@@ -35,11 +29,12 @@ from core.models import (
     RetrievedContext,
     UpdateIndexResult,
 )
-from core.querying import query, query_stream, retrieve
+from core.querying import document_query_stream, query, query_stream
 
 __all__ = [
     "CaptionError",
     "ChunkInfo",
+    "DocumentEngine",
     "EmbeddingError",
     "FileIndexError",
     "ImageEncodeError",
@@ -56,12 +51,12 @@ __all__ = [
     "ResponseError",
     "RetrievedContext",
     "UpdateIndexResult",
+    "document_query_stream",
     "extract_chunks",
     "index_exists",
     "initialize_index",
     "query",
     "query_stream",
     "require_index",
-    "retrieve",
     "update_index",
 ]

@@ -1,51 +1,555 @@
-"""
-Model catalog for Palimind Cookbook — 55+ popular models with quant metadata.
-"""
 MODEL_CATALOG = [
-    {"id":"llama3.2:1b","name":"Llama 3.2 1B","family":"llama","params_b":1,"quants":[{"tag":"Q4_K_M","vram_mb":1200,"quality":"good","file_size_gb":0.8}],"use_cases":["chat"],"min_vram_mb":1000,"tags":["tiny"]},
-    {"id":"llama3.2:3b","name":"Llama 3.2 3B","family":"llama","params_b":3,"quants":[{"tag":"Q4_K_M","vram_mb":2500,"quality":"good","file_size_gb":2.0}],"use_cases":["chat","coding"],"min_vram_mb":2000,"tags":["small"]},
-    {"id":"llama3.1:8b","name":"Llama 3.1 8B","family":"llama","params_b":8,"quants":[{"tag":"Q4_K_M","vram_mb":5200,"quality":"good","file_size_gb":4.9},{"tag":"Q8_0","vram_mb":9100,"quality":"best","file_size_gb":8.5}],"use_cases":["chat","coding","reasoning"],"min_vram_mb":4096,"tags":["popular"]},
-    {"id":"llama3.1:70b","name":"Llama 3.1 70B","family":"llama","params_b":70,"quants":[{"tag":"Q4_K_M","vram_mb":40000,"quality":"good","file_size_gb":40.0}],"use_cases":["chat","coding","reasoning"],"min_vram_mb":35000,"tags":["large"]},
-    {"id":"llama3.3:70b","name":"Llama 3.3 70B","family":"llama","params_b":70,"quants":[{"tag":"Q4_K_M","vram_mb":40000,"quality":"good","file_size_gb":40.0}],"use_cases":["chat","coding","reasoning"],"min_vram_mb":35000,"tags":["large","latest"]},
-    {"id":"qwen2.5:0.5b","name":"Qwen 2.5 0.5B","family":"qwen","params_b":0.5,"quants":[{"tag":"Q4_K_M","vram_mb":800,"quality":"good","file_size_gb":0.4}],"use_cases":["chat"],"min_vram_mb":600,"tags":["tiny"]},
-    {"id":"qwen2.5:1.5b","name":"Qwen 2.5 1.5B","family":"qwen","params_b":1.5,"quants":[{"tag":"Q4_K_M","vram_mb":1500,"quality":"good","file_size_gb":1.0}],"use_cases":["chat","coding"],"min_vram_mb":1200,"tags":["small"]},
-    {"id":"qwen2.5:7b","name":"Qwen 2.5 7B","family":"qwen","params_b":7,"quants":[{"tag":"Q4_K_M","vram_mb":4800,"quality":"good","file_size_gb":4.4}],"use_cases":["chat","coding","reasoning"],"min_vram_mb":4000,"tags":["popular"]},
-    {"id":"qwen2.5:14b","name":"Qwen 2.5 14B","family":"qwen","params_b":14,"quants":[{"tag":"Q4_K_M","vram_mb":9000,"quality":"good","file_size_gb":8.7}],"use_cases":["chat","coding","reasoning"],"min_vram_mb":8000,"tags":["medium"]},
-    {"id":"qwen2.5:32b","name":"Qwen 2.5 32B","family":"qwen","params_b":32,"quants":[{"tag":"Q4_K_M","vram_mb":20000,"quality":"good","file_size_gb":19.0}],"use_cases":["chat","coding","reasoning"],"min_vram_mb":18000,"tags":["large"]},
-    {"id":"qwen2.5:72b","name":"Qwen 2.5 72B","family":"qwen","params_b":72,"quants":[{"tag":"Q4_K_M","vram_mb":42000,"quality":"good","file_size_gb":41.0}],"use_cases":["chat","coding","reasoning"],"min_vram_mb":38000,"tags":["large"]},
-    {"id":"qwen2.5-coder:7b","name":"Qwen 2.5 Coder 7B","family":"qwen","params_b":7,"quants":[{"tag":"Q4_K_M","vram_mb":4800,"quality":"good","file_size_gb":4.4}],"use_cases":["coding"],"min_vram_mb":4000,"tags":["coder","popular"]},
-    {"id":"qwen2.5-coder:32b","name":"Qwen 2.5 Coder 32B","family":"qwen","params_b":32,"quants":[{"tag":"Q4_K_M","vram_mb":20000,"quality":"good","file_size_gb":19.0}],"use_cases":["coding"],"min_vram_mb":18000,"tags":["coder","large"]},
-    {"id":"gemma3:1b","name":"Gemma 3 1B","family":"gemma","params_b":1,"quants":[{"tag":"Q4_K_M","vram_mb":1200,"quality":"good","file_size_gb":0.8}],"use_cases":["chat"],"min_vram_mb":900,"tags":["tiny","google"]},
-    {"id":"gemma3:4b","name":"Gemma 3 4B","family":"gemma","params_b":4,"quants":[{"tag":"Q4_K_M","vram_mb":3200,"quality":"good","file_size_gb":2.8}],"use_cases":["chat","coding"],"min_vram_mb":2800,"tags":["small","google"]},
-    {"id":"gemma3:12b","name":"Gemma 3 12B","family":"gemma","params_b":12,"quants":[{"tag":"Q4_K_M","vram_mb":8000,"quality":"good","file_size_gb":7.2}],"use_cases":["chat","coding","reasoning"],"min_vram_mb":7000,"tags":["medium","google"]},
-    {"id":"gemma3:27b","name":"Gemma 3 27B","family":"gemma","params_b":27,"quants":[{"tag":"Q4_K_M","vram_mb":17000,"quality":"good","file_size_gb":16.0}],"use_cases":["chat","coding","reasoning"],"min_vram_mb":15000,"tags":["large","google"]},
-    {"id":"gemma4:e2b","name":"Gemma 4 e4B","family":"gemma","params_b":4,"quants":[{"tag":"Q4_K_M","vram_mb":3500,"quality":"good","file_size_gb":3.0}],"use_cases":["chat","coding","reasoning"],"min_vram_mb":3000,"tags":["latest","google"]},
-    {"id":"phi3:mini","name":"Phi-3 Mini 3.8B","family":"phi","params_b":3.8,"quants":[{"tag":"Q4_K_M","vram_mb":2800,"quality":"good","file_size_gb":2.3}],"use_cases":["chat","coding"],"min_vram_mb":2400,"tags":["small","microsoft"]},
-    {"id":"phi4:14b","name":"Phi-4 14B","family":"phi","params_b":14,"quants":[{"tag":"Q4_K_M","vram_mb":9000,"quality":"good","file_size_gb":8.4}],"use_cases":["chat","coding","reasoning","math"],"min_vram_mb":8000,"tags":["latest","microsoft"]},
-    {"id":"mistral:7b","name":"Mistral 7B v0.3","family":"mistral","params_b":7,"quants":[{"tag":"Q4_K_M","vram_mb":4800,"quality":"good","file_size_gb":4.1}],"use_cases":["chat","coding"],"min_vram_mb":4000,"tags":["popular"]},
-    {"id":"mistral-nemo:12b","name":"Mistral Nemo 12B","family":"mistral","params_b":12,"quants":[{"tag":"Q4_K_M","vram_mb":7800,"quality":"good","file_size_gb":7.1}],"use_cases":["chat","coding","reasoning"],"min_vram_mb":7000,"tags":["medium"]},
-    {"id":"mixtral:8x7b","name":"Mixtral 8x7B","family":"mistral","params_b":47,"quants":[{"tag":"Q4_K_M","vram_mb":26000,"quality":"good","file_size_gb":26.0}],"use_cases":["chat","coding","reasoning"],"min_vram_mb":24000,"tags":["moe","large"]},
-    {"id":"deepseek-r1:1.5b","name":"DeepSeek R1 1.5B","family":"deepseek","params_b":1.5,"quants":[{"tag":"Q4_K_M","vram_mb":1500,"quality":"good","file_size_gb":1.0}],"use_cases":["reasoning","math"],"min_vram_mb":1200,"tags":["reasoning","tiny"]},
-    {"id":"deepseek-r1:7b","name":"DeepSeek R1 7B","family":"deepseek","params_b":7,"quants":[{"tag":"Q4_K_M","vram_mb":4800,"quality":"good","file_size_gb":4.4}],"use_cases":["reasoning","math","coding"],"min_vram_mb":4000,"tags":["reasoning","popular"]},
-    {"id":"deepseek-r1:14b","name":"DeepSeek R1 14B","family":"deepseek","params_b":14,"quants":[{"tag":"Q4_K_M","vram_mb":9000,"quality":"good","file_size_gb":8.7}],"use_cases":["reasoning","math","coding"],"min_vram_mb":8000,"tags":["reasoning"]},
-    {"id":"deepseek-r1:32b","name":"DeepSeek R1 32B","family":"deepseek","params_b":32,"quants":[{"tag":"Q4_K_M","vram_mb":20000,"quality":"good","file_size_gb":19.0}],"use_cases":["reasoning","math","coding"],"min_vram_mb":18000,"tags":["reasoning","large"]},
-    {"id":"deepseek-coder-v2:16b","name":"DeepSeek Coder V2 16B","family":"deepseek","params_b":16,"quants":[{"tag":"Q4_K_M","vram_mb":10000,"quality":"good","file_size_gb":9.1}],"use_cases":["coding"],"min_vram_mb":9000,"tags":["coder"]},
-    {"id":"codellama:7b","name":"Code Llama 7B","family":"llama","params_b":7,"quants":[{"tag":"Q4_K_M","vram_mb":4800,"quality":"good","file_size_gb":3.8}],"use_cases":["coding"],"min_vram_mb":4000,"tags":["coder"]},
-    {"id":"codellama:34b","name":"Code Llama 34B","family":"llama","params_b":34,"quants":[{"tag":"Q4_K_M","vram_mb":20000,"quality":"good","file_size_gb":19.0}],"use_cases":["coding"],"min_vram_mb":18000,"tags":["coder","large"]},
-    {"id":"starcoder2:7b","name":"StarCoder2 7B","family":"starcoder","params_b":7,"quants":[{"tag":"Q4_K_M","vram_mb":4800,"quality":"good","file_size_gb":4.0}],"use_cases":["coding"],"min_vram_mb":4000,"tags":["coder"]},
-    {"id":"starcoder2:15b","name":"StarCoder2 15B","family":"starcoder","params_b":15,"quants":[{"tag":"Q4_K_M","vram_mb":9500,"quality":"good","file_size_gb":8.6}],"use_cases":["coding"],"min_vram_mb":8500,"tags":["coder"]},
-    {"id":"yi:6b","name":"Yi 6B","family":"yi","params_b":6,"quants":[{"tag":"Q4_K_M","vram_mb":4200,"quality":"good","file_size_gb":3.5}],"use_cases":["chat"],"min_vram_mb":3500,"tags":[]},
-    {"id":"yi:34b","name":"Yi 34B","family":"yi","params_b":34,"quants":[{"tag":"Q4_K_M","vram_mb":20000,"quality":"good","file_size_gb":19.0}],"use_cases":["chat","reasoning"],"min_vram_mb":18000,"tags":["large"]},
-    {"id":"falcon:7b","name":"Falcon 7B","family":"falcon","params_b":7,"quants":[{"tag":"Q4_K_M","vram_mb":4500,"quality":"good","file_size_gb":4.0}],"use_cases":["chat"],"min_vram_mb":4000,"tags":[]},
-    {"id":"openchat:7b","name":"OpenChat 3.5 7B","family":"openchat","params_b":7,"quants":[{"tag":"Q4_K_M","vram_mb":4800,"quality":"good","file_size_gb":4.1}],"use_cases":["chat"],"min_vram_mb":4000,"tags":["instruct"]},
-    {"id":"tinyllama:1.1b","name":"TinyLlama 1.1B","family":"llama","params_b":1.1,"quants":[{"tag":"Q4_K_M","vram_mb":1000,"quality":"good","file_size_gb":0.6}],"use_cases":["chat"],"min_vram_mb":800,"tags":["tiny"]},
-    {"id":"smollm2:1.7b","name":"SmolLM2 1.7B","family":"smollm","params_b":1.7,"quants":[{"tag":"Q4_K_M","vram_mb":1400,"quality":"good","file_size_gb":1.0}],"use_cases":["chat"],"min_vram_mb":1000,"tags":["small"]},
-    {"id":"llava:7b","name":"LLaVA 7B","family":"llava","params_b":7,"quants":[{"tag":"Q4_K_M","vram_mb":5500,"quality":"good","file_size_gb":4.7}],"use_cases":["vision","chat"],"min_vram_mb":5000,"tags":["vision"]},
-    {"id":"llava:13b","name":"LLaVA 13B","family":"llava","params_b":13,"quants":[{"tag":"Q4_K_M","vram_mb":9000,"quality":"good","file_size_gb":8.0}],"use_cases":["vision","chat"],"min_vram_mb":8000,"tags":["vision"]},
-    {"id":"minicpm-v:8b","name":"MiniCPM-V 8B","family":"minicpm","params_b":8,"quants":[{"tag":"Q4_K_M","vram_mb":5800,"quality":"good","file_size_gb":5.0}],"use_cases":["vision","chat"],"min_vram_mb":5000,"tags":["vision"]},
-    {"id":"nomic-embed-text","name":"Nomic Embed Text","family":"nomic","params_b":0.137,"quants":[{"tag":"FP16","vram_mb":500,"quality":"best","file_size_gb":0.3}],"use_cases":["embedding"],"min_vram_mb":300,"tags":["embedding"]},
-    {"id":"wizardlm2:7b","name":"WizardLM 2 7B","family":"wizard","params_b":7,"quants":[{"tag":"Q4_K_M","vram_mb":4800,"quality":"good","file_size_gb":4.1}],"use_cases":["chat","reasoning"],"min_vram_mb":4000,"tags":["instruct"]},
-    {"id":"command-r:35b","name":"Command R 35B","family":"command","params_b":35,"quants":[{"tag":"Q4_K_M","vram_mb":21000,"quality":"good","file_size_gb":20.0}],"use_cases":["chat","reasoning","rag"],"min_vram_mb":19000,"tags":["rag","large"]},
-    {"id":"internlm2:7b","name":"InternLM2 7B","family":"internlm","params_b":7,"quants":[{"tag":"Q4_K_M","vram_mb":4800,"quality":"good","file_size_gb":4.2}],"use_cases":["chat","coding"],"min_vram_mb":4000,"tags":[]},
-    {"id":"solar-pro:22b","name":"Solar Pro 22B","family":"solar","params_b":22,"quants":[{"tag":"Q4_K_M","vram_mb":14000,"quality":"good","file_size_gb":12.9}],"use_cases":["chat","reasoning"],"min_vram_mb":12000,"tags":[]},
+    {
+        "id": "llama3.2:1b",
+        "name": "Llama 3.2 1B",
+        "family": "llama",
+        "params_b": 1,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 1200, "quality": "good", "file_size_gb": 0.8}
+        ],
+        "use_cases": ["chat"],
+        "min_vram_mb": 1000,
+        "tags": ["tiny"],
+    },
+    {
+        "id": "llama3.2:3b",
+        "name": "Llama 3.2 3B",
+        "family": "llama",
+        "params_b": 3,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 2500, "quality": "good", "file_size_gb": 2.0}
+        ],
+        "use_cases": ["chat", "coding"],
+        "min_vram_mb": 2000,
+        "tags": ["small"],
+    },
+    {
+        "id": "llama3.1:8b",
+        "name": "Llama 3.1 8B",
+        "family": "llama",
+        "params_b": 8,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 5200, "quality": "good", "file_size_gb": 4.9},
+            {"tag": "Q8_0", "vram_mb": 9100, "quality": "best", "file_size_gb": 8.5},
+        ],
+        "use_cases": ["chat", "coding", "reasoning"],
+        "min_vram_mb": 4096,
+        "tags": ["popular"],
+    },
+    {
+        "id": "llama3.1:70b",
+        "name": "Llama 3.1 70B",
+        "family": "llama",
+        "params_b": 70,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 40000, "quality": "good", "file_size_gb": 40.0}
+        ],
+        "use_cases": ["chat", "coding", "reasoning"],
+        "min_vram_mb": 35000,
+        "tags": ["large"],
+    },
+    {
+        "id": "llama3.3:70b",
+        "name": "Llama 3.3 70B",
+        "family": "llama",
+        "params_b": 70,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 40000, "quality": "good", "file_size_gb": 40.0}
+        ],
+        "use_cases": ["chat", "coding", "reasoning"],
+        "min_vram_mb": 35000,
+        "tags": ["large", "latest"],
+    },
+    {
+        "id": "qwen2.5:0.5b",
+        "name": "Qwen 2.5 0.5B",
+        "family": "qwen",
+        "params_b": 0.5,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 800, "quality": "good", "file_size_gb": 0.4}
+        ],
+        "use_cases": ["chat"],
+        "min_vram_mb": 600,
+        "tags": ["tiny"],
+    },
+    {
+        "id": "qwen2.5:1.5b",
+        "name": "Qwen 2.5 1.5B",
+        "family": "qwen",
+        "params_b": 1.5,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 1500, "quality": "good", "file_size_gb": 1.0}
+        ],
+        "use_cases": ["chat", "coding"],
+        "min_vram_mb": 1200,
+        "tags": ["small"],
+    },
+    {
+        "id": "qwen2.5:7b",
+        "name": "Qwen 2.5 7B",
+        "family": "qwen",
+        "params_b": 7,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 4800, "quality": "good", "file_size_gb": 4.4}
+        ],
+        "use_cases": ["chat", "coding", "reasoning"],
+        "min_vram_mb": 4000,
+        "tags": ["popular"],
+    },
+    {
+        "id": "qwen2.5:14b",
+        "name": "Qwen 2.5 14B",
+        "family": "qwen",
+        "params_b": 14,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 9000, "quality": "good", "file_size_gb": 8.7}
+        ],
+        "use_cases": ["chat", "coding", "reasoning"],
+        "min_vram_mb": 8000,
+        "tags": ["medium"],
+    },
+    {
+        "id": "qwen2.5:32b",
+        "name": "Qwen 2.5 32B",
+        "family": "qwen",
+        "params_b": 32,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 20000, "quality": "good", "file_size_gb": 19.0}
+        ],
+        "use_cases": ["chat", "coding", "reasoning"],
+        "min_vram_mb": 18000,
+        "tags": ["large"],
+    },
+    {
+        "id": "qwen2.5:72b",
+        "name": "Qwen 2.5 72B",
+        "family": "qwen",
+        "params_b": 72,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 42000, "quality": "good", "file_size_gb": 41.0}
+        ],
+        "use_cases": ["chat", "coding", "reasoning"],
+        "min_vram_mb": 38000,
+        "tags": ["large"],
+    },
+    {
+        "id": "qwen2.5-coder:7b",
+        "name": "Qwen 2.5 Coder 7B",
+        "family": "qwen",
+        "params_b": 7,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 4800, "quality": "good", "file_size_gb": 4.4}
+        ],
+        "use_cases": ["coding"],
+        "min_vram_mb": 4000,
+        "tags": ["coder", "popular"],
+    },
+    {
+        "id": "qwen2.5-coder:32b",
+        "name": "Qwen 2.5 Coder 32B",
+        "family": "qwen",
+        "params_b": 32,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 20000, "quality": "good", "file_size_gb": 19.0}
+        ],
+        "use_cases": ["coding"],
+        "min_vram_mb": 18000,
+        "tags": ["coder", "large"],
+    },
+    {
+        "id": "gemma3:1b",
+        "name": "Gemma 3 1B",
+        "family": "gemma",
+        "params_b": 1,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 1200, "quality": "good", "file_size_gb": 0.8}
+        ],
+        "use_cases": ["chat"],
+        "min_vram_mb": 900,
+        "tags": ["tiny", "google"],
+    },
+    {
+        "id": "gemma3:4b",
+        "name": "Gemma 3 4B",
+        "family": "gemma",
+        "params_b": 4,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 3200, "quality": "good", "file_size_gb": 2.8}
+        ],
+        "use_cases": ["chat", "coding"],
+        "min_vram_mb": 2800,
+        "tags": ["small", "google"],
+    },
+    {
+        "id": "gemma3:12b",
+        "name": "Gemma 3 12B",
+        "family": "gemma",
+        "params_b": 12,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 8000, "quality": "good", "file_size_gb": 7.2}
+        ],
+        "use_cases": ["chat", "coding", "reasoning"],
+        "min_vram_mb": 7000,
+        "tags": ["medium", "google"],
+    },
+    {
+        "id": "gemma3:27b",
+        "name": "Gemma 3 27B",
+        "family": "gemma",
+        "params_b": 27,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 17000, "quality": "good", "file_size_gb": 16.0}
+        ],
+        "use_cases": ["chat", "coding", "reasoning"],
+        "min_vram_mb": 15000,
+        "tags": ["large", "google"],
+    },
+    {
+        "id": "gemma4:e2b",
+        "name": "Gemma 4 e4B",
+        "family": "gemma",
+        "params_b": 4,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 3500, "quality": "good", "file_size_gb": 3.0}
+        ],
+        "use_cases": ["chat", "coding", "reasoning"],
+        "min_vram_mb": 3000,
+        "tags": ["latest", "google"],
+    },
+    {
+        "id": "phi3:mini",
+        "name": "Phi-3 Mini 3.8B",
+        "family": "phi",
+        "params_b": 3.8,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 2800, "quality": "good", "file_size_gb": 2.3}
+        ],
+        "use_cases": ["chat", "coding"],
+        "min_vram_mb": 2400,
+        "tags": ["small", "microsoft"],
+    },
+    {
+        "id": "phi4:14b",
+        "name": "Phi-4 14B",
+        "family": "phi",
+        "params_b": 14,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 9000, "quality": "good", "file_size_gb": 8.4}
+        ],
+        "use_cases": ["chat", "coding", "reasoning", "math"],
+        "min_vram_mb": 8000,
+        "tags": ["latest", "microsoft"],
+    },
+    {
+        "id": "mistral:7b",
+        "name": "Mistral 7B v0.3",
+        "family": "mistral",
+        "params_b": 7,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 4800, "quality": "good", "file_size_gb": 4.1}
+        ],
+        "use_cases": ["chat", "coding"],
+        "min_vram_mb": 4000,
+        "tags": ["popular"],
+    },
+    {
+        "id": "mistral-nemo:12b",
+        "name": "Mistral Nemo 12B",
+        "family": "mistral",
+        "params_b": 12,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 7800, "quality": "good", "file_size_gb": 7.1}
+        ],
+        "use_cases": ["chat", "coding", "reasoning"],
+        "min_vram_mb": 7000,
+        "tags": ["medium"],
+    },
+    {
+        "id": "mixtral:8x7b",
+        "name": "Mixtral 8x7B",
+        "family": "mistral",
+        "params_b": 47,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 26000, "quality": "good", "file_size_gb": 26.0}
+        ],
+        "use_cases": ["chat", "coding", "reasoning"],
+        "min_vram_mb": 24000,
+        "tags": ["moe", "large"],
+    },
+    {
+        "id": "deepseek-r1:1.5b",
+        "name": "DeepSeek R1 1.5B",
+        "family": "deepseek",
+        "params_b": 1.5,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 1500, "quality": "good", "file_size_gb": 1.0}
+        ],
+        "use_cases": ["reasoning", "math"],
+        "min_vram_mb": 1200,
+        "tags": ["reasoning", "tiny"],
+    },
+    {
+        "id": "deepseek-r1:7b",
+        "name": "DeepSeek R1 7B",
+        "family": "deepseek",
+        "params_b": 7,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 4800, "quality": "good", "file_size_gb": 4.4}
+        ],
+        "use_cases": ["reasoning", "math", "coding"],
+        "min_vram_mb": 4000,
+        "tags": ["reasoning", "popular"],
+    },
+    {
+        "id": "deepseek-r1:14b",
+        "name": "DeepSeek R1 14B",
+        "family": "deepseek",
+        "params_b": 14,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 9000, "quality": "good", "file_size_gb": 8.7}
+        ],
+        "use_cases": ["reasoning", "math", "coding"],
+        "min_vram_mb": 8000,
+        "tags": ["reasoning"],
+    },
+    {
+        "id": "deepseek-r1:32b",
+        "name": "DeepSeek R1 32B",
+        "family": "deepseek",
+        "params_b": 32,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 20000, "quality": "good", "file_size_gb": 19.0}
+        ],
+        "use_cases": ["reasoning", "math", "coding"],
+        "min_vram_mb": 18000,
+        "tags": ["reasoning", "large"],
+    },
+    {
+        "id": "deepseek-coder-v2:16b",
+        "name": "DeepSeek Coder V2 16B",
+        "family": "deepseek",
+        "params_b": 16,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 10000, "quality": "good", "file_size_gb": 9.1}
+        ],
+        "use_cases": ["coding"],
+        "min_vram_mb": 9000,
+        "tags": ["coder"],
+    },
+    {
+        "id": "codellama:7b",
+        "name": "Code Llama 7B",
+        "family": "llama",
+        "params_b": 7,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 4800, "quality": "good", "file_size_gb": 3.8}
+        ],
+        "use_cases": ["coding"],
+        "min_vram_mb": 4000,
+        "tags": ["coder"],
+    },
+    {
+        "id": "codellama:34b",
+        "name": "Code Llama 34B",
+        "family": "llama",
+        "params_b": 34,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 20000, "quality": "good", "file_size_gb": 19.0}
+        ],
+        "use_cases": ["coding"],
+        "min_vram_mb": 18000,
+        "tags": ["coder", "large"],
+    },
+    {
+        "id": "starcoder2:7b",
+        "name": "StarCoder2 7B",
+        "family": "starcoder",
+        "params_b": 7,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 4800, "quality": "good", "file_size_gb": 4.0}
+        ],
+        "use_cases": ["coding"],
+        "min_vram_mb": 4000,
+        "tags": ["coder"],
+    },
+    {
+        "id": "starcoder2:15b",
+        "name": "StarCoder2 15B",
+        "family": "starcoder",
+        "params_b": 15,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 9500, "quality": "good", "file_size_gb": 8.6}
+        ],
+        "use_cases": ["coding"],
+        "min_vram_mb": 8500,
+        "tags": ["coder"],
+    },
+    {
+        "id": "yi:6b",
+        "name": "Yi 6B",
+        "family": "yi",
+        "params_b": 6,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 4200, "quality": "good", "file_size_gb": 3.5}
+        ],
+        "use_cases": ["chat"],
+        "min_vram_mb": 3500,
+        "tags": [],
+    },
+    {
+        "id": "yi:34b",
+        "name": "Yi 34B",
+        "family": "yi",
+        "params_b": 34,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 20000, "quality": "good", "file_size_gb": 19.0}
+        ],
+        "use_cases": ["chat", "reasoning"],
+        "min_vram_mb": 18000,
+        "tags": ["large"],
+    },
+    {
+        "id": "falcon:7b",
+        "name": "Falcon 7B",
+        "family": "falcon",
+        "params_b": 7,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 4500, "quality": "good", "file_size_gb": 4.0}
+        ],
+        "use_cases": ["chat"],
+        "min_vram_mb": 4000,
+        "tags": [],
+    },
+    {
+        "id": "openchat:7b",
+        "name": "OpenChat 3.5 7B",
+        "family": "openchat",
+        "params_b": 7,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 4800, "quality": "good", "file_size_gb": 4.1}
+        ],
+        "use_cases": ["chat"],
+        "min_vram_mb": 4000,
+        "tags": ["instruct"],
+    },
+    {
+        "id": "tinyllama:1.1b",
+        "name": "TinyLlama 1.1B",
+        "family": "llama",
+        "params_b": 1.1,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 1000, "quality": "good", "file_size_gb": 0.6}
+        ],
+        "use_cases": ["chat"],
+        "min_vram_mb": 800,
+        "tags": ["tiny"],
+    },
+    {
+        "id": "smollm2:1.7b",
+        "name": "SmolLM2 1.7B",
+        "family": "smollm",
+        "params_b": 1.7,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 1400, "quality": "good", "file_size_gb": 1.0}
+        ],
+        "use_cases": ["chat"],
+        "min_vram_mb": 1000,
+        "tags": ["small"],
+    },
+    {
+        "id": "llava:7b",
+        "name": "LLaVA 7B",
+        "family": "llava",
+        "params_b": 7,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 5500, "quality": "good", "file_size_gb": 4.7}
+        ],
+        "use_cases": ["vision", "chat"],
+        "min_vram_mb": 5000,
+        "tags": ["vision"],
+    },
+    {
+        "id": "llava:13b",
+        "name": "LLaVA 13B",
+        "family": "llava",
+        "params_b": 13,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 9000, "quality": "good", "file_size_gb": 8.0}
+        ],
+        "use_cases": ["vision", "chat"],
+        "min_vram_mb": 8000,
+        "tags": ["vision"],
+    },
+    {
+        "id": "minicpm-v:8b",
+        "name": "MiniCPM-V 8B",
+        "family": "minicpm",
+        "params_b": 8,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 5800, "quality": "good", "file_size_gb": 5.0}
+        ],
+        "use_cases": ["vision", "chat"],
+        "min_vram_mb": 5000,
+        "tags": ["vision"],
+    },
+    {
+        "id": "nomic-embed-text",
+        "name": "Nomic Embed Text",
+        "family": "nomic",
+        "params_b": 0.137,
+        "quants": [
+            {"tag": "FP16", "vram_mb": 500, "quality": "best", "file_size_gb": 0.3}
+        ],
+        "use_cases": ["embedding"],
+        "min_vram_mb": 300,
+        "tags": ["embedding"],
+    },
+    {
+        "id": "wizardlm2:7b",
+        "name": "WizardLM 2 7B",
+        "family": "wizard",
+        "params_b": 7,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 4800, "quality": "good", "file_size_gb": 4.1}
+        ],
+        "use_cases": ["chat", "reasoning"],
+        "min_vram_mb": 4000,
+        "tags": ["instruct"],
+    },
+    {
+        "id": "command-r:35b",
+        "name": "Command R 35B",
+        "family": "command",
+        "params_b": 35,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 21000, "quality": "good", "file_size_gb": 20.0}
+        ],
+        "use_cases": ["chat", "reasoning", "rag"],
+        "min_vram_mb": 19000,
+        "tags": ["rag", "large"],
+    },
+    {
+        "id": "internlm2:7b",
+        "name": "InternLM2 7B",
+        "family": "internlm",
+        "params_b": 7,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 4800, "quality": "good", "file_size_gb": 4.2}
+        ],
+        "use_cases": ["chat", "coding"],
+        "min_vram_mb": 4000,
+        "tags": [],
+    },
+    {
+        "id": "solar-pro:22b",
+        "name": "Solar Pro 22B",
+        "family": "solar",
+        "params_b": 22,
+        "quants": [
+            {"tag": "Q4_K_M", "vram_mb": 14000, "quality": "good", "file_size_gb": 12.9}
+        ],
+        "use_cases": ["chat", "reasoning"],
+        "min_vram_mb": 12000,
+        "tags": [],
+    },
 ]

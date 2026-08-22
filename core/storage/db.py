@@ -110,6 +110,8 @@ def init_db(root: Path) -> None:
             ("page_number",    "INTEGER"),
             ("word_count",     "INTEGER"),
             ("token_estimate", "INTEGER"),
+            ("media_start_ts", "REAL"),
+            ("media_end_ts",   "REAL"),
         ]:
             col_name, col_type = col_def
             if col_name not in chunk_cols:
@@ -228,8 +230,10 @@ def insert_chunks(
     """Insert chunks and return the list of newly assigned primary key IDs.
 
     *chunks_data* is a list of tuples:
-    ``(chunk_index, chunk_type, content, section_title, subsection, parent_section, page_number, word_count, token_estimate)``
-    or legacy ``(chunk_index, chunk_type, content)``.
+    ``(chunk_index, chunk_type, content, section_title, subsection,
+      parent_section, page_number, word_count, token_estimate)``,
+    optionally followed by ``(media_start_ts, media_end_ts)`` — or legacy
+    ``(chunk_index, chunk_type, content)``.
     Returns ``list[int]`` of inserted row IDs in the same order.
     """
     conn.execute("DELETE FROM chunks WHERE file_id = ?", (file_id,))
@@ -245,16 +249,27 @@ def insert_chunks(
             page_number = None
             word_count = None
             token_estimate = None
+            media_start_ts = None
+            media_end_ts = None
+        elif len(row) == 9:
+            (idx, ctype, content, section_title, subsection, parent_section,
+             page_number, word_count, token_estimate) = row
+            media_start_ts = None
+            media_end_ts = None
         else:
-            idx, ctype, content, section_title, subsection, parent_section, page_number, word_count, token_estimate = row
+            (idx, ctype, content, section_title, subsection, parent_section,
+             page_number, word_count, token_estimate,
+             media_start_ts, media_end_ts) = row
         cur.execute(
             """INSERT INTO chunks
                (file_id, chunk_index, chunk_type, content,
-                section_title, subsection, parent_section, page_number, word_count, token_estimate)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                section_title, subsection, parent_section, page_number, word_count,
+                token_estimate, media_start_ts, media_end_ts)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (file_id, idx, ctype, content,
              section_title or "", subsection or "", parent_section or "",
-             page_number, word_count, token_estimate),
+             page_number, word_count, token_estimate,
+             media_start_ts, media_end_ts),
         )
         chunk_ids.append(cur.lastrowid)
     return chunk_ids
@@ -300,7 +315,7 @@ def get_chunks_for_file(conn: sqlite3.Connection, path: str) -> list[str]:
         FROM chunks c
         JOIN files f ON c.file_id = f.id
         WHERE f.path = ?
-          AND c.chunk_type IN ('text', 'caption')
+          AND c.chunk_type IN ('text', 'caption', 'transcript')
         ORDER BY c.chunk_index
         """,
         (path,),
@@ -339,6 +354,45 @@ def get_rich_chunks_for_file(conn: sqlite3.Connection, path: str) -> list[dict]:
             "doc_year": row[10],
             "doc_type": row[11] or "other",
             "entity_name": row[12] or "",
+        }
+        for row in cur.fetchall()
+    ]
+
+
+def get_chunk_neighbors(
+    conn: sqlite3.Connection,
+    path: str,
+    chunk_index: int,
+    before: int = 1,
+    after: int = 1,
+) -> list[dict]:
+    """Return chunks adjacent to (file_path, chunk_index), ordered by chunk_index."""
+    cur = conn.execute(
+        """
+        SELECT c.id, c.chunk_index, c.chunk_type, c.content,
+               c.section_title, f.doc_year, f.doc_type,
+               c.media_start_ts, c.media_end_ts
+        FROM chunks c
+        JOIN files f ON c.file_id = f.id
+        WHERE f.path = ?
+          AND c.chunk_index BETWEEN ? AND ?
+          AND c.chunk_type IN ('text', 'caption', 'transcript')
+        ORDER BY c.chunk_index
+        """,
+        (path, chunk_index - before, chunk_index + after),
+    )
+    return [
+        {
+            "chunk_db_id": row[0],
+            "chunk_index": row[1],
+            "chunk_type": row[2],
+            "content": row[3],
+            "section_title": row[4] or "",
+            "file_path": path,
+            "doc_year": row[5],
+            "doc_type": row[6] or "other",
+            "media_start_ts": row[7],
+            "media_end_ts": row[8],
         }
         for row in cur.fetchall()
     ]
@@ -431,8 +485,8 @@ def fts_search_filtered(
         conditions.append("f.entity_name LIKE ?")
         params.append(f"%{entity_name}%")
     if section_title is not None:
-        conditions.append("c.section_title LIKE ?")
-        params.append(f"%{section_title}%")
+        conditions.append("(c.section_title LIKE ? OR c.subsection LIKE ? OR c.parent_section LIKE ?)")
+        params.extend([f"%{section_title}%", f"%{section_title}%", f"%{section_title}%"])
     if subsection is not None:
         conditions.append("c.subsection LIKE ?")
         params.append(f"%{subsection}%")
@@ -507,8 +561,8 @@ def get_candidate_chunk_ids(
         conditions.append("f.entity_name LIKE ?")
         params.append(f"%{entity_name}%")
     if section_title is not None:
-        conditions.append("c.section_title LIKE ?")
-        params.append(f"%{section_title}%")
+        conditions.append("(c.section_title LIKE ? OR c.subsection LIKE ? OR c.parent_section LIKE ?)")
+        params.extend([f"%{section_title}%", f"%{section_title}%", f"%{section_title}%"])
     if subsection is not None:
         conditions.append("c.subsection LIKE ?")
         params.append(f"%{subsection}%")

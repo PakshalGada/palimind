@@ -1,16 +1,18 @@
 {
-  "name": "fastapi-electron-wrapper",
-  "version": "1.0.0",
-  "description": "A minimal Electron wrapper for an existing FastAPI application",
-  "main": "electron/main.js",
+  "name": "palimind",
+  "version": "0.1.0",
+  "description": "Palimind — Local-first AI workspace for everything",
   "scripts": {
-    "start": "electron .",
-    "start-windows": "electron .",
-    "start-linux": "electron . --no-sandbox"
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build"
   },
-  "author": "Migration Engineer",
+  "author": "Palimind",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^42.4.0"
+    "@tauri-apps/cli": "^2"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2"
   }
 }

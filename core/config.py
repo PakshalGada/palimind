@@ -12,9 +12,8 @@ DB_FILE = "index.db"
 DEFAULTS = {
     "embed_model": "nomic-embed-text",
     "chat_model": "gemma4:e2b",
-    "vision_model": "llava",
-    "chunk_size": 1000,
-    "chunk_overlap": 200,
+    "chunk_size": 3000,
+    "chunk_overlap": 500,
     "turbovec_bit_width": 4,  # 2 or 4 — compression vs accuracy trade-off
     "summarise": True,        # Generate per-file summaries at index time
     "summary_max_chars": 8000,  # Characters fed to the summariser (truncated)
@@ -23,6 +22,12 @@ DEFAULTS = {
     "retrieval_limit": 10,         # Number of chunks returned per retrieval call
     "context_token_budget": 8000,  # Maximum tokens assembled into LLM context
     "comparison_chunks_per_doc": 4,  # Chunks retrieved per document in comparison mode
+    "rerank": True,                # Rerank fused results with a local cross-encoder
+    "rerank_model": "BAAI/bge-reranker-base",  # Local cross-encoder for reranking
+    "query_rewrite": True,         # LLM query rewriting at retrieval time
+    "video_extensions": [".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v"],
+    "video_whisper_model": "base",  # Whisper tier for offline video transcription
+    "video_chunk_seconds": 90,      # Max transcript chunk duration in seconds
     "extensions": [
         ".txt",
         ".md",
@@ -45,6 +50,13 @@ DEFAULTS = {
     "doc_extensions": [".pdf", ".docx", ".pptx", ".xlsx"],
     "image_extensions": [".png", ".jpg", ".jpeg", ".webp"],
     "ollama_base_url": "http://localhost:11434",
+    "light_model": "",  # smaller/faster model for graph building & entity extraction; falls back to chat_model
+    "moe_orchestrator_model": "",
+    "moe_worker_model": "",
+    "moe_sub_mode": "default",  # "default" or "moe"
+    "thinking_model": "",  # model used when the user toggles Think mode; falls back to chat_model
+    "persona_name": "",
+    "persona_system_prompt": "",
 }
 
 

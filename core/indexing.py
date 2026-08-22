@@ -31,7 +31,7 @@ from core.models import (
     ProgressCallback,
     UpdateIndexResult,
 )
-from core.retrieval.embedder import generate_embeddings_batch
+from core.embedder import generate_embeddings_batch
 from core.storage.db import (
     delete_file,
     get_connection,
@@ -90,10 +90,14 @@ def extract_chunks(file_path: Path, root: Path, config: dict) -> list[RichChunk]
     """
     Parse *file_path* and return a list of :class:`RichChunk` objects.
 
+    Video files → timestamped transcript chunks (ffmpeg + local whisper).
     Image files → single caption chunk.
     Documents/text → hierarchical rich chunks (section-aware).
     """
     ext = file_path.suffix.lower()
+
+    if ext in config.get("video_extensions", []):
+        return _extract_video_chunks(file_path, root, config)
 
     if ext in config["image_extensions"]:
         caption = caption_image(
@@ -129,6 +133,53 @@ def extract_chunks(file_path: Path, root: Path, config: dict) -> list[RichChunk]
         chunk_size=config.get("chunk_size", 800),
         chunk_overlap=config.get("chunk_overlap", 150),
     )
+
+
+def _extract_video_chunks(file_path: Path, root: Path, config: dict) -> list[RichChunk]:
+    """Transcribe a video file and return timestamped transcript chunks."""
+    import logging
+
+    from core.ingestion.video_parser import parse_video
+
+    logger = logging.getLogger(__name__)
+    rel_path = str(file_path.relative_to(root))
+    try:
+        chunks_raw, _segments = parse_video(
+            file_path,
+            whisper_model=config.get("video_whisper_model", "base"),
+            chunk_chars=config.get("chunk_size", 800),
+            max_chunk_seconds=float(config.get("video_chunk_seconds", 90)),
+        )
+    except RuntimeError as e:
+        raise ParseError(f"Video indexing failed for {rel_path}: {e}") from e
+
+    if not chunks_raw:
+        logger.warning(f"No speech detected in video {rel_path}")
+        return []
+
+    meta = DocumentMeta(path=rel_path)
+    rich_chunks: list[RichChunk] = []
+    for i, seg in enumerate(chunks_raw):
+        words = seg.text.split()
+        chunk = RichChunk(
+            content=seg.text,
+            chunk_type="transcript",
+            chunk_index=i,
+            section_title=f"Transcript {i + 1}",
+            parent_section="Transcript",
+            main_section="Transcript",
+            word_count=len(words),
+            token_estimate=int(len(words) * 1.3),
+            media_start_ts=seg.start,
+            media_end_ts=seg.end,
+        )
+        # Apply shared document meta (doc_year/doc_type/entity from filename)
+        chunk.doc_year = meta.doc_year
+        chunk.fiscal_year = meta.doc_year
+        chunk.doc_type = meta.doc_type or "video"
+        chunk.entity_name = meta.entity_name
+        rich_chunks.append(chunk)
+    return rich_chunks
 
 
 # ---------------------------------------------------------------------------
@@ -372,6 +423,8 @@ def update_index(
                         chunk.page_number,
                         chunk.word_count,
                         chunk.token_estimate,
+                        chunk.media_start_ts,
+                        chunk.media_end_ts,
                     ))
                     valid_infos.append((idx, chunk, emb))
 
@@ -388,9 +441,14 @@ def update_index(
                             "content": chunk.content,
                             "section_title": chunk.section_title,
                             "subsection": chunk.subsection,
+                            "main_section": chunk.main_section,
+                            "parent_section": chunk.parent_section,
                             "doc_year": chunk.doc_year,
+                            "fiscal_year": chunk.fiscal_year or chunk.doc_year,
                             "doc_type": chunk.doc_type,
                             "entity_name": chunk.entity_name,
+                            "media_start_ts": chunk.media_start_ts,
+                            "media_end_ts": chunk.media_end_ts,
                         }
                         for j, (_, chunk, emb) in enumerate(valid_infos)
                     ]

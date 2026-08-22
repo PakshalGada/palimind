@@ -10,5 +10,6 @@ build/
 .palimind/
 .venv/
 node_modules/
-FlickAI/
-Integrating_Palivision_into_PaliMind (1).md
+older palimind/
+
+src-tauri/target/

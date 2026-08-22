@@ -25,6 +25,7 @@ def crawl_directory(root: Path) -> tuple[list[Path], list[Path], list[str]]:
     config = load_config(root)
     allowed_exts = set(
         config["extensions"] + config["doc_extensions"] + config["image_extensions"]
+        + config.get("video_extensions", [])
     )
 
     conn = get_connection(root)

@@ -1,12 +1,16 @@
-"""
-Fit scoring algorithm for Palimind Cookbook.
-Ranks models against detected hardware profile.
-"""
 from __future__ import annotations
+
 from typing import List
 
-
-QUALITY_WEIGHTS = {"best": 1.0, "fp8": 0.9, "awq": 0.8, "good": 0.7, "q5": 0.6, "q4": 0.5, "q3": 0.4}
+QUALITY_WEIGHTS = {
+    "best": 1.0,
+    "fp8": 0.9,
+    "awq": 0.8,
+    "good": 0.7,
+    "q5": 0.6,
+    "q4": 0.5,
+    "q3": 0.4,
+}
 FIT_PERFECTLY = "FITS_PERFECTLY"
 FIT_TIGHT = "FITS_TIGHT"
 CPU_FALLBACK = "CPU_FALLBACK"
@@ -47,19 +51,21 @@ def rank_models(hardware, catalog: list[dict], top: int = 20) -> list[dict]:
             speed_bonus = min(1.0, best_vram / best_quant["vram_mb"]) * 0.3
         score = round(fit_base * 0.5 + quality_w * 0.3 + speed_bonus * 0.2, 3)
 
-        results.append({
-            "id": model["id"],
-            "name": model["name"],
-            "family": model["family"],
-            "params_b": model["params_b"],
-            "best_quant": best_quant["tag"],
-            "vram_required_mb": best_quant["vram_mb"],
-            "file_size_gb": best_quant["file_size_gb"],
-            "fit": fit_label,
-            "score": score,
-            "use_cases": model["use_cases"],
-            "tags": model["tags"],
-        })
+        results.append(
+            {
+                "id": model["id"],
+                "name": model["name"],
+                "family": model["family"],
+                "params_b": model["params_b"],
+                "best_quant": best_quant["tag"],
+                "vram_required_mb": best_quant["vram_mb"],
+                "file_size_gb": best_quant["file_size_gb"],
+                "fit": fit_label,
+                "score": score,
+                "use_cases": model["use_cases"],
+                "tags": model["tags"],
+            }
+        )
 
     results.sort(key=lambda x: (-x["score"], x["vram_required_mb"]))
     return results[:top]

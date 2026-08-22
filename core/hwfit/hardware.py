@@ -1,16 +1,10 @@
-"""
-Hardware detection module for Palimind Cookbook.
-Detects GPUs (NVIDIA/AMD/Intel), VRAM, system RAM, and available serve engines.
-Windows-first implementation with Linux/macOS support.
-"""
-
 from __future__ import annotations
 
 import json
 import platform
 import shutil
 import subprocess
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from typing import List, Optional
 
 
@@ -31,7 +25,10 @@ class HardwareProfile:
 
     def to_dict(self) -> dict:
         return {
-            "gpus": [{"name": g.name, "vram_mb": g.vram_mb, "backend": g.backend} for g in self.gpus],
+            "gpus": [
+                {"name": g.name, "vram_mb": g.vram_mb, "backend": g.backend}
+                for g in self.gpus
+            ],
             "total_ram_mb": self.total_ram_mb,
             "os_platform": self.os_platform,
             "wsl2_detected": self.wsl2_detected,
@@ -61,11 +58,9 @@ def _run_cmd(cmd: list[str], timeout: int = 10) -> Optional[str]:
 def detect_nvidia_gpus() -> List[GPUInfo]:
     """Detect NVIDIA GPUs using nvidia-smi."""
     gpus = []
-    output = _run_cmd([
-        "nvidia-smi",
-        "--query-gpu=name,memory.total",
-        "--format=csv,noheader,nounits"
-    ])
+    output = _run_cmd(
+        ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"]
+    )
     if not output:
         return gpus
 
@@ -110,11 +105,16 @@ def detect_amd_gpus_linux() -> List[GPUInfo]:
 def detect_amd_gpus_windows() -> List[GPUInfo]:
     """Detect AMD GPUs using wmic on Windows (no ROCm on Windows)."""
     gpus = []
-    output = _run_cmd([
-        "wmic", "path", "win32_VideoController",
-        "get", "AdapterRAM,Name",
-        "/format:csv"
-    ])
+    output = _run_cmd(
+        [
+            "wmic",
+            "path",
+            "win32_VideoController",
+            "get",
+            "AdapterRAM,Name",
+            "/format:csv",
+        ]
+    )
     if not output:
         return gpus
 
@@ -138,11 +138,16 @@ def detect_amd_gpus_windows() -> List[GPUInfo]:
 def detect_intel_igpu_windows() -> List[GPUInfo]:
     """Detect Intel iGPUs via wmic — these are CPU-only for inference."""
     gpus = []
-    output = _run_cmd([
-        "wmic", "path", "win32_VideoController",
-        "get", "AdapterRAM,Name",
-        "/format:csv"
-    ])
+    output = _run_cmd(
+        [
+            "wmic",
+            "path",
+            "win32_VideoController",
+            "get",
+            "AdapterRAM,Name",
+            "/format:csv",
+        ]
+    )
     if not output:
         return gpus
 
@@ -154,7 +159,11 @@ def detect_intel_igpu_windows() -> List[GPUInfo]:
         if len(parts) >= 3:
             try:
                 name = parts[2]
-                if "INTEL" in name.upper() and "NVIDIA" not in name.upper() and "AMD" not in name.upper():
+                if (
+                    "INTEL" in name.upper()
+                    and "NVIDIA" not in name.upper()
+                    and "AMD" not in name.upper()
+                ):
                     adapter_ram = int(parts[1]) if parts[1] else 0
                     vram_mb = adapter_ram // (1024 * 1024) if adapter_ram > 0 else 0
                     gpus.append(GPUInfo(name=name, vram_mb=vram_mb, backend="cpu"))
@@ -192,6 +201,7 @@ def detect_apple_metal() -> List[GPUInfo]:
     # Apple Silicon uses unified memory — use total RAM as "VRAM"
     if not gpus and output and "Apple" in output:
         import psutil
+
         total_ram_mb = psutil.virtual_memory().total // (1024 * 1024)
         for line in output.split("\n"):
             if "Chipset Model:" in line:
@@ -206,6 +216,7 @@ def detect_system_ram() -> int:
     """Detect total system RAM in MB."""
     try:
         import psutil
+
         return psutil.virtual_memory().total // (1024 * 1024)
     except ImportError:
         return 0
