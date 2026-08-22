@@ -75,3 +75,8 @@ AGENT_RUN_HISTORY_LIMIT: int = _env_int("PALIMIND_AGENT_RUN_HISTORY_LIMIT", 200)
 
 # How many conversation messages to keep per agent chat log.
 AGENT_CHAT_LIMIT: int = _env_int("PALIMIND_AGENT_CHAT_LIMIT", 300)
+
+# Paliteams — max chat queries a single guest may send per minute.
+TEAMS_MAX_QUERIES_PER_MINUTE: int = _env_int(
+    "PALIMIND_TEAMS_MAX_QUERIES_PER_MINUTE", 10
+)

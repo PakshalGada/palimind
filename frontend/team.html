@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Paliteams</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #171a23;
+    --panel2: #1e2230;
+    --border: #2a2f3f;
+    --text: #e8eaf0;
+    --muted: #9aa2b5;
+    --accent: #5b8cff;
+    --danger: #ff5c5c;
+    --ok: #4cc38a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: "Inter", system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; padding: 12px 20px;
+    border-bottom: 1px solid var(--border); background: var(--panel);
+  }
+  header .brand { font-weight: 700; font-size: 18px; }
+  header .tag { color: var(--muted); font-size: 13px; }
+  .tabs { display: flex; gap: 8px; margin-left: auto; }
+  .back-link { color: var(--muted); text-decoration: none; font-size: 13px; margin-left: 8px; }
+  .back-link:hover { color: var(--text); }
+  .tab-btn {
+    background: var(--panel2); color: var(--muted); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 16px; cursor: pointer; font-size: 14px;
+  }
+  .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  main { flex: 1; overflow-y: auto; padding: 20px; display: none; }
+  main.active { display: block; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px; margin-bottom: 16px; max-width: 760px;
+  }
+  h3 { margin: 0 0 12px; font-size: 15px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 6px; }
+  select, input[type=text] {
+    width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px; font-size: 14px;
+  }
+  button {
+    background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 10px 16px; font-size: 14px; cursor: pointer; margin-top: 10px;
+  }
+  button.secondary { background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
+  button.danger { background: var(--danger); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .code-box {
+    font-family: "JetBrains Mono", monospace; font-size: 15px; word-break: break-all;
+    background: var(--panel2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px; margin: 10px 0; user-select: all;
+  }
+  .status { font-size: 13px; padding: 6px 10px; border-radius: 6px; display: inline-block; }
+  .status.connected { background: rgba(76,195,138,.15); color: var(--ok); }
+  .status.disconnected { background: rgba(255,92,92,.15); color: var(--danger); }
+  .status.thinking { background: rgba(91,140,255,.15); color: var(--accent); }
+  .guest-row {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--panel2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; margin-bottom: 8px; font-size: 14px;
+  }
+  .guest-row .meta { color: var(--muted); font-size: 12px; }
+  .guest-row button { margin: 0; padding: 6px 12px; font-size: 12px; }
+  .chat { display: flex; flex-direction: column; height: calc(100vh - 160px); }
+  .messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 78%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+  .msg.me { align-self: flex-end; background: var(--accent); color: #fff; }
+  .msg.ai { align-self: flex-start; background: var(--panel2); border: 1px solid var(--border); }
+  .msg.sys { align-self: center; color: var(--muted); font-size: 13px; background: transparent; }
+  .msg .name { font-size: 11px; opacity: .75; margin-bottom: 4px; }
+  .input-row { display: flex; gap: 10px; padding: 12px; border-top: 1px solid var(--border); background: var(--panel); }
+  .input-row input { flex: 1; }
+  .input-row button { margin: 0; }
+  .join-form { max-width: 520px; }
+  .error-text { color: var(--danger); font-size: 13px; margin-top: 8px; }
+  .kicked-banner {
+    background: rgba(255,92,92,.15); color: var(--danger); border: 1px solid var(--danger);
+    padding: 12px 16px; border-radius: 10px; margin: 12px 0; font-size: 14px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">Paliteams</span>
+  <span class="tag">LAN shared Palispace</span>
+  <a href="/ui" class="back-link">← Back to Palimind</a>
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-host" onclick="switchTab('host')">Host</button>
+    <button class="tab-btn" id="tab-guest" onclick="switchTab('guest')">Guest</button>
+  </div>
+</header>
+
+<main id="pane-host" class="active">
+  <div class="card">
+    <h3>Share a folder</h3>
+    <label for="host-field">Folder (Palispace) to share</label>
+    <select id="host-field"></select>
+    <button id="btn-create" onclick="hostCreate()">Share this folder</button>
+  </div>
+  <div class="card" id="host-active" style="display:none">
+    <h3>Active share</h3>
+    <div class="status connected" id="host-session-label"></div>
+    <label>Invite code — send this to a guest on your network</label>
+    <div class="code-box" id="host-code"></div>
+    <button class="secondary" onclick="copyCode()">Copy code</button>
+    <button class="secondary" onclick="hostInvite()">New invite code</button>
+    <button class="danger" onclick="hostEnd()">End session</button>
+  </div>
+  <div class="card" id="host-guests-card" style="display:none">
+    <h3>Connected guests</h3>
+    <div id="host-guests"><div class="error-text">No guests yet.</div></div>
+  </div>
+</main>
+
+<main id="pane-guest">
+  <div class="card join-form">
+    <h3>Join a shared Palispace</h3>
+    <div id="guest-status" class="status disconnected">Not connected</div>
+    <label for="guest-code">Paste the invite code from the host</label>
+    <input type="text" id="guest-code" placeholder="PALI-..." />
+    <label for="guest-name">Your display name</label>
+    <input type="text" id="guest-name" placeholder="e.g. Alice" />
+    <button id="btn-join" onclick="guestJoin()">Join</button>
+    <div id="guest-error" class="error-text"></div>
+    <div id="guest-kicked" class="kicked-banner" style="display:none">You were removed from this session.</div>
+  </div>
+  <div class="card chat" id="guest-chat" style="display:none">
+    <div class="messages" id="guest-messages"></div>
+    <div class="input-row">
+      <input type="text" id="guest-input" placeholder="Ask about the shared folder..." onkeydown="if(event.key==='Enter')guestSend()" />
+      <button onclick="guestSend()">Send</button>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function switchTab(which) {
+  $('pane-host').classList.toggle('active', which === 'host');
+  $('pane-guest').classList.toggle('active', which === 'guest');
+  $('tab-host').classList.toggle('active', which === 'host');
+  $('tab-guest').classList.toggle('active', which === 'guest');
+}
+
+/* ---------------- Host ---------------- */
+let hostState = { session_id: null, field: null, pollTimer: null };
+
+async function hostLoadFields() {
+  try {
+    const res = await fetch('/api/fields');
+    const data = await res.json();
+    const sel = $('host-field');
+    sel.innerHTML = '';
+    for (const f of data.fields) {
+      const opt = document.createElement('option');
+      opt.value = f;
+      opt.textContent = f;
+      if (f === data.active_field) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    if (!data.fields.length) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '(no fields configured — add one in the main app first)';
+      sel.appendChild(opt);
+    }
+  } catch (e) {
+    $('host-active').style.display = 'block';
+    $('host-code').textContent = 'Failed to reach the Palimind backend.';
+  }
+}
+
+async function hostCreate() {
+  const field = $('host-field').value;
+  if (!field) return;
+  const res = await fetch('/api/teams/create', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ field_path: field }),
+  });
+  const data = await res.json();
+  if (data.error) { alert(data.error); return; }
+  hostState.session_id = data.session_id;
+  hostState.field = field;
+  $('host-active').style.display = 'block';
+  $('host-guests-card').style.display = 'block';
+  $('host-code').textContent = data.code;
+  $('host-session-label').textContent = 'Sharing: ' + field;
+  hostStartPoll();
+}
+
+async function hostInvite() {
+  const res = await fetch(`/api/teams/${hostState.session_id}/invite`, { method: 'POST' });
+  const data = await res.json();
+  if (data.code) $('host-code').textContent = data.code;
+}
+
+function copyCode() {
+  navigator.clipboard.writeText($('host-code').textContent)
+    .then(() => alert('Copied!')).catch(() => {});
+}
+
+async function hostEnd() {
+  if (!hostState.session_id) return;
+  await fetch(`/api/teams/${hostState.session_id}/end`, { method: 'POST' });
+  clearInterval(hostState.pollTimer);
+  hostState.session_id = null;
+  $('host-active').style.display = 'none';
+  $('host-guests-card').style.display = 'none';
+}
+
+async function hostPollGuests() {
+  if (!hostState.session_id) return;
+  try {
+    const res = await fetch(`/api/teams/${hostState.session_id}/guests`);
+    const data = await res.json();
+    const wrap = $('host-guests');
+    if (!data.guests || !data.guests.length) {
+      wrap.innerHTML = '<div class="error-text">No guests yet.</div>';
+      return;
+    }
+    wrap.innerHTML = '';
+    for (const g of data.guests) {
+      const row = document.createElement('div');
+      row.className = 'guest-row';
+      row.innerHTML =
+        '<div><div>' + g.display_name + '</div>' +
+        '<div class="meta">' + g.query_count + ' ' + (g.query_count === 1 ? 'query' : 'queries') + '</div></div>';
+      const kickBtn = document.createElement('button');
+      kickBtn.className = 'danger';
+      kickBtn.textContent = 'Kick';
+      kickBtn.onclick = () => hostKick(g.token);
+      row.appendChild(kickBtn);
+      wrap.appendChild(row);
+    }
+  } catch (e) {}
+}
+
+function hostKick(token) {
+  fetch(`/api/teams/${hostState.session_id}/kick/${token}`, { method: 'POST' });
+}
+
+function hostStartPoll() {
+  clearInterval(hostState.pollTimer);
+  hostPollGuests();
+  hostState.pollTimer = setInterval(hostPollGuests, 3000);
+}
+
+hostLoadFields();
+
+/* ---------------- Guest ---------------- */
+let ws = null;
+let guestJoined = false;
+let thinking = false;
+
+function setGuestStatus(text, cls) {
+  const el = $('guest-status');
+  el.textContent = text;
+  el.className = 'status ' + (cls || 'disconnected');
+}
+
+function addMessage(kind, text) {
+  const box = $('guest-messages');
+  const div = document.createElement('div');
+  div.className = 'msg ' + kind;
+  if (kind === 'me') div.innerHTML = '<div class="name">You</div>' + escapeHtml(text);
+  else if (kind === 'ai') div.innerHTML = '<div class="name">AI</div>' + escapeHtml(text);
+  else div.textContent = text;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  return div;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
+
+function decodeInviteCode(code) {
+  if (!code.startsWith('PALI-')) throw new Error("Code must start with PALI-");
+  const raw = code.slice(5);
+  const json = atob(raw.replace(/-/g, '+').replace(/_/g, '/'));
+  return JSON.parse(json);
+}
+
+function guestJoin() {
+  const code = $('guest-code').value.trim();
+  const name = $('guest-name').value.trim() || 'Guest';
+  $('guest-error').textContent = '';
+  $('guest-kicked').style.display = 'none';
+  let payload;
+  try {
+    payload = decodeInviteCode(code);
+  } catch (e) {
+    $('guest-error').textContent = 'Invalid invite code: ' + e.message;
+    return;
+  }
+  const url = 'ws://' + payload.host_ip + ':' + payload.port +
+    '/ws/team/' + payload.session_id + '?token=' + payload.token;
+  setGuestStatus('Connecting...', 'thinking');
+  try {
+    ws = new WebSocket(url);
+  } catch (e) {
+    $('guest-error').textContent = 'Failed to open connection: ' + e.message;
+    setGuestStatus('Not connected');
+    return;
+  }
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'join', display_name: name, permission: 'query' }));
+  };
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type === 'joined') {
+      guestJoined = true;
+      setGuestStatus('Connected to ' + msg.field_name, 'connected');
+      $('guest-chat').style.display = 'flex';
+      $('guest-code').disabled = true;
+      $('guest-name').disabled = true;
+      $('btn-join').disabled = true;
+      addMessage('sys', 'Joined shared Palispace: ' + msg.field_name);
+    } else if (msg.type === 'kicked') {
+      guestJoined = false;
+      setGuestStatus('Not connected', 'disconnected');
+      $('guest-kicked').style.display = 'block';
+      $('guest-chat').style.display = 'none';
+      ws.close();
+    } else if (msg.type === 'stream_chunk') {
+      if (thinking) {
+        const t = $('guest-messages').querySelector('.msg.ai.thinking');
+        if (t) { t.classList.remove('thinking'); t.dataset.acc = ''; t.innerHTML = '<div class="name">AI</div>'; }
+        thinking = false;
+        setGuestStatus('Connected', 'connected');
+      }
+      const last = $('guest-messages').lastElementChild;
+      if (last && last.classList.contains('ai')) {
+        const acc = (last.dataset.acc || '') + msg.text;
+        last.dataset.acc = acc;
+        last.innerHTML = '<div class="name">AI</div>' + escapeHtml(acc);
+      } else {
+        const bubble = addMessage('ai', msg.text);
+        bubble.dataset.acc = msg.text;
+      }
+      $('guest-messages').scrollTop = $('guest-messages').scrollHeight;
+    } else if (msg.type === 'stream_end') {
+      thinking = false;
+      setGuestStatus('Connected', 'connected');
+    } else if (msg.type === 'error') {
+      if (thinking) {
+        const t = $('guest-messages').querySelector('.msg.ai.thinking');
+        if (t) t.remove();
+        thinking = false;
+      }
+      setGuestStatus('Connected', 'connected');
+      addMessage('ai', '(error) ' + msg.message);
+      $('guest-input').disabled = false;
+    }
+  };
+  ws.onclose = () => {
+    if (guestJoined) {
+      setGuestStatus('Disconnected', 'disconnected');
+      addMessage('sys', 'Connection closed.');
+    } else if (ws) {
+      $('guest-error').textContent = 'Connection refused — is the host app running and on the same network?';
+      setGuestStatus('Not connected', 'disconnected');
+    }
+  };
+  ws.onerror = () => {};
+}
+
+function guestSend() {
+  if (!ws || ws.readyState !== WebSocket.OPEN || !guestJoined) return;
+  const text = $('guest-input').value.trim();
+  if (!text) return;
+  $('guest-input').value = '';
+  addMessage('me', text);
+  thinking = true;
+  setGuestStatus('Thinking...', 'thinking');
+  const d = document.createElement('div');
+  d.className = 'msg ai thinking';
+  d.textContent = 'thinking...';
+  $('guest-messages').appendChild(d);
+  $('guest-messages').scrollTop = $('guest-messages').scrollHeight;
+  ws.send(JSON.stringify({ type: 'query', text }));
+}
+</script>
+</body>
+</html>

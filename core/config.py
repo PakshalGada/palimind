@@ -8,6 +8,9 @@ PALIMIND_DIR = ".palimind"
 CONFIG_FILE = "config.json"
 DB_FILE = "index.db"
 
+# Paliteams — LAN-only shared sessions (off by default)
+ENABLE_TEAMS = True
+
 # Default application settings
 DEFAULTS = {
     "embed_model": "nomic-embed-text",

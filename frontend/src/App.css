@@ -2790,6 +2790,74 @@ input:checked + .toggle-slider .llm-mode {
     background: var(--bg-active);
 }
 
+/* custom confirm dialog (Tauri webviews don't support window.confirm) */
+.confirm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+}
+.confirm-dialog {
+    width: min(380px, 90vw);
+    padding: 20px 22px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.confirm-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+.confirm-message {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    word-break: break-word;
+}
+.confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 6px;
+}
+.confirm-actions .action-btn {
+    width: auto;
+    margin-top: 0;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 500;
+}
+.confirm-actions .action-btn.primary {
+    background: var(--bg-active);
+    border-color: var(--border-color);
+    color: var(--text-main);
+}
+.confirm-actions .action-btn.primary:hover {
+    background: var(--bg-hover);
+    color: var(--text-main);
+}
+.confirm-actions .action-btn.danger-btn {
+    background: rgba(248, 113, 113, 0.12);
+    border-color: rgba(248, 113, 113, 0.35);
+    color: var(--danger-strong);
+}
+.confirm-actions .action-btn.danger-btn:hover {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: #ffffff;
+}
+
 .sidebar-nav {
     display: flex;
     flex-direction: column;
@@ -3813,13 +3881,79 @@ input:checked + .toggle-slider .llm-mode {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 18px 22px 14px;
   border-bottom: 1px solid var(--border-subtle);
+}
+.agent-config-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.agent-config-heading-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 .agent-config-header h2 {
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agent-config-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agent-config-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+.agent-section-title {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.agent-config-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--border-subtle);
+}
+.agent-config-footer-msg {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.agent-config-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.agent-config-footer-actions .action-btn {
+  width: auto;
+  margin-top: 0;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 500;
 }
 .agent-tabs {
   display: flex;

@@ -4,6 +4,7 @@ import { api } from "../api";
 import FileTreeView from "./FileTreeView";
 import ContextMenu from "./ContextMenu";
 import AgentAvatar from "./AgentAvatar";
+import { useConfirm } from "./ConfirmDialog";
 import type { AgentListItem } from "../types";
 
 const FIELD_TITLE_KEY = "palimind:field-display-titles";
@@ -82,6 +83,7 @@ export default function Sidebar() {
   const [treeField, setTreeField] = useState<string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
   const [agents, setAgents] = useState<AgentListItem[]>([]);
+  const confirm = useConfirm();
 
   const fetchFields = useCallback(async () => {
     try {
@@ -244,6 +246,52 @@ export default function Sidebar() {
     });
   };
 
+  const openAgentConfig = (agent: AgentListItem) => {
+    setSelectedAgentId(agent.id);
+    window.dispatchEvent(
+      new CustomEvent("palimind:open-agent-config", {
+        detail: { agentId: agent.id },
+      }),
+    );
+  };
+
+  const deleteAgent = async (agent: AgentListItem) => {
+    const ok = await confirm(`Delete agent "${agent.name}"? This cannot be undone.`, {
+      title: "Delete Agent",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.agents.remove(agent.id);
+      if (selectedAgentId === agent.id) setSelectedAgentId(null);
+      setAgents((prev) => prev.filter((a) => a.id !== agent.id));
+      window.dispatchEvent(new CustomEvent("palimind:agents-changed"));
+    } catch (e) {
+      console.error("delete agent failed:", e);
+    }
+  };
+
+  const showAgentMenu = (e: React.MouseEvent, agent: AgentListItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCtxMenu({
+      x: e.clientX,
+      y: e.clientY,
+      items: [
+        {
+          label: "Info",
+          action: () => openAgentConfig(agent),
+        },
+        {
+          label: "Delete Agent",
+          action: () => deleteAgent(agent),
+          isDanger: true,
+        },
+      ],
+    });
+  };
+
   return (
     <aside className="sidebar" id="main-sidebar">
       <div className="logo">
@@ -336,6 +384,30 @@ export default function Sidebar() {
             <path d="M12 8V5M9 5h6" />
           </svg>
           Agents
+        </button>
+        <button
+          className="sidebar-nav-item"
+          aria-label="Paliteams"
+          title="Share this Palispace over the LAN"
+          onClick={() => { window.location.href = "/team"; }}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="18" cy="5" r="3" />
+            <circle cx="6" cy="12" r="3" />
+            <circle cx="18" cy="19" r="3" />
+            <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
+            <line x1="15.4" y1="6.5" x2="8.6" y2="10.5" />
+          </svg>
+          Paliteams
         </button>
       </nav>
 
@@ -501,6 +573,7 @@ export default function Sidebar() {
                 key={a.id}
                 className={`session-tab agent-sidebar-tab${a.id === selectedAgentId ? " active" : ""}`}
                 onClick={() => setSelectedAgentId(a.id)}
+                onContextMenu={(e) => showAgentMenu(e, a)}
               >
                 <AgentAvatar seed={a.color_seed || a.id + a.name} thinking={!!a.running} size={20} />
                 <span className="session-tab-name">{a.name}</span>
