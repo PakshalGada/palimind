@@ -77,24 +77,6 @@ export default function InputArea() {
       setMention(null);
     }
   }, []);
-  const [thinkMode, setThinkMode] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem("palimind:think-mode") === "true";
-    } catch {
-      return false;
-    }
-  });
-
-  const toggleThinkMode = useCallback(() => {
-    setThinkMode((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem("palimind:think-mode", String(next));
-      } catch {}
-      return next;
-    });
-  }, []);
-
   const isEmpty = !value.trim() && attachedFiles.length === 0;
 
   const adjustHeight = useCallback(() => {
@@ -266,7 +248,7 @@ export default function InputArea() {
     const mode = chatMode;
     const sub_mode = mode === "llm" ? llmSubMode : "";
     const url =
-      `/api/chat?q=${encodeURIComponent(text)}&chat_mode=${mode}${sub_mode ? `&llm_sub_mode=${sub_mode}` : ""}${thinkMode ? "&think=true" : ""}${activeSessionId ? `&session_id=${activeSessionId}` : ""}` +
+      `/api/chat?q=${encodeURIComponent(text)}&chat_mode=${mode}${sub_mode ? `&llm_sub_mode=${sub_mode}` : ""}${activeSessionId ? `&session_id=${activeSessionId}` : ""}` +
       (selectedFiles.size > 0
         ? `&files=${encodeURIComponent(Array.from(selectedFiles).join(","))}`
         : "");
@@ -317,7 +299,7 @@ export default function InputArea() {
       video.src = `/api/media/stream?path=${encodeURIComponent(filePath)}`;
       const label = document.createElement("div");
       label.style.cssText =
-        "color:var(--text-color,#eee);font-size:0.85rem;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;";
+        "color:var(--text-main,#eee);font-size:0.85rem;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;";
       const titleSpan = document.createElement("span");
       titleSpan.textContent = `${filePath} @ ${fmtTs(start)}${end ? `–${fmtTs(end)}` : ""}`;
       const closeBtn = document.createElement("button");
@@ -363,7 +345,7 @@ export default function InputArea() {
         chip.className = "media-citation-chip";
         chip.title = c.snippet || c.file;
         chip.style.cssText =
-          "display:inline-flex;align-items:center;gap:6px;background:var(--accent-bg,rgba(120,120,255,0.12));color:var(--text-color,#ddd);border:1px solid var(--border-color,#444);border-radius:999px;padding:4px 12px;font-size:0.78rem;cursor:pointer;";
+          "display:inline-flex;align-items:center;gap:6px;background:var(--accent-bg);color:var(--text-main);border:1px solid var(--border-color,#444);border-radius:999px;padding:4px 12px;font-size:0.78rem;cursor:pointer;";
         const baseName = c.file.split(/[\\/]/).pop() || c.file;
         chip.textContent = `▶ ${baseName} @ ${fmtTs(c.start)}`;
         chip.onclick = () => openVideoPlayer(c.file, c.start, c.end);
@@ -515,7 +497,6 @@ export default function InputArea() {
     activeSessionId,
     selectedFiles,
     attachedFiles,
-    thinkMode,
     setAttachedFiles,
     setIsGenerating,
     refreshSessions,
@@ -589,32 +570,6 @@ export default function InputArea() {
             <span className="toggle-label llm-mode">LLM</span>
           </div>
         </label>
-        <button
-          type="button"
-          className={`think-mode-btn${thinkMode ? " active" : ""}`}
-          title={
-            thinkMode
-              ? "Think mode ON — uses your configured thinking model (Settings)"
-              : "Think mode — reason deeper with a dedicated thinking model"
-          }
-          onClick={toggleThinkMode}
-        >
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 3a6 6 0 0 0-3.5 10.9c.7.5 1.2 1.3 1.4 2.1h4.2c.2-.8.7-1.6 1.4-2.1A6 6 0 0 0 12 3z" />
-            <line x1="9.5" y1="19" x2="14.5" y2="19" />
-            <line x1="10.5" y1="21.5" x2="13.5" y2="21.5" />
-          </svg>
-          <span>Think</span>
-        </button>
       </div>
 
 

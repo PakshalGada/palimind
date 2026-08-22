@@ -1,25 +1,27 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../AppContext';
 import { api } from '../api';
-import type { ModelItem } from '../types';
 
 export default function SettingsModal() {
   const { theme, setTheme } = useApp();
   const [personaName, setPersonaName] = useState('');
   const [personaPrompt, setPersonaPrompt] = useState('');
-  const [thinkingModel, setThinkingModel] = useState('');
-  const [models, setModels] = useState<ModelItem[]>([]);
   const [personaStatus, setPersonaStatus] = useState('');
-  const [thinkingStatus, setThinkingStatus] = useState('');
+  const [ocKeyConfigured, setOcKeyConfigured] = useState(false);
+  const [ocKeyMasked, setOcKeyMasked] = useState<string | null>(null);
+  const [ocKeyInput, setOcKeyInput] = useState('');
+  const [ocKeyMsg, setOcKeyMsg] = useState('');
+  const [ocKeyIsError, setOcKeyIsError] = useState(false);
+  const [ocKeyBusy, setOcKeyBusy] = useState(false);
 
   useEffect(() => {
     api.config.get().then((cfg) => {
       if (cfg.persona_name) setPersonaName(cfg.persona_name);
       if (cfg.persona_system_prompt) setPersonaPrompt(cfg.persona_system_prompt);
-      setThinkingModel(cfg.thinking_model || '');
     }).catch(() => {});
-    api.models.list().then((d) => {
-      if (d.models) setModels(d.models);
+    api.settings.opencodeKey.status().then((s) => {
+      setOcKeyConfigured(s.configured);
+      setOcKeyMasked(s.masked ?? null);
     }).catch(() => {});
   }, []);
 
@@ -52,16 +54,58 @@ export default function SettingsModal() {
     setTimeout(() => setPersonaStatus(''), 2500);
   };
 
-  const saveThinking = async (modelId: string) => {
-    setThinkingModel(modelId);
-    setThinkingStatus('Saving...');
+  const refreshOcKeyStatus = () => {
+    api.settings.opencodeKey.status().then((s) => {
+      setOcKeyConfigured(s.configured);
+      setOcKeyMasked(s.masked ?? null);
+    }).catch(() => {});
+  };
+
+  const saveOcKey = async () => {
+    const key = ocKeyInput.trim();
+    if (!key || ocKeyBusy) return;
+    setOcKeyBusy(true);
+    setOcKeyIsError(false);
+    setOcKeyMsg('Validating...');
     try {
-      const res = await api.config.setThinking(modelId);
-      setThinkingStatus(res.error ? `Error: ${res.error}` : 'Saved');
+      const res = await api.settings.opencodeKey.save(key);
+      if (res.error) {
+        setOcKeyMsg(res.error);
+        setOcKeyIsError(true);
+      } else {
+        setOcKeyInput('');
+        refreshOcKeyStatus();
+        setOcKeyMsg('Key saved');
+        setTimeout(() => setOcKeyMsg(''), 3000);
+      }
     } catch (e) {
-      setThinkingStatus(`Error: ${e instanceof Error ? e.message : e}`);
+      setOcKeyMsg(e instanceof Error ? e.message : String(e));
+      setOcKeyIsError(true);
+    } finally {
+      setOcKeyBusy(false);
     }
-    setTimeout(() => setThinkingStatus(''), 2500);
+  };
+
+  const removeOcKey = async () => {
+    if (ocKeyBusy) return;
+    setOcKeyBusy(true);
+    setOcKeyIsError(false);
+    try {
+      const res = await api.settings.opencodeKey.remove();
+      if (res.error) {
+        setOcKeyMsg(res.error);
+        setOcKeyIsError(true);
+      } else {
+        refreshOcKeyStatus();
+        setOcKeyMsg('Key removed');
+        setTimeout(() => setOcKeyMsg(''), 3000);
+      }
+    } catch (e) {
+      setOcKeyMsg(e instanceof Error ? e.message : String(e));
+      setOcKeyIsError(true);
+    } finally {
+      setOcKeyBusy(false);
+    }
   };
 
   return (
@@ -95,24 +139,64 @@ export default function SettingsModal() {
           </div>
 
           <div className="settings-group">
-            <label>Think Mode Model</label>
+            <label htmlFor="opencode-api-key">OpenCode API Key</label>
             <p className="settings-hint">
-              Used when the "Think" toggle is on in chat. Pick a reasoning model
-              (e.g. qwen3, deepseek-r1). Falls back to the active chat model if unset.
+              Stored in the global OpenCode auth file and shared with the
+              OpenCode CLI. Used by Palimind&apos;s Zen proxy for chat models.
             </p>
-            <select
-              value={thinkingModel}
-              onChange={(e) => saveThinking(e.target.value)}
-              className="settings-select"
-            >
-              <option value="">Same as chat model</option>
-              {models.map((m) => (
-                <option key={m.model_id} value={m.model_id}>
-                  {m.display_name || m.model_id}
-                </option>
-              ))}
-            </select>
-            {thinkingStatus && <span className="settings-status">{thinkingStatus}</span>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  flexShrink: 0,
+                  background: ocKeyConfigured ? '#4ade80' : 'var(--text-muted)',
+                  opacity: ocKeyConfigured ? 1 : 0.55,
+                }}
+              />
+              <span className="settings-status">
+                {ocKeyConfigured
+                  ? `Connected (${ocKeyMasked || '…'})`
+                  : 'Not configured'}
+              </span>
+            </div>
+            <input
+              id="opencode-api-key"
+              type="password"
+              className="settings-input"
+              placeholder="Paste your OpenCode API key"
+              value={ocKeyInput}
+              autoComplete="new-password"
+              onChange={(e) => setOcKeyInput(e.target.value)}
+            />
+            <div className="settings-actions">
+              <button
+                className="action-btn"
+                onClick={saveOcKey}
+                disabled={ocKeyBusy || !ocKeyInput.trim()}
+              >
+                {ocKeyBusy ? 'Saving...' : 'Save Key'}
+              </button>
+              {ocKeyConfigured && (
+                <button
+                  className="action-btn ghost"
+                  onClick={removeOcKey}
+                  disabled={ocKeyBusy}
+                >
+                  Remove
+                </button>
+              )}
+              {ocKeyMsg && (
+                <span
+                  className="settings-status"
+                  style={ocKeyIsError ? { color: 'var(--danger-strong)' } : undefined}
+                >
+                  {ocKeyMsg}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="settings-group">

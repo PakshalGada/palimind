@@ -1,4 +1,0 @@
-Boardroom is a premium local RAG platform.
-It connects React frontend on port 5173 to FastAPI backend on port 8000.
-The main theme variables are defined in index.css.
-The hotkey for capturing content is Ctrl+Shift+E.

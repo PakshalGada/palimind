@@ -24,7 +24,7 @@ function mulberry32(a: number) {
 export default function AgentAvatar({
   seed,
   thinking = false,
-  size = 16,
+  size = 32,
 }: {
   seed: string;
   thinking?: boolean;

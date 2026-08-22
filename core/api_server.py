@@ -47,6 +47,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import uvicorn
+import httpx
 
 from core.api import (
     initialize_index,
@@ -722,7 +723,7 @@ async def get_file_tree_sub(path: str = ""):
     return {"children": children}
 
 @app.get("/api/chat")
-async def chat_stream(q: str, session_id: str | None = None, files: str | None = None, chat_mode: str = "document", web_search: str = "false", llm_sub_mode: str | None = None, think: str = "false"):
+async def chat_stream(q: str, session_id: str | None = None, files: str | None = None, chat_mode: str = "document", web_search: str = "false", llm_sub_mode: str | None = None):
     if not state.active_field:
         async def err_stream():
             yield f"data: {json.dumps({'type': 'error', 'text': 'No active field'})}\n\n"
@@ -734,8 +735,6 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
     ollama_url = config.get("ollama_base_url", "http://localhost:11434")
     chat_model = config.get("chat_model", "llama3")
     embed_model = config.get("embed_model", "nomic-embed-text")
-    if str(think).lower() in ("1", "true", "yes"):
-        chat_model = config.get("thinking_model", "") or chat_model
     persona = persona_block(state.active_field)
 
     # ── @agent mention routing ────────────────────────────────────────
@@ -784,27 +783,34 @@ async def chat_stream(q: str, session_id: str | None = None, files: str | None =
         files_filter = [f.strip() for f in files.split(",") if f.strip()]
 
     if chat_mode == "document":
+        from core.opencode_router import resolve_model_url
         return await document_mode_stream(
             q, active_sess_id, history_to_send, mid_term_summary, files_filter,
-            ollama_url, chat_model, state.active_field, web_search,
+            resolve_model_url(chat_model, ollama_url), chat_model, state.active_field, web_search,
             long_term_episodes=long_term_episodes,
             persona=persona,
         )
 
     moe_sub_mode = llm_sub_mode if (llm_sub_mode is not None and llm_sub_mode != "") else config.get("moe_sub_mode", "default")
     if chat_mode == "llm" and moe_sub_mode == "moe":
+        from core.opencode_router import resolve_model_url
+
         orchestrator_model = config.get("moe_orchestrator_model", "") or chat_model
         worker_model = config.get("moe_worker_model", "") or chat_model
+        orch_url = resolve_model_url(orchestrator_model, ollama_url)
+        work_url = resolve_model_url(worker_model, ollama_url)
         return await moe_mode_stream(
             q, active_sess_id, history_to_send, mid_term_summary,
             files_filter, ollama_url, chat_model, state.active_field, web_search,
             orchestrator_model=orchestrator_model, worker_model=worker_model,
+            orchestrator_url=orch_url, worker_url=work_url,
             long_term_episodes=long_term_episodes,
         )
 
+    from core.opencode_router import resolve_model_url
     return await llm_mode_stream(
         q, active_sess_id, history_to_send, mid_term_summary, files_filter,
-        ollama_url, chat_model, state.active_field, web_search,
+        resolve_model_url(chat_model, ollama_url), chat_model, state.active_field, web_search,
         long_term_episodes=long_term_episodes,
         persona=persona,
     )
@@ -1001,6 +1007,15 @@ async def get_models():
     current_model = config.get("chat_model", "gemma4:e2b")
     try:
         models = await asyncio.to_thread(_fetch_ollama_models_blocking, ollama_url)
+
+        from core.opencode_router import list_opencode_models
+        oc_models = await asyncio.to_thread(list_opencode_models)
+        seen = {m["model_id"] for m in models}
+        for oc in oc_models:
+            if oc["model_id"] not in seen:
+                models.append(oc)
+                seen.add(oc["model_id"])
+
         return {
             "models": models,
             "current_model": current_model,
@@ -1133,7 +1148,6 @@ async def get_config():
         "moe_orchestrator_model": config.get("moe_orchestrator_model", ""),
         "moe_worker_model": config.get("moe_worker_model", ""),
         "moe_sub_mode": config.get("moe_sub_mode", "default"),
-        "thinking_model": config.get("thinking_model", ""),
         "persona_name": config.get("persona_name", ""),
         "persona_system_prompt": config.get("persona_system_prompt", ""),
     }
@@ -1163,25 +1177,6 @@ async def update_persona(req: Request):
         patch["persona_system_prompt"] = str(data["persona_system_prompt"])
     _patch_field_config(patch)
     return {"status": "success", **patch}
-
-
-@app.patch("/api/config/thinking")
-async def update_thinking(req: Request):
-    """Set the model used by the Think toggle (falls back to chat_model when empty)."""
-    data = await req.json()
-    if "thinking_model" not in data:
-        return {"error": "thinking_model is required"}
-    thinking_model = str(data["thinking_model"])
-    _patch_field_config({"thinking_model": thinking_model})
-    try:
-        global_data = {}
-        if GLOBAL_CONFIG_PATH.exists():
-            global_data = json.loads(GLOBAL_CONFIG_PATH.read_text("utf-8"))
-        global_data["thinking_model"] = thinking_model
-        GLOBAL_CONFIG_PATH.write_text(json.dumps(global_data, indent=2), "utf-8")
-    except Exception:
-        pass
-    return {"status": "success", "thinking_model": thinking_model}
 
 
 @app.patch("/api/config/moe")
@@ -1236,6 +1231,73 @@ async def moe_hardware_check():
         return {"error": str(e)}
 
 
+# -- Settings: OpenCode API Key --
+
+# Same upstream as core.opencode_proxy; env override kept in sync.
+_OPENCODE_BASE_URL = _os.environ.get(
+    "OPENCODE_BASE_URL", "https://opencode.ai/zen/go/v1"
+).rstrip("/")
+
+
+@app.get("/api/settings/opencode-key")
+async def get_opencode_key():
+    """Report whether an OpenCode API key is stored globally.
+
+    Never returns the raw key — only a masked preview fragment. A broken
+    global auth store (unreadable file, invalid/non-object JSON) is reported
+    via ``error`` instead of surfacing as a 500.
+    """
+    from core.opencode_auth import get_key, masked_preview
+
+    try:
+        key = get_key()
+    except (OSError, ValueError) as e:
+        return {"configured": False, "masked": None, "error": str(e)}
+    if not key:
+        return {"configured": False, "masked": None}
+    return {"configured": True, "masked": masked_preview(key)}
+
+
+@app.post("/api/settings/opencode-key")
+async def save_opencode_key(req: Request):
+    """Validate an OpenCode Zen API key against upstream, then store it globally."""
+    from core.opencode_auth import set_key
+
+    data = await req.json()
+    key = str(data.get("key") or "").strip()
+    if len(key) < 10:
+        return {"error": "Invalid API key: must be at least 10 characters"}
+
+    headers = {"Authorization": f"Bearer {key}"}
+    timeout = httpx.Timeout(connect=15.0, read=15.0, write=15.0, pool=15.0)
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.get(f"{_OPENCODE_BASE_URL}/models", headers=headers)
+        valid = resp.status_code == 200
+    except Exception:
+        valid = False
+    if not valid:
+        return {"error": "Invalid API key or network error"}
+
+    try:
+        set_key(key)
+    except ValueError as e:
+        return {"error": str(e)}
+    return {"status": "success"}
+
+
+@app.delete("/api/settings/opencode-key")
+async def delete_opencode_key():
+    """Remove the stored OpenCode API key from the global auth file."""
+    from core.opencode_auth import remove_key
+
+    try:
+        remove_key()
+    except ValueError as e:
+        return {"error": str(e)}
+    return {"status": "success"}
+
+
 # -- Cookbook / Hardware Endpoints --
 
 @app.get("/api/cookbook/hardware")
@@ -1263,10 +1325,14 @@ async def get_recommendations(top: int = 20):
         return {"error": str(e), "recommendations": []}
 
 
-def run_server(port: int = 8000):
+def run_server(port: int = 8000, host: str = "127.0.0.1"):
     _detach_stdio()
-    uvicorn.run("core.api_server:app", host="127.0.0.1", port=port)
+    uvicorn.run("core.api_server:app", host=host, port=port)
 
 if __name__ == "__main__":
-    _detach_stdio()
-    run_server()
+    import argparse
+    parser = argparse.ArgumentParser(description="Palimind API server")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8000)
+    args = parser.parse_args()
+    run_server(host=args.host, port=args.port)

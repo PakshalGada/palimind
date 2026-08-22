@@ -236,6 +236,10 @@ def _field_models() -> tuple[str, str, str]:
     chat = config.get("chat_model", "llama3")
     ollama = config.get("ollama_base_url", "http://localhost:11434")
     light = config.get("light_model", "") or chat
+
+    from core.opencode_router import resolve_model_url
+
+    ollama = resolve_model_url(chat, ollama)
     return chat, ollama, light
 
 

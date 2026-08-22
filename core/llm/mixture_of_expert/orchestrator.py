@@ -164,6 +164,7 @@ async def run_moe_pipeline(
     mid_term_summary: str | None = None,
     long_term_episodes: list[dict] | None = None,
     root: Path | None = None,
+    worker_url: str | None = None,
 ) -> dict[str, Any]:
     from core.memory import format_hierarchical_memory_context
 
@@ -183,7 +184,7 @@ async def run_moe_pipeline(
             light_model = cfg.get("light_model", "") or cfg.get("chat_model", "")
         except Exception:
             light_model = ""
-    set_tool_context(root, ollama_url, worker_model, light_model)
+    set_tool_context(root, worker_url or ollama_url, worker_model, light_model)
 
     # ── Route ────────────────────────────────────────────────────────────
     await emit({"type": "planning", "text": "Routing query..."})
@@ -267,7 +268,7 @@ async def run_moe_pipeline(
                 agent_id,
                 sub_task,
                 worker_model,
-                ollama_url,
+                worker_url or ollama_url,
                 8,
                 on_step_callback,
             )

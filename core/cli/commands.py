@@ -29,6 +29,7 @@ from core.cli.ui import (
     print_startup_banner,
     print_success,
     print_summary_table,
+    print_warning,
 )
 
 app = typer.Typer(help="Palimind - Local Multimodal RAG CLI")
@@ -188,34 +189,158 @@ def ask(
 
 @app.command()
 def ui(
-    path: Path = typer.Option(Path("."), "--path", "-p", help="Workspace path")
+    path: Path = typer.Option(Path("."), "--path", "-p", help="Workspace path"),
+    port: int = typer.Option(8000, "--port", help="Backend API port (window loads http://127.0.0.1:<port>/ui)"),
+    skip_install: bool = typer.Option(False, "--skip-install", help="Skip dependency install and frontend build"),
+    skip_build: bool = typer.Option(False, "--skip-build", help="Skip rebuilding the desktop app"),
+    keep_backend: bool = typer.Option(False, "--keep-backend", help="Keep Ollama/API server running after the app closes"),
 ):
-    """Start the Palimind V2 Boardroom UI via Tauri."""
+    """One command to launch everything: installs dependencies, runs OpenCode auth,
+    starts Ollama, serves the API and opens the Palimind app."""
+    import os
+    import shutil
+    import socket
     import subprocess
     import sys
-    import os
-    from pathlib import Path
-    
+    import time
+
     target_dir = path.resolve()
     from core.config import load_config
     config = load_config(target_dir)
-    
+
     print_startup_banner(config)
-    print_header("Palimind V2 Boardroom", config)
-    
+    print_header("Palimind Launcher", config)
+
     root_dir = Path(__file__).parent.parent.parent
-    
-    with create_spinner() as spinner:
-        spinner.add_task("Starting Tauri App...", total=None)
-        try:
-            if os.name == 'nt':
-                subprocess.run(["npm.cmd", "run", "dev"], cwd=root_dir)
+    frontend_dir = root_dir / "frontend"
+    started_procs: list[subprocess.Popen] = []
+    backend_proc: subprocess.Popen | None = None
+    ollama_proc: subprocess.Popen | None = None
+
+    def port_up(p: int) -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.25)
+            return s.connect_ex(("127.0.0.1", p)) == 0
+
+    def wait_port(p: int, timeout: float) -> bool:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if port_up(p):
+                return True
+            time.sleep(0.4)
+        return False
+
+    def spawn(cmd: list[str], **kw) -> subprocess.Popen:
+        kwargs = {"cwd": str(root_dir), "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+        if os.name != "nt":
+            kwargs["start_new_session"] = True
+        kwargs.update(kw)
+        return subprocess.Popen(cmd, **kwargs)
+
+    try:
+        if not skip_install:
+            try:
+                import fastapi  # noqa: F401
+                import uvicorn  # noqa: F401
+                print_success("Python dependencies installed")
+            except ImportError:
+                print_info("Installing Python dependencies (pip install -e .)...")
+                subprocess.run(
+                    [sys.executable, "-m", "pip", "install", "-e", str(root_dir)],
+                    cwd=str(root_dir),
+                    check=True,
+                )
+
+            npm = "npm.cmd" if os.name == "nt" else "npm"
+            if not (root_dir / "node_modules").exists():
+                print_info("Installing root dependencies (npm install)...")
+                subprocess.run([npm, "install"], cwd=str(root_dir), check=True)
             else:
-                subprocess.run(["npm", "run", "dev"], cwd=root_dir)
-        except KeyboardInterrupt:
-            print_info("Tauri app stopped.")
-        except Exception as e:
-            print_error(f"Failed to start Tauri app: {e}")
+                print_success("Root dependencies installed")
+
+            if not (frontend_dir / "node_modules").exists():
+                print_info("Installing frontend dependencies (npm install)...")
+                subprocess.run([npm, "install"], cwd=str(frontend_dir), check=True)
+            else:
+                print_success("Frontend dependencies installed")
+
+            print_info("Building frontend...")
+            subprocess.run([npm, "run", "build"], cwd=str(frontend_dir), check=True)
+            print_success("Frontend built")
+        elif not (frontend_dir / "dist").exists():
+            print_error("frontend/dist missing — rerun without --skip-install")
+            raise typer.Exit(1)
+
+        opencode_bin = shutil.which("opencode")
+        if opencode_bin is None:
+            print_warning("OpenCode not found on PATH — skipping auth step")
+        else:
+            from core.opencode_auth import get_key
+            if get_key() is None:
+                print_warning("OpenCode not authenticated — opening auth login...")
+                subprocess.run([opencode_bin, "auth", "login"])
+                print_success("OpenCode authenticated")
+            else:
+                print_success("OpenCode already authenticated")
+
+        if not port_up(11434):
+            ollama_bin = shutil.which("ollama")
+            if ollama_bin:
+                print_info("Starting Ollama server...")
+                ollama_proc = spawn([ollama_bin, "serve"])
+                if wait_port(11434, 20):
+                    print_success("Ollama running on :11434")
+                else:
+                    print_warning("Ollama did not respond on :11434 yet — continuing")
+            else:
+                print_warning("Ollama not found on PATH — skipping (local models unavailable)")
+        else:
+            print_success("Ollama already running on :11434")
+
+        if not port_up(port):
+            print_info(f"Starting API server on :{port}...")
+            backend_proc = spawn(
+                [sys.executable, str(root_dir / "core" / "api_server.py"),
+                 "--host", "127.0.0.1", "--port", str(port)],
+            )
+            if not wait_port(port, 60):
+                print_error(f"API server failed to start on :{port}")
+                raise typer.Exit(1)
+            print_success(f"API server running on :{port}")
+        else:
+            print_success(f"API server already running on :{port}")
+
+        npm = "npm.cmd" if os.name == "nt" else "npm"
+        release_bin = root_dir / "src-tauri" / "target" / "release" / ("palimind.exe" if os.name == "nt" else "palimind")
+        if not skip_build:
+            if not (root_dir / "node_modules").exists():
+                print_info("Installing root dependencies (npm install)...")
+                subprocess.run([npm, "install"], cwd=str(root_dir), check=True)
+            print_info("Building Palimind app (tauri build — first run compiles Rust)...")
+            subprocess.run([npm, "run", "build"], cwd=str(root_dir), check=True)
+            print_success("Palimind app built")
+        if release_bin.exists():
+            print_info("Opening Palimind...")
+            subprocess.Popen([str(release_bin)])
+        else:
+            print_info("No release build found — starting Tauri dev (first run compiles Rust)...")
+            subprocess.run([npm, "run", "dev"], cwd=str(root_dir))
+
+        print_success("Palimind closed.")
+
+    except KeyboardInterrupt:
+        print_info("Palimind stopped.")
+    except subprocess.CalledProcessError as e:
+        print_error(f"A setup step failed (exit {e.returncode}).")
+        raise typer.Exit(1)
+    finally:
+        if not keep_backend:
+            if backend_proc is not None:
+                backend_proc.terminate()
+                print_info("API server stopped.")
+            if ollama_proc is not None:
+                ollama_proc.terminate()
+                print_info("Ollama stopped.")
 
 
 @app.command()

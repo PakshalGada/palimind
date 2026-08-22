@@ -54,7 +54,6 @@ DEFAULTS = {
     "moe_orchestrator_model": "",
     "moe_worker_model": "",
     "moe_sub_mode": "default",  # "default" or "moe"
-    "thinking_model": "",  # model used when the user toggles Think mode; falls back to chat_model
     "persona_name": "",
     "persona_system_prompt": "",
 }

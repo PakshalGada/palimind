@@ -4,38 +4,57 @@
    ============================================================ */
 
 :root {
-  --bg-color: #000000;
-  --panel-bg: #0d0d0d;
-  --border-color: #222222;
-  --text-main: #f5f5f5;
-  --text-muted: #8e8e93;
-  --input-bg: #151515;
-  --msg-user-bg: #1c1c1e;
-  --msg-system-bg: #0a0a0a;
-  --bg-active: #222222;
+  /* Mirrors the Palimind design tokens in App.css */
+  --bg-color: #09090b;
+  --panel-bg: #121215;
+  --panel-bg-2: #18181b;
+  --border-color: #27272a;
+  --border-subtle: #1f1f23;
+  --text-main: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --input-bg: #18181b;
+  --msg-user-bg: #1f1f23;
+  --msg-system-bg: #09090b;
+  --bg-hover: #1f1f23;
+  --bg-active: #27272a;
 
   /* Primary action colors */
   --primary-color: #ffffff;
-  --primary-hover: #e5e5e5;
-  --primary-text: #000000;
+  --primary-hover: #e4e4e7;
+  --primary-text: #09090b;
+  --accent-bg: rgba(255, 255, 255, 0.08);
+  --danger: #ef4444;
+  --danger-strong: #f87171;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
 }
 
 /* Light mode override — mirrors styles.css .light-mode block exactly */
 .light-mode {
   --bg-color: #ffffff;
-  --panel-bg: #f5f5f7;
-  --border-color: #e5e5e7;
-  --text-main: #000000;
-  --text-muted: #6e6e73;
-  --input-bg: #f0f0f2;
-  --msg-user-bg: #e5e5ea;
+  --panel-bg: #fafafa;
+  --panel-bg-2: #f4f4f5;
+  --border-color: #e4e4e7;
+  --border-subtle: #f4f4f5;
+  --text-main: #09090b;
+  --text-secondary: #52525b;
+  --text-muted: #71717a;
+  --input-bg: #f4f4f5;
+  --msg-user-bg: #f4f4f5;
   --msg-system-bg: #ffffff;
-  --bg-active: #e5e5e7;
+  --bg-hover: #f4f4f5;
+  --bg-active: #e4e4e7;
 
   /* Primary action colors */
-  --primary-color: #000000;
-  --primary-hover: #262626;
+  --primary-color: #09090b;
+  --primary-hover: #27272a;
   --primary-text: #ffffff;
+  --accent-bg: rgba(9, 9, 11, 0.06);
+  --danger: #dc2626;
+  --danger-strong: #ef4444;
 }
 
 .light-mode .glance-shell {
@@ -326,11 +345,8 @@ body {
     color 0.15s;
 }
 .glance-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-active);
   color: var(--text-main);
-}
-.light-mode .glance-icon-btn:hover {
-  background: rgba(0, 0, 0, 0.1);
 }
 
 /* Legacy class kept for backward compat — popup uses .glance-model-pill--btn */
@@ -344,7 +360,7 @@ body {
   min-height: 22px;
   line-height: 1;
 
-  border-radius: 20px;
+  border-radius: 999px;
   font-family: "JetBrains Mono", monospace;
   letter-spacing: 0.2px;
 
@@ -373,16 +389,6 @@ body {
   border-color: var(--text-main);
   color: var(--text-main);
   background: var(--bg-active);
-}
-
-.light-mode .glance-model-pill {
-  border-color: #d1d1d6;
-  color: #48484a;
-}
-.light-mode .glance-model-pill:hover {
-  border-color: #8e8e93;
-  color: #1c1c1e;
-  background: #e5e5ea;
 }
 
 .glance-msg-assistant pre,
@@ -441,7 +447,7 @@ body {
   color: var(--text-main);
 }
 .glance-mic-btn.recording {
-  background: #dc2626;
+  background: var(--danger);
   color: #ffffff;
 }
 .glance-web-search-btn.active {
@@ -466,7 +472,7 @@ body {
   background: transparent;
   color: var(--text-muted);
   padding: 3px 10px;
-  border-radius: 20px;
+  border-radius: 999px;
   font-size: 0.72rem;
   font-family: "JetBrains Mono", monospace;
   transition:
@@ -478,11 +484,6 @@ body {
   border-color: var(--text-muted);
   color: var(--text-main);
   background: var(--bg-active);
-}
-.light-mode .glance-model-pill--btn:hover {
-  border-color: #8e8e93;
-  color: #1c1c1e;
-  background: #e5e5ea;
 }
 
 /* Dropdown panel */
@@ -513,7 +514,7 @@ body {
   flex: 1;
   padding: 6px 0;
   border: none;
-  border-radius: 7px 7px 0 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   background: transparent;
   color: var(--text-muted);
   font-size: 0.78rem;
@@ -579,7 +580,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 7px 10px;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.12s;
 }
@@ -623,7 +624,7 @@ body {
   background: var(--bg-active);
   color: var(--text-main);
   border: 1px solid var(--border-color);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 .glance-retry-btn:hover {

@@ -162,6 +162,8 @@ async def moe_mode_stream(
     web_search: str,
     orchestrator_model: str | None = None,
     worker_model: str | None = None,
+    orchestrator_url: str | None = None,
+    worker_url: str | None = None,
     long_term_episodes: list[dict] | None = None,
 ) -> StreamingResponse:
     """MOE MODE: Uses an orchestrator LLM to create a plan, dispatches to 4 smaller
@@ -181,6 +183,8 @@ async def moe_mode_stream(
 
         orch_model = orchestrator_model or chat_model
         work_model = worker_model or chat_model
+        orch_url = orchestrator_url or ollama_url
+        work_url = worker_url or ollama_url
 
         yield (
             f"data: {json.dumps({'type': 'reasoning', 'text': 'MoE Mode — orchestrator planning...'})}\n\n"
@@ -194,9 +198,10 @@ async def moe_mode_stream(
         pipeline_task = asyncio.create_task(
             run_moe_pipeline(
                 user_query=q,
-                ollama_url=ollama_url,
+                ollama_url=orch_url,
                 orchestrator_model=orch_model,
                 worker_model=work_model,
+                worker_url=work_url,
                 num_workers=4,
                 on_progress=on_progress,
                 short_term=history_to_send,

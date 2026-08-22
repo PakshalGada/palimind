@@ -474,7 +474,7 @@ export default function Sidebar() {
             <h3>Agents</h3>
             <button
               className="icon-btn"
-              title="New Agent"
+              data-tooltip="New Agent"
               aria-label="Create new agent"
               onClick={() =>
                 window.dispatchEvent(new CustomEvent("palimind:new-agent"))

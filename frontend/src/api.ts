@@ -64,13 +64,18 @@ export const api = {
     treeSub: (path: string) => get<{ children?: TreeNode[]; error?: string }>(`/files/tree/sub?path=${encodeURIComponent(path)}`),
   },
   config: {
-    get: () => get<{ chat_model?: string; moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string; thinking_model?: string; persona_name?: string; persona_system_prompt?: string }>('/config'),
+    get: () => get<{ chat_model?: string; moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string; persona_name?: string; persona_system_prompt?: string }>('/config'),
     setModel: (modelId: string) => patch<{ error?: string }>('/config/model', { model_id: modelId }),
     setMoe: (data: { moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string }) => patch<{ error?: string }>('/config/moe', data),
     setPersona: (data: { persona_name?: string; persona_system_prompt?: string }) =>
       patch<{ error?: string; status?: string }>('/config/persona', data),
-    setThinking: (thinkingModel: string) =>
-      patch<{ error?: string; status?: string }>('/config/thinking', { thinking_model: thinkingModel }),
+  },
+  settings: {
+    opencodeKey: {
+      status: () => get<{ configured: boolean; masked?: string | null }>('/settings/opencode-key'),
+      save: (key: string) => post<{ status?: string; error?: string }>('/settings/opencode-key', { key }),
+      remove: () => del<{ status?: string; error?: string }>('/settings/opencode-key'),
+    },
   },
   agents: {
     list: () => get<{ agents?: AgentListItem[]; error?: string }>('/agents'),

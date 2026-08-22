@@ -187,7 +187,7 @@
   display: flex;
 }
 .glance-ws-card-del:hover {
-  background: #dc2626;
+  background: var(--danger);
   color: #fff;
 }
 .glance-ws-card-preview {
@@ -530,7 +530,7 @@
   align-items: center;
   gap: 5px;
   padding: 3px 10px;
-  border-radius: 20px;
+  border-radius: 999px;
   border: 1px solid var(--border-color);
   background: transparent;
   color: var(--text-muted);
@@ -545,14 +545,7 @@
 .glance-ws-model-pill:hover {
   border-color: var(--text-muted);
   color: var(--text-main);
-  background: var(--bg-active); /* add this */
-}
-
-/* add this block */
-.light-mode .glance-ws-model-pill:hover {
-  border-color: #8e8e93;
-  color: #1c1c1e;
-  background: #e5e5ea;
+  background: var(--bg-active);
 }
 
 .glance-ws-model-dropdown {
@@ -693,7 +686,7 @@
 .glance-countdown-modal {
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
-  border-radius: 20px;
+  border-radius: 999px;
   padding: 48px 56px;
   text-align: center;
   display: flex;
