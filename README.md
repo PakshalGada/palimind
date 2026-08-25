@@ -1,312 +1,179 @@
-<div align="center">
+# PaliMind
 
-#  PaliMind
->  ![PaliMind UI](/assets/palimind.jpeg)
+PaliMind is an open-source, **local-first AI intelligence platform** that brings a full suite of AI productivity tools to your desktop. All inference runs on your own machine via **Ollama** - no cloud subscription, no external API keys required, and no data ever leaves your computer.
 
+It is built on a dual-layer architecture:
 
-### Local-First AI Intelligence OS — Private, Powerful, and Entirely On Your Machine.
-
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org)
-[![Node.js](https://img.shields.io/badge/node.js-v18+-green.svg)](https://nodejs.org)
-[![Electron](https://img.shields.io/badge/electron-v42-blueviolet.svg)](https://www.electronjs.org/)
-[![Ollama](https://img.shields.io/badge/inference-Ollama-black.svg)](https://ollama.com)
-[![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-
-**Index documents · Chat with a local LLM · Manage email · Analyze your screen · All 100% offline.**
-
-[PaliSpace](#-palispace--the-ai-workspace) · [PaliMail](#-palimail--ai-email-assistant) · [PaliVision](#-palivision--screen-aware-ai) · [Setup](#️-installation)
-
-</div>
+- A **Python / FastAPI backend** that handles all AI/ML work (indexing, retrieval, chat, agents, vision, voice).
+- A **Tauri 2 desktop shell** (Rust) wrapping a **React + TypeScript + Vite** frontend for native OS integration.
 
 ---
 
-## 🌐 Overview
+## Table of Contents
 
-PaliMind is an open-source, **local-first AI platform** that brings a full suite of AI productivity tools to your desktop — without requiring any cloud subscription or sending a single byte to an external server.
-
-It bundles three standalone AI products under one unified CLI and desktop UI:
-
-| Product | What it does | Hotkey |
-|---|---|---|
-| **🗂 PaliSpace** | Multimodal RAG workspace — index and chat with your local documents | `Ctrl + Shift + Space` |
-| **📧 PaliMail** | AI-powered local email client — IMAP/SMTP with AI triage and smart drafting | `Ctrl + Shift + E` |
-| **👁 PaliVision** | Screen-aware AI — capture your screen and ask questions about it | `Ctrl + Shift + V` |
-
-All inference runs locally via **Ollama**. No OpenAI. No Anthropic. No cloud.
-
----
-
-## 🏗 Architecture
-
-PaliMind is built on a dual-layer architecture: a **Python/FastAPI backend** for all AI/ML heavy lifting, wrapped inside an **Electron desktop shell** for native OS integration.
-
-```mermaid
-graph TD
-    A[Electron Desktop App] -->|Spawns & manages| B(FastAPI Server :8000)
-    A -->|Global Hotkeys + native OS| C[BrowserWindow UI]
-    C -->|REST + SSE streams| B
-    B -->|Chat / Embed / Vision| D[Ollama :11434]
-    B -->|Full-text search| E[(SQLite FTS5)]
-    B -->|File crawling & watching| F[Local Filesystem]
-    B -->|Email sync| G[IMAP/SMTP Servers]
-    B -->|Screen analysis| H[EasyOCR + Vision LLM]
-```
-
-### Communication Flow
-
-1. **Electron** discovers the `.venv` Python environment and spawns the FastAPI server.
-2. **FastAPI** binds on `http://127.0.0.1:8000` and exposes REST + SSE endpoints.
-3. **Electron** polls the port until healthy, then loads `/ui` inside a sandboxed `BrowserWindow`.
-4. The **Vanilla JS frontend** communicates via REST calls and SSE for real-time streaming.
+- [Features](#features)
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Pulling Models](#pulling-models)
+- [CLI Usage](#cli-usage)
+- [Configuration](#configuration)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Contributing](#contributing)
 
 ---
 
-## 🗂 PaliSpace — The AI Workspace
+## Features
 
-PaliSpace is the core RAG (Retrieval-Augmented Generation) engine. Point it at any folder on your machine, and it indexes every document into a local vector store you can query in natural language.
+### PaliSpace - RAG Workspace
 
-### Screenshots
+The core retrieval-augmented generation (RAG) engine. Point it at any folder and index every document into a local vector store you can query in natural language.
 
-<!-- HOW TO ADD SCREENSHOTS
-  1. Take a screenshot of the PaliSpace desktop UI (pm ui).
-  2. Drag & drop the image file into this GitHub page in Edit mode,
-     or upload it to a folder like docs/assets/ and reference it below.
-  3. Replace the placeholder line with:
-       ![PaliSpace UI](./docs/assets/palispace.png)
-     or use a GitHub-hosted URL:
-       ![PaliSpace UI](https://github.com/your-username/palimind/raw/main/docs/assets/palispace.png)
--->
+![PaliSpace UI](./assets/palispace.png)
 
->  ![PaliSpace UI](/assets/palispace.png)
+- **Multimodal indexing** - parses PDF, DOCX, PPTX, XLSX, images (OCR), Markdown, code, CSV, and video (with Whisper transcription).
+- **Local vector store** - TurboVec 4-bit quantized embeddings stored in SQLite. No external database.
+- **Hierarchical memory** - episodic conversation turns are embedded and retrieved for long-term context.
+- **Session management** - multiple persistent chat sessions per workspace with summaries.
+- **Web search** - integrated DuckDuckGo search and Scrapling for real-time context augmentation.
+- **Knowledge graph** - entities and relationships extracted from documents, queryable and visualized.
+- **Summarisation** - per-file summaries, financial fact extraction, and timeline extraction at index time.
 
-### Use Cases
+### PaliVision / Glance - Screen-Aware AI
 
-- Chat with your codebase, research papers, or project notes
-- Compare multiple documents side-by-side
-- Get AI summaries and timelines extracted from financial or legal documents
-- Run a private "second brain" with persistent episodic memory across sessions
+Captures your current screen, runs OCR plus an optional vision LLM, and streams a contextual AI response - all locally.
 
-### Key Features
+![PaliVision / Glance UI](./assets/palivision.png)
 
-| Feature | Details |
+- **OCR extraction** - EasyOCR extracts all visible text from a screenshot.
+- **Vision LLM** - optionally calls LLaVA or Moondream for rich visual description.
+- **SSE streaming** - response tokens stream in real time.
+- **Multi-turn chat** - keeps conversation history across follow-up questions.
+- **Session persistence** - each screen conversation is saved to disk.
+
+### PalIAgents - Agent System
+
+A runtime for creating and running specialized agents that can call tools to complete tasks. Agents can be created, run manually, invoked from chat with `@mention` syntax, and scheduled.
+
+![PalIAgents UI](./assets/paliagents.png)
+
+Available tools include:
+
+- **Shell execution** (`run_shell`)
+- **Python execution** (`run_python`)
+- **Web browsing** (`browse_url`)
+- **Web search** (DuckDuckGo)
+- **arxiv search**
+- **RSS feed fetching**
+- **CSV query**
+- **SQLite query**
+- **Knowledge graph query**
+- **MQTT** publish/subscribe
+
+Agents maintain their own memory, run history, and chat logs. Tool calls are audited and debug-traced by default.
+
+### Voice I/O
+
+- **Speech-to-text** with Faster-Whisper (`/api/voice/transcribe`)
+- **Text-to-speech** with Kokoro-ONNX (`/api/voice/synthesize`)
+
+### OpenCode Integration
+
+PaliMind shares the OpenCode global credential store (`~/.local/share/opencode/auth.json`) so a key configured once is available to both the OpenCode CLI and PaliMind's provider proxy. The desktop launcher checks for authentication and opens an OpenCode login flow if needed.
+
+### Global Hotkeys
+
+Platform-aware global shortcuts registered by the Tauri shell:
+
+| Shortcut | Action |
 |---|---|
-| **Multimodal Indexing** | Parses PDF, DOCX, PPTX, XLSX, images, Markdown, code files, and more |
-| **Local Vector Store** | TurboVec (4-bit quantized) embeddings stored in SQLite — zero external DB |
-| **Agent Swarm** | Orchestrates specialized agents: Researcher, Comparator, Advisor, Timeline, Document |
-| **Episodic Memory** | Conversation turns are embedded and retrieved for long-term context |
-| **Session Management** | Multiple persistent chat sessions per workspace with mid-term summaries |
-| **AI Agents** | Built-in Research, Compare, Advise, Swarm, and Document agents — plus custom agents |
-| **Web Search** | Integrated DuckDuckGo search + Scrapling for real-time context augmentation |
-| **Voice I/O** | Speech-to-Text (Faster-Whisper) and Text-to-Speech (Kokoro-ONNX) |
+| `Ctrl/Cmd/Super + Shift + Space` | Toggle the main PaliSpace window |
+| `Ctrl/Cmd/Super + Shift + V` | Open PaliGlance (screen capture popup) |
 
-### How to Use
+### Customisation
 
-#### 1. Initialize a Workspace (Field)
-
-```bash
-pm init /path/to/your/project
-pm add /path/to/your/project
-```
-
-#### 2. Chat via CLI
-
-```bash
-pm ask "What are the key findings in the Q3 report?"
-pm chat
-pm swarm "Summarize all legal risks across these contracts"
-pm document report.pdf "Extract all financial figures"
-```
-
-#### 3. Desktop UI
-
-```bash
-pm ui   # Launch the full Electron desktop app
-```
-
-The desktop UI provides:
-- **Fields panel** — add/switch between indexed workspaces
-- **Chat panel** — real-time streaming chat with agent selector
-- **File explorer** — browse and filter indexed documents
-- **Sessions sidebar** — manage and restore previous conversations
-
-#### 4. Hotkey Capture
-
-```bash
-pm hotkey start
-pm hotkey start --hotkey alt+shift+c
-pm hotkey trigger
-```
-
-### Supported File Types
-
-| Category | Extensions |
-|---|---|
-| Documents | `.pdf`, `.docx`, `.pptx`, `.xlsx` |
-| Code & Text | `.py`, `.js`, `.ts`, `.go`, `.rs`, `.c`, `.cpp`, `.md`, `.txt` |
-| Data | `.json`, `.yaml`, `.toml`, `.csv` |
-| Images | `.png`, `.jpg`, `.jpeg`, `.webp` (OCR extracted) |
+- **Themes** - switch the CLI accent color between teal, purple, amber, blue, and coral.
+- **Config** - every retrieval, embedding, and model setting is configurable per workspace in `config.json`.
 
 ---
 
-## 📧 PaliMail — AI Email Assistant
+## Architecture
 
-PaliMail is a **fully local, terminal-first email client** with AI-powered triage. All emails are stored in `~/.palimind/email.db` (SQLite). IMAP/SMTP credentials are encrypted on disk with **Fernet AES-128** — they never leave your machine.
-
-### Screenshots
-
-<!-- HOW TO ADD SCREENSHOTS
-  1. Run `pm email list` or `pm email read <ID>` in your terminal.
-  2. Take a screenshot of the terminal output.
-  3. Upload the image and replace the placeholder below with:
-       ![PaliMail TUI](./docs/assets/palimail.png)
--->
-
->  ![PaliMail UI](/assets/palimail.png)
-
-### Use Cases
-
-- Manage multiple email accounts from the terminal
-- Automatically get AI summaries, priority scores, and spam detection for every email
-- Draft replies and compose new emails using Ollama AI — just describe your intent
-- Full-text search across all your emails locally with BM25 ranking
-
-### Key Features
-
-| Feature | Details |
-|---|---|
-| **Multi-account** | Add unlimited IMAP/SMTP accounts with individual sync |
-| **Encrypted credentials** | Fernet symmetric encryption, key bound to your machine |
-| **AI Triage** | Each email gets: summary, priority score (1–5), spam score, and tags |
-| **AI Drafting** | Compose or reply with an intent string — Ollama writes the draft |
-| **BM25 Search** | Fast full-text search across subject, body, sender |
-| **Incremental sync** | Only fetches new emails since last UID — no re-downloading |
-| **Thread view** | `pm email read <ID> --thread` shows full conversation |
-
-### How to Use
-
-#### Account Setup
-
-```bash
-pm email add \
-  --label "Gmail" \
-  --email you@gmail.com \
-  --imap-host imap.gmail.com \
-  --smtp-host smtp.gmail.com \
-  --smtp-port 587
-
-pm email accounts
+```
+Tauri Desktop App
+    |  spawns & manages the FastAPI server, registers global hotkeys,
+    |  captures the screen, opens WebView windows
+    v
+FastAPI Server (127.0.0.1:8000)
+    |  REST + SSE streaming endpoints
+    v
+Ollama (127.0.0.1:11434)
+    |  chat / embed / vision inference
+    v
+Local resources: SQLite (FTS5), vector store, filesystem, tools
 ```
 
-#### Sync & Browse
-
-```bash
-pm email sync
-pm email sync --account Gmail
-pm email sync --full
-
-pm email list
-pm email list --sort priority
-pm email unread
-pm email unread --count
-```
-
-#### Read & Search
-
-```bash
-pm email read 42
-pm email read 42 --thread
-pm email search "invoice Q3"
-pm email search "meeting" --after 2025-01-01
-```
-
-#### Compose & Reply
-
-```bash
-pm email compose \
-  --account Gmail \
-  --to colleague@example.com \
-  --subject "Project Update" \
-  --ai-draft "brief update on the RAG milestone, mention Friday deadline"
-
-pm email reply 42 --ai-draft "politely decline and suggest Friday instead"
-
-pm email compose --account Gmail --to friend@example.com --subject "Hey"
-
-pm email remove Gmail
-```
+The Tauri shell spawns the Python backend as a child process, polls it until healthy, then loads the React frontend at `http://127.0.0.1:8000/ui` inside a WebView window.
 
 ---
 
-## 👁 PaliVision — Screen-Aware AI
-
-PaliVision is PaliMind's **screen analysis engine**. It captures your current screen, runs OCR and an optional vision LLM, then streams a contextual AI response — all locally.
-
-### Screenshots
-
-<!-- HOW TO ADD SCREENSHOTS
-  1. Open the PaliVision / Glance panel via `pm ui`.
-  2. Capture your screen and ask a question — screenshot the result.
-  3. Upload the image and replace the placeholder below with:
-       ![PaliVision](./docs/assets/palivision.png)
--->
-
->  ![PaliGlance](/assets/paliglance.png)
-
-### Use Cases
-
-- "What's wrong with this error message?" — ask AI about any visible error
-- "Summarize what's on my screen" — instantly get a digest of any content
-- Debugging assistance without copy-pasting error logs
-- Accessibility helper — describe UI elements on screen
-
-### Key Features
-
-| Feature | Details |
-|---|---|
-| **OCR Extraction** | EasyOCR extracts all visible text from a screenshot |
-| **Vision LLM** | Optionally calls LLaVA or Moondream for rich visual description |
-| **SSE Streaming** | Streams response tokens in real-time — no waiting for full answer |
-| **Web Search** | Augment screen context with live DuckDuckGo results |
-| **Session Persistence** | Saves each screen conversation to `~/.palimind/glance_sessions.json` |
-| **Episodic Memory** | Screen analysis turns are embedded into global long-term memory |
-| **Multi-turn Chat** | Maintains conversation history across follow-up questions |
-| **Model-aware** | Dynamically reads `ollama_base_url` from config — works with LocalTunnel |
-
-### How to Use
-
-PaliVision is accessible through the **PaliSpace desktop UI** under the `Glance` view:
-
-1. Launch the desktop app with `pm ui`
-2. Navigate to the **PaliVision / Glance** panel
-3. Click **Capture Screen** — the screenshot is sent to the backend
-4. Type your question in the chat box
-5. The AI analyzes OCR text + visual description and streams a response
-
-
-
----
-
-## ⚙️ Installation
-
-### Prerequisites
+## Prerequisites
 
 | Requirement | Version | Notes |
 |---|---|---|
 | Python | 3.10+ | Core backend |
-| Node.js | 18+ | Electron desktop wrapper |
-| Ollama | Latest | Local LLM inference engine |
+| Node.js | 18+ | Frontend build + Tauri CLI |
+| Rust | stable | Tauri 2 toolchain |
+| Ollama | latest | Local LLM inference engine |
+
+---
+
+## Installation
 
 ### 1. Install Ollama
 
 ```bash
-# macOS / Linux
 curl -fsSL https://ollama.com/install.sh | sh
 ```
 
-> Windows — download from [ollama.com/download](https://ollama.com/download)
+Windows: download from [ollama.com/download](https://ollama.com/download).
 
-### 2. Pull Required Models
+### 2. Clone and set up the Python backend
+
+```bash
+git clone <your-repo-url> palimind
+cd palimind
+
+python -m venv .venv
+source .venv/bin/activate
+# Windows: .venv\Scripts\activate
+
+pip install -e .
+# optional hotkey support:
+pip install -e ".[hotkey]"
+```
+
+### 3. Install Rust / Tauri prerequisites
+
+Install Rust via [rustup](https://rustup.rs), then on Linux ensure the required system libraries for Tauri are present (see the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)).
+
+### 4. Install frontend and desktop dependencies
+
+```bash
+npm install                          # root (Tauri CLI)
+cd frontend && npm install && cd ..  # React frontend
+```
+
+### 5. Build the frontend once
+
+The desktop app loads the prebuilt frontend, so build it before launching:
+
+```bash
+cd frontend && npm run build && cd ..
+```
+
+### 6. Pull required models
 
 ```bash
 ollama pull nomic-embed-text
@@ -315,94 +182,154 @@ ollama pull llava
 ollama pull moondream
 ```
 
-### 3. Python Setup
+---
 
-```bash
-git clone https://github.com/your-username/palimind.git
-cd palimind
+## Launching
 
-python -m venv .venv
-source .venv/bin/activate
-# Windows: .venv\Scripts\activate
-
-pip install -e .
-pip install -e ".[hotkey]"
-```
-
-### 4. Node.js / Electron Setup
-
-```bash
-npm install
-```
-
-### 5. Launch
+The one-command launcher installs missing dependencies, starts Ollama, launches the API server, and opens the desktop app:
 
 ```bash
 pm ui
-# or headless
-pm chat
+```
+
+Related flags:
+
+```bash
+pm ui --skip-install       # skip dependency install / frontend build
+pm ui --keep-backend       # keep Ollama/API server running after the app closes
+pm ui --port 8001          # use a custom backend port
+```
+
+You can also run the backend directly:
+
+```bash
+python -m core.api_server --host 127.0.0.1 --port 8000
 ```
 
 ---
 
-## ☁️ No GPU? Don't worry, Use Google Colab
+## CLI Usage
 
-If you don't have a local GPU, you can run the Ollama inference backend on a free Google Colab runtime and tunnel it to PaliMind on your local machine.
+PaliMind ships a `pm` CLI built with Typer.
 
-**→ See the setup script: [`colab_setup.py`](./colab_setup.py)**
+### Indexing
 
-The script:
-1. Installs Ollama on the Colab runtime
-2. Pulls all required PaliMind models
-3. Exposes port `11434` publicly via LocalTunnel
-4. Prints the public URL to paste into your PaliMind `config.json` as `ollama_base_url`
+```bash
+pm init /path/to/project    # initialize a workspace
+pm add /path/to/project     # index or update files
+```
+
+### Asking questions
+
+```bash
+pm ask "What are the key findings in the Q3 report?" --path /path/to/project
+```
+
+### Global hotkey listener
+
+```bash
+pm hotkey start                        # start listening
+pm hotkey start --hotkey alt+shift+c   # custom hotkey
+pm hotkey trigger                      # manual capture (for Wayland/Hyprland)
+pm hotkey stop                         # stop listening
+```
+
+### Configuration
+
+```bash
+pm config theme teal        # accent theme: teal, purple, amber, blue, coral
+```
 
 ---
 
-## 🛠 Tech Stack
+## Configuration
+
+Per-workspace settings live in `.palimind/config.json` (created in the directory where you run `pm init`). Key defaults:
+
+| Key | Default | Purpose |
+|---|---|---|
+| `embed_model` | `nomic-embed-text` | Embedding model |
+| `chat_model` | `gemma4:e2b` | Chat model |
+| `chunk_size` | `3000` | Document chunk size |
+| `chunk_overlap` | `500` | Chunk overlap |
+| `turbovec_bit_width` | `4` | Embedding compression (2 or 4) |
+| `summarise` | `true` | Generate per-file summaries |
+| `retrieval_limit` | `10` | Chunks returned per retrieval |
+| `context_token_budget` | `8000` | Max tokens in LLM context |
+| `rerank` | `true` | Rerank fused results |
+| `query_rewrite` | `true` | LLM query rewriting at retrieval |
+| `ollama_base_url` | `http://localhost:11434` | Ollama endpoint |
+| `extensions` | (many) | Indexed file extensions |
+
+Agent runtime behavior is configurable via environment variables, including:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PALIMIND_ENABLE_PALIAGENTS` | `true` | Master switch for agents |
+| `PALIMIND_SHELL_EXEC_TIMEOUT` | `30` | Shell tool timeout (s) |
+| `PALIMIND_PYTHON_EXEC_TIMEOUT` | `30` | Python tool timeout (s) |
+| `PALIMIND_PYTHON_EXEC_MEMORY_MB` | `512` | Python tool memory cap |
+| `PALIMIND_ALLOWED_PATHS` | (empty) | Extra paths file tools may access |
+| `PALIMIND_AGENT_SCHEDULER_TICK` | `15` | Scheduler poll interval (s) |
+
+---
+
+## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| **Desktop Shell** | Electron, Node.js |
-| **Backend** | Python 3.10+, FastAPI, Uvicorn |
-| **CLI** | Typer, Rich |
-| **AI / Inference** | Ollama (Gemma, LLaVA, Moondream, nomic-embed-text) |
-| **Embeddings** | Sentence-Transformers, TurboVec (4-bit quantized) |
-| **STT / TTS** | Faster-Whisper, Kokoro-ONNX |
-| **OCR** | EasyOCR |
-| **Database** | SQLite with FTS5 |
-| **Frontend** | Vanilla JS, HTML, CSS |
-| **Encryption** | Fernet (AES-128, cryptography library) |
+| Desktop shell | Tauri 2 (Rust), Tauri global shortcut plugin, xcap screen capture |
+| Frontend | React, TypeScript, Vite |
+| Backend | Python 3.10+, FastAPI, Uvicorn |
+| CLI | Typer, Rich |
+| AI / Inference | Ollama (Gemma, LLaVA, Moondream, nomic-embed-text) |
+| Embeddings | Sentence-Transformers, TurboVec (4-bit quantized) |
+| STT / TTS | Faster-Whisper, Kokoro-ONNX |
+| OCR | EasyOCR |
+| Database | SQLite with FTS5 |
+| Encryption | Fernet (AES-128, cryptography) |
 
 ---
 
-## 👥 Team / Contributors
+## Project Structure
 
-| Name | Role |
-|---|---|
-| **Pakshal Gada** | PaliSpace · RAG Model Architecture |
-| **Pratham Kataria** | PaliVision · Desktop App (Electron) |
-| **Om Upadhyay** | PaliMail · TUI |
-| **Manthan Chheda** | Hotkey Implementation |
-| **Janak Gohil** | UI Polishing |
-
-> PaliMind is an open-source project. Contributions are very welcome!
+```
+.
+├── core/                  # Python backend
+│   ├── agents/            # PalIAgents runtime, registry, scheduler
+│   ├── cli/               # Typer CLI (commands, UI)
+│   ├── document/          # document engine, graph, stream
+│   ├── generative/        # summariser, responder
+│   ├── hwfit/             # hardware fitting / recommendations
+│   ├── ingestion/         # chunkers, parsers, OCR, crawler, video
+│   ├── llm/               # streaming + mixture-of-expert orchestration
+│   ├── storage/           # vector store, metadata, chat store
+│   ├── tools/             # agent tools (shell, python, web, sqlite, mqtt, ...)
+│   ├── api_server.py      # FastAPI application
+│   ├── api.py             # core query / index logic
+│   ├── config.py          # per-workspace configuration
+│   ├── memory.py          # hierarchical memory
+│   ├── opencode_*.py      # OpenCode proxy, router, auth integration
+│   └── ...
+├── frontend/              # React + TypeScript + Vite UI
+│   └── src/               # components, views, glance app
+├── src-tauri/             # Tauri 2 Rust shell
+├── scripts/               # helper scripts (e.g. hyprland-capture.sh)
+├── tests/                 # Python tests
+└── pyproject.toml         # Python package + CLI entry point
+```
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-1. Fork the repository
-2. Create your feature branch: `git checkout -b feature/your-feature`
-3. Commit your changes: `git commit -m 'feat: add amazing feature'`
-4. Push to the branch: `git push origin feature/your-feature`
-5. Open a Pull Request
+1. Fork the repository.
+2. Create a feature branch: `git checkout -b feature/your-feature`.
+3. Commit your changes: `git commit -m "feat: add feature"`.
+4. Push and open a pull request.
 
-> **Note:** Core backend changes should degrade gracefully when Ollama is not running.
+Note: Core backend changes should degrade gracefully when Ollama is not running.
 
+---
 
-<div align="center">
-
-Built with ❤️ for privacy-first AI — no cloud, no subscriptions, no data leaks.
-
-</div>
+PaliMind is an open-source project. Contributions are welcome.

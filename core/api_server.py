@@ -2,7 +2,6 @@ import asyncio
 import json
 import os as _os
 import platform
-import secrets
 import subprocess
 import sys as _sys
 import tkinter as tk
@@ -10,10 +9,7 @@ import uuid
 import time
 from tkinter import filedialog
 from pathlib import Path
-from typing import TYPE_CHECKING, AsyncGenerator, Any
-
-if TYPE_CHECKING:
-    from core.teams.session import TeamSession
+from typing import Any
 
 
 def _detach_stdio() -> None:
@@ -45,7 +41,7 @@ def _detach_stdio() -> None:
         pass  # never crash the server over a logging redirect
 
 
-from fastapi import FastAPI, Request, Response, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.responses import StreamingResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -76,11 +72,6 @@ from core.document.stream import document_mode_stream
 from core.llm.stream import llm_mode_stream, moe_mode_stream
 from core.palivision_router import router as palivision_router
 from core.agents.api import router as agents_router
-
-
-# Port this app instance is actually listening on. Updated in __main__ and
-# run_server; used by /api/teams/create to embed the right port in invite codes.
-_SERVER_PORT = int(_os.environ.get("PALIMIND_SERVER_PORT", "8000"))
 
 
 app = FastAPI(title="Palimind V2 API")
@@ -125,24 +116,11 @@ if UI_DIR.exists():
         glance_file = UI_DIR / "glance.html"
         return glance_file.read_text("utf-8")
 
-    # Paliteams host + guest screen (self-contained, works on any LAN device)
-    TEAM_HTML = Path(__file__).parent.parent / "frontend" / "team.html"
-
-    @app.get("/team", response_class=HTMLResponse)
-    async def serve_team():
-        if TEAM_HTML.exists():
-            return TEAM_HTML.read_text("utf-8")
-        return HTMLResponse("<h1>team.html not found</h1>", status_code=404)
-
     app.mount("/ui", SPAStaticFiles(directory=UI_DIR, html=True), name="ui")
-
 
 
 # -- Global State & Config --
 GLOBAL_CONFIG_PATH = Path.home() / ".palimind_global.json"
-
-# Background task that reaps expired invite tokens and idle teams sessions.
-_teams_reaper_task: "asyncio.Task | None" = None
 
 class AppState:
     active_field: Path | None = None
@@ -384,21 +362,6 @@ def build_file_tree(root: Path) -> list[dict]:
             pass
         return items
     return walk(root)
-async def _teams_reaper_loop() -> None:
-    """Periodically drop expired invite tokens and idle shared sessions."""
-    from core.settings import TEAMS_IDLE_TTL_SECONDS
-    from core.teams.manager import get_manager
-    from core.teams.pending_tokens import pending_tokens, session_tokens
-
-    while True:
-        await asyncio.sleep(60)
-        try:
-            pending_tokens.cleanup_expired()
-            for sid in get_manager().sweep(idle_seconds=TEAMS_IDLE_TTL_SECONDS):
-                session_tokens.revoke_session(sid)
-        except Exception as e:  # never let the reaper kill the server
-            print(f"[TEAMS] reaper error: {e}")
-
 
 @app.on_event("startup")
 async def startup_event():
@@ -413,9 +376,6 @@ async def startup_event():
     if state.active_field:
         update_watcher(state.active_field)
 
-    global _teams_reaper_task
-    _teams_reaper_task = asyncio.create_task(_teams_reaper_loop())
-
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -427,15 +387,6 @@ async def shutdown_event():
             state.watcher.stop()
         except Exception:
             pass
-
-    global _teams_reaper_task
-    if _teams_reaper_task is not None:
-        _teams_reaper_task.cancel()
-        try:
-            await _teams_reaper_task
-        except asyncio.CancelledError:
-            pass
-        _teams_reaper_task = None
 
 
 def _on_field_changed(field: Path | None) -> None:
@@ -1374,375 +1325,11 @@ async def get_recommendations(top: int = 20):
         return {"error": str(e), "recommendations": []}
 
 
-# -- Paliteams (LAN shared sessions) --
-
-HOST_TOKEN_HEADER = "X-Teams-Host-Token"
-
-
-def _app_port() -> int:
-    return _SERVER_PORT
-
-
-def _require_host_session(session_id: str, request: Request) -> "TeamSession | dict":
-    """Resolve a teams session and verify the caller holds its host token.
-
-    Returns the TeamSession on success, or an error dict for the route to
-    return. All host control endpoints must go through this check.
-    """
-    from core.teams.manager import get_manager
-
-    session = get_manager().get_session(session_id)
-    if not session:
-        return {"error": "Session not found"}
-    if not session.check_host_token(request.headers.get(HOST_TOKEN_HEADER)):
-        return {"error": "Unauthorized"}
-    return session
-
-
-@app.post("/api/teams/create")
-async def create_team_session(req: Request):
-    """Create a shared session for a Palispace and return a one-time invite code."""
-    from core.settings import ENABLE_TEAMS
-
-    if not ENABLE_TEAMS:
-        return {"error": "Paliteams is disabled (set PALIMIND_ENABLE_TEAMS=1 to enable)"}
-
-    data = await req.json()
-    field_path = (data.get("field_path") or "").strip()
-    if not field_path:
-        return {"error": "field_path is required"}
-
-    # Security: only registered Palispaces may be shared. Never accept an
-    # arbitrary absolute path from a request body.
-    resolved = str(Path(field_path).resolve())
-    if resolved not in state.fields:
-        return {"error": "Not a registered Palispace — add it in PaliSpace first"}
-
-    # Don't let guests silently hit empty results: require an existing index.
-    field_root = Path(resolved)
-    from core.config import db_path
-
-    if not db_path(field_root).exists():
-        return {
-            "error": (
-                f'"{field_root.name}" has no Palimind index yet — run Sync '
-                "on this Palispace before sharing it."
-            )
-        }
-
-    from core.teams.manager import get_manager
-    from core.teams.codes import generate_invite_code
-    from core.teams.network import get_lan_ip
-    from core.teams.pending_tokens import pending_tokens
-
-    session = get_manager().create_session(resolved)
-    session.host_token = secrets.token_hex(24)
-    host_ip = get_lan_ip() or "127.0.0.1"
-    code, token = generate_invite_code(session.session_id, host_ip, _app_port())
-    pending_tokens.add(token, session.session_id, expiry_seconds=900)
-    return {
-        "code": code,
-        "session_id": session.session_id,
-        "host_token": session.host_token,
-        "host_ip": host_ip,
-        "port": _app_port(),
-    }
-
-
-@app.post("/api/teams/{session_id}/end")
-async def end_team_session(session_id: str, request: Request):
-    """Fully tear down a shared session."""
-    result = _require_host_session(session_id, request)
-    if isinstance(result, dict):
-        return result
-    from core.teams.manager import get_manager
-    from core.teams.pending_tokens import session_tokens
-
-    # Revoke every guest's reconnect credential before dropping the session.
-    session_tokens.revoke_session(session_id)
-    get_manager().end_session(session_id)
-    return {"status": "ended"}
-
-
-@app.post("/api/teams/{session_id}/invite")
-async def invite_guest(session_id: str, request: Request):
-    """Generate another one-time invite code for an existing shared session."""
-    result = _require_host_session(session_id, request)
-    if isinstance(result, dict):
-        return result
-
-    from core.teams.codes import generate_invite_code
-    from core.teams.network import get_lan_ip
-    from core.teams.pending_tokens import pending_tokens
-
-    host_ip = get_lan_ip() or "127.0.0.1"
-    code, token = generate_invite_code(session_id, host_ip, _app_port())
-    pending_tokens.add(token, session_id, expiry_seconds=900)
-    return {"code": code, "session_id": session_id}
-
-
-@app.post("/api/teams/{session_id}/kick/{token}")
-async def kick_guest(session_id: str, token: str, request: Request):
-    """Kick a single guest: notify them over their websocket, then drop them."""
-    result = _require_host_session(session_id, request)
-    if isinstance(result, dict):
-        return result
-
-    from core.teams.pending_tokens import session_tokens
-
-    # ``token`` here is the guest's session-token seat key; revoke it so a
-    # kicked guest cannot reconnect.
-    session_tokens.revoke(token)
-    guest = result.get_guest(token)
-    if guest is None:
-        return {"status": "kicked"}  # already gone — idempotent
-    if guest.websocket is not None:
-        try:
-            await guest.websocket.send_json({"type": "kicked"})
-            await guest.websocket.close(code=4003)
-        except Exception:
-            pass
-    result.remove_guest(token)
-    return {"status": "kicked", "guest": guest.display_name}
-
-
-@app.get("/api/teams/{session_id}/guests")
-async def list_guests(session_id: str, request: Request):
-    """Return the current guest list for the host UI to poll."""
-    result = _require_host_session(session_id, request)
-    if isinstance(result, dict):
-        return result
-    session = result
-    return {
-        "guests": [
-            {
-                "token": g.token,
-                "display_name": g.display_name,
-                "query_count": g.query_count,
-                "connected_at": g.connected_at,
-                "last_active": g.last_active,
-            }
-            for g in session.guests.values()
-        ]
-    }
-
-
-@app.get("/api/teams/{session_id}/messages")
-async def list_team_messages(session_id: str, request: Request, after: int = 0):
-    """Return host-visible chat history entries newer than index ``after``."""
-    result = _require_host_session(session_id, request)
-    if isinstance(result, dict):
-        return result
-    session = result
-    if after < 0:
-        after = 0
-    return {
-        "messages": session.message_history[after:],
-        "total": len(session.message_history),
-    }
-
-
-def _ws_origin_allowed(websocket: WebSocket) -> bool:
-    """Same-origin check for the teams WebSocket.
-
-    FastAPI/Starlette CORS middleware does NOT apply to WebSocket upgrades,
-    so cross-origin browser connections must be rejected here explicitly.
-    Browsers always send Origin on WS handshakes; a missing Origin means a
-    non-browser client (scripts), which we allow since invite/session tokens
-    remain the real authentication. A present Origin must match our own
-    Host authority exactly.
-    """
-    origin = websocket.headers.get("origin")
-    if not origin:
-        return True
-    host = websocket.headers.get("host", "")
-    try:
-        from urllib.parse import urlsplit
-
-        parts = urlsplit(origin)
-        origin_authority = parts.netloc.lower()
-    except Exception:
-        return False
-    if not origin_authority or not host:
-        return False
-    return origin_authority == host.strip().lower()
-
-
-@app.websocket("/ws/team/{session_id}")
-async def team_websocket(websocket: WebSocket, session_id: str, token: str):
-    from core.teams.manager import get_manager
-    from core.teams.pending_tokens import pending_tokens, session_tokens
-
-    # Reject cross-origin browser connections BEFORE accepting the upgrade.
-    if not _ws_origin_allowed(websocket):
-        await websocket.close(code=4003)
-        return
-
-    session = get_manager().get_session(session_id)
-    if not session:
-        await websocket.close(code=4004)
-        return
-
-    # Classify the credential WITHOUT consuming anything. Invite tokens are
-    # single-use but stay unconsumed until a join actually succeeds; session
-    # tokens are the multi-use credentials minted at join time and used for
-    # reconnects (refresh, network blip).
-    is_invite = pending_tokens.peek(token) == session_id
-    is_session_cred = not is_invite and session_tokens.validate(token) == session_id
-    if not (is_invite or is_session_cred):
-        await websocket.close(code=4001)
-        return
-
-    await websocket.accept()
-    guest = None
-    cred = "invite" if is_invite else "session"
-
-    try:
-        while True:
-            raw = await websocket.receive_text()
-            try:
-                data = json.loads(raw)
-            except (json.JSONDecodeError, TypeError):
-                await websocket.send_json({"type": "error", "message": "Malformed message"})
-                continue
-
-            if data.get("type") == "join":
-                requested_perm = data.get("permission", "view")
-                if requested_perm not in ("view", "query"):
-                    requested_perm = "view"
-
-                if cred == "invite":
-                    # The one-time consumption happens HERE — only after the
-                    # client reached us and completed the join handshake.
-                    consumed = pending_tokens.validate_and_consume(token)
-                    if consumed != session_id:
-                        await websocket.send_json({
-                            "type": "error",
-                            "message": "This invite code was already used.",
-                        })
-                        await websocket.close(code=4001)
-                        break
-                    session_token = session_tokens.mint(session_id)
-                    guest = session.add_guest(
-                        session_token, data.get("display_name", "Guest"), requested_perm
-                    )
-                    guest.websocket = websocket
-                    await websocket.send_json({
-                        "type": "joined",
-                        "field_name": session.field_path,
-                        "permission": guest.permission,
-                        "session_token": session_token,
-                    })
-                else:
-                    existing = session.get_guest(token)
-                    if existing is None:
-                        # Valid token but no seat (e.g. revoked between checks).
-                        await websocket.send_json({
-                            "type": "error",
-                            "message": "Your seat is no longer available.",
-                        })
-                        await websocket.close(code=4002)
-                        break
-                    guest = existing
-                    guest.display_name = str(data.get("display_name") or guest.display_name)
-                    guest.websocket = websocket
-                    guest.touch()
-                    await websocket.send_json({
-                        "type": "joined",
-                        "field_name": session.field_path,
-                        "permission": guest.permission,
-                        "session_token": token,
-                    })
-
-            elif data.get("type") == "query":
-                if guest is None or guest.permission == "view":
-                    await websocket.send_json({"type": "error", "message": "Not permitted"})
-                    continue
-
-                from core.settings import TEAMS_MAX_QUERIES_PER_MINUTE
-
-                if not guest.check_rate(TEAMS_MAX_QUERIES_PER_MINUTE):
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": f"Rate limit reached: at most {TEAMS_MAX_QUERIES_PER_MINUTE} queries per minute.",
-                    })
-                    continue
-
-                session.append_message("guest", guest.display_name, data.get("text", ""))
-                guest.query_count += 1
-                guest.last_active = time.time()
-
-                from core.teams.pipeline import run_chat_pipeline
-
-                full_text = ""
-                # Serialise inference per session: a second guest's query waits
-                # for the current one to finish so the model is never hit with
-                # concurrent requests from one shared session. The engine is
-                # cached on the session (config/graph/reranker load once).
-                async with session.inference_lock:
-                    async for chunk in run_chat_pipeline(
-                        query=data.get("text", ""),
-                        field_path=session.field_path,
-                        mode="document",
-                        engine=session.get_engine(),
-                    ):
-                        full_text += chunk
-                        await websocket.send_json({"type": "stream_chunk", "text": chunk})
-
-                await websocket.send_json({"type": "stream_end"})
-                session.append_message("host", "AI", full_text)
-
-            elif data.get("type") == "ping":
-                await websocket.send_json({"type": "pong"})
-
-    except WebSocketDisconnect:
-        if guest is not None:
-            # Detach the socket but KEEP the seat so the guest can reconnect
-            # with their session token (identity + query count survive).
-            guest.websocket = None
-
-
-def _ensure_windows_firewall_rule(port: int) -> None:
-    """Best-effort inbound firewall rule for LAN (Paliteams) mode on Windows.
-
-    Requires admin rights; if elevation isn't available we print the exact
-    command so the user can run it manually. Never raises.
-    """
-    if platform.system() != "Windows":
-        return
-    rule = f'netsh advfirewall firewall add rule name="Palimind {port}" dir=in action=allow protocol=TCP localport={port}'
-    try:
-        res = subprocess.run(
-            ["netsh", "advfirewall", "firewall", "add", "rule",
-             f'name="Palimind {port}"', "dir=in", "action=allow",
-             "protocol=TCP", f"localport={port}"],
-            capture_output=True, text=True, timeout=15,
-        )
-        if res.returncode == 0:
-            print(f"[TEAMS] Firewall rule added for TCP {port}.")
-        else:
-            print(
-                "[TEAMS] Could not add a Windows firewall rule (needs admin).\n"
-                f"        Run this once in an elevated shell:\n"
-                f"          {rule}"
-            )
-    except Exception as e:
-        print(f"[TEAMS] Firewall check skipped: {e}")
-
-
 def run_server(port: int = 8000, host: str | None = None):
     _detach_stdio()
-    global _SERVER_PORT
     if host is None:
         from core.settings import SERVER_HOST
         host = SERVER_HOST
-    # The import-string below makes uvicorn re-import this module as
-    # core.api_server (a second module instance whose globals reset), so the
-    # routes must learn the real port via the environment.
-    _os.environ["PALIMIND_SERVER_PORT"] = str(port)
-    _SERVER_PORT = port
-    if host == "0.0.0.0":
-        _ensure_windows_firewall_rule(port)
     uvicorn.run("core.api_server:app", host=host, port=port)
 
 if __name__ == "__main__":

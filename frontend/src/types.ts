@@ -71,7 +71,7 @@ export type ChatMode = 'document' | 'llm';
 export type LlmSubMode = 'default' | 'moe';
 export type Theme = 'dark' | 'light';
 
-export type AppView = 'fields' | 'palivision' | 'agents' | 'teams';
+export type AppView = 'fields' | 'palivision' | 'agents';
 
 export interface AgentDefinition {
   id: string;

@@ -179,18 +179,4 @@ export const api = {
     deleteSession: (id: string) => del<{ status?: string }>(`/palivision/session/${id}`),
     updateMemory: (body: unknown) => post<{ status?: string }>('/palivision/memory/update', body),
   },
-  teams: {
-    create: (fieldPath: string) =>
-      post<{ code?: string; session_id?: string; host_token?: string; error?: string }>('/teams/create', { field_path: fieldPath }),
-    invite: (sessionId: string, hostToken: string) =>
-      post<{ code?: string; session_id?: string; error?: string }>(`/teams/${sessionId}/invite`, undefined, { 'X-Teams-Host-Token': hostToken }),
-    end: (sessionId: string, hostToken: string) =>
-      post<{ status?: string; error?: string }>(`/teams/${sessionId}/end`, undefined, { 'X-Teams-Host-Token': hostToken }),
-    kick: (sessionId: string, token: string, hostToken: string) =>
-      post<{ status?: string; error?: string }>(`/teams/${sessionId}/kick/${token}`, undefined, { 'X-Teams-Host-Token': hostToken }),
-    guests: (sessionId: string, hostToken: string) =>
-      get<{ guests?: { token: string; display_name: string; query_count: number; connected_at: number; last_active: number }[]; error?: string }>(`/teams/${sessionId}/guests`, { 'X-Teams-Host-Token': hostToken }),
-    messages: (sessionId: string, hostToken: string, after = 0) =>
-      get<{ messages?: { sender_type: string; sender_name: string; content: string; timestamp: number }[]; total?: number; error?: string }>(`/teams/${sessionId}/messages?after=${after}`, { 'X-Teams-Host-Token': hostToken }),
-  },
 };
