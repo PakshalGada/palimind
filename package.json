@@ -3,9 +3,13 @@
   "version": "0.1.0",
   "description": "Palimind — Local-first AI workspace for everything",
   "scripts": {
-    "tauri": "tauri",
-    "dev": "tauri dev",
-    "build": "tauri build"
+    "dev": "npm run dev --prefix apps/desktop",
+    "build": "npm run build --prefix apps/desktop",
+    "tauri": "npm run tauri --prefix apps/desktop",
+    "frontend:dev": "npm run dev --prefix packages/frontend",
+    "frontend:build": "npm run build --prefix packages/frontend",
+    "backend:dev": "cd packages/backend && python -m palimind.api_server",
+    "backend:test": "cd packages/backend && python -m pytest"
   },
   "author": "Palimind",
   "license": "MIT",

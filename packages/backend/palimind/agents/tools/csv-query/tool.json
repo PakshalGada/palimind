@@ -1,0 +1,11 @@
+{
+  "name": "csv-query",
+  "version": "1.0.0",
+  "entrypoint": "tool.py",
+  "description": "Query a CSV file with natural-language or pandas-style filters",
+  "permissions": [
+    "fs-read"
+  ],
+  "timeout_s": 30,
+  "function": "csv_query"
+}

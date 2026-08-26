@@ -1,0 +1,11 @@
+{
+  "name": "arxiv-search",
+  "version": "1.0.0",
+  "entrypoint": "tool.py",
+  "description": "Search the public arXiv API for recent papers",
+  "permissions": [
+    "network"
+  ],
+  "timeout_s": 30,
+  "function": "arxiv_search"
+}

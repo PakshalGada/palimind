@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ruff
+      - name: ruff check
+        working-directory: packages/backend
+        run: ruff check .
+      - name: ruff format check
+        working-directory: packages/backend
+        run: ruff format --check .
+
+  backend-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install package + dev deps (light subset)
+        working-directory: packages/backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-asyncio typer rich httpx numpy cryptography \
+                      pillow watchdog fastapi uvicorn psutil rapidfuzz beautifulsoup4 ddgs
+      - name: Run unit tests
+        working-directory: packages/backend
+        run: python -m pytest -m "not integration" -q
+
+  frontend:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: packages/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: packages/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  desktop-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Tauri system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - name: rustfmt
+        working-directory: apps/desktop/src-tauri
+        run: cargo fmt --check
+      - name: cargo clippy
+        working-directory: apps/desktop/src-tauri
+        run: cargo clippy -- -D warnings 2>&1 | tail -50 || true  # advisory until clean
+      - name: cargo check
+        working-directory: apps/desktop/src-tauri
+        run: cargo check
+
+  security:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks (secret scan)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

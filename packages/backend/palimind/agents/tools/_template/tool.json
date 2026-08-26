@@ -1,0 +1,9 @@
+{
+  "name": "my-tool",
+  "version": "0.1.0",
+  "description": "One line describing what this tool does for agents.",
+  "entrypoint": "tool.py",
+  "permissions": [],
+  "timeout_s": 30,
+  "function": "run"
+}

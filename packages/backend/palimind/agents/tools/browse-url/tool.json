@@ -1,0 +1,11 @@
+{
+  "name": "browse-url",
+  "version": "1.0.0",
+  "entrypoint": "tool.py",
+  "description": "Fetch a web page as text with an optional headless-browser screenshot",
+  "permissions": [
+    "network"
+  ],
+  "timeout_s": 45,
+  "function": "browse_url"
+}

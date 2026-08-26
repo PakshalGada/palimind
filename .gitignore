@@ -6,10 +6,37 @@ __pycache__/
 dist/
 build/
 .eggs/
-# Palimind data
-.palimind/
 .venv/
-node_modules/
-older palimind/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
 
+# Node
+node_modules/
+*.tsbuildinfo
+
+# Tauri / Rust
 src-tauri/target/
+apps/desktop/src-tauri/target/
+target/
+
+# Palimind runtime data
+.palimind/
+*.db
+*.log
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+!.vscode/extensions.json
+
+# Old layout backups
+older palimind/

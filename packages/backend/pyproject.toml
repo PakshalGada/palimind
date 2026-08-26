@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "palimind"
+version = "0.1.0"
+description = "Local-first AI workspace — multimodal RAG, agents, vision & voice"
+readme = "../../README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "typer>=0.12",
+    "rich>=13.7",
+    "httpx>=0.27",
+    "numpy>=1.26",
+    "pymupdf>=1.24",
+    "python-pptx>=0.6.23",
+    "openpyxl>=3.1",
+    "pandas>=2.2",
+    "turbovec>=0.1",
+    "pillow>=10.2",
+    "watchdog>=4.0",
+    "sentence-transformers>=3.0",
+    "fastapi>=0.110.0",
+    "uvicorn>=0.28.0",
+    "faster-whisper>=1.0.0",
+    "soundfile>=0.12.0",
+    "kokoro-onnx>=0.3.0",
+    "cryptography>=42.0",
+    "beautifulsoup4>=4.12.0",
+    "ddgs>=9.0.0",
+    "scrapling>=0.1.0",
+    "psutil>=5.9.0",
+    "rapidfuzz>=3.0.0",
+    "easyocr>=1.7",
+]
+
+[project.scripts]
+pm = "palimind.cli.main:app"
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+ocr = []
+hotkey = [
+    "pynput>=1.7.6",
+    "pyperclip>=1.9.0",
+    "requests>=2.32.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["palimind*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["__pycache__"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501", "B008", "UP007", "UP045", "E402", "E741", "B904", "B007"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+exclude = ["__pycache__"]
+files = ["palimind/api_server.py", "palimind/agents", "palimind/settings.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: tests that need a running backend or Ollama",
+]

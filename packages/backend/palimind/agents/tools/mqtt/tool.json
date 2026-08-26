@@ -1,0 +1,11 @@
+{
+  "name": "mqtt",
+  "version": "1.0.0",
+  "entrypoint": "tool.py",
+  "description": "Publish to or subscribe on an MQTT broker",
+  "permissions": [
+    "network"
+  ],
+  "timeout_s": 30,
+  "function": "mqtt"
+}

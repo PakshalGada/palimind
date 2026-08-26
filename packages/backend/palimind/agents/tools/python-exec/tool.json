@@ -1,0 +1,9 @@
+{
+  "name": "python-exec",
+  "version": "1.0.0",
+  "description": "Execute a short Python snippet with timeout and memory cap",
+  "entrypoint": "tool.py",
+  "permissions": [],
+  "timeout_s": 30,
+  "function": "run_python"
+}

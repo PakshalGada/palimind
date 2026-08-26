@@ -1,0 +1,11 @@
+{
+  "name": "knowledge-graph",
+  "version": "1.0.0",
+  "entrypoint": "tool.py",
+  "description": "Query the workspace document knowledge graph by entity or file",
+  "permissions": [
+    "fs-read"
+  ],
+  "timeout_s": 30,
+  "function": "query_graph"
+}

@@ -1,0 +1,11 @@
+{
+  "name": "rss-fetch",
+  "version": "1.0.0",
+  "entrypoint": "tool.py",
+  "description": "Fetch and summarize entries of an RSS/Atom feed",
+  "permissions": [
+    "network"
+  ],
+  "timeout_s": 30,
+  "function": "fetch_rss"
+}

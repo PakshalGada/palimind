@@ -1,0 +1,11 @@
+{
+  "name": "web-search",
+  "version": "1.0.0",
+  "description": "DuckDuckGo web search; returns ranked {title,url,snippet} results",
+  "entrypoint": "tool.py",
+  "permissions": [
+    "network"
+  ],
+  "timeout_s": 30,
+  "function": "web_search"
+}

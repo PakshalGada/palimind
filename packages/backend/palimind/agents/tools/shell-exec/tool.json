@@ -1,0 +1,11 @@
+{
+  "name": "shell-exec",
+  "version": "1.0.0",
+  "entrypoint": "tool.py",
+  "description": "Run a shell command inside the active workspace (jailed cwd, timeout enforced)",
+  "permissions": [
+    "shell"
+  ],
+  "timeout_s": 30,
+  "function": "run_shell"
+}

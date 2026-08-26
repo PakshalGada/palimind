@@ -1,0 +1,25 @@
+{
+  "name": "palimind-dev",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+    "ghcr.io/devcontainers/features/rust:1": {}
+  },
+  "postCreateCommand": "curl -fsSL https://ollama.com/install.sh | sh || true && pip install -e 'packages/backend[dev]' && (cd packages/frontend && npm install) && npm install",
+  "forwardPorts": [8000, 11434],
+  "portsAttributes": {
+    "8000": { "label": "Palimind API" },
+    "11434": { "label": "Ollama" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "rust-lang.rust-analyzer",
+        "tauri-apps.tauri-vscode",
+        "dbaeumer.vscode-eslint"
+      ]
+    }
+  }
+}

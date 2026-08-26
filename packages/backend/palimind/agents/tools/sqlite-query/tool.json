@@ -1,0 +1,11 @@
+{
+  "name": "sqlite-query",
+  "version": "1.0.0",
+  "entrypoint": "tool.py",
+  "description": "Run read-only SQL against the workspace index database",
+  "permissions": [
+    "fs-read"
+  ],
+  "timeout_s": 30,
+  "function": "sqlite_query"
+}

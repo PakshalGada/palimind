@@ -122,7 +122,7 @@ The Tauri shell spawns the Python backend as a child process, polls it until hea
 
 | Requirement | Version | Notes |
 |---|---|---|
-| Python | 3.10+ | Core backend |
+| Python | 3.12+ | Backend (packages/backend) |
 | Node.js | 18+ | Frontend build + Tauri CLI |
 | Rust | stable | Tauri 2 toolchain |
 | Ollama | latest | Local LLM inference engine |
@@ -145,13 +145,17 @@ Windows: download from [ollama.com/download](https://ollama.com/download).
 git clone <your-repo-url> palimind
 cd palimind
 
+# one-shot setup (Linux/macOS):
+./scripts/bootstrap.sh
+
+# or manually:
 python -m venv .venv
 source .venv/bin/activate
 # Windows: .venv\Scripts\activate
 
-pip install -e .
+pip install -e "packages/backend"
 # optional hotkey support:
-pip install -e ".[hotkey]"
+pip install -e "packages/backend[hotkey]"
 ```
 
 ### 3. Install Rust / Tauri prerequisites
@@ -203,7 +207,7 @@ pm ui --port 8001          # use a custom backend port
 You can also run the backend directly:
 
 ```bash
-python -m core.api_server --host 127.0.0.1 --port 8000
+python -m palimind.api_server --host 127.0.0.1 --port 8000
 ```
 
 ---
@@ -280,7 +284,7 @@ Agent runtime behavior is configurable via environment variables, including:
 |---|---|
 | Desktop shell | Tauri 2 (Rust), Tauri global shortcut plugin, xcap screen capture |
 | Frontend | React, TypeScript, Vite |
-| Backend | Python 3.10+, FastAPI, Uvicorn |
+| Backend | Python 3.12+, FastAPI, Uvicorn |
 | CLI | Typer, Rich |
 | AI / Inference | Ollama (Gemma, LLaVA, Moondream, nomic-embed-text) |
 | Embeddings | Sentence-Transformers, TurboVec (4-bit quantized) |
@@ -295,38 +299,42 @@ Agent runtime behavior is configurable via environment variables, including:
 
 ```
 .
-├── core/                  # Python backend
-│   ├── agents/            # PalIAgents runtime, registry, scheduler
-│   ├── cli/               # Typer CLI (commands, UI)
-│   ├── document/          # document engine, graph, stream
-│   ├── generative/        # summariser, responder
-│   ├── hwfit/             # hardware fitting / recommendations
-│   ├── ingestion/         # chunkers, parsers, OCR, crawler, video
-│   ├── llm/               # streaming + mixture-of-expert orchestration
-│   ├── storage/           # vector store, metadata, chat store
-│   ├── tools/             # agent tools (shell, python, web, sqlite, mqtt, ...)
-│   ├── api_server.py      # FastAPI application
-│   ├── api.py             # core query / index logic
-│   ├── config.py          # per-workspace configuration
-│   ├── memory.py          # hierarchical memory
-│   ├── opencode_*.py      # OpenCode proxy, router, auth integration
-│   └── ...
-├── frontend/              # React + TypeScript + Vite UI
-│   └── src/               # components, views, glance app
-├── src-tauri/             # Tauri 2 Rust shell
-├── scripts/               # helper scripts (e.g. hyprland-capture.sh)
-├── tests/                 # Python tests
-└── pyproject.toml         # Python package + CLI entry point
+├── apps/desktop/src-tauri/  # Tauri 2 Rust shell (backend spawn, hotkeys, tray)
+├── packages/
+│   ├── backend/             # Python package "palimind"
+│   │   ├── palimind/
+│   │   │   ├── agents/      # PalIAgents runtime, registry, scheduler
+│   │   │   │   └── tools/   # in-app agent tools (shell, python, web, sqlite, ...)
+│   │   │   ├── cli/         # Typer CLI (commands, UI)
+│   │   │   ├── document/    # document engine, graph, stream
+│   │   │   ├── generative/  # summariser, responder
+│   │   │   ├── hwfit/       # hardware fitting / recommendations
+│   │   │   ├── ingestion/   # chunkers, parsers, OCR, crawler, video
+│   │   │   ├── llm/         # streaming + mixture-of-expert orchestration
+│   │   │   ├── storage/     # vector store, metadata, chat store
+│   │   │   ├── api_server.py# FastAPI application
+│   │   │   └── ...
+│   │   ├── pyproject.toml   # Python package + CLI entry point
+│   │   └── tests/           # Python tests
+│   └── frontend/            # React + TypeScript + Vite UI (incl. glance app)
+├── skills/                  # developer skills (SKILL.md) for AI coding agents
+├── brand/                   # icons, fonts, design tokens
+├── docs/                    # onboarding, architecture, contributing
+├── docker/                  # backend image + compose (dev/server use)
+├── scripts/                 # dev.sh / bootstrap.sh / generate-icons.sh / helpers
+└── Makefile                 # make dev · build · test · lint · fmt · icons
 ```
 
 ---
 
 ## Contributing
 
+See `CONTRIBUTING.md` and the developer skills in `/skills`. Quick version:
+
 1. Fork the repository.
-2. Create a feature branch: `git checkout -b feature/your-feature`.
-3. Commit your changes: `git commit -m "feat: add feature"`.
-4. Push and open a pull request.
+2. Create a feature branch: `git checkout -b feat/your-feature`.
+3. Run the gates: `make lint && make test`.
+4. Commit with conventional commits (`feat: add feature`) and open a PR.
 
 Note: Core backend changes should degrade gracefully when Ollama is not running.
 
