@@ -30,8 +30,6 @@ It is built on a dual-layer architecture:
 
 The core retrieval-augmented generation (RAG) engine. Point it at any folder and index every document into a local vector store you can query in natural language.
 
-![PaliSpace UI](./assets/palispace.png)
-
 - **Multimodal indexing** - parses PDF, DOCX, PPTX, XLSX, images (OCR), Markdown, code, CSV, and video (with Whisper transcription).
 - **Local vector store** - TurboVec 4-bit quantized embeddings stored in SQLite. No external database.
 - **Hierarchical memory** - episodic conversation turns are embedded and retrieved for long-term context.
@@ -44,8 +42,6 @@ The core retrieval-augmented generation (RAG) engine. Point it at any folder and
 
 Captures your current screen, runs OCR plus an optional vision LLM, and streams a contextual AI response - all locally.
 
-![PaliVision / Glance UI](./assets/palivision.png)
-
 - **OCR extraction** - EasyOCR extracts all visible text from a screenshot.
 - **Vision LLM** - optionally calls LLaVA or Moondream for rich visual description.
 - **SSE streaming** - response tokens stream in real time.
@@ -55,8 +51,6 @@ Captures your current screen, runs OCR plus an optional vision LLM, and streams 
 ### PalIAgents - Agent System
 
 A runtime for creating and running specialized agents that can call tools to complete tasks. Agents can be created, run manually, invoked from chat with `@mention` syntax, and scheduled.
-
-![PalIAgents UI](./assets/paliagents.png)
 
 Available tools include:
 
@@ -73,28 +67,10 @@ Available tools include:
 
 Agents maintain their own memory, run history, and chat logs. Tool calls are audited and debug-traced by default.
 
-### Voice I/O
-
-- **Speech-to-text** with Faster-Whisper (`/api/voice/transcribe`)
-- **Text-to-speech** with Kokoro-ONNX (`/api/voice/synthesize`)
 
 ### OpenCode Integration
 
 PaliMind shares the OpenCode global credential store (`~/.local/share/opencode/auth.json`) so a key configured once is available to both the OpenCode CLI and PaliMind's provider proxy. The desktop launcher checks for authentication and opens an OpenCode login flow if needed.
-
-### Global Hotkeys
-
-Platform-aware global shortcuts registered by the Tauri shell:
-
-| Shortcut | Action |
-|---|---|
-| `Ctrl/Cmd/Super + Shift + Space` | Toggle the main PaliSpace window |
-| `Ctrl/Cmd/Super + Shift + V` | Open PaliGlance (screen capture popup) |
-
-### Customisation
-
-- **Themes** - switch the CLI accent color between teal, purple, amber, blue, and coral.
-- **Config** - every retrieval, embedding, and model setting is configurable per workspace in `config.json`.
 
 ---
 
@@ -122,7 +98,7 @@ The Tauri shell spawns the Python backend as a child process, polls it until hea
 
 | Requirement | Version | Notes |
 |---|---|---|
-| Python | 3.12+ | Backend (packages/backend) |
+| Python | 3.10+ | Core backend |
 | Node.js | 18+ | Frontend build + Tauri CLI |
 | Rust | stable | Tauri 2 toolchain |
 | Ollama | latest | Local LLM inference engine |
@@ -145,17 +121,13 @@ Windows: download from [ollama.com/download](https://ollama.com/download).
 git clone <your-repo-url> palimind
 cd palimind
 
-# one-shot setup (Linux/macOS):
-./scripts/bootstrap.sh
-
-# or manually:
 python -m venv .venv
 source .venv/bin/activate
 # Windows: .venv\Scripts\activate
 
-pip install -e "packages/backend"
+pip install -e .
 # optional hotkey support:
-pip install -e "packages/backend[hotkey]"
+pip install -e ".[hotkey]"
 ```
 
 ### 3. Install Rust / Tauri prerequisites
@@ -207,7 +179,7 @@ pm ui --port 8001          # use a custom backend port
 You can also run the backend directly:
 
 ```bash
-python -m palimind.api_server --host 127.0.0.1 --port 8000
+python -m core.api_server --host 127.0.0.1 --port 8000
 ```
 
 ---
@@ -229,20 +201,6 @@ pm add /path/to/project     # index or update files
 pm ask "What are the key findings in the Q3 report?" --path /path/to/project
 ```
 
-### Global hotkey listener
-
-```bash
-pm hotkey start                        # start listening
-pm hotkey start --hotkey alt+shift+c   # custom hotkey
-pm hotkey trigger                      # manual capture (for Wayland/Hyprland)
-pm hotkey stop                         # stop listening
-```
-
-### Configuration
-
-```bash
-pm config theme teal        # accent theme: teal, purple, amber, blue, coral
-```
 
 ---
 
@@ -250,20 +208,20 @@ pm config theme teal        # accent theme: teal, purple, amber, blue, coral
 
 Per-workspace settings live in `.palimind/config.json` (created in the directory where you run `pm init`). Key defaults:
 
-| Key | Default | Purpose |
-|---|---|---|
-| `embed_model` | `nomic-embed-text` | Embedding model |
-| `chat_model` | `gemma4:e2b` | Chat model |
-| `chunk_size` | `3000` | Document chunk size |
-| `chunk_overlap` | `500` | Chunk overlap |
-| `turbovec_bit_width` | `4` | Embedding compression (2 or 4) |
-| `summarise` | `true` | Generate per-file summaries |
-| `retrieval_limit` | `10` | Chunks returned per retrieval |
-| `context_token_budget` | `8000` | Max tokens in LLM context |
-| `rerank` | `true` | Rerank fused results |
-| `query_rewrite` | `true` | LLM query rewriting at retrieval |
-| `ollama_base_url` | `http://localhost:11434` | Ollama endpoint |
-| `extensions` | (many) | Indexed file extensions |
+| Key                    | Default                  | Purpose                          |
+| ---------------------- | ------------------------ | -------------------------------- |
+| `embed_model`          | `nomic-embed-text`       | Embedding model                  |
+| `chat_model`           | any                      | Chat model                       |
+| `chunk_size`           | `3000`                   | Document chunk size              |
+| `chunk_overlap`        | `500`                    | Chunk overlap                    |
+| `turbovec_bit_width`   | `4`                      | Embedding compression (2 or 4)   |
+| `summarise`            | `true`                   | Generate per-file summaries      |
+| `retrieval_limit`      | `10`                     | Chunks returned per retrieval    |
+| `context_token_budget` | `8000`                   | Max tokens in LLM context        |
+| `rerank`               | `true`                   | Rerank fused results             |
+| `query_rewrite`        | `true`                   | LLM query rewriting at retrieval |
+| `ollama_base_url`      | `http://localhost:11434` | Ollama endpoint                  |
+| `extensions`           | (many)                   | Indexed file extensions          |
 
 Agent runtime behavior is configurable via environment variables, including:
 
@@ -284,7 +242,7 @@ Agent runtime behavior is configurable via environment variables, including:
 |---|---|
 | Desktop shell | Tauri 2 (Rust), Tauri global shortcut plugin, xcap screen capture |
 | Frontend | React, TypeScript, Vite |
-| Backend | Python 3.12+, FastAPI, Uvicorn |
+| Backend | Python 3.10+, FastAPI, Uvicorn |
 | CLI | Typer, Rich |
 | AI / Inference | Ollama (Gemma, LLaVA, Moondream, nomic-embed-text) |
 | Embeddings | Sentence-Transformers, TurboVec (4-bit quantized) |
@@ -299,42 +257,38 @@ Agent runtime behavior is configurable via environment variables, including:
 
 ```
 .
-├── apps/desktop/src-tauri/  # Tauri 2 Rust shell (backend spawn, hotkeys, tray)
-├── packages/
-│   ├── backend/             # Python package "palimind"
-│   │   ├── palimind/
-│   │   │   ├── agents/      # PalIAgents runtime, registry, scheduler
-│   │   │   │   └── tools/   # in-app agent tools (shell, python, web, sqlite, ...)
-│   │   │   ├── cli/         # Typer CLI (commands, UI)
-│   │   │   ├── document/    # document engine, graph, stream
-│   │   │   ├── generative/  # summariser, responder
-│   │   │   ├── hwfit/       # hardware fitting / recommendations
-│   │   │   ├── ingestion/   # chunkers, parsers, OCR, crawler, video
-│   │   │   ├── llm/         # streaming + mixture-of-expert orchestration
-│   │   │   ├── storage/     # vector store, metadata, chat store
-│   │   │   ├── api_server.py# FastAPI application
-│   │   │   └── ...
-│   │   ├── pyproject.toml   # Python package + CLI entry point
-│   │   └── tests/           # Python tests
-│   └── frontend/            # React + TypeScript + Vite UI (incl. glance app)
-├── skills/                  # developer skills (SKILL.md) for AI coding agents
-├── brand/                   # icons, fonts, design tokens
-├── docs/                    # onboarding, architecture, contributing
-├── docker/                  # backend image + compose (dev/server use)
-├── scripts/                 # dev.sh / bootstrap.sh / generate-icons.sh / helpers
-└── Makefile                 # make dev · build · test · lint · fmt · icons
+├── core/                  # Python backend
+│   ├── agents/            # PalIAgents runtime, registry, scheduler
+│   ├── cli/               # Typer CLI (commands, UI)
+│   ├── document/          # document engine, graph, stream
+│   ├── generative/        # summariser, responder
+│   ├── hwfit/             # hardware fitting / recommendations
+│   ├── ingestion/         # chunkers, parsers, OCR, crawler, video
+│   ├── llm/               # streaming + mixture-of-expert orchestration
+│   ├── storage/           # vector store, metadata, chat store
+│   ├── tools/             # agent tools (shell, python, web, sqlite, mqtt, ...)
+│   ├── api_server.py      # FastAPI application
+│   ├── api.py             # core query / index logic
+│   ├── config.py          # per-workspace configuration
+│   ├── memory.py          # hierarchical memory
+│   ├── opencode_*.py      # OpenCode proxy, router, auth integration
+│   └── ...
+├── frontend/              # React + TypeScript + Vite UI
+│   └── src/               # components, views, glance app
+├── src-tauri/             # Tauri 2 Rust shell
+├── scripts/               # helper scripts (e.g. hyprland-capture.sh)
+├── tests/                 # Python tests
+└── pyproject.toml         # Python package + CLI entry point
 ```
 
 ---
 
 ## Contributing
 
-See `CONTRIBUTING.md` and the developer skills in `/skills`. Quick version:
-
 1. Fork the repository.
-2. Create a feature branch: `git checkout -b feat/your-feature`.
-3. Run the gates: `make lint && make test`.
-4. Commit with conventional commits (`feat: add feature`) and open a PR.
+2. Create a feature branch: `git checkout -b feature/your-feature`.
+3. Commit your changes: `git commit -m "feat: add feature"`.
+4. Push and open a pull request.
 
 Note: Core backend changes should degrade gracefully when Ollama is not running.
 

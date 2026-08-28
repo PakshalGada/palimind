@@ -551,7 +551,7 @@ export default function Sidebar() {
                 onClick={() => setSelectedAgentId(a.id)}
                 onContextMenu={(e) => showAgentMenu(e, a)}
               >
-                <AgentAvatar seed={a.color_seed || a.id + a.name} thinking={!!a.running} size={20} />
+                <AgentAvatar seed={a.color_seed || a.id + a.name} size={20} />
                 <span className="session-tab-name">{a.name}</span>
               </div>
             ))}

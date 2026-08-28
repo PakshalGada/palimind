@@ -244,6 +244,38 @@ def _field_models() -> tuple[str, str, str]:
     return chat, ollama, light
 
 
+def _resolve_available_model(
+    requested: str, field_default: str, ollama_url: str
+) -> tuple[str, str]:
+    """Return ``(model, fallback_note)``.
+
+    When *requested* is not served by Ollama or the OpenCode proxy, fall back
+    to the field default (if available) or the first available model, and
+    return a human-readable note explaining the switch. If availability can't
+    be determined, return the requested model unchanged with an empty note so
+    the run proceeds exactly as before.
+    """
+    from palimind.opencode_router import available_model_ids
+
+    requested = requested or "llama3"
+    try:
+        available = available_model_ids(ollama_url)
+    except Exception as e:
+        print(f"[agents] model availability check failed: {e}")
+        return requested, ""
+
+    if not available or requested in available:
+        return requested, ""
+
+    if field_default and field_default in available and field_default != requested:
+        return field_default, (
+            f"Model '{requested}' is not installed; using field default '{field_default}'."
+        )
+
+    first = sorted(available)[0]
+    return first, f"Model '{requested}' is not installed; using '{first}' instead."
+
+
 def _stable_agent_int(agent_id: str) -> int:
     try:
         return int(uuid.UUID(agent_id).int % (10**9))
@@ -331,7 +363,8 @@ async def run_with_definition(
     approval_provider = _make_approval_provider(ra, emit)
 
     chat_model, ollama_url, light_model = _field_models()
-    model = definition.model or chat_model or "llama3"
+    requested_model = definition.model or chat_model or "llama3"
+    model, fallback_note = _resolve_available_model(requested_model, chat_model, ollama_url)
     field_root = None
     from palimind.agents.registry import get_registry
 
@@ -390,6 +423,9 @@ async def run_with_definition(
         thread_emit("agent:completed", {"output": output, "status": status})
     finally:
         await unregister_running(definition.id)
+
+    if fallback_note and status == "success":
+        output = f"**Note:** {fallback_note}\n\n{output}"
 
     if status == "success":
         thread_emit("agent:completed", {"output": output, "status": status})

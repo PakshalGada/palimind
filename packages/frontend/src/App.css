@@ -51,6 +51,7 @@
     --wa-bubble-agent-text: var(--text-main);
     --wa-bubble-agent-time: rgba(244, 244, 245, 0.45);
     --wa-online: #a1a1aa;
+    --wa-grid-dot: rgba(20, 184, 166, 0.14);
 }
 .light-mode {
     --bg-color: #ffffff;
@@ -91,16 +92,17 @@
     --shadow-soft: 0 18px 45px rgba(0, 0, 0, 0.1);
     --shadow-menu: 0 24px 70px rgba(0, 0, 0, 0.18);
     color-scheme: light;
-    /* WhatsApp-style agent chat palette (light) */
-    --wa-chat-bg: #efeae2;
-    --wa-pattern-color: rgba(0, 0, 0, 0.05);
-    --wa-bubble-user-bg: #d9fdd3;
-    --wa-bubble-user-text: #111b21;
-    --wa-bubble-user-time: rgba(17, 27, 33, 0.5);
-    --wa-bubble-agent-bg: #ffffff;
-    --wa-bubble-agent-text: #111b21;
-    --wa-bubble-agent-time: rgba(17, 27, 33, 0.45);
-    --wa-online: #25d366;
+    /* Monochrome agent-chat palette (black & white theme, light) */
+    --wa-chat-bg: #ffffff;
+    --wa-pattern-color: transparent;
+    --wa-bubble-user-bg: #09090b;
+    --wa-bubble-user-text: #f4f4f5;
+    --wa-bubble-user-time: rgba(244, 244, 245, 0.55);
+    --wa-bubble-agent-bg: transparent;
+    --wa-bubble-agent-text: var(--text-main);
+    --wa-bubble-agent-time: rgba(9, 9, 11, 0.45);
+    --wa-online: #a1a1aa;
+    --wa-grid-dot: rgba(20, 184, 166, 0.2);
 }
 * {
     box-sizing: border-box;
@@ -3537,6 +3539,7 @@ input:checked + .toggle-slider .llm-mode {
   max-width: 180px;
 }
 .agent-chat-messages {
+  position: relative;
   flex: 1;
   overflow-y: auto;
   padding: 22px 26px;
@@ -3544,6 +3547,34 @@ input:checked + .toggle-slider .llm-mode {
   flex-direction: column;
   gap: 6px;
   background-color: var(--wa-chat-bg);
+}
+/* Animated dotted grid — a slow hue drift across a single colour family,
+   animating only inside the chat area (never outside it). */
+.agent-chat-messages::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, var(--wa-grid-dot) 1.2px, transparent 1.7px);
+  background-size: 26px 26px;
+  animation: agent-grid-hue 16s ease-in-out infinite;
+}
+.agent-chat-messages > * {
+  position: relative;
+  z-index: 1;
+}
+@keyframes agent-grid-hue {
+  0%,
+  100% {
+    filter: hue-rotate(0deg);
+  }
+  33% {
+    filter: hue-rotate(22deg);
+  }
+  66% {
+    filter: hue-rotate(-14deg);
+  }
 }
 .agent-chat-empty {
   margin: auto;
@@ -3669,25 +3700,20 @@ input:checked + .toggle-slider .llm-mode {
   align-self: flex-start;
 }
 .agent-thinking-text {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  font-style: italic;
   color: var(--text-muted);
-}
-.agent-thinking-dots {
-  display: inline-flex;
-  gap: 3px;
-}
-.agent-thinking-dots i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--text-muted);
   animation: agent-dot-bounce 1.2s ease-in-out infinite;
 }
-.agent-thinking-dots i:nth-child(2) { animation-delay: 0.15s; }
-.agent-thinking-dots i:nth-child(3) { animation-delay: 0.3s; }
 @keyframes agent-dot-bounce {
-  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
-  30% { opacity: 1; transform: translateY(-3px); }
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+  }
+  30% {
+    opacity: 1;
+  }
 }
 .agent-msg-error {
   color: var(--danger-strong);

@@ -180,3 +180,34 @@ def resolve_model_url(model_id: str, default_ollama_url: str) -> str:
     if model_id and model_id in opencode_model_ids():
         return PROXY_URL
     return default_ollama_url
+
+
+def fetch_ollama_model_ids(ollama_url: str, timeout: int = 8) -> set[str]:
+    """Return the model ids served by an Ollama-compatible endpoint.
+
+    Tries the configured URL first, then falls back to the local Ollama
+    instance (``http://localhost:11434``) when the configured URL is remote
+    or unreachable.
+    """
+    base = (ollama_url or "http://localhost:11434").rstrip("/")
+    candidates = [base]
+    if "localhost" not in base and "127.0.0.1" not in base:
+        candidates.append("http://localhost:11434")
+
+    ids: set[str] = set()
+    for url in candidates:
+        data = _get_json(f"{url}/api/tags", timeout=timeout)
+        if not data:
+            continue
+        for m in data.get("models", []) or []:
+            mid = m.get("name") or m.get("model", "")
+            if mid:
+                ids.add(mid)
+        if ids:
+            break
+    return ids
+
+
+def available_model_ids(ollama_url: str) -> set[str]:
+    """Every model id the app can serve: local Ollama + OpenCode proxy."""
+    return fetch_ollama_model_ids(ollama_url) | opencode_model_ids()

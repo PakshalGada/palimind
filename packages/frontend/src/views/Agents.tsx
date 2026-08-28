@@ -788,7 +788,7 @@ function ChatMessageItem({
   }
   return (
     <div className="agent-msg agent">
-      <AgentAvatar seed={agentSeed} size={30} />
+      <AgentAvatar seed={agentSeed} thinking={msg.pending} size={30} />
       <div className="agent-msg-body">
         {msg.steps.length > 0 && (
           <details className="agent-msg-chain">
@@ -799,10 +799,7 @@ function ChatMessageItem({
           </details>
         )}
         {msg.pending && !msg.content && !msg.error && (
-          <div className="agent-thinking">
-            <span className="agent-thinking-text">working</span>
-            <span className="agent-thinking-dots"><i /><i /><i /></span>
-          </div>
+          <span className="agent-thinking-text">working</span>
         )}
         {msg.content && (
           <div className="agent-msg-bubble agent">
