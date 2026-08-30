@@ -1,0 +1,542 @@
+/* ==========================================================================
+   PaliMind — GitHub Pages site
+   SpaceX-inspired industrial style: void black, spectral white.
+   Typeface: Universal Sans (Family Type, by Briton Smith) — Text and Display
+   cuts via @font-face (WOFF2), weights 400 + 550, normal + italic, with Inter
+   and system fonts as fallback. Monospace/code uses IBM Plex Mono.
+   ========================================================================== */
+
+@font-face {
+  font-family: "Universal Sans";
+  src: url("assets/fonts/universal-sans/UniversalSans-Text.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Universal Sans";
+  src: url("assets/fonts/universal-sans/UniversalSans-Text-Italic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Universal Sans";
+  src: url("assets/fonts/universal-sans/UniversalSans-Text-Medium.woff2") format("woff2");
+  font-weight: 550;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Universal Sans";
+  src: url("assets/fonts/universal-sans/UniversalSans-Text-MediumItalic.woff2") format("woff2");
+  font-weight: 550;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Universal Sans Display";
+  src: url("assets/fonts/universal-sans/UniversalSans-Display.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Universal Sans Display";
+  src: url("assets/fonts/universal-sans/UniversalSans-Display-Italic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Universal Sans Display";
+  src: url("assets/fonts/universal-sans/UniversalSans-Display-Medium.woff2") format("woff2");
+  font-weight: 550;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Universal Sans Display";
+  src: url("assets/fonts/universal-sans/UniversalSans-Display-MediumItalic.woff2") format("woff2");
+  font-weight: 550;
+  font-style: italic;
+  font-display: swap;
+}
+
+:root {
+  --bg: #000000;
+  --fg: #f0f0fa;
+  --muted: #a0a0ab;
+  --dim: #6b6b76;
+  --line: rgba(240, 240, 250, 0.22);
+  --line-soft: rgba(240, 240, 250, 0.12);
+  --ghost: rgba(240, 240, 250, 0.1);
+  --ghost-border: rgba(240, 240, 250, 0.35);
+
+  --font-body: "Universal Sans", "Inter", ui-sans-serif, system-ui,
+    -apple-system, "Segoe UI", Roboto, "Open Sans", Helvetica, Arial, sans-serif;
+  --font-display: "Universal Sans Display", "Universal Sans", "Inter",
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Open Sans", Helvetica, Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", "JetBrains Mono",
+    Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+img { max-width: 100%; display: block; }
+
+a { color: inherit; }
+
+::selection { background: var(--fg); color: var(--bg); }
+
+/* ---------- Typography helpers ---------- */
+.upper {
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+/* ---------- Nav ---------- */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.9rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.brand {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+  font-size: 1.05rem;
+  text-decoration: none;
+  color: var(--fg);
+}
+
+.nav-links { display: flex; align-items: center; gap: 1.5rem; }
+
+.nav-links a {
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  transition: color 0.15s;
+}
+.nav-links a:hover { color: var(--fg); }
+
+.nav-links a.active {
+  color: var(--fg);
+  border-bottom: 1px solid var(--fg);
+  padding-bottom: 2px;
+}
+
+/* ---------- Hero (home) ---------- */
+.hero {
+  min-height: 72vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 5rem 1.5rem 4rem;
+}
+
+.hero-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.35em;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 1.2rem;
+}
+
+.hero-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(3rem, 9vw, 7rem);
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.hero-tag {
+  margin-top: 1.2rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(1.2rem, 2.6vw, 1.6rem);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg);
+}
+
+.hero-sub {
+  max-width: 620px;
+  margin: 1.4rem auto 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.hero-cta {
+  margin-top: 2.4rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ---------- Buttons (ghost) ---------- */
+.btn {
+  display: inline-block;
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--fg);
+  background: var(--ghost);
+  border: 1px solid var(--ghost-border);
+  border-radius: 4px;
+  padding: 0.9rem 2rem;
+  transition: background 0.15s, color 0.15s;
+}
+.btn:hover { background: var(--fg); color: var(--bg); }
+
+/* ---------- Stats strip ---------- */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.stat {
+  padding: 2.4rem 1rem;
+  text-align: center;
+  border-right: 1px solid var(--line-soft);
+}
+.stat:last-child { border-right: none; }
+
+.stat-n {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 3rem;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.stat-l {
+  display: block;
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+
+/* ---------- Section scaffolding ---------- */
+.section-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.container { max-width: 1200px; margin: 0 auto; padding: 4rem 1.5rem; }
+
+/* ---------- Home: feature index cards ---------- */
+.index-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  background: var(--line-soft);
+  border: 1px solid var(--line-soft);
+}
+
+.index-card {
+  display: block;
+  background: var(--bg);
+  padding: 2.4rem;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.index-card:hover { background: #0d0d12; }
+
+.index-card .num {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  color: var(--dim);
+  letter-spacing: 0.2em;
+}
+
+.index-card h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0.6rem 0 0.8rem;
+}
+
+.index-card p { color: var(--muted); font-size: 0.95rem; }
+.index-card .go {
+  display: inline-block;
+  margin-top: 1.2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-bottom: 1px solid var(--fg);
+  padding-bottom: 2px;
+}
+
+/* ---------- Feature pages ---------- */
+.page-hero {
+  text-align: center;
+  padding: 5.5rem 1.5rem 3rem;
+}
+
+.page-hero .kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+
+.page-hero h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2.6rem, 7vw, 4.5rem);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.page-hero .lede {
+  max-width: 640px;
+  margin: 1.4rem auto 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.shot {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+.shot img {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  background: #0a0a0f;
+}
+
+.shot figcaption {
+  margin-top: 0.8rem;
+  text-align: center;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.72rem;
+}
+
+/* ---------- Detail lists ---------- */
+.detail { max-width: 860px; margin: 0 auto; padding: 4rem 1.5rem; }
+
+.detail h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 1.4rem;
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 0.8rem;
+}
+
+.detail p { color: var(--muted); margin-bottom: 1.2rem; }
+
+.feature-list { list-style: none; }
+.feature-list li {
+  padding: 0.7rem 0 0.7rem 1.6rem;
+  position: relative;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--muted);
+}
+.feature-list li:last-child { border-bottom: none; }
+.feature-list li::before {
+  content: "//";
+  position: absolute;
+  left: 0;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+.feature-list b { color: var(--fg); font-weight: 700; }
+
+/* ---------- Included cards ---------- */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+.card {
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  padding: 1.8rem;
+  background: var(--ghost);
+  transition: border-color 0.15s, background 0.15s;
+}
+.card:hover { border-color: var(--ghost-border); background: rgba(240, 240, 250, 0.14); }
+.card h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.6rem;
+}
+.card p { color: var(--muted); font-size: 0.92rem; }
+
+/* ---------- Architecture ---------- */
+.arch-diagram {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.8;
+  color: var(--fg);
+  background: #0a0a0f;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2rem;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.arch-note { margin-top: 1.4rem; color: var(--muted); text-align: center; font-size: 0.95rem; }
+
+/* ---------- Install ---------- */
+.install-intro { color: var(--muted); text-align: center; margin-bottom: 1.2rem; }
+
+.code-block {
+  background: #0a0a0f;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1.6rem 2rem;
+  margin: 1rem 0 2.2rem;
+  overflow-x: auto;
+}
+
+.code-block code {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.8;
+  color: var(--fg);
+  white-space: pre;
+}
+
+/* ---------- Footer ---------- */
+.footer { border-top: 1px solid var(--line-soft); }
+.footer-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.footer-brand {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+}
+
+.footer-note { color: var(--dim); font-size: 0.85rem; max-width: 460px; }
+
+.footer-links { display: flex; gap: 1.4rem; flex-wrap: wrap; }
+.footer-links a {
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.footer-links a:hover { color: var(--fg); }
+
+/* ---------- Prev / next pagination ---------- */
+.pager {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 4rem;
+  border-top: 1px solid var(--line-soft);
+}
+.pager a {
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  transition: color 0.15s;
+}
+.pager a:hover { color: var(--fg); }
+.pager .next { margin-left: auto; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+  .index-grid { grid-template-columns: 1fr; }
+  .card-grid { grid-template-columns: 1fr 1fr; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .stat { border-bottom: 1px solid var(--line-soft); }
+}
+
+@media (max-width: 600px) {
+  .card-grid { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: 1fr; }
+  .nav-links { gap: 1rem; }
+  .nav-links a { font-size: 0.7rem; }
+  .index-card { padding: 1.6rem; }
+}

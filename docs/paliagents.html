@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PalIAgents — PaliMind Agent System</title>
+  <meta name="description" content="PalIAgents is PaliMind's agent runtime: create agents that call 10+ tools — shell, Python, web, arxiv, RSS, SQLite, MQTT and more — run manually, from chat, or on a schedule." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="paliagents">
+
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html">PaliMind</a>
+      <nav class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="palispace.html">PaliSpace</a>
+        <a href="paliagents.html">PalIAgents</a>
+        <a href="desktop.html">Desktop</a>
+        <a href="included.html">Included</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="install.html">Install</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="page-hero">
+      <p class="kicker">PalIAgents &middot; 02</p>
+      <h1>Agent System</h1>
+      <p class="lede">
+        A runtime for creating and running specialized agents that call tools to complete tasks —
+        run manually, invoked from chat with <code>@mention</code>, or scheduled.
+      </p>
+    </section>
+
+    <figure class="shot">
+      <img src="assets/paliagents.png" alt="PalIAgents agent system screenshot" />
+      <figcaption>PalIAgents — run agents with tools and memory</figcaption>
+    </figure>
+
+    <section class="detail">
+      <h2>Capabilities</h2>
+      <ul class="feature-list">
+        <li><b>10+ built-in tools</b> — shell, Python, web browse &amp; search, arxiv, RSS, CSV, SQLite, knowledge graph and MQTT.</li>
+        <li><b>Agent memory</b> — per-agent memory, run history and chat logs.</li>
+        <li><b>Scheduler</b> — cron-style scheduled agent runs.</li>
+        <li><b>Audited</b> — every tool call is audited and debug-traced by default.</li>
+        <li><b>Sandboxed execution</b> — timeouts and memory caps for shell and Python tools.</li>
+        <li><b>Chat integration</b> — invoke agents inline from conversation with <code>@mention</code> syntax.</li>
+      </ul>
+    </section>
+
+    <nav class="pager">
+      <a href="palispace.html">&larr; PaliSpace</a>
+      <a class="next" href="desktop.html">Desktop &rarr;</a>
+    </nav>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <span class="footer-brand">PaliMind</span>
+      <p class="footer-note">
+        Open-source &middot; Local-first &middot; MIT licensed. All inference runs on your own machine — your data never leaves it.
+      </p>
+      <nav class="footer-links">
+        <a href="palispace.html">PaliSpace</a>
+        <a href="desktop.html">Desktop</a>
+        <a href="install.html">Install</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

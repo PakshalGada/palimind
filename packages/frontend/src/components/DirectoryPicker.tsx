@@ -93,7 +93,7 @@ export default function DirectoryPicker() {
                 color: 'var(--text-main)',
                 padding: '8px 12px',
                 borderRadius: 8,
-                fontFamily: '"JetBrains Mono", monospace',
+                fontFamily: "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
                 fontSize: '0.85rem',
                 outline: 'none',
               }}

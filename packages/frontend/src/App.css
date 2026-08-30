@@ -1,3 +1,87 @@
+/* ==========================================================================
+   Typography — Universal Sans (xAI/Grok-style) via @font-face + Inter fallback.
+   Drop licensed WOFF2 files into public/fonts/ (see public/fonts/README.md);
+   until then the stack degrades to Inter automatically.
+   ========================================================================== */
+@font-face {
+    font-family: "Universal Sans";
+    src: url("/fonts/UniversalSans-Text-400.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Universal Sans";
+    src: url("/fonts/UniversalSans-Text-400Italic.woff2") format("woff2");
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Universal Sans";
+    src: url("/fonts/UniversalSans-Text-550.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 550;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Universal Sans";
+    src: url("/fonts/UniversalSans-Text-550Italic.woff2") format("woff2");
+    font-style: italic;
+    font-weight: 550;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Universal Sans Display";
+    src: url("/fonts/UniversalSans-Display-400.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Universal Sans Display";
+    src: url("/fonts/UniversalSans-Display-550.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 550;
+    font-display: swap;
+}
+
+:root {
+    --font-sans:
+        "Universal Sans",
+        "Inter",
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Roboto,
+        "Open Sans",
+        sans-serif;
+    --font-display:
+        "Universal Sans Display",
+        "Universal Sans",
+        "Inter",
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Roboto,
+        sans-serif;
+    --font-mono:
+        "IBM Plex Mono",
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Consolas,
+        "Liberation Mono",
+        monospace;
+    /* Grok-style type scale */
+    --text-body: 16px;
+    --text-ui: 14px;
+    --text-meta: 12px;
+    --text-heading: 20px;
+    --weight-regular: 400;
+    --weight-medium: 550;
+}
+
 :root {
     --bg-color: #09090b;
     --panel-bg: #121215;
@@ -110,11 +194,7 @@
     scrollbar-color: var(--border-color) var(--panel-bg);
 }
 body {
-    font-family:
-        "Inter",
-        -apple-system,
-        BlinkMacSystemFont,
-        sans-serif;
+    font-family: var(--font-sans);
     background-color: var(--bg-color);
     color: var(--text-main);
     height: 100vh;
@@ -186,11 +266,7 @@ body {
 .sessions-sidebar-header h3,
 .explorer-header h3 {
     font-size: 0.68rem;
-    font-family:
-        "Inter",
-        -apple-system,
-        BlinkMacSystemFont,
-        sans-serif;
+    font-family: var(--font-sans);
     text-transform: uppercase;
     letter-spacing: 0.8px;
     color: var(--text-muted);
@@ -226,7 +302,6 @@ body {
         transform 0.15s ease;
 }
 .icon-btn:hover {
-    transform: translateY(-2px);
     color: var(--text-main);
 }
 .fields-list {
@@ -266,11 +341,7 @@ body {
     border-radius: var(--radius-sm);
     transition: all 0.12s;
     min-width: 0;
-    font-family:
-        "Inter",
-        -apple-system,
-        BlinkMacSystemFont,
-        sans-serif;
+    font-family: var(--font-sans);
     font-weight: 500;
     letter-spacing: 0;
 }
@@ -369,7 +440,6 @@ body {
 }
 .welcome-feature-card:hover {
     border-color: var(--text-main);
-    transform: translateY(-2px);
     box-shadow: var(--shadow-md);
 }
 .welcome-feature-icon {
@@ -411,7 +481,6 @@ body {
 .primary-btn:hover {
     background: var(--primary-hover);
     box-shadow: var(--shadow-lg);
-    transform: translateY(-1px);
 }
 .chat-interface {
     flex: 1;
@@ -430,7 +499,7 @@ body {
     padding: 4px 10px;
     border: 1px solid var(--border-color);
     border-radius: 20px;
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
     letter-spacing: 0.3px;
     max-width: min(620px, 100%);
     overflow: hidden;
@@ -444,11 +513,7 @@ body {
     max-width: min(680px, calc(100vw - 360px));
     padding: 8px 12px;
     border-radius: var(--radius-lg);
-    font-family:
-        "Inter",
-        -apple-system,
-        BlinkMacSystemFont,
-        sans-serif;
+    font-family: var(--font-sans);
     background: linear-gradient(
         180deg,
         color-mix(in srgb, var(--surface-raised) 92%, var(--text-main) 8%),
@@ -472,7 +537,7 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
     font-size: 0.68rem;
     line-height: 1.2;
     color: var(--text-muted);
@@ -489,9 +554,6 @@ button {
     transition:
         background-color 0.2s,
         transform 0.1s;
-}
-button:hover {
-    transform: translateY(-2px);
 }
 button:active {
     transform: translateY(0) scale(0.97);
@@ -512,9 +574,6 @@ select {
     font-size: 0.78rem;
     padding: 7px 12px;
     border-radius: var(--radius-sm);
-}
-.action-btn:hover {
-    transform: translateY(-2px);
 }
 .status-text {
     font-size: 0.75rem;
@@ -625,7 +684,7 @@ select {
     box-shadow: 0 1px 0 var(--border-subtle) inset;
 }
 .message-content code {
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
     background: var(--input-bg);
     padding: 2px 6px;
     border-radius: 4px;
@@ -710,7 +769,7 @@ select {
     border-bottom: 1px solid var(--border-color);
 }
 .code-box-lang {
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
     font-size: 0.75rem;
     color: var(--text-muted);
     text-transform: uppercase;
@@ -745,7 +804,7 @@ select {
     border-radius: 0 !important;
 }
 .message-content pre code {
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
     font-size: 0.88rem;
     line-height: 1.5;
     color: var(--text-main);
@@ -755,7 +814,7 @@ select {
     display: block;
 }
 .inline-code {
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
     background: var(--input-bg);
     color: var(--text-main);
     padding: 2px 6px;
@@ -1019,9 +1078,6 @@ select {
     height: 36px;
     min-width: 36px;
 }
-.send-btn:hover:not(:disabled) {
-    transform: translateY(-2px);
-}
 .send-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -1097,7 +1153,7 @@ select {
 .thinking-text {
     font-size: 0.8rem;
     color: var(--text-muted);
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
     font-weight: 500;
 }
 .sessions-sidebar-container {
@@ -1444,7 +1500,7 @@ select {
 }
 .progress-bar-label {
     font-size: 0.75rem;
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
     color: var(--text-main);
     font-weight: 500;
 }
@@ -1649,7 +1705,6 @@ select {
 #settings-modal .settings-actions .action-btn:hover,
 #settings-modal .action-btn.primary:hover,
 #settings-modal .action-btn.ghost:hover {
-    transform: translateY(-2px);
     color: var(--text-main);
 }
 #settings-modal .settings-input,
@@ -1793,7 +1848,7 @@ select {
     padding: 5px 12px;
     border-radius: 999px;
     font-size: 0.72rem;
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
@@ -1889,7 +1944,7 @@ select {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
     min-width: 0;
 }
 .model-list-item-meta {
@@ -1923,7 +1978,7 @@ select {
 .model-empty-hint {
     font-size: 0.75rem;
     color: var(--text-muted);
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
 }
 .model-retry-btn {
     margin-top: 6px;
@@ -2196,7 +2251,7 @@ input:disabled {
 }
 .hw-vram {
     color: var(--text-main);
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
 }
 .ms-rec-header {
     padding: 10px 14px 4px;
@@ -2258,7 +2313,7 @@ input:disabled {
     padding: 3px 8px;
     border-radius: 4px;
     font-size: 0.72rem;
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
     cursor: pointer;
     opacity: 0;
     transition:
@@ -2365,7 +2420,7 @@ input:disabled {
 .moe-card-status-text {
     font-size: 0.72rem;
     color: var(--text-muted);
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
 }
 .moe-agents-list {
     display: flex;
@@ -2441,7 +2496,7 @@ input:disabled {
 .moe-step-line {
     font-size: 0.65rem;
     color: var(--text-muted);
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
     line-height: 1.35;
     word-break: break-word;
 }
@@ -2765,7 +2820,7 @@ input:checked + .toggle-slider .llm-mode {
 .moe-popup-model-size {
     font-size: 0.65rem;
     color: var(--text-muted);
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
 }
 
 .context-menu {
@@ -2851,7 +2906,6 @@ input:checked + .toggle-slider .llm-mode {
     color: var(--text-main);
 }
 .confirm-actions .action-btn.primary:hover {
-    transform: translateY(-2px);
     color: var(--text-main);
 }
 .confirm-actions .action-btn.danger-btn {
@@ -3128,7 +3182,7 @@ input:checked + .toggle-slider .llm-mode {
     justify-content: center;
     gap: 8px;
     padding: 12px;
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
     color: var(--text-muted);
 }
 
@@ -3212,7 +3266,7 @@ input:checked + .toggle-slider .llm-mode {
     gap: 5px;
     font-size: 0.72rem;
     font-weight: 500;
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
     color: var(--text-muted);
     background: var(--accent-soft);
     border: 1px solid var(--border-subtle);
@@ -3247,7 +3301,7 @@ input:checked + .toggle-slider .llm-mode {
     padding: 6px 4px;
     font-size: 0.75rem;
     color: var(--text-muted);
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-mono);
 }
 
 /* Remove animations and transitions */
@@ -3544,12 +3598,14 @@ input:checked + .toggle-slider .llm-mode {
   50% { opacity: 0.35; }
 }
 .agent-chat-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   font-size: 0.72rem;
   color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
+  min-width: 0;
 }
 .agent-chat-messages {
   position: relative;
@@ -3799,9 +3855,6 @@ input:checked + .toggle-slider .llm-mode {
   background: var(--primary-color);
   color: var(--primary-text);
 }
-.agent-chat-send:hover:not(:disabled) {
-  transform: translateY(-2px);
-}
 .agent-chat-send:disabled {
   opacity: 0.35;
   cursor: default;
@@ -3809,9 +3862,6 @@ input:checked + .toggle-slider .llm-mode {
 .agent-chat-stop {
   background: var(--danger-soft);
   color: var(--danger-strong);
-}
-.agent-chat-stop:hover {
-  transform: translateY(-2px);
 }
 
 /* circular agent icon buttons */
@@ -3832,12 +3882,6 @@ input:checked + .toggle-slider .llm-mode {
   transition:
     color 0.15s,
     transform 0.15s;
-}
-.sidebar-agents-content .icon-btn:hover:not(:disabled),
-.agent-chat-header .icon-btn:hover,
-.agent-config-modal .icon-btn:hover,
-.agent-memory-entry .icon-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
 }
 .sidebar-agents-content .icon-btn:disabled,
 .agent-memory-entry .icon-btn:disabled {
@@ -3898,13 +3942,24 @@ input:checked + .toggle-slider .llm-mode {
 .agent-config-modal {
   display: flex;
   flex-direction: column;
-  width: min(640px, 92vw);
-  max-height: 84vh;
+  width: min(720px, 94vw);
+  max-height: 86vh;
   overflow: hidden;
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
+  animation: agent-modal-in 0.18s ease;
+}
+@keyframes agent-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 .agent-config-header {
   display: flex;
@@ -3928,18 +3983,22 @@ input:checked + .toggle-slider .llm-mode {
 }
 .agent-config-header h2 {
   margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .agent-config-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
   font-size: 0.72rem;
   color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 0;
 }
 .agent-config-section {
   display: flex;
@@ -4127,17 +4186,16 @@ input:checked + .toggle-slider .llm-mode {
 .agent-form-actions .danger-btn {
   margin-left: auto;
 }
-/* Agent config buttons — neutral PaliSpace style, no white accent */
-.agent-config-modal .action-btn.primary {
-  background: var(--bg-active);
-  border-color: var(--border-color);
-  color: var(--text-main);
-}
-.agent-config-modal .action-btn.primary:hover,
+/* Agent config buttons — primary CTA follows the app-wide white accent */
 .agent-config-modal .action-btn.ghost:hover {
   background: var(--bg-hover);
   color: var(--text-main);
   border-color: var(--border-color);
+}
+.agent-config-modal .action-btn.primary:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
 }
 .agent-form-msg {
   font-size: 0.75rem;
@@ -4188,8 +4246,13 @@ input:checked + .toggle-slider .llm-mode {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   color: var(--text-main);
-  font-size: 0.85rem;
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
   cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.model-picker-btn:hover {
+  border-color: var(--text-muted);
 }
 .model-picker-btn svg:last-child {
   margin-left: auto;
@@ -4290,7 +4353,7 @@ input:checked + .toggle-slider .llm-mode {
 }
 .agent-tool-name {
   color: var(--text-main);
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
 }
 .agent-tool-desc {
@@ -4371,4 +4434,572 @@ input:checked + .toggle-slider .llm-mode {
   gap: 12px;
   font-size: 0.78rem;
   color: var(--text-secondary);
+}
+
+/* ── Agent config — v2 refresh (Universal Sans typography + controls) ── */
+
+/* tabs with icons and counts */
+.agent-tabs {
+  gap: 4px;
+  padding: 10px 18px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.agent-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px 10px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  font-weight: var(--weight-regular);
+  transition: color 0.15s, border-color 0.15s;
+}
+.agent-tab svg {
+  opacity: 0.75;
+}
+.agent-tab:hover {
+  color: var(--text-main);
+  background: transparent;
+}
+.agent-tab.active {
+  color: var(--text-main);
+  background: transparent;
+  border-bottom-color: var(--primary-color);
+  font-weight: var(--weight-medium);
+}
+.agent-tab.active svg {
+  opacity: 1;
+}
+.tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--text-secondary);
+  font-size: 0.66rem;
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+.agent-tab.active .tab-count {
+  background: var(--primary-color);
+  color: var(--primary-text);
+}
+
+/* shared chip */
+.cfg-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--panel-bg-2);
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  font-weight: var(--weight-regular);
+  white-space: nowrap;
+}
+.cfg-chip.chip-off {
+  color: var(--danger-strong);
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+/* form typography */
+.agent-field {
+  font-size: 0.78rem;
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+}
+.agent-field-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+}
+.agent-field-hint {
+  font-size: var(--text-meta);
+  color: var(--text-muted);
+}
+.agent-form input:not([type="checkbox"]),
+.agent-form select,
+.agent-form textarea {
+  font-size: var(--text-ui);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.agent-form input:focus,
+.agent-form select:focus,
+.agent-form textarea:focus {
+  border-color: var(--text-muted);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* segmented control */
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+}
+.segment-btn {
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  font-weight: var(--weight-regular);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.segment-btn:hover {
+  color: var(--text-main);
+  background: var(--bg-hover);
+}
+.segment-btn.active {
+  background: var(--bg-active);
+  color: var(--text-main);
+  font-weight: var(--weight-medium);
+  box-shadow: var(--shadow-sm);
+}
+
+/* temperature range */
+.range-value {
+  display: inline-block;
+  min-width: 34px;
+  padding: 1px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--panel-bg-2);
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-align: center;
+  text-transform: none;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.range-input {
+  width: 100%;
+  height: 28px;
+  margin: 2px 0 0;
+  background: transparent;
+  accent-color: var(--text-main);
+  cursor: pointer;
+}
+
+/* toggle rows */
+.toggle-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 13px;
+  background: var(--panel-bg-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.toggle-row:hover {
+  border-color: var(--border-color);
+}
+.toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  margin-right: auto;
+}
+.toggle-title {
+  font-size: var(--text-ui);
+  font-weight: var(--weight-medium);
+  color: var(--text-main);
+}
+.toggle-desc {
+  font-size: var(--text-meta);
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+.toggle-row input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--bg-active);
+  border: 1px solid var(--border-color);
+  transition: background 0.18s, border-color 0.18s;
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  transition: transform 0.18s, background 0.18s;
+}
+.toggle-row input:checked + .switch {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+}
+.toggle-row input:checked + .switch::after {
+  transform: translateX(14px);
+  background: var(--primary-text);
+}
+.toggle-row input:focus-visible + .switch {
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* context field chips */
+.context-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.context-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  font-weight: var(--weight-regular);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.context-chip svg {
+  display: none;
+}
+.context-chip:hover {
+  border-color: var(--text-muted);
+  color: var(--text-main);
+}
+.context-chip.on {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: var(--primary-text);
+  font-weight: var(--weight-medium);
+}
+.context-chip.on svg {
+  display: inline-block;
+}
+
+/* tools tab */
+.tools-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tools-search {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.tools-search:focus {
+  border-color: var(--text-muted);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.tools-search::placeholder {
+  color: var(--text-muted);
+}
+.tools-count {
+  padding: 3px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tool-clear {
+  padding: 4px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-meta);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tool-clear:hover:not(:disabled) {
+  color: var(--text-main);
+  border-color: var(--text-muted);
+}
+.tool-clear:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.agent-tool-tier-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.agent-tool-tier h4 {
+  margin: 0;
+}
+.agent-tool-tier-sub {
+  font-size: var(--text-meta);
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.agent-tools-tier-empty {
+  padding: 10px 12px;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: var(--text-meta);
+  text-align: center;
+}
+.agent-tool-check {
+  position: relative;
+}
+.agent-tool-check.selected {
+  border-color: var(--text-main);
+  background: var(--accent-soft);
+}
+.agent-tool-check.selected .agent-tool-name {
+  font-weight: var(--weight-medium);
+}
+
+/* empty states inside tabs */
+.agent-tab-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 44px 20px;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+.agent-tab-empty-title {
+  font-size: var(--text-ui);
+  font-weight: var(--weight-medium);
+  color: var(--text-main);
+}
+.agent-tab-empty-sub {
+  font-size: var(--text-meta);
+  color: var(--text-muted);
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+/* memory pager */
+.agent-memory-pager {
+  gap: 14px;
+  padding-top: 4px;
+}
+.pager-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-meta);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.pager-btn:hover:not(:disabled) {
+  color: var(--text-main);
+  border-color: var(--text-muted);
+}
+.pager-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.pager-page {
+  font-size: var(--text-meta);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* memory + history entries */
+.agent-memory-entry {
+  position: relative;
+}
+.agent-memory-entry .entry-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.agent-memory-entry:hover .entry-delete,
+.agent-memory-entry:focus-within .entry-delete {
+  opacity: 1;
+}
+.hist-duration {
+  padding: 1px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+.agent-history-output-wrap {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 6px;
+}
+.agent-history-output-wrap summary {
+  cursor: pointer;
+  user-select: none;
+  font-size: var(--text-meta);
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+}
+.agent-history-output-wrap summary:hover {
+  color: var(--text-secondary);
+}
+.agent-history-output-wrap .agent-history-output {
+  margin-top: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.agent-history-input {
+  font-size: var(--text-ui);
+}
+
+/* footer: unsaved state + hints */
+.agent-unsaved {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--text-meta);
+  color: var(--text-secondary);
+}
+.agent-unsaved-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-main);
+  animation: wa-status-pulse 1.6s ease-in-out infinite;
+}
+.agent-footer-hint {
+  font-size: var(--text-meta);
+  color: var(--text-muted);
+}
+
+/* advanced disclosure chevron */
+.agent-advanced summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 0;
+}
+.agent-advanced summary svg {
+  transition: transform 0.15s;
+}
+.agent-advanced[open] summary svg {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-config-modal,
+  .agent-unsaved-dot,
+  .switch,
+  .switch::after {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* ── Custom tick boxes — replace native checkboxes in the agent tools tab ── */
+.agent-tool-check input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--input-bg);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.agent-tool-check input[type="checkbox"]:hover {
+  border-color: var(--text-muted);
+}
+.agent-tool-check input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.agent-tool-check input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: 5px;
+  height: 9px;
+  border: solid var(--primary-text);
+  border-width: 0 2px 2px 0;
+  opacity: 0;
+  transform: translate(-50%, -50%) rotate(45deg) scale(0.3);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.agent-tool-check input[type="checkbox"]:checked {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+}
+.agent-tool-check input[type="checkbox"]:checked::after {
+  opacity: 1;
+  transform: translate(-50%, -50%) rotate(45deg) scale(1);
+}
+.agent-tool-check.needs-approval input[type="checkbox"]:checked {
+  background: var(--text-main);
+  border-color: var(--text-main);
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-tool-check input[type="checkbox"],
+  .agent-tool-check input[type="checkbox"]::after {
+    transition: none;
+  }
 }

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PaliSpace — PaliMind RAG Workspace</title>
+  <meta name="description" content="PaliSpace is PaliMind's RAG workspace: index any folder and query it in natural language with multimodal documents, a local vector store, knowledge graph and hierarchical memory." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="palispace">
+
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html">PaliMind</a>
+      <nav class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="palispace.html">PaliSpace</a>
+        <a href="paliagents.html">PalIAgents</a>
+        <a href="desktop.html">Desktop</a>
+        <a href="included.html">Included</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="install.html">Install</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="page-hero">
+      <p class="kicker">PaliSpace &middot; 01</p>
+      <h1>RAG Workspace</h1>
+      <p class="lede">
+        Point PaliMind at any folder and index every document into a local vector store
+        you can query in natural language.
+      </p>
+    </section>
+
+    <figure class="shot">
+      <img src="assets/palispace.png" alt="PaliSpace RAG workspace screenshot" />
+      <figcaption>PaliSpace — chat with your indexed documents</figcaption>
+    </figure>
+
+    <section class="detail">
+      <h2>Capabilities</h2>
+      <ul class="feature-list">
+        <li><b>Multimodal indexing</b> — PDF, DOCX, PPTX, XLSX, images (OCR), Markdown, code, CSV and video (Whisper transcription).</li>
+        <li><b>Local vector store</b> — TurboVec 4-bit quantized embeddings stored in SQLite. No external database.</li>
+        <li><b>Hierarchical memory</b> — short-term, mid-term and long-term episodic memory embedded and retrieved for conversation context.</li>
+        <li><b>Knowledge graph</b> — entities and relationships extracted from documents, queryable and visualized.</li>
+        <li><b>Summarisation</b> — per-file summaries, financial fact extraction and timeline extraction at index time.</li>
+        <li><b>Web search</b> — DuckDuckGo search and Scrapling page extraction for live context.</li>
+        <li><b>Session management</b> — multiple persistent chat sessions per workspace with summaries.</li>
+      </ul>
+    </section>
+
+    <nav class="pager">
+      <a href="index.html">&larr; Home</a>
+      <a class="next" href="paliagents.html">PalIAgents &rarr;</a>
+    </nav>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <span class="footer-brand">PaliMind</span>
+      <p class="footer-note">
+        Open-source &middot; Local-first &middot; MIT licensed. All inference runs on your own machine — your data never leaves it.
+      </p>
+      <nav class="footer-links">
+        <a href="paliagents.html">PalIAgents</a>
+        <a href="desktop.html">Desktop</a>
+        <a href="install.html">Install</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PaliMind — Local-First AI Workspace</title>
+  <meta name="description" content="PaliMind is an open-source, local-first AI intelligence platform. All inference runs on your machine via Ollama — no cloud, no API keys, no data leaves your computer." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="home">
+
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html">PaliMind</a>
+      <nav class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="palispace.html">PaliSpace</a>
+        <a href="paliagents.html">PalIAgents</a>
+        <a href="desktop.html">Desktop</a>
+        <a href="included.html">Included</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="install.html">Install</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="hero-kicker">Open Source &middot; Local First &middot; Private</p>
+      <h1 class="hero-title">PaliMind</h1>
+      <p class="hero-tag">Local-first AI workspace for everything</p>
+      <p class="hero-sub">
+        Index your files, chat with your documents, run AI agents and voice — all on your own machine
+        via Ollama. No cloud subscription, no API keys, and no data ever leaves your computer.
+      </p>
+      <div class="hero-cta">
+        <a class="btn" href="install.html">Get Started</a>
+        <a class="btn" href="palispace.html">Explore Features</a>
+      </div>
+    </section>
+
+    <section class="stats">
+      <div class="stat"><span class="stat-n">100%</span><span class="stat-l">Local inference</span></div>
+      <div class="stat"><span class="stat-n">0</span><span class="stat-l">Cloud required</span></div>
+      <div class="stat"><span class="stat-n">10+</span><span class="stat-l">Agent tools</span></div>
+      <div class="stat"><span class="stat-n">3</span><span class="stat-l">Desktop OSes</span></div>
+    </section>
+
+    <section class="container">
+      <h2 class="section-title">Capabilities</h2>
+      <div class="index-grid">
+        <a class="index-card" href="palispace.html">
+          <span class="num">01</span>
+          <h3>PaliSpace</h3>
+          <p>RAG workspace — index any folder and query it in natural language with multimodal documents, a local vector store, knowledge graph and hierarchical memory.</p>
+          <span class="go">View feature</span>
+        </a>
+        <a class="index-card" href="paliagents.html">
+          <span class="num">02</span>
+          <h3>PalIAgents</h3>
+          <p>Agent runtime with 10+ tools — shell, Python, web, arxiv, RSS, SQLite, MQTT and more. Run manually, from chat, or on a schedule.</p>
+          <span class="go">View feature</span>
+        </a>
+        <a class="index-card" href="desktop.html">
+          <span class="num">03</span>
+          <h3>Desktop App</h3>
+          <p>Native Tauri 2 shell with global hotkeys and one-command launch — installers for Linux, Windows and macOS.</p>
+          <span class="go">View feature</span>
+        </a>
+        <a class="index-card" href="included.html">
+          <span class="num">04</span>
+          <h3>Also Included</h3>
+          <p>PaliVoice, OpenCode integration, mixture-of-experts, hardware-aware model fitting and encrypted secrets.</p>
+          <span class="go">View details</span>
+        </a>
+        <a class="index-card" href="architecture.html">
+          <span class="num">05</span>
+          <h3>Architecture</h3>
+          <p>How the Tauri shell, FastAPI server, Ollama and local storage fit together.</p>
+          <span class="go">View diagram</span>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <span class="footer-brand">PaliMind</span>
+      <p class="footer-note">
+        Open-source &middot; Local-first &middot; MIT licensed. All inference runs on your own machine — your data never leaves it.
+      </p>
+      <nav class="footer-links">
+        <a href="palispace.html">PaliSpace</a>
+        <a href="paliagents.html">PalIAgents</a>
+        <a href="install.html">Install</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

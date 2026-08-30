@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Install — PaliMind</title>
+  <meta name="description" content="Install PaliMind: everything runs locally with Ollama for inference. Clone, set up the Python backend, install frontend deps, pull models and launch." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="install">
+
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html">PaliMind</a>
+      <nav class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="palispace.html">PaliSpace</a>
+        <a href="paliagents.html">PalIAgents</a>
+        <a href="desktop.html">Desktop</a>
+        <a href="included.html">Included</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="install.html">Install</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="page-hero">
+      <p class="kicker">Install &middot; 06</p>
+      <h1>Get Started</h1>
+      <p class="lede">
+        Everything runs locally. You only need Ollama for inference — no accounts, no API keys.
+      </p>
+    </section>
+
+    <section class="container">
+      <p class="install-intro">1 &mdash; Install Ollama</p>
+      <pre class="code-block"><code>curl -fsSL https://ollama.com/install.sh | sh
+# Windows: download from https://ollama.com/download</code></pre>
+
+      <p class="install-intro">2 &mdash; Clone and set up the Python backend</p>
+      <pre class="code-block"><code>git clone &lt;your-repo-url&gt; palimind
+cd palimind
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -e "packages/backend[dev]"
+
+# Fast path (Linux/macOS): ./scripts/bootstrap.sh runs all setup steps.</code></pre>
+
+      <p class="install-intro">3 &mdash; Install frontend + desktop dependencies</p>
+      <pre class="code-block"><code>npm install                                   # root (Tauri CLI)
+cd packages/frontend &amp;&amp; npm install &amp;&amp; cd ..
+cd packages/frontend &amp;&amp; npm run build &amp;&amp; cd ..</code></pre>
+
+      <p class="install-intro">4 &mdash; Pull models</p>
+      <pre class="code-block"><code>ollama pull nomic-embed-text
+ollama pull gemma4:e2b</code></pre>
+
+      <p class="install-intro">5 &mdash; Launch</p>
+      <pre class="code-block"><code>pm ui                 # installs deps, starts Ollama, serves the API, opens the app
+pm ui --skip-install   # skip dependency install / frontend build
+pm ui --keep-backend   # keep Ollama/API running after the app closes</code></pre>
+
+      <p class="install-intro">Or use the CLI headless</p>
+      <pre class="code-block"><code>pm init /path/to/project    # initialize a workspace
+pm add /path/to/project     # index / update files
+pm ask "Key findings?" --path /path/to/project</code></pre>
+    </section>
+
+    <nav class="pager">
+      <a href="architecture.html">&larr; Architecture</a>
+      <a class="next" href="index.html">Home &rarr;</a>
+    </nav>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <span class="footer-brand">PaliMind</span>
+      <p class="footer-note">
+        Open-source &middot; Local-first &middot; MIT licensed. All inference runs on your own machine — your data never leaves it.
+      </p>
+      <nav class="footer-links">
+        <a href="palispace.html">PaliSpace</a>
+        <a href="paliagents.html">PalIAgents</a>
+        <a href="architecture.html">Architecture</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

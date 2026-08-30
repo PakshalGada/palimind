@@ -23,6 +23,13 @@ interface ChatMessage {
 
 type Tab = 'definition' | 'tools' | 'memory' | 'history';
 
+const TAB_META: { id: Tab; label: string; icon: string }[] = [
+  { id: 'definition', label: 'Definition', icon: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2|M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8' },
+  { id: 'tools', label: 'Tools', icon: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z' },
+  { id: 'memory', label: 'Memory', icon: 'M21 5c0 1.66-4 3-9 3S3 6.66 3 5s4-3 9-3 9 1.34 9 3|M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5|M21 12c0 1.66-4 3-9 3s-9-1.34-9-3' },
+  { id: 'history', label: 'History', icon: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20|M12 6v6l4 2' },
+];
+
 const EMPTY_DEF: Partial<AgentDefinition> = {
   name: '',
   system_prompt: '',
@@ -239,7 +246,14 @@ export default function Agents() {
                 {agentWorking ? 'active now' : 'online'}
               </span>
             </div>
-            <span className="agent-chat-sub">{selected.model || 'default model'} · {selected.tools.length} tools</span>
+            <div className="agent-chat-sub">
+              <span className="cfg-chip">{selected.model || 'default model'}</span>
+              <span className="cfg-chip">{selected.tools.length} tools</span>
+              {selected.run_mode !== 'on_demand' && (
+                <span className="cfg-chip">{(selected.run_mode || '').replace('_', ' ')}</span>
+              )}
+              {!selected.enabled && <span className="cfg-chip chip-off">disabled</span>}
+            </div>
             <button className="icon-btn" data-tooltip="Clear conversation" onClick={() => clearConversation(selected.id)}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
@@ -386,15 +400,22 @@ function AgentConfigModal({
   const [draft, setDraft] = useState<Partial<AgentDefinition>>(initial || agent || EMPTY_DEF);
   const [tab, setTab] = useState<Tab>('definition');
   const [tools, setTools] = useState<Record<string, ToolMeta>>({});
+  const [toolQuery, setToolQuery] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [dirty, setDirty] = useState(false);
   const [memory, setMemory] = useState<MemoryEntry[]>([]);
   const [memTotal, setMemTotal] = useState(0);
   const [memPage, setMemPage] = useState(1);
   const [history, setHistory] = useState<RunRecord[]>([]);
   const [fields, setFields] = useState<string[]>([]);
   const confirm = useConfirm();
+
+  const patch = (p: Partial<AgentDefinition>) => {
+    setDraft(d => ({ ...d, ...p }));
+    setDirty(true);
+  };
 
   useEffect(() => {
     api.fields.list().then(d => setFields(d.fields || [])).catch(() => {});
@@ -405,6 +426,16 @@ function AgentConfigModal({
   }, []);
 
   const agentId = agent?.id;
+
+  // Fetch memory + history once when opened so tab badges show live counts
+  // even before their tab is visited.
+  useEffect(() => {
+    if (mode !== 'edit' || !agentId) return;
+    api.agents.memory(agentId, 1, 20)
+      .then(d => { setMemory(d.entries); setMemTotal(d.total); setMemPage(d.page); })
+      .catch(() => {});
+    api.agents.history(agentId).then(d => setHistory(d.history || [])).catch(() => {});
+  }, [mode, agentId]);
 
   useEffect(() => {
     if (mode === 'edit' && agentId && tab === 'memory') {
@@ -431,7 +462,7 @@ function AgentConfigModal({
       } else if (agentId) {
         const res = await api.agents.update(agentId, payload);
         if (res.error) setError(res.error);
-        else { setMessage('Saved'); }
+        else { setMessage('Saved'); setDirty(false); }
       }
     } catch (e) {
       setError(String(e));
@@ -439,25 +470,54 @@ function AgentConfigModal({
     setSaving(false);
   };
 
+  const requestClose = useCallback(async () => {
+    if (!dirty) { onCancel(); return; }
+    const ok = await confirm('You have unsaved changes — discard them?', {
+      title: 'Unsaved Changes',
+      confirmLabel: 'Discard',
+      danger: true,
+    });
+    if (ok) onCancel();
+  }, [dirty, confirm, onCancel]);
+
+  // Esc closes (with discard guard); Ctrl/Cmd+S saves.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        void requestClose();
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (!saving && mode === 'edit') void save();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
   const groupedTools = useMemo(() => {
     const byTier: Record<number, ToolMeta[]> = { 1: [], 2: [], 3: [] };
+    const q = toolQuery.trim().toLowerCase();
     for (const t of Object.values(tools)) {
+      if (q && !t.id.toLowerCase().includes(q) && !t.description.toLowerCase().includes(q)) continue;
       byTier[t.tier] = byTier[t.tier] || [];
       byTier[t.tier].push(t);
     }
     return byTier;
-  }, [tools]);
+  }, [tools, toolQuery]);
 
   const toggleTool = (id: string) => {
     const cur = new Set(draft.tools || []);
     if (cur.has(id)) cur.delete(id); else cur.add(id);
     setDraft(d => ({ ...d, tools: Array.from(cur) }));
+    setDirty(true);
   };
 
   const toggleContextField = (path: string) => {
     const cur = new Set(draft.context_fields || []);
     if (cur.has(path)) cur.delete(path); else cur.add(path);
     setDraft(d => ({ ...d, context_fields: Array.from(cur) }));
+    setDirty(true);
   };
 
   const loadMemory = async (page: number) => {
@@ -508,21 +568,28 @@ function AgentConfigModal({
     : (saving ? 'Saving...' : (mode === 'create' ? 'Create Agent' : 'Save Changes'));
 
   return (
-    <div className="agent-config-overlay" onClick={onCancel}>
-      <div className="agent-config-modal" onClick={e => e.stopPropagation()}>
+    <div className="agent-config-overlay" onClick={requestClose}>
+      <div className="agent-config-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
         <div className="agent-config-header">
           <div className="agent-config-heading">
             <AgentAvatar seed={agentSeed} size={36} />
             <div className="agent-config-heading-text">
               <h2>{mode === 'create' ? 'New Agent' : (draft.name || 'Agent')}</h2>
               <span className="agent-config-sub">
-                {mode === 'create'
-                  ? 'Create a custom agent'
-                  : `${draft.model || 'default model'} · ${(draft.tools || []).length} tools · ${draft.run_mode || 'on_demand'}`}
+                {mode === 'create' ? (
+                  'Create a custom agent'
+                ) : (
+                  <>
+                    <span className="cfg-chip">{draft.model || 'default model'}</span>
+                    <span className="cfg-chip">{(draft.tools || []).length} tools</span>
+                    <span className="cfg-chip">{(draft.run_mode || 'on_demand').replace('_', ' ')}</span>
+                    {!draft.enabled && <span className="cfg-chip chip-off">disabled</span>}
+                  </>
+                )}
               </span>
             </div>
           </div>
-          <button className="icon-btn" onClick={onCancel} data-tooltip="Close">
+          <button className="icon-btn" onClick={requestClose} data-tooltip="Close (Esc)">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
@@ -531,12 +598,29 @@ function AgentConfigModal({
         </div>
 
         {mode === 'edit' && (
-          <div className="agent-tabs">
-            {(['definition', 'tools', 'memory', 'history'] as Tab[]).map(t => (
-              <button key={t} className={`agent-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
-                {t.charAt(0).toUpperCase() + t.slice(1)}
-              </button>
-            ))}
+          <div className="agent-tabs" role="tablist">
+            {TAB_META.map(m => {
+              const count =
+                m.id === 'tools' ? (draft.tools || []).length
+                : m.id === 'memory' ? memTotal
+                : m.id === 'history' ? history.length
+                : null;
+              return (
+                <button
+                  key={m.id}
+                  role="tab"
+                  aria-selected={tab === m.id}
+                  className={`agent-tab${tab === m.id ? ' active' : ''}`}
+                  onClick={() => setTab(m.id)}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    {m.icon.split('|').map((d, i) => <path key={i} d={d} />)}
+                  </svg>
+                  {m.label}
+                  {count != null && count > 0 && <span className="tab-count">{count}</span>}
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -544,64 +628,92 @@ function AgentConfigModal({
           {tab === 'definition' || mode === 'create' ? (
             <div className="agent-form">
               <section className="agent-config-section">
-                <h4 className="agent-section-title">Identity & Persona</h4>
+                <h4 className="agent-section-title">Identity &amp; Persona</h4>
                 <label className="agent-field">Name
-                  <input value={draft.name || ''} onChange={e => setDraft({ ...draft, name: e.target.value })} placeholder="my-agent" autoFocus />
+                  <input value={draft.name || ''} onChange={e => patch({ name: e.target.value })} placeholder="my-agent" autoFocus />
                 </label>
                 <label className="agent-field">System Prompt
-                  <textarea rows={5} value={draft.system_prompt || ''} onChange={e => setDraft({ ...draft, system_prompt: e.target.value })} placeholder="You are a helpful agent that..." />
+                  <textarea rows={5} value={draft.system_prompt || ''} onChange={e => patch({ system_prompt: e.target.value })} placeholder="You are a helpful agent that..." />
                 </label>
               </section>
 
               <section className="agent-config-section">
-                <h4 className="agent-section-title">Model & Behavior</h4>
+                <h4 className="agent-section-title">Model &amp; Behavior</h4>
                 <div className="agent-form-grid cols-2">
                   <div className="agent-field">
                     <span className="agent-field-label">Model</span>
-                    <ModelPicker value={draft.model || ''} onChange={v => setDraft({ ...draft, model: v })} />
+                    <ModelPicker value={draft.model || ''} onChange={v => patch({ model: v })} />
                   </div>
-                  <label className="agent-field">Temperature
-                    <input type="number" step="0.1" min="0" max="2" value={draft.temperature ?? 0.2} onChange={e => setDraft({ ...draft, temperature: parseFloat(e.target.value) })} />
-                  </label>
+                  <div className="agent-field">
+                    <span className="agent-field-label">
+                      Temperature
+                      <span className="range-value">{(draft.temperature ?? 0.2).toFixed(1)}</span>
+                    </span>
+                    <input
+                      type="range"
+                      className="range-input"
+                      min={0}
+                      max={2}
+                      step={0.1}
+                      value={draft.temperature ?? 0.2}
+                      onChange={e => patch({ temperature: parseFloat(e.target.value) })}
+                    />
+                    <span className="agent-field-hint">Low is precise and repeatable · high is creative.</span>
+                  </div>
                 </div>
-                <div className="agent-form-grid cols-2">
-                  <label className="agent-field">Run Mode
-                    <select value={draft.run_mode || 'on_demand'} onChange={e => setDraft({ ...draft, run_mode: e.target.value as AgentDefinition['run_mode'] })}>
-                      <option value="on_demand">On Demand</option>
-                      <option value="scheduled">Scheduled</option>
-                      <option value="watcher">Watcher</option>
-                    </select>
+                <div className="agent-field">
+                  <span className="agent-field-label">Run Mode</span>
+                  <div className="segmented" role="radiogroup" aria-label="Run mode">
+                    {([
+                      ['on_demand', 'On Demand'],
+                      ['scheduled', 'Scheduled'],
+                      ['watcher', 'Watcher'],
+                    ] as const).map(([val, label]) => (
+                      <button
+                        type="button"
+                        key={val}
+                        role="radio"
+                        aria-checked={draft.run_mode === val}
+                        className={`segment-btn${draft.run_mode === val ? ' active' : ''}`}
+                        onClick={() => patch({ run_mode: val })}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {draft.run_mode === 'scheduled' ? (
+                  <label className="agent-field">Cron Schedule
+                    <input value={draft.schedule || ''} placeholder="*/15 * * * *" onChange={e => patch({ schedule: e.target.value })} />
+                    <span className="agent-field-hint">Standard 5-field cron. The scheduler runs the agent on this cadence.</span>
                   </label>
-                  {draft.run_mode === 'scheduled' ? (
-                    <label className="agent-field">Cron Schedule
-                      <input value={draft.schedule || ''} placeholder="*/15 * * * *" onChange={e => setDraft({ ...draft, schedule: e.target.value })} />
-                    </label>
-                  ) : draft.run_mode === 'watcher' ? (
-                    <label className="agent-field">Watcher Pattern (glob)
-                      <input value={draft.watcher_pattern || ''} placeholder="*.md" onChange={e => setDraft({ ...draft, watcher_pattern: e.target.value })} />
-                    </label>
-                  ) : (
-                    <div className="agent-field">
-                      <span className="agent-field-label">Max Steps (iterations)</span>
-                      <input type="number" min="1" value={draft.max_iterations ?? 15} onChange={e => setDraft({ ...draft, max_iterations: parseInt(e.target.value) || 1 })} />
+                ) : draft.run_mode === 'watcher' ? (
+                  <label className="agent-field">Watcher Pattern (glob)
+                    <input value={draft.watcher_pattern || ''} placeholder="*.md" onChange={e => patch({ watcher_pattern: e.target.value })} />
+                    <span className="agent-field-hint">The agent triggers whenever a matching file changes.</span>
+                  </label>
+                ) : (
+                  <div className="agent-form-grid cols-2">
+                    <label className="agent-field">Max Steps (iterations)
+                      <input type="number" min="1" value={draft.max_iterations ?? 15} onChange={e => patch({ max_iterations: parseInt(e.target.value) || 1 })} />
                       <span className="agent-field-hint">Tool steps the agent may take before it is forced to answer.</span>
-                    </div>
-                  )}
-                </div>
+                    </label>
+                  </div>
+                )}
               </section>
 
               <section className="agent-config-section">
-                <h4 className="agent-section-title">Capabilities</h4>
+                <h4 className="agent-section-title">Capabilities &amp; Access</h4>
                 <div className="agent-form-grid cols-2">
                   <label className="agent-field">Tier Policy
-                    <select value={draft.tier_policy || 'tier1+2'} onChange={e => setDraft({ ...draft, tier_policy: e.target.value as AgentDefinition['tier_policy'] })}>
-                      <option value="tier1">Tier 1</option>
-                      <option value="tier1+2">Tier 1 + 2</option>
-                      <option value="all">All (incl. Tier 3)</option>
+                    <select value={draft.tier_policy || 'tier1+2'} onChange={e => patch({ tier_policy: e.target.value as AgentDefinition['tier_policy'] })}>
+                      <option value="tier1">Tier 1 — read-only</option>
+                      <option value="tier1+2">Tier 1 + 2 — write &amp; execute</option>
+                      <option value="all">All — incl. Tier 3 privileged</option>
                     </select>
                   </label>
                   <label className="agent-field">Memory Scope
-                    <select value={draft.memory_scope || 'none'} onChange={e => setDraft({ ...draft, memory_scope: e.target.value as AgentDefinition['memory_scope'] })}>
+                    <select value={draft.memory_scope || 'none'} onChange={e => patch({ memory_scope: e.target.value as AgentDefinition['memory_scope'] })}>
                       <option value="none">None</option>
                       <option value="session">Session</option>
                       <option value="field">Field</option>
@@ -609,42 +721,74 @@ function AgentConfigModal({
                   </label>
                 </div>
                 <div className="agent-field">
-                  <span className="agent-field-label">Workspace Context (PaliSpaces the agent can see)</span>
-                  <div className="agent-context-fields">
+                  <span className="agent-field-label">Workspace Context — PaliSpaces the agent can see</span>
+                  <div className="context-chips">
                     {fields.length === 0 && <span className="agents-empty">No workspaces added yet.</span>}
-                    {fields.map(path => (
-                      <label key={path} className="agent-tool-check">
-                        <input
-                          type="checkbox"
-                          checked={(draft.context_fields || []).includes(path)}
-                          onChange={() => toggleContextField(path)}
-                        />
-                        <span className="agent-tool-name">{path.split(/[\\/]/).filter(Boolean).pop()}</span>
-                        <span className="agent-tool-desc" title={path}>{path}</span>
-                      </label>
-                    ))}
+                    {fields.map(path => {
+                      const on = (draft.context_fields || []).includes(path);
+                      return (
+                        <button
+                          type="button"
+                          key={path}
+                          title={path}
+                          className={`context-chip${on ? ' on' : ''}`}
+                          onClick={() => toggleContextField(path)}
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                          {path.split(/[\\/]/).filter(Boolean).pop()}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-                <div className="agent-form-checks">
-                  <label><input type="checkbox" checked={!!draft.write_access} onChange={e => setDraft({ ...draft, write_access: e.target.checked })} /> Write Access</label>
-                  <label><input type="checkbox" checked={!!draft.shell_access} onChange={e => setDraft({ ...draft, shell_access: e.target.checked })} /> Shell Access</label>
+                <div className="toggle-stack">
+                  <label className="toggle-row">
+                    <span className="toggle-info">
+                      <span className="toggle-title">Write Access</span>
+                      <span className="toggle-desc">Allow this agent to create or modify files in its workspaces.</span>
+                    </span>
+                    <input type="checkbox" checked={!!draft.write_access} onChange={e => patch({ write_access: e.target.checked })} />
+                    <span className="switch" aria-hidden="true" />
+                  </label>
+                  <label className="toggle-row">
+                    <span className="toggle-info">
+                      <span className="toggle-title">Shell Access</span>
+                      <span className="toggle-desc">Allow running shell commands (Tier 3 tools, sandboxed).</span>
+                    </span>
+                    <input type="checkbox" checked={!!draft.shell_access} onChange={e => patch({ shell_access: e.target.checked })} />
+                    <span className="switch" aria-hidden="true" />
+                  </label>
                   {mode === 'edit' && (
-                    <label><input type="checkbox" checked={!!draft.enabled} onChange={e => setDraft({ ...draft, enabled: e.target.checked })} /> Enabled</label>
+                    <label className="toggle-row">
+                      <span className="toggle-info">
+                        <span className="toggle-title">Enabled</span>
+                        <span className="toggle-desc">Disabled agents stay configured but cannot be run.</span>
+                      </span>
+                      <input type="checkbox" checked={!!draft.enabled} onChange={e => patch({ enabled: e.target.checked })} />
+                      <span className="switch" aria-hidden="true" />
+                    </label>
                   )}
                 </div>
               </section>
 
               <details className="agent-advanced">
-                <summary>Advanced</summary>
+                <summary>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                  Advanced
+                </summary>
                 <div className="agent-form-grid cols-3">
                   <label className="agent-field">Context Budget
-                    <input type="number" value={draft.context_budget ?? 8000} onChange={e => setDraft({ ...draft, context_budget: parseInt(e.target.value) || 0 })} />
+                    <input type="number" value={draft.context_budget ?? 8000} onChange={e => patch({ context_budget: parseInt(e.target.value) || 0 })} />
                   </label>
                   <label className="agent-field">Human-in-Loop Threshold
-                    <input type="number" step="0.1" min="0" max="1" value={draft.human_in_loop_threshold ?? 0} onChange={e => setDraft({ ...draft, human_in_loop_threshold: parseFloat(e.target.value) })} />
+                    <input type="number" step="0.1" min="0" max="1" value={draft.human_in_loop_threshold ?? 0} onChange={e => patch({ human_in_loop_threshold: parseFloat(e.target.value) })} />
                   </label>
                   <label className="agent-field">Visibility
-                    <select value={draft.visibility || 'field'} onChange={e => setDraft({ ...draft, visibility: e.target.value as AgentDefinition['visibility'] })}>
+                    <select value={draft.visibility || 'field'} onChange={e => patch({ visibility: e.target.value as AgentDefinition['visibility'] })}>
                       <option value="field">Field</option>
                       <option value="global">Global</option>
                     </select>
@@ -656,29 +800,64 @@ function AgentConfigModal({
 
           {tab === 'tools' && (
             <div className="agent-tools">
-              {[1, 2, 3].map(tier => (
-                <div key={tier} className="agent-tool-tier">
-                  <h4>Tier {tier}</h4>
-                  <div className="agent-tool-grid">
-                    {(groupedTools[tier] || []).map(t => (
-                      <label key={t.id} className={`agent-tool-check${t.requires_approval ? ' needs-approval' : ''}`}>
-                        <input type="checkbox" checked={(draft.tools || []).includes(t.id)} onChange={() => toggleTool(t.id)} />
-                        <span className="agent-tool-name">{t.id}</span>
-                        <span className="agent-tool-desc">{t.description}</span>
-                        {t.requires_approval && <span className="agent-tool-badge">approval</span>}
-                      </label>
-                    ))}
+              <div className="tools-toolbar">
+                <input
+                  className="tools-search"
+                  type="text"
+                  placeholder="Search tools..."
+                  value={toolQuery}
+                  onChange={e => setToolQuery(e.target.value)}
+                />
+                <span className="tools-count">{(draft.tools || []).length} selected</span>
+                <button
+                  type="button"
+                  className="tool-clear"
+                  disabled={(draft.tools || []).length === 0}
+                  onClick={() => { setDraft(d => ({ ...d, tools: [] })); setDirty(true); }}
+                >
+                  Clear
+                </button>
+              </div>
+              {[1, 2, 3].map(tier => {
+                const items = groupedTools[tier] || [];
+                return (
+                  <div key={tier} className="agent-tool-tier">
+                    <div className="agent-tool-tier-head">
+                      <h4>Tier {tier}</h4>
+                      <span className="agent-tool-tier-sub">
+                        {tier === 1 ? 'Read-only and safe' : tier === 2 ? 'Writes or executes — may ask for approval' : 'Privileged system access'}
+                      </span>
+                    </div>
+                    {items.length === 0 ? (
+                      <div className="agent-tools-tier-empty">
+                        {toolQuery ? 'No tools match this search.' : 'No tools registered in this tier.'}
+                      </div>
+                    ) : (
+                      <div className="agent-tool-grid">
+                        {items.map(t => (
+                          <label
+                            key={t.id}
+                            className={`agent-tool-check${(draft.tools || []).includes(t.id) ? ' selected' : ''}${t.requires_approval ? ' needs-approval' : ''}`}
+                          >
+                            <input type="checkbox" checked={(draft.tools || []).includes(t.id)} onChange={() => toggleTool(t.id)} />
+                            <span className="agent-tool-name">{t.id}</span>
+                            <span className="agent-tool-desc">{t.description}</span>
+                            {t.requires_approval && <span className="agent-tool-badge">approval</span>}
+                          </label>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
           {tab === 'memory' && (
             <div className="agent-memory">
               <div className="agent-memory-header">
-                <span>{memTotal} entries</span>
-                <button className="action-btn danger-btn compact" onClick={clearMemory}>Clear All</button>
+                <span className="tools-count">{memTotal} {memTotal === 1 ? 'entry' : 'entries'}</span>
+                <button className="action-btn danger-btn compact" onClick={clearMemory} disabled={memTotal === 0}>Clear All</button>
               </div>
               {memory.map((e, i) => (
                 <div key={i} className="agent-memory-entry">
@@ -687,7 +866,7 @@ function AgentConfigModal({
                     <span className="mem-time">{new Date(e.timestamp).toLocaleString()}</span>
                   </div>
                   <div className="mem-content">{e.content}</div>
-                  <button className="icon-btn" title="Delete entry" onClick={() => deleteMemEntry((memPage - 1) * 20 + i)}>
+                  <button className="icon-btn entry-delete" title="Delete entry" onClick={() => deleteMemEntry((memPage - 1) * 20 + i)}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="3 6 5 6 21 6" />
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -695,12 +874,23 @@ function AgentConfigModal({
                   </button>
                 </div>
               ))}
-              {memory.length === 0 && <div className="agents-empty">No memory entries.</div>}
+              {memory.length === 0 && (
+                <div className="agent-tab-empty">
+                  <span className="agent-tab-empty-title">No memory entries</span>
+                  <span className="agent-tab-empty-sub">What this agent learns while working will show up here.</span>
+                </div>
+              )}
               {memTotal > 20 && (
                 <div className="agent-memory-pager">
-                  <button className="icon-btn" disabled={memPage <= 1} onClick={() => loadMemory(memPage - 1)}>Prev</button>
-                  <span>{memPage}</span>
-                  <button className="icon-btn" disabled={memPage * 20 >= memTotal} onClick={() => loadMemory(memPage + 1)}>Next</button>
+                  <button className="pager-btn" disabled={memPage <= 1} onClick={() => loadMemory(memPage - 1)}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+                    Prev
+                  </button>
+                  <span className="pager-page">Page {memPage} of {Math.ceil(memTotal / 20)}</span>
+                  <button className="pager-btn" disabled={memPage * 20 >= memTotal} onClick={() => loadMemory(memPage + 1)}>
+                    Next
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+                  </button>
                 </div>
               )}
             </div>
@@ -709,16 +899,25 @@ function AgentConfigModal({
           {tab === 'history' && (
             <div className="agent-history">
               {history.slice().reverse().map((r, i) => (
-                <div key={i} className="agent-history-entry">
+                <div key={r.run_id || i} className="agent-history-entry">
                   <div className="agent-history-meta">
                     <span className={`agent-status ${r.status}`}>{r.status}</span>
-                    <span className="mem-time">{fmtTime(r.timestamp)} · {r.duration}s</span>
+                    <span className="hist-duration">{r.duration}s</span>
+                    <span className="mem-time">{fmtTime(r.timestamp)}</span>
                   </div>
                   <div className="agent-history-input">{r.input}</div>
-                  <div className="agent-history-output">{r.output}</div>
+                  <details className="agent-history-output-wrap">
+                    <summary>Output</summary>
+                    <div className="agent-history-output">{r.output}</div>
+                  </details>
                 </div>
               ))}
-              {history.length === 0 && <div className="agents-empty">No run history yet.</div>}
+              {history.length === 0 && (
+                <div className="agent-tab-empty">
+                  <span className="agent-tab-empty-title">No runs yet</span>
+                  <span className="agent-tab-empty-sub">Every run — manual, scheduled or watcher-triggered — is recorded here.</span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -726,15 +925,33 @@ function AgentConfigModal({
         {showFooter && (
           <div className="agent-config-footer">
             <div className="agent-config-footer-msg">
-              {message && <span className="agent-form-msg">{message}</span>}
+              {dirty && (
+                <span className="agent-unsaved">
+                  <span className="agent-unsaved-dot" />
+                  Unsaved changes
+                </span>
+              )}
+              {!dirty && message && <span className="agent-form-msg">{message}</span>}
               {error && <span className="agent-form-msg error">{error}</span>}
+              {!dirty && !message && !error && (
+                <span className="agent-footer-hint">
+                  {mode === 'edit' ? 'Ctrl+S save · Esc close' : 'Esc to cancel'}
+                </span>
+              )}
             </div>
             <div className="agent-config-footer-actions">
               {mode === 'edit' && tab === 'definition' && (
                 <button className="action-btn danger-btn compact" onClick={deleteAgent}>Delete</button>
               )}
-              <button className="action-btn ghost" onClick={onCancel}>Cancel</button>
-              <button className="action-btn primary" onClick={save} disabled={saving}>{footerLabel}</button>
+              <button className="action-btn ghost" onClick={requestClose}>Cancel</button>
+              <button
+                className="action-btn primary"
+                onClick={save}
+                disabled={saving || (mode === 'edit' && !dirty)}
+                title={mode === 'edit' ? 'Ctrl+S' : undefined}
+              >
+                {footerLabel}
+              </button>
             </div>
           </div>
         )}

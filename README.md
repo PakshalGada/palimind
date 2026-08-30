@@ -88,10 +88,11 @@ The Tauri shell spawns the Python backend as a child process, polls it until hea
 
 | Requirement | Version | Notes |
 |---|---|---|
-| Python | 3.10+ | Core backend |
-| Node.js | 18+ | Frontend build + Tauri CLI |
+| Python | 3.12+ | Core backend (`pyproject.toml` requires ≥3.12) |
+| Node.js | 20+ | Frontend build + Tauri CLI |
 | Rust | stable | Tauri 2 toolchain |
 | Ollama | latest | Local LLM inference engine |
+| Linux system libs | — | Tauri deps: `libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev` |
 
 ---
 
@@ -115,20 +116,24 @@ python -m venv .venv
 source .venv/bin/activate
 # Windows: .venv\Scripts\activate
 
-pip install -e .
+pip install -e "packages/backend[dev]"
 # optional hotkey support:
-pip install -e ".[hotkey]"
+pip install -e "packages/backend[hotkey]"
 ```
+
+> **Fast path (Linux/macOS):** `./scripts/bootstrap.sh` runs the full setup —
+> Python backend (editable + dev tools), frontend/root `npm install`s,
+> pre-commit hooks, and model pulls — idempotently. Then just `make dev`.
 
 ### 3. Install Rust / Tauri prerequisites
 
-Install Rust via [rustup](https://rustup.rs), then on Linux ensure the required system libraries for Tauri are present (see the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)).
+Install Rust via [rustup](https://rustup.rs), then on Linux ensure the required system libraries for Tauri are present (see the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/), or let `scripts/bootstrap.sh` install them).
 
 ### 4. Install frontend and desktop dependencies
 
 ```bash
-npm install                          # root (Tauri CLI)
-cd frontend && npm install && cd ..  # React frontend
+npm install                                   # root (Tauri CLI)
+cd packages/frontend && npm install && cd ..  # React frontend
 ```
 
 ### 5. Build the frontend once
@@ -136,7 +141,7 @@ cd frontend && npm install && cd ..  # React frontend
 The desktop app loads the prebuilt frontend, so build it before launching:
 
 ```bash
-cd frontend && npm run build && cd ..
+cd packages/frontend && npm run build && cd ..
 ```
 
 ### 6. Pull required models
@@ -167,7 +172,8 @@ pm ui --port 8001          # use a custom backend port
 You can also run the backend directly:
 
 ```bash
-python -m core.api_server --host 127.0.0.1 --port 8000
+python -m palimind.api_server --host 127.0.0.1 --port 8000
+# or: make backend
 ```
 
 ---
@@ -230,7 +236,7 @@ Agent runtime behavior is configurable via environment variables, including:
 |---|---|
 | Desktop shell | Tauri 2 (Rust), Tauri global shortcut plugin |
 | Frontend | React, TypeScript, Vite |
-| Backend | Python 3.10+, FastAPI, Uvicorn |
+| Backend | Python 3.12+, FastAPI, Uvicorn |
 | CLI | Typer, Rich |
 | AI / Inference | Ollama (Gemma, nomic-embed-text) |
 | Embeddings | Sentence-Transformers, TurboVec (4-bit quantized) |
@@ -282,8 +288,27 @@ Agent runtime behavior is configurable via environment variables, including:
 
 1. Fork the repository.
 2. Create a feature branch: `git checkout -b feature/your-feature`.
-3. Commit your changes: `git commit -m "feat: add feature"`.
-4. Push and open a pull request.
+3. Commit your changes: `git commit -m "feat: add feature"`. Pre-commit hooks
+   (ruff fix+format, whitespace, gitleaks) run automatically on commit.
+4. Push and open a pull request — CI re-runs the same gates on a clean runner.
+
+Before opening a PR, verify locally:
+
+```bash
+make lint              # ruff (backend) + oxlint (frontend)
+make check-imports     # no legacy import names
+make test              # backend pytest + frontend build/lint
+make typecheck         # mypy on gated modules
+ruff format --check .  # backend formatting gate (run from packages/backend)
+```
+
+- Unit tests: `cd packages/backend && python -m pytest -m "not integration"`
+  (the fast suite CI runs). The full suite (`pytest`) needs a running
+  backend/Ollama — mark such tests `@pytest.mark.integration`.
+- GitHub Actions CI verifies backend lint + unit tests, frontend lint/build,
+  the Rust desktop shell (`cargo fmt`/`clippy`/`check`), and a gitleaks
+  secret scan on every PR and push to `main`. `v*` tags trigger desktop
+  installer builds and a draft GitHub Release.
 
 Note: Core backend changes should degrade gracefully when Ollama is not running.
 

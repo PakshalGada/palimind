@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Desktop — PaliMind Native App</title>
+  <meta name="description" content="The PaliMind desktop app is a Tauri 2 shell with native OS integration, global hotkeys and one-command launch — installers for Linux, Windows and macOS." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="desktop">
+
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html">PaliMind</a>
+      <nav class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="palispace.html">PaliSpace</a>
+        <a href="paliagents.html">PalIAgents</a>
+        <a href="desktop.html">Desktop</a>
+        <a href="included.html">Included</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="install.html">Install</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="page-hero">
+      <p class="kicker">Desktop &middot; 03</p>
+      <h1>Native Desktop App</h1>
+      <p class="lede">
+        A Tauri 2 shell wraps the whole experience with native OS integration and global hotkeys.
+      </p>
+    </section>
+
+    <figure class="shot">
+      <img src="assets/palimind.jpeg" alt="PaliMind desktop app screenshot" />
+      <figcaption>PaliMind desktop shell</figcaption>
+    </figure>
+
+    <section class="detail">
+      <h2>Capabilities</h2>
+      <ul class="feature-list">
+        <li><b>Global hotkeys</b> — capture text or summon the glance popup from anywhere on your desktop.</li>
+        <li><b>One-command launch</b> — <code>pm ui</code> installs deps, starts Ollama, serves the API and opens the app.</li>
+        <li><b>Installers</b> — AppImage, deb, rpm, NSIS, MSI and DMG from a single codebase.</li>
+        <li><b>Self-contained backend</b> — the shell spawns and supervises the Python FastAPI server.</li>
+      </ul>
+    </section>
+
+    <nav class="pager">
+      <a href="paliagents.html">&larr; PalIAgents</a>
+      <a class="next" href="included.html">Also Included &rarr;</a>
+    </nav>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <span class="footer-brand">PaliMind</span>
+      <p class="footer-note">
+        Open-source &middot; Local-first &middot; MIT licensed. All inference runs on your own machine — your data never leaves it.
+      </p>
+      <nav class="footer-links">
+        <a href="palispace.html">PaliSpace</a>
+        <a href="paliagents.html">PalIAgents</a>
+        <a href="install.html">Install</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

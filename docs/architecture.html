@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Architecture — PaliMind</title>
+  <meta name="description" content="How PaliMind fits together: a Tauri 2 desktop shell, a Python FastAPI server, Ollama for inference and local SQLite / vector storage." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="architecture">
+
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html">PaliMind</a>
+      <nav class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="palispace.html">PaliSpace</a>
+        <a href="paliagents.html">PalIAgents</a>
+        <a href="desktop.html">Desktop</a>
+        <a href="included.html">Included</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="install.html">Install</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="page-hero">
+      <p class="kicker">Architecture &middot; 05</p>
+      <h1>How It Fits Together</h1>
+      <p class="lede">
+        A dual-layer design: a native desktop shell, a Python API server and local inference —
+        nothing leaves your machine.
+      </p>
+    </section>
+
+    <section class="container">
+      <pre class="arch-diagram"> Tauri Desktop App
+     |  spawns &amp; manages the FastAPI server,
+     |  registers global hotkeys, opens the WebView
+     v
+ FastAPI Server (127.0.0.1:8000)
+     |  REST + SSE streaming endpoints
+     v
+ Ollama (127.0.0.1:11434)
+     |  chat / embed / vision inference
+     v
+ Local resources: SQLite (FTS5), vector store, filesystem, tools</pre>
+
+      <p class="arch-note">
+        The Tauri shell spawns the Python backend as a child process, polls it until healthy,
+        then loads the React frontend at <code>http://127.0.0.1:8000/ui</code>.
+      </p>
+    </section>
+
+    <nav class="pager">
+      <a href="included.html">&larr; Also Included</a>
+      <a class="next" href="install.html">Install &rarr;</a>
+    </nav>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <span class="footer-brand">PaliMind</span>
+      <p class="footer-note">
+        Open-source &middot; Local-first &middot; MIT licensed. All inference runs on your own machine — your data never leaves it.
+      </p>
+      <nav class="footer-links">
+        <a href="palispace.html">PaliSpace</a>
+        <a href="paliagents.html">PalIAgents</a>
+        <a href="install.html">Install</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
