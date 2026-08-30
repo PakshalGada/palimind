@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fastapi.responses import StreamingResponse
 
-from palimind.session_store import (
+from palimind.memory.session_store import (
     append_message_to_session,
     background_update_memory,
 )
@@ -39,7 +39,7 @@ async def llm_mode_stream(
 
     async def plain_stream():
         from palimind.generative.responder import generate_response_stream
-        from palimind.memory import format_hierarchical_memory_context
+        from palimind.memory.hierarchical import format_hierarchical_memory_context
 
         if active_sess_id:
             await asyncio.to_thread(

@@ -105,7 +105,7 @@ async def agent_mode_stream(
     mode_params = {"agent_name": agent_name}
 
     async def gen():
-        from palimind.session_store import append_message_to_session
+        from palimind.memory.session_store import append_message_to_session
 
         if session_id:
             await asyncio.to_thread(

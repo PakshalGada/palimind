@@ -4,7 +4,7 @@ PaliMind is an open-source, **local-first AI intelligence platform** that brings
 
 It is built on a dual-layer architecture:
 
-- A **Python / FastAPI backend** that handles all AI/ML work (indexing, retrieval, chat, agents, vision, voice).
+- A **Python / FastAPI backend** that handles all AI/ML work (indexing, retrieval, chat, agents, voice).
 - A **Tauri 2 desktop shell** (Rust) wrapping a **React + TypeScript + Vite** frontend for native OS integration.
 
 ---
@@ -38,16 +38,6 @@ The core retrieval-augmented generation (RAG) engine. Point it at any folder and
 - **Knowledge graph** - entities and relationships extracted from documents, queryable and visualized.
 - **Summarisation** - per-file summaries, financial fact extraction, and timeline extraction at index time.
 
-### PaliVision / Glance - Screen-Aware AI
-
-Captures your current screen, runs OCR plus an optional vision LLM, and streams a contextual AI response - all locally.
-
-- **OCR extraction** - EasyOCR extracts all visible text from a screenshot.
-- **Vision LLM** - optionally calls LLaVA or Moondream for rich visual description.
-- **SSE streaming** - response tokens stream in real time.
-- **Multi-turn chat** - keeps conversation history across follow-up questions.
-- **Session persistence** - each screen conversation is saved to disk.
-
 ### PalIAgents - Agent System
 
 A runtime for creating and running specialized agents that can call tools to complete tasks. Agents can be created, run manually, invoked from chat with `@mention` syntax, and scheduled.
@@ -79,7 +69,7 @@ PaliMind shares the OpenCode global credential store (`~/.local/share/opencode/a
 ```
 Tauri Desktop App
     |  spawns & manages the FastAPI server, registers global hotkeys,
-    |  captures the screen, opens WebView windows
+    |  opens the main WebView window
     v
 FastAPI Server (127.0.0.1:8000)
     |  REST + SSE streaming endpoints
@@ -154,8 +144,6 @@ cd frontend && npm run build && cd ..
 ```bash
 ollama pull nomic-embed-text
 ollama pull gemma4:e2b
-ollama pull llava
-ollama pull moondream
 ```
 
 ---
@@ -240,11 +228,11 @@ Agent runtime behavior is configurable via environment variables, including:
 
 | Layer | Technology |
 |---|---|
-| Desktop shell | Tauri 2 (Rust), Tauri global shortcut plugin, xcap screen capture |
+| Desktop shell | Tauri 2 (Rust), Tauri global shortcut plugin |
 | Frontend | React, TypeScript, Vite |
 | Backend | Python 3.10+, FastAPI, Uvicorn |
 | CLI | Typer, Rich |
-| AI / Inference | Ollama (Gemma, LLaVA, Moondream, nomic-embed-text) |
+| AI / Inference | Ollama (Gemma, nomic-embed-text) |
 | Embeddings | Sentence-Transformers, TurboVec (4-bit quantized) |
 | STT / TTS | Faster-Whisper, Kokoro-ONNX |
 | OCR | EasyOCR |
@@ -257,28 +245,35 @@ Agent runtime behavior is configurable via environment variables, including:
 
 ```
 .
-├── core/                  # Python backend
-│   ├── agents/            # PalIAgents runtime, registry, scheduler
-│   ├── cli/               # Typer CLI (commands, UI)
-│   ├── document/          # document engine, graph, stream
-│   ├── generative/        # summariser, responder
-│   ├── hwfit/             # hardware fitting / recommendations
-│   ├── ingestion/         # chunkers, parsers, OCR, crawler, video
-│   ├── llm/               # streaming + mixture-of-expert orchestration
-│   ├── storage/           # vector store, metadata, chat store
-│   ├── tools/             # agent tools (shell, python, web, sqlite, mqtt, ...)
-│   ├── api_server.py      # FastAPI application
-│   ├── api.py             # core query / index logic
-│   ├── config.py          # per-workspace configuration
-│   ├── memory.py          # hierarchical memory
-│   ├── opencode_*.py      # OpenCode proxy, router, auth integration
-│   └── ...
-├── frontend/              # React + TypeScript + Vite UI
-│   └── src/               # components, views, glance app
-├── src-tauri/             # Tauri 2 Rust shell
-├── scripts/               # helper scripts (e.g. hyprland-capture.sh)
-├── tests/                 # Python tests
-└── pyproject.toml         # Python package + CLI entry point
+├── packages/
+│   ├── backend/            # Python FastAPI backend
+│   │   └── palimind/
+│   │       ├── agents/     # agent runtime, registry, scheduler, tools
+│   │       ├── audio/      # speech-to-text, text-to-speech
+│   │       ├── cli/        # Typer CLI (commands, UI)
+│   │       ├── core/       # shared infra: embedder, reranker, web search
+│   │       ├── document/   # document engine, graph, stream
+│   │       ├── generative/ # summariser, responder
+│   │       ├── hwfit/      # hardware fitting / recommendations
+│   │       ├── ingestion/  # chunkers, parsers, OCR, crawler, video
+│   │       ├── llm/        # streaming + mixture-of-expert orchestration
+│   │       ├── memory/     # session persistence, hierarchical memory
+│   │       ├── opencode/   # OpenCode CLI auth + model routing
+│   │       ├── rag/        # index lifecycle, retrieval + generation
+│   │       ├── storage/    # SQLite, vector store, chat store
+│   │       ├── api_server.py  # FastAPI application (entry point)
+│   │       ├── api.py      # public library facade
+│   │       ├── config.py   # per-workspace configuration
+│   │       ├── settings.py # env-overridable app settings
+│   │       ├── opencode_proxy.py  # standalone OpenCode proxy (entry point)
+│   │       └── ...
+│   └── frontend/           # React + TypeScript + Vite UI
+│       └── src/            # components, views
+├── apps/
+│   └── desktop/            # Tauri 2 Rust shell
+├── scripts/                # helper scripts
+├── tests/                  # Python tests
+└── pyproject.toml          # Python package + CLI entry point
 ```
 
 ---

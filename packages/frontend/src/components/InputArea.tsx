@@ -435,6 +435,30 @@ export default function InputArea() {
       } else if (data.type === "agent:completed") {
         clearInterval(timerInterval);
         setThinkingText("");
+        const finalOutput = String(data.output || "").trim();
+        if (finalOutput) {
+          fullText = finalOutput;
+          if (!contentDiv) {
+            if (!totalThoughtDuration) {
+              const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+              totalThoughtDuration = `${elapsed}s`;
+            }
+            contentDiv = document.createElement("div");
+            contentDiv.className = "message-content";
+            const wrapper = document.createElement("div");
+            wrapper.className = "message-wrapper";
+            const badgeDiv = document.createElement("div");
+            badgeDiv.className = "thought-duration-badge";
+            badgeDiv.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Thought for ${totalThoughtDuration}`;
+            wrapper.appendChild(badgeDiv);
+            wrapper.appendChild(contentDiv);
+            const msgDiv = document.createElement("div");
+            msgDiv.className = "message system-message";
+            msgDiv.appendChild(wrapper);
+            messagesContainer?.appendChild(msgDiv);
+          }
+          contentDiv.innerHTML = formatMarkdown(fullText);
+        }
       } else if (data.type === "token") {
         if (!contentDiv) {
           clearInterval(timerInterval);
@@ -577,7 +601,7 @@ export default function InputArea() {
     <div className="input-area">
       <div
         className="chat-mode-toggle"
-        title="Document Mode: strict RAG from indexed files only. LLM Mode: chat directly with the model."
+        title="Document: answers only from your indexed files. LLM: chat directly with the model."
       >
         <label className="toggle-switch">
           <input
@@ -674,7 +698,11 @@ export default function InputArea() {
             rows={1}
             aria-label="Chat message"
             placeholder={
-              isMoeActive ? "Ask with 4 expert agents..." : "Ask anything...  (type @ to call an agent)"
+              isMoeActive
+                ? "Ask 4 expert agents in parallel..."
+                : chatMode === "document"
+                  ? "Ask your documents...  (type @ to call an agent)"
+                  : "Chat with the model...  (type @ to call an agent)"
             }
             value={value}
             onChange={(e) => {

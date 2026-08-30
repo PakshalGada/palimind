@@ -18,7 +18,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: 'index.html',
-        glance: 'glance.html',
       },
     },
   },

@@ -50,7 +50,7 @@ def append_chat(agent_id: str, role: str, content: str) -> None:
     if not content:
         return
     messages = read_chat(agent_id)
-    messages.append({"role": role, "content": content[:8000], "timestamp": time.time()})
+    messages.append({"role": role, "content": content[:100_000], "timestamp": time.time()})
     if len(messages) > AGENT_CHAT_LIMIT:
         messages = messages[-AGENT_CHAT_LIMIT:]
     try:

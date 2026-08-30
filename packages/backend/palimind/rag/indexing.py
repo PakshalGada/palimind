@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 from palimind.config import load_config, palimind_dir, write_default_config
-from palimind.embedder import generate_embeddings_batch
+from palimind.core.embedder import generate_embeddings_batch
 from palimind.exceptions import (
     CaptionError,
     EmbeddingError,

@@ -11,7 +11,7 @@ PRESET_AGENTS: list[dict[str, Any]] = [
         "name": "nova",
         "color_seed": "nova-researcher",
         "temperature": 0.3,
-        "max_iterations": 10,
+        "max_iterations": 15,
         "tools": ["web_search", "fetch_url", "summarize", "document_search", "memory_search"],
         "system_prompt": (
             "You are Nova, a tireless web researcher with a curious, energetic personality. "
@@ -26,7 +26,7 @@ PRESET_AGENTS: list[dict[str, Any]] = [
         "name": "atlas",
         "color_seed": "atlas-coder",
         "temperature": 0.15,
-        "max_iterations": 12,
+        "max_iterations": 15,
         "write_access": True,
         "shell_access": True,
         "tools": [
@@ -49,7 +49,7 @@ PRESET_AGENTS: list[dict[str, Any]] = [
         "name": "quill",
         "color_seed": "quill-writer",
         "temperature": 0.7,
-        "max_iterations": 6,
+        "max_iterations": 10,
         "tools": ["document_search", "summarize", "web_search", "memory_search"],
         "system_prompt": (
             "You are Quill, an eloquent writer and editor with a warm, expressive personality. "
@@ -62,7 +62,7 @@ PRESET_AGENTS: list[dict[str, Any]] = [
         "name": "sage",
         "color_seed": "sage-critic",
         "temperature": 0.45,
-        "max_iterations": 8,
+        "max_iterations": 12,
         "tools": ["document_search", "summarize", "memory_search", "fetch_url"],
         "system_prompt": (
             "You are Sage, a sharp, thoughtful advisor with a slightly mischievous sense of "
@@ -75,7 +75,7 @@ PRESET_AGENTS: list[dict[str, Any]] = [
         "name": "veda",
         "color_seed": "veda-analyst",
         "temperature": 0.2,
-        "max_iterations": 10,
+        "max_iterations": 15,
         "tools": ["document_search", "summarize", "read_file", "run_python", "memory_search"],
         "system_prompt": (
             "You are Veda, a meticulous data analyst with a patient, detail-loving personality. "
@@ -88,7 +88,7 @@ PRESET_AGENTS: list[dict[str, Any]] = [
         "name": "zephyr",
         "color_seed": "zephyr-general",
         "temperature": 0.6,
-        "max_iterations": 8,
+        "max_iterations": 12,
         "tools": ["web_search", "fetch_url", "document_search", "summarize", "memory_search"],
         "system_prompt": (
             "You are Zephyr, a friendly, all-round knowledge companion with a light, playful "

@@ -10,8 +10,8 @@ from pathlib import Path
 root_path = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(root_path))
 
-from palimind.memory import format_hierarchical_memory_context
-from palimind.session_store import save_sessions
+from palimind.memory.hierarchical import format_hierarchical_memory_context
+from palimind.memory.session_store import save_sessions
 from palimind.storage.chat_store import ChatVectorStore, search_chat_episodes
 
 

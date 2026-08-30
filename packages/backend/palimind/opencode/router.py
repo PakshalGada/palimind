@@ -48,7 +48,7 @@ def _proxy_alive() -> bool:
 
 def _key_configured() -> bool:
     try:
-        from palimind.opencode_auth import get_key
+        from palimind.opencode.auth import get_key
 
         return bool(get_key("opencode"))
     except Exception:
@@ -128,7 +128,7 @@ def _fetch_sync() -> list[dict]:
             models = _from_ollama_tags(data)
 
     if not models:
-        from palimind.opencode_auth import get_key
+        from palimind.opencode.auth import get_key
 
         key = get_key("opencode")
         if key:

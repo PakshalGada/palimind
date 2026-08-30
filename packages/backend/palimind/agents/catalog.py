@@ -18,7 +18,7 @@ RUN_MODES = ("on_demand", "scheduled", "watcher")
 
 _NAME_RE = re.compile(r"^[\w-]{1,64}$")
 
-DEFAULT_MAX_ITERATIONS = 8
+DEFAULT_MAX_ITERATIONS = 15
 
 
 def _now_iso() -> str:

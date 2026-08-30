@@ -37,7 +37,7 @@ const EMPTY_DEF: Partial<AgentDefinition> = {
   run_mode: 'on_demand',
   schedule: '',
   watcher_pattern: '',
-  max_iterations: 8,
+  max_iterations: 15,
   human_in_loop_threshold: 0.0,
   write_access: false,
   shell_access: false,
@@ -47,12 +47,6 @@ const EMPTY_DEF: Partial<AgentDefinition> = {
 function fmtTime(ts?: number): string {
   if (!ts) return 'never';
   return new Date(ts * 1000).toLocaleString();
-}
-
-function fmtClock(ts?: number): string {
-  if (!ts) return '';
-  const ms = ts < 1e12 ? ts * 1000 : ts;
-  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 export default function Agents() {
@@ -270,7 +264,19 @@ export default function Agents() {
           />
         </div>
       ) : (
-        <div className="agents-detail-empty">Select an agent to start chatting, or create a new one.</div>
+        <div className="agents-detail-empty">
+          <div className="agents-empty-title">No agent selected</div>
+          <div className="agents-empty-sub">
+            Pick an agent from the sidebar to start chatting, or create a new one for a custom task.
+          </div>
+          <button className="action-btn primary" onClick={() => setCreating(true)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Create Agent
+          </button>
+        </div>
       )}
     </div>
   );
@@ -575,9 +581,11 @@ function AgentConfigModal({
                       <input value={draft.watcher_pattern || ''} placeholder="*.md" onChange={e => setDraft({ ...draft, watcher_pattern: e.target.value })} />
                     </label>
                   ) : (
-                    <label className="agent-field">Max Iterations
-                      <input type="number" min="1" value={draft.max_iterations ?? 8} onChange={e => setDraft({ ...draft, max_iterations: parseInt(e.target.value) || 1 })} />
-                    </label>
+                    <div className="agent-field">
+                      <span className="agent-field-label">Max Steps (iterations)</span>
+                      <input type="number" min="1" value={draft.max_iterations ?? 15} onChange={e => setDraft({ ...draft, max_iterations: parseInt(e.target.value) || 1 })} />
+                      <span className="agent-field-hint">Tool steps the agent may take before it is forced to answer.</span>
+                    </div>
                   )}
                 </div>
               </section>
@@ -775,13 +783,6 @@ function ChatMessageItem({
       <div className="agent-msg user">
         <div className="agent-msg-bubble user">
           <span className="agent-msg-text">{msg.content}</span>
-          <span className="agent-msg-meta">
-            <span className="agent-msg-time">{fmtClock(msg.timestamp)}</span>
-            <svg className="msg-tick" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <path d="M9.5 16.5 5 12l1.4-1.4 3.1 3.1 8-8L19 7.1l-9.5 9.4z" />
-              <path d="M9.5 20.5 5 16l1.4-1.4 3.1 3.1 8-8L19 10.1l-9.5 10.4z" />
-            </svg>
-          </span>
         </div>
       </div>
     );
@@ -804,9 +805,6 @@ function ChatMessageItem({
         {msg.content && (
           <div className="agent-msg-bubble agent">
             <div className="agent-msg-rich" dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.content) }} />
-            <span className="agent-msg-meta">
-              <span className="agent-msg-time">{fmtClock(msg.timestamp)}</span>
-            </span>
           </div>
         )}
         {msg.error && <div className="agent-msg-error">{msg.error}</div>}

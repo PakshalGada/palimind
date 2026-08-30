@@ -51,7 +51,6 @@
     --wa-bubble-agent-text: var(--text-main);
     --wa-bubble-agent-time: rgba(244, 244, 245, 0.45);
     --wa-online: #a1a1aa;
-    --wa-grid-dot: rgba(20, 184, 166, 0.14);
 }
 .light-mode {
     --bg-color: #ffffff;
@@ -102,7 +101,6 @@
     --wa-bubble-agent-text: var(--text-main);
     --wa-bubble-agent-time: rgba(9, 9, 11, 0.45);
     --wa-online: #a1a1aa;
-    --wa-grid-dot: rgba(20, 184, 166, 0.2);
 }
 * {
     box-sizing: border-box;
@@ -3362,8 +3360,23 @@ input:checked + .toggle-slider .llm-mode {
 .agents-detail-empty {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+}
+.agents-empty-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+.agents-empty-sub {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  max-width: 360px;
+  line-height: 1.5;
 }
 .agents-error-banner {
   margin: 0 12px 10px;
@@ -3547,34 +3560,6 @@ input:checked + .toggle-slider .llm-mode {
   flex-direction: column;
   gap: 6px;
   background-color: var(--wa-chat-bg);
-}
-/* Animated dotted grid — a slow hue drift across a single colour family,
-   animating only inside the chat area (never outside it). */
-.agent-chat-messages::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image: radial-gradient(circle, var(--wa-grid-dot) 1.2px, transparent 1.7px);
-  background-size: 26px 26px;
-  animation: agent-grid-hue 16s ease-in-out infinite;
-}
-.agent-chat-messages > * {
-  position: relative;
-  z-index: 1;
-}
-@keyframes agent-grid-hue {
-  0%,
-  100% {
-    filter: hue-rotate(0deg);
-  }
-  33% {
-    filter: hue-rotate(22deg);
-  }
-  66% {
-    filter: hue-rotate(-14deg);
-  }
 }
 .agent-chat-empty {
   margin: auto;
@@ -4050,6 +4035,13 @@ input:checked + .toggle-slider .llm-mode {
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+.agent-field-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: normal;
+  line-height: 1.4;
 }
 .agent-form input:not([type="checkbox"]),
 .agent-form select,

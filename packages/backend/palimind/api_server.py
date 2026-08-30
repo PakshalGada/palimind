@@ -43,7 +43,7 @@ import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -54,20 +54,16 @@ from palimind.api import (
     require_index,
     update_index,
 )
-from palimind.audio_stt import transcribe_wav_bytes
-from palimind.audio_tts import text_to_speech_bytes
+from palimind.audio.stt import transcribe_wav_bytes
+from palimind.audio.tts import text_to_speech_bytes
 from palimind.document.stream import document_mode_stream
 from palimind.llm.stream import llm_mode_stream, moe_mode_stream
-from palimind.palivision_router import router as palivision_router
-from palimind.session_store import (
+from palimind.memory.session_store import (
     add_new_session,
     delete_session,
     load_sessions,
     set_active_session_id,
 )
-
-app = FastAPI(title="Palimind V2 API")
-
 
 app = FastAPI(title="Palimind V2 API")
 
@@ -79,7 +75,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(palivision_router)
 app.include_router(agents_router)
 
 
@@ -108,12 +103,6 @@ class SPAStaticFiles(StaticFiles):
 
 
 if UI_DIR.exists():
-
-    @app.get("/ui/glance", response_class=HTMLResponse)
-    async def serve_glance():
-        glance_file = UI_DIR / "glance.html"
-        return glance_file.read_text("utf-8")
-
     app.mount("/ui", SPAStaticFiles(directory=UI_DIR, html=True), name="ui")
 
 
@@ -284,8 +273,8 @@ def update_watcher(path: Path | None):
 def _add_capture_to_field(root: Path, text: str) -> dict:
     """Index a captured text snippet into a field's vector DB and rebuild the knowledge graph."""
     from palimind.config import load_config
+    from palimind.core.embedder import generate_embedding
     from palimind.document.graph import build_doc_graph
-    from palimind.embedder import generate_embedding
     from palimind.storage.db import get_connection, insert_chunks, upsert_file
     from palimind.storage.vector_store import VectorStore
 
@@ -807,7 +796,7 @@ async def chat_stream(
         return StreamingResponse(err_stream(), media_type="text/event-stream")
 
     from palimind.config import load_config
-    from palimind.persona import persona_block
+    from palimind.core.persona import persona_block
 
     config = load_config(state.active_field)
     ollama_url = config.get("ollama_base_url", "http://localhost:11434")
@@ -843,7 +832,7 @@ async def chat_stream(
     )
     long_term_limit = 0 if (chat_mode == "llm" and moe_sub_mode != "moe") else 3
 
-    from palimind.memory import get_hierarchical_memory
+    from palimind.memory.hierarchical import get_hierarchical_memory
 
     mem = await asyncio.to_thread(
         get_hierarchical_memory,
@@ -866,7 +855,7 @@ async def chat_stream(
         files_filter = [f.strip() for f in files.split(",") if f.strip()]
 
     if chat_mode == "document":
-        from palimind.opencode_router import resolve_model_url
+        from palimind.opencode.router import resolve_model_url
 
         return await document_mode_stream(
             q,
@@ -888,7 +877,7 @@ async def chat_stream(
         else config.get("moe_sub_mode", "default")
     )
     if chat_mode == "llm" and moe_sub_mode == "moe":
-        from palimind.opencode_router import resolve_model_url
+        from palimind.opencode.router import resolve_model_url
 
         orchestrator_model = config.get("moe_orchestrator_model", "") or chat_model
         worker_model = config.get("moe_worker_model", "") or chat_model
@@ -911,7 +900,7 @@ async def chat_stream(
             long_term_episodes=long_term_episodes,
         )
 
-    from palimind.opencode_router import resolve_model_url
+    from palimind.opencode.router import resolve_model_url
 
     return await llm_mode_stream(
         q,
@@ -1135,7 +1124,7 @@ async def get_models():
     try:
         models = await asyncio.to_thread(_fetch_ollama_models_blocking, ollama_url)
 
-        from palimind.opencode_router import list_opencode_models
+        from palimind.opencode.router import list_opencode_models
 
         oc_models = await asyncio.to_thread(list_opencode_models)
         seen = {m["model_id"] for m in models}
@@ -1391,7 +1380,7 @@ async def get_opencode_key():
     global auth store (unreadable file, invalid/non-object JSON) is reported
     via ``error`` instead of surfacing as a 500.
     """
-    from palimind.opencode_auth import get_key, masked_preview
+    from palimind.opencode.auth import get_key, masked_preview
 
     try:
         key = get_key()
@@ -1405,7 +1394,7 @@ async def get_opencode_key():
 @app.post("/api/settings/opencode-key")
 async def save_opencode_key(req: Request):
     """Validate an OpenCode Zen API key against upstream, then store it globally."""
-    from palimind.opencode_auth import set_key
+    from palimind.opencode.auth import set_key
 
     data = await req.json()
     key = str(data.get("key") or "").strip()
@@ -1433,7 +1422,7 @@ async def save_opencode_key(req: Request):
 @app.delete("/api/settings/opencode-key")
 async def delete_opencode_key():
     """Remove the stored OpenCode API key from the global auth file."""
-    from palimind.opencode_auth import remove_key
+    from palimind.opencode.auth import remove_key
 
     try:
         remove_key()

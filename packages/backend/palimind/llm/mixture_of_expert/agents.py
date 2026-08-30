@@ -32,6 +32,43 @@ def _report_web_step(
         on_step("Gathered web search results")
 
 
+# Prompt sent to the model once its tool budget is exhausted (or a repetitive
+# tool loop is detected) so it synthesizes what it already gathered instead of
+# the loop ending with a generic "[Agent timed out]" message.
+WRAP_UP_PROMPT = (
+    "You have reached your step limit. Stop calling tools. "
+    "Provide your FINAL_ANSWER now, using the information you have already gathered."
+)
+
+# Hard cap on the size of a tool result fed back into the model context so a
+# single huge result cannot blow up the window and stall the loop.
+MAX_TOOL_RESULT_CHARS = 8000
+
+
+def _tool_signature(tool_name: str, tool_args: dict[str, Any] | None) -> str:
+    import json
+
+    try:
+        args = json.dumps(tool_args or {}, sort_keys=True)
+    except (TypeError, ValueError):
+        args = str(tool_args or {})
+    return f"{tool_name}:{args}"
+
+
+def _is_looping(recent: list[str], repeats: int = 3) -> bool:
+    """Return True when the exact same tool+args call appears repeatedly.
+
+    Models occasionally get stuck re-invoking the same tool with identical
+    arguments, which burns the whole iteration budget. When detected we stop
+    calling tools and force a synthesis step instead.
+    """
+    if len(recent) < repeats:
+        return False
+    sig = recent[-1]
+    count = sum(1 for s in recent[-max(repeats, len(recent)) :] if s == sig)
+    return count >= repeats
+
+
 # ── custom-agent (definition-based) support ───────────────────────────────
 
 # Tools that mutate state and may require human-in-the-loop approval.
@@ -161,6 +198,7 @@ Be concise and effective."""
     ]
 
     full_log: list[str] = []
+    recent_tool_calls: list[str] = []
     for iteration in range(max_tool_iterations):
         result = llm_chat_safe(
             messages,
@@ -172,7 +210,7 @@ Be concise and effective."""
         )
         response = result["content"]
         _emit_event(
-            event_cb, "agent:thought", {"text": (response or "")[:400], "iteration": iteration}
+            event_cb, "agent:thought", {"text": (response or "")[:2000], "iteration": iteration}
         )
 
         # ── 1. Native tool calls (preferred) ──────────────────────────
@@ -198,9 +236,20 @@ Be concise and effective."""
                 messages.append(
                     {
                         "role": "user",
-                        "content": f"Tool '{tool_name}' returned:\n{tool_result}",
+                        "content": (
+                            f"Tool '{tool_name}' returned:\n{tool_result[:MAX_TOOL_RESULT_CHARS]}"
+                        ),
                     }
                 )
+                recent_tool_calls.append(_tool_signature(tool_name, tool_args))
+            if _is_looping(recent_tool_calls):
+                _emit_event(
+                    event_cb,
+                    "agent:thought",
+                    {"text": "Repeated tool call detected — wrapping up.", "iteration": iteration},
+                )
+                messages.append({"role": "assistant", "content": response})
+                messages.append({"role": "user", "content": WRAP_UP_PROMPT})
             continue
 
         # ── 2. Text-protocol tool call (fallback) ─────────────────────
@@ -232,11 +281,20 @@ Be concise and effective."""
                 {"tool": tool_name, "result": str(tool_result)[:600]},
             )
 
-            tool_msg = f"Tool '{tool_name}' returned:\n{tool_result}"
+            tool_msg = f"Tool '{tool_name}' returned:\n{tool_result[:MAX_TOOL_RESULT_CHARS]}"
             full_log.append(f"[Agent {agent_id}] Called {tool_name}: {tool_args}")
             full_log.append(f"[Agent {agent_id}] Result: {tool_result[:200]}")
             messages.append({"role": "assistant", "content": response})
             messages.append({"role": "user", "content": tool_msg})
+            recent_tool_calls.append(_tool_signature(tool_name, tool_args))
+            if _is_looping(recent_tool_calls):
+                _emit_event(
+                    event_cb,
+                    "agent:thought",
+                    {"text": "Repeated tool call detected — wrapping up.", "iteration": iteration},
+                )
+                messages.append({"role": "assistant", "content": response})
+                messages.append({"role": "user", "content": WRAP_UP_PROMPT})
             continue
 
         # ── 3. Proactive fallback: research agents search on turn 0 ───
@@ -248,10 +306,11 @@ Be concise and effective."""
             tool_result = call_tool("web_search", query=query, max_results=3)
             _report_web_step(on_step, "web_search", tool_result)
 
-            tool_msg = f"Tool 'web_search' auto-executed for research returned:\n{tool_result}"
+            tool_msg = f"Tool 'web_search' auto-executed for research returned:\n{tool_result[:MAX_TOOL_RESULT_CHARS]}"
             full_log.append(f"[Agent {agent_id}] Auto-executed web_search: {query}")
             messages.append({"role": "assistant", "content": response})
             messages.append({"role": "user", "content": tool_msg})
+            recent_tool_calls.append(_tool_signature("web_search", {"query": query}))
             continue
 
         # ── 4. Final answer ───────────────────────────────────────────
@@ -262,9 +321,46 @@ Be concise and effective."""
 
         messages.append({"role": "assistant", "content": response})
         messages.append(
-            {"role": "user", "content": "Continue working. Provide your FINAL_ANSWER when done."}
+            {
+                "role": "user",
+                "content": (
+                    WRAP_UP_PROMPT
+                    if iteration == max_tool_iterations - 1
+                    else "Continue working. Provide your FINAL_ANSWER when done."
+                ),
+            }
         )
 
+    # The tool budget was used up without a FINAL_ANSWER. Run one last call
+    # (no tools) that forces the model to synthesize a best-effort answer, so
+    # the user gets a real result instead of a generic timeout string.
+    _emit_event(
+        event_cb,
+        "agent:thought",
+        {
+            "text": "Step limit reached — synthesizing final answer.",
+            "iteration": max_tool_iterations,
+        },
+    )
+    result = llm_chat_safe(
+        messages + [{"role": "user", "content": WRAP_UP_PROMPT}],
+        worker_model,
+        ollama_url,
+        tools=None,
+        error_prefix=f"[Agent {agent_id} error",
+        temperature=temperature,
+    )
+    response = result["content"] or ""
+    _emit_event(
+        event_cb,
+        "agent:thought",
+        {"text": response[:2000], "iteration": max_tool_iterations},
+    )
+    final_answer = parse_agent_output(response)
+    if final_answer and "FINAL_ANSWER:" in response:
+        return final_answer
+    if final_answer and not final_answer.startswith("[Agent "):
+        return final_answer
     return "[Agent timed out - max iterations reached]"
 
 

@@ -2,8 +2,8 @@
 name: palimind-tauri
 description: >
   Rust/Tauri shell conventions. REQUIRED when editing apps/desktop/src-tauri.
-  Triggers: Tauri, Rust, tray, global shortcut, hotkey, screen capture,
-  backend spawn, WebView, updater, packaging.
+  Triggers: Tauri, Rust, tray, global shortcut, hotkey, backend spawn,
+  WebView, updater, packaging.
 ---
 
 # Palimind Desktop Shell (Tauri 2)
@@ -11,7 +11,7 @@ description: >
 ## Where things live
 
 - `apps/desktop/src-tauri/src/main.rs` — app entry: spawns the Python backend,
-  polls health, registers shortcuts, builds tray, opens Glance window.
+  polls health, registers the main-window shortcut, builds the tray menu.
 - `tauri.conf.json` — window config, bundle targets, icons.
 - Icons are generated into `src-tauri/icons/` from `brand/icons/icon.svg`
   (`make icons`). Never hand-edit generated icons.
@@ -22,10 +22,8 @@ description: >
   `python -m palimind.api_server` with cwd = repo `packages/backend` → poll
   `/health`. Keep cleanup on exit reliable (`BackendProcess` Drop).
 - Global shortcuts are platform-aware:
-  Win `Ctrl+Shift+Space/V`, macOS `Cmd+Shift+Space/V`, Linux
-  `Super+Shift+Space/V`. Registration failure is non-fatal (Wayland).
-- Glance popup is created hidden at startup so its JS listeners are ready;
-  capture happens BEFORE showing it.
+  Win `Ctrl+Shift+Space`, macOS `Cmd+Shift+Space`, Linux
+  `Super+Shift+Space`. Registration failure is non-fatal (Wayland).
 - Tray menu must work on Wayland (menu-based, no click-to-toggle assumptions).
 - Prefer `eprintln!("[Palimind] ...")` for diagnostics; logs go to stderr and
   the backend log file in temp dir.

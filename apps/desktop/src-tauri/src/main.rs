@@ -6,29 +6,21 @@
 //  3. Open the main WebView window pointing at http://127.0.0.1:8000/ui
 //  4. Register global shortcuts (platform-aware):
 //       Ctrl/Cmd/Super+Shift+Space  → toggle main window (PaliSpace)
-//       Ctrl/Cmd/Super+Shift+V      → open PaliGlance (screen capture popup)
 //  5. Clean up the backend on app exit
 
 use std::fs::File;
-use std::io::Cursor;
+use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use std::thread;
-use std::path::PathBuf;
-
-use base64::{engine::general_purpose::STANDARD as B64, Engine};
-use xcap::image::{DynamicImage, ImageFormat};
-use xcap::Monitor;
+use std::time::Duration;
 
 use tauri::{
-    AppHandle, Manager, Emitter, WebviewUrl, WebviewWindowBuilder,
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
+    AppHandle, Manager,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
-
-const GLANCE_URL: &str = "http://127.0.0.1:8000/ui/glance";
 
 // ── Python backend process holder ────────────────────────────────────────────
 
@@ -49,7 +41,10 @@ fn find_python(project_root: &PathBuf) -> String {
     let candidates = [
         project_root.join(".venv").join("bin").join("python"),
         project_root.join("venv").join("bin").join("python"),
-        project_root.join(".venv").join("Scripts").join("python.exe"),
+        project_root
+            .join(".venv")
+            .join("Scripts")
+            .join("python.exe"),
         project_root.join("venv").join("Scripts").join("python.exe"),
     ];
     let mut fallbacks: Vec<String> = candidates
@@ -75,7 +70,10 @@ fn find_python(project_root: &PathBuf) -> String {
         // profile (mise/rbenv-style version managers, venv activation, …)
         // is applied even when launched from a desktop entry.
         let ok_login = Command::new("sh")
-            .args(["-lc", &format!("command -v {py} >/dev/null && {py} -c \"import fastapi, uvicorn\"")])
+            .args([
+                "-lc",
+                &format!("command -v {py} >/dev/null && {py} -c \"import fastapi, uvicorn\""),
+            ])
             .stdin(Stdio::null())
             .output()
             .map(|o| o.status.success())
@@ -83,7 +81,10 @@ fn find_python(project_root: &PathBuf) -> String {
         if ok_login {
             return format!("sh|-lc|{}", py);
         }
-        eprintln!("[Palimind] Python '{}' missing backend deps, trying next…", py);
+        eprintln!(
+            "[Palimind] Python '{}' missing backend deps, trying next…",
+            py
+        );
     }
     eprintln!("[Palimind] No Python with fastapi/uvicorn found — using 'python3' anyway.");
     "python3".to_string()
@@ -104,66 +105,6 @@ fn wait_for_backend(url: &str, max_attempts: u32) -> bool {
     false
 }
 
-// ── Screen capture ───────────────────────────────────────────────────────────
-
-fn capture_screen_b64() -> Option<String> {
-    let monitors = Monitor::all().ok()?;
-    let monitor = monitors.into_iter().next()?;
-    let image = monitor.capture_image().ok()?;
-    let mut buf = Cursor::new(Vec::new());
-    DynamicImage::ImageRgba8(image)
-        .write_to(&mut buf, ImageFormat::Png)
-        .ok()?;
-    Some(B64.encode(buf.into_inner()))
-}
-
-// ── PaliGlance popup window ──────────────────────────────────────────────────
-
-fn ensure_glance_window(app: &AppHandle) -> Option<tauri::WebviewWindow> {
-    if let Some(win) = app.get_webview_window("glance") {
-        return Some(win);
-    }
-    WebviewWindowBuilder::new(app, "glance", WebviewUrl::External(GLANCE_URL.parse().unwrap()))
-        .title("PaliGlance")
-        .inner_size(580.0, 420.0)
-        .min_inner_size(400.0, 300.0)
-        .resizable(true)
-        .decorations(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .visible(false)
-        .build()
-        .ok()
-}
-
-/// Capture the screen (before showing) then reveal the popup and hand it the
-/// screenshot via events. Mirrors the Electron flow so the popup never captures
-/// itself.
-fn open_glance(app: &AppHandle) {
-    let Some(win) = ensure_glance_window(app) else { return };
-
-    if win.is_visible().unwrap_or(false) {
-        let _ = win.hide();
-        return;
-    }
-
-    // Window is hidden — give the compositor a beat, then capture.
-    thread::sleep(Duration::from_millis(120));
-    let screenshot = capture_screen_b64();
-
-    let _ = win.show();
-    let _ = win.set_focus();
-    let _ = win.emit("glance:shown", ());
-    if let Some(b64) = screenshot {
-        let _ = win.emit("glance:screenshot", b64);
-    }
-}
-
-#[tauri::command]
-fn open_glance_cmd(app: AppHandle) {
-    open_glance(&app);
-}
-
 // ── App entry-point ──────────────────────────────────────────────────────────
 
 fn main() {
@@ -176,7 +117,12 @@ fn main() {
     // Walk up until we find the backend package to locate actual project root
     let mut root = exe_dir.clone();
     for _ in 0..8 {
-        if root.join("packages").join("backend").join("palimind").exists() {
+        if root
+            .join("packages")
+            .join("backend")
+            .join("palimind")
+            .exists()
+        {
             break;
         }
         if let Some(parent) = root.parent() {
@@ -204,7 +150,10 @@ fn main() {
 
         // Redirect stdout/stderr to a log file so backend crashes are
         // diagnosable; stdin from /dev/null so the child never gets EIO.
-        let devnull_in = File::open("/dev/null").ok().map(Stdio::from).unwrap_or_else(Stdio::null);
+        let devnull_in = File::open("/dev/null")
+            .ok()
+            .map(Stdio::from)
+            .unwrap_or_else(Stdio::null);
         let log_path = std::env::temp_dir().join("palimind-backend.log");
         let log_file = File::create(&log_path).ok();
         let log_out = log_file
@@ -247,82 +196,71 @@ fn main() {
 
     let backend_for_exit = Arc::clone(&backend_process);
 
-    // Platform-aware accelerator helpers
+    // Platform-aware accelerator helper
     let is_mac = cfg!(target_os = "macos");
     let is_linux = cfg!(target_os = "linux");
-    let space_hotkey = if is_mac { "Command+Shift+Space" } else if is_linux { "Super+Shift+Space" } else { "Ctrl+Shift+Space" };
-    let glance_hotkey = if is_mac { "Command+Shift+V" } else if is_linux { "Super+Shift+V" } else { "Ctrl+Shift+V" };
+    let space_hotkey = if is_mac {
+        "Command+Shift+Space"
+    } else if is_linux {
+        "Super+Shift+Space"
+    } else {
+        "Ctrl+Shift+Space"
+    };
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![open_glance_cmd])
         .setup(move |app| {
             let handle: AppHandle = app.handle().clone();
 
-            // ── Global shortcuts ───────────────────────────────────────────
+            // ── Global shortcut ──────────────────────────────────────────
             let h1 = handle.clone();
-            let h2 = handle.clone();
 
             // Unregister any stale shortcuts from a previously crashed instance
             let _ = app.global_shortcut().unregister_all();
 
-            let shortcut_result = app.global_shortcut().on_shortcuts(
-                [space_hotkey, glance_hotkey],
-                move |_app, shortcut, event| {
-                    if event.state() != ShortcutState::Pressed {
-                        return;
-                    }
-                    let key = shortcut.to_string();
-                    if key.contains("Space") {
-                        // Toggle main window
-                        if let Some(win) = h1.get_webview_window("main") {
-                            if win.is_visible().unwrap_or(false) {
-                                let _ = win.hide();
-                            } else {
-                                let _ = win.show();
-                                let _ = win.set_focus();
+            let shortcut_result =
+                app.global_shortcut()
+                    .on_shortcuts([space_hotkey], move |_app, shortcut, event| {
+                        if event.state() != ShortcutState::Pressed {
+                            return;
+                        }
+                        if shortcut.to_string().contains("Space") {
+                            // Toggle main window
+                            if let Some(win) = h1.get_webview_window("main") {
+                                if win.is_visible().unwrap_or(false) {
+                                    let _ = win.hide();
+                                } else {
+                                    let _ = win.show();
+                                    let _ = win.set_focus();
+                                }
                             }
                         }
-                    } else if key.contains('V') {
-                        open_glance(&h2);
-                    }
-                },
-            );
+                    });
             if let Err(e) = shortcut_result {
                 eprintln!("[Palimind] Global shortcut registration failed (non-fatal): {e}");
             }
 
-            // Create the PaliGlance popup at startup (hidden, kept alive so its
-            // JS listeners are registered before the first hotkey press).
-            let _ = ensure_glance_window(&handle);
-
             // ── Tray icon menu (works on all platforms including Wayland) ──
             let tray_h = handle.clone();
             let open_item = MenuItem::with_id(app, "open", "Open Palimind", true, None::<&str>)?;
-            let capture_item = MenuItem::with_id(app, "capture", "PaliGlance", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open_item, &capture_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&open_item, &quit_item])?;
 
             TrayIconBuilder::new()
                 .menu(&menu)
-                .on_menu_event(move |app, event| {
-                    match event.id().as_ref() {
-                        "open" => {
-                            if let Some(win) = tray_h.get_webview_window("main") {
-                                let _ = win.show();
-                                let _ = win.set_focus();
-                            }
+                .on_menu_event(move |app, event| match event.id().as_ref() {
+                    "open" => {
+                        if let Some(win) = tray_h.get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
                         }
-                        "capture" => {
-                            open_glance(&tray_h);
-                        }
-                        "quit" => {
-                            app.exit(0);
-                        }
-                        _ => {}
                     }
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
                 })
                 .build(app)?;
 
@@ -330,8 +268,6 @@ fn main() {
         })
         .on_window_event(move |window, event| {
             if let tauri::WindowEvent::Destroyed = event {
-                // Only kill backend when the main window is destroyed,
-                // not when the glance popup closes
                 if window.label() == "main" {
                     drop(backend_for_exit.lock().unwrap());
                 }

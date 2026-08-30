@@ -15,16 +15,15 @@ Palimind is a local-first AI workspace: Tauri 2 desktop shell + FastAPI backend
 ## Monorepo layout
 
 ```
-apps/desktop/src-tauri/    Rust/Tauri shell — spawns backend, hotkeys, tray, capture
+apps/desktop/src-tauri/    Rust/Tauri shell — spawns backend, hotkey, tray
 packages/backend/          Python package "palimind" (FastAPI + Typer CLI)
   palimind/api_server.py   FastAPI app (routers split planned → api/routers/)
   palimind/agents/         agent runtime, scheduler, memory, tools/
   palimind/rag|ingestion/  document parsing, chunking, retrieval
   palimind/llm/            Ollama client, MoE orchestration, SSE streaming
   palimind/storage/        SQLite (FTS5) + vector store
-  palimind/services/       OCR, vision, STT, TTS
   palimind/cli/            `pm` Typer CLI
-packages/frontend/         React 19 + TypeScript + Vite UI (incl. Glance popup)
+packages/frontend/         React 19 + TypeScript + Vite UI
 skills/                    Developer skills (SKILL.md) for AI coding agents — NOT shipped in app
 brand/                     Icons, fonts, design tokens
 docs/                      Onboarding, architecture, contributing
@@ -37,10 +36,10 @@ docker/                    Backend image + compose (dev/server use)
 Tauri shell (Rust)
   ├─ spawns FastAPI backend as child process (port from env, default 8000)
   ├─ polls /health until ready, then loads WebView at /ui
-  └─ registers global shortcuts; captures screen for Glance
+  └─ registers the main-window toggle shortcut
 FastAPI (127.0.0.1:8000)
   ├─ REST + SSE streaming endpoints (/api/*)
-  └─ proxies provider traffic via opencode_router/opencode_proxy (:11435)
+  └─ proxies provider traffic via opencode/router + opencode_proxy (:11435)
 Ollama (127.0.0.1:11434)
   └─ chat / embed / vision inference
 Local storage: SQLite FTS5 index (.palimind/index.db), vector store, files

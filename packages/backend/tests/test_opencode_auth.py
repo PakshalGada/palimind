@@ -23,7 +23,7 @@ ROOT_PATH = Path(__file__).resolve().parent.parent
 if str(ROOT_PATH) not in sys.path:
     sys.path.insert(0, str(ROOT_PATH))
 
-from palimind.opencode_auth import (  # noqa: E402
+from palimind.opencode.auth import (  # noqa: E402
     auth_path,
     get_key,
     masked_preview,

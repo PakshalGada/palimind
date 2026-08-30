@@ -1,4 +1,4 @@
-import type { AgentChatMessage, AgentDefinition, AgentListItem, DirItem, GlanceSession, GraphData, HardwareData, MemoryEntry, ModelItem, Recommendation, RunRecord, ToolMeta, TreeNode } from './types';
+import type { AgentChatMessage, AgentDefinition, AgentListItem, DirItem, GraphData, HardwareData, MemoryEntry, ModelItem, Recommendation, RunRecord, ToolMeta, TreeNode } from './types';
 
 const BASE = '/api';
 
@@ -166,17 +166,5 @@ export const api = {
         headers: { 'Content-Type': 'application/octet-stream' },
         body: wavBlob,
       }).then(res => res.json() as Promise<{ text?: string; error?: string }>),
-  },
-  palivision: {
-    sessions: () => get<{ sessions: GlanceSession[] }>('/palivision/sessions'),
-    analyze: (body: unknown) =>
-      fetch(`${BASE}/palivision/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }),
-    saveSession: (body: unknown) => post<{ status?: string }>('/palivision/session/save', body),
-    deleteSession: (id: string) => del<{ status?: string }>(`/palivision/session/${id}`),
-    updateMemory: (body: unknown) => post<{ status?: string }>('/palivision/memory/update', body),
   },
 };

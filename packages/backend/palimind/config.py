@@ -86,3 +86,12 @@ def write_default_config(root: Path) -> None:
     path = config_path(root)
     with path.open("w") as f:
         json.dump(DEFAULTS, f, indent=2)
+
+
+def save_config(root: Path, config: dict) -> None:
+    """Persist a merged config dict to the workspace config.json."""
+    p_dir = palimind_dir(root)
+    p_dir.mkdir(parents=True, exist_ok=True)
+    path = config_path(root)
+    with path.open("w") as f:
+        json.dump({**DEFAULTS, **config}, f, indent=2)

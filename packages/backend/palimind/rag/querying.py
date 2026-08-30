@@ -19,7 +19,7 @@ def _fetch_chat_episodes(
     session_id: str,
 ) -> str:
     try:
-        from palimind.embedder import generate_embeddings_batch
+        from palimind.core.embedder import generate_embeddings_batch
         from palimind.storage.chat_store import search_chat_episodes
 
         emb_res = generate_embeddings_batch(
@@ -49,7 +49,7 @@ def query_stream(
     session_id: str | None = None,
     web_search: bool = False,
 ) -> QueryStream:
-    from palimind.memory import format_hierarchical_memory_context
+    from palimind.memory.hierarchical import format_hierarchical_memory_context
 
     config = load_config(root)
     prompt = system_prompt if system_prompt is not None else _default_system_prompt()

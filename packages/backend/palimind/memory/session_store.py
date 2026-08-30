@@ -216,7 +216,13 @@ def delete_session(root: Path, session_id: str) -> dict:
 
 
 def append_message_to_session(
-    root: Path, session_id: str, role: str, content: str, sources: list[str] = None
+    root: Path,
+    session_id: str,
+    role: str,
+    content: str,
+    sources: list[str] = None,
+    mode: str = "",
+    mode_params: dict | None = None,
 ):
     data = load_sessions(root)
     for sess in data["sessions"]:
@@ -229,6 +235,10 @@ def append_message_to_session(
                 "content": content,
                 "timestamp": time.time(),
             }
+            if mode:
+                msg["mode"] = mode
+            if mode_params:
+                msg["mode_params"] = mode_params
             if sources:
                 msg["sources"] = sources
             sess["messages"].append(msg)
@@ -241,7 +251,7 @@ async def background_update_memory(
 ):
     await asyncio.sleep(2)
     from palimind.config import load_config
-    from palimind.embedder import generate_embeddings_batch
+    from palimind.core.embedder import generate_embeddings_batch
     from palimind.generative.summariser import summarise_conversation
     from palimind.storage.chat_store import ChatVectorStore
 

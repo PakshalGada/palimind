@@ -87,7 +87,7 @@ def cron_matches(expr: str, dt: datetime | None = None) -> bool:
 
 
 def ensure_results_session(field_root: Path) -> str:
-    from palimind.session_store import add_new_session, load_sessions
+    from palimind.memory.session_store import add_new_session, load_sessions
 
     try:
         data = load_sessions(field_root)
@@ -105,7 +105,7 @@ async def post_result(
     field_root: Path, defn_name: str, input: str, output: str, status: str
 ) -> None:
     """Post a run's result into the field's _agent_results session."""
-    from palimind.session_store import append_message_to_session
+    from palimind.memory.session_store import append_message_to_session
 
     try:
         session_id = ensure_results_session(field_root)

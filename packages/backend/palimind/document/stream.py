@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fastapi.responses import StreamingResponse
 
-from palimind.session_store import (
+from palimind.memory.session_store import (
     append_message_to_session,
     background_update_memory,
 )

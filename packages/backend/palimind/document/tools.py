@@ -4,8 +4,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from palimind.core.embedder import generate_embedding
 from palimind.document.graph import DocGraph
-from palimind.embedder import generate_embedding
 from palimind.storage.db import fts_search, get_connection, get_file_summary
 from palimind.storage.vector_store import search as vector_search
 

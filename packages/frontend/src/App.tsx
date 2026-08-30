@@ -4,7 +4,6 @@ import { api } from './api';
 import Sidebar from './components/Sidebar';
 import WelcomeScreen from './components/WelcomeScreen';
 import ChatArea from './components/ChatArea';
-import PaliVisionWorkspace from './components/PaliVisionWorkspace';
 import SettingsModal from './components/SettingsModal';
 import DirectoryPicker from './components/DirectoryPicker';
 import KnowledgeGraph from './components/KnowledgeGraph';
@@ -76,9 +75,7 @@ export default function App() {
   return (
     <div className={containerClass}>
       <Sidebar />
-      {activeView === "palivision" ? (
-        <PaliVisionWorkspace />
-      ) : activeView === "agents" ? (
+      {activeView === "agents" ? (
         <Agents />
       ) : activeField ? (
         <ChatArea />

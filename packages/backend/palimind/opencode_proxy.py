@@ -64,7 +64,7 @@ def _load_api_key() -> str | None:
     """Resolve the OpenCode API key.
 
     Order: OPENCODE_API_KEY env var → repo-root .env → the global OpenCode
-    CLI auth.json (via palimind.opencode_auth, e.g.
+    CLI auth.json (via palimind.opencode.auth, e.g.
     ~/.local/share/opencode/auth.json).
     """
     key = os.environ.get("OPENCODE_API_KEY")
@@ -76,7 +76,7 @@ def _load_api_key() -> str | None:
     try:
         # Lazy import: keeps proxy startup cheap and never fails hard if the
         # global auth store is unavailable or unreadable.
-        from palimind.opencode_auth import get_key
+        from palimind.opencode.auth import get_key
 
         return get_key("opencode")
     except Exception:

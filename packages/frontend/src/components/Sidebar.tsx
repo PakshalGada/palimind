@@ -327,6 +327,7 @@ export default function Sidebar() {
         <button
           className={`sidebar-nav-item${activeView === "fields" ? " active" : ""}`}
           aria-label="Fields mode"
+          title="PaliSpace — chat with your indexed documents and workspaces"
           onClick={() => setActiveView("fields")}
         >
           <svg
@@ -344,28 +345,9 @@ export default function Sidebar() {
           PaliSpace
         </button>
         <button
-          className={`sidebar-nav-item${activeView === "palivision" ? " active" : ""}`}
-          aria-label="PaliVision mode"
-          onClick={() => setActiveView("palivision")}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="12" cy="12" r="3" />
-            <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" />
-          </svg>
-          PaliVision
-        </button>
-        <button
           className={`sidebar-nav-item${activeView === "agents" ? " active" : ""}`}
           aria-label="Agents mode"
+          title="Agents — chat with AI agents that can research, write code, and analyze data"
           onClick={() => setActiveView("agents")}
         >
           <svg

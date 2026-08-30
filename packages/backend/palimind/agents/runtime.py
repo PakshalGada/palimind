@@ -146,8 +146,8 @@ def record_run(
             {
                 "run_id": run_id,
                 "timestamp": time.time(),
-                "input": input[:1000],
-                "output": output[:4000],
+                "input": input[:2000],
+                "output": output[:100_000],
                 "status": status,
                 "duration": round(duration, 2),
             }
@@ -238,7 +238,7 @@ def _field_models() -> tuple[str, str, str]:
     ollama = config.get("ollama_base_url", "http://localhost:11434")
     light = config.get("light_model", "") or chat
 
-    from palimind.opencode_router import resolve_model_url
+    from palimind.opencode.router import resolve_model_url
 
     ollama = resolve_model_url(chat, ollama)
     return chat, ollama, light
@@ -255,7 +255,7 @@ def _resolve_available_model(
     be determined, return the requested model unchanged with an empty note so
     the run proceeds exactly as before.
     """
-    from palimind.opencode_router import available_model_ids
+    from palimind.opencode.router import available_model_ids
 
     requested = requested or "llama3"
     try:
@@ -360,6 +360,10 @@ async def run_with_definition(
         except Exception as e:
             print(f"[agents] emit failed: {e}")
 
+    async def emit_completed(output: str, status: str) -> None:
+        if emit is not None:
+            await emit("agent:completed", {"output": output, "status": status})
+
     approval_provider = _make_approval_provider(ra, emit)
 
     chat_model, ollama_url, light_model = _field_models()
@@ -415,12 +419,12 @@ async def run_with_definition(
     except asyncio.CancelledError:
         status = "cancelled"
         output = "[Agent run cancelled]"
-        thread_emit("agent:completed", {"output": output, "status": status})
+        await emit_completed(output, status)
         raise
     except Exception as e:
         status = "error"
         output = f"[Agent run error] {e}"
-        thread_emit("agent:completed", {"output": output, "status": status})
+        await emit_completed(output, status)
     finally:
         await unregister_running(definition.id)
 
@@ -428,7 +432,7 @@ async def run_with_definition(
         output = f"**Note:** {fallback_note}\n\n{output}"
 
     if status == "success":
-        thread_emit("agent:completed", {"output": output, "status": status})
+        await emit_completed(output, status)
 
     duration = time.time() - start
     record_run(definition.id, run_id, input, output, status, duration)

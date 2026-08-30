@@ -65,14 +65,14 @@ def _resolve_in_workspace(path: str) -> Path | None:
 
 
 def web_search(query: str, max_results: int = 4) -> str:
-    from palimind.web_search import perform_web_search
+    from palimind.core.web_search import perform_web_search
 
     return perform_web_search(query, max_results=max_results)
 
 
 def fetch_url(url: str, max_chars: int = 4000) -> str:
     """Fetch a specific URL and return its extracted readable content."""
-    from palimind.web_search import fetch_url_content
+    from palimind.core.web_search import fetch_url_content
 
     return fetch_url_content(url, max_chars=max_chars)
 
@@ -88,7 +88,7 @@ def document_search(query: str, limit: int = 6) -> str:
         return "Error: no active workspace configured for document search."
 
     from palimind.config import load_config
-    from palimind.embedder import generate_embedding
+    from palimind.core.embedder import generate_embedding
     from palimind.storage.db import fts_search, get_connection
     from palimind.storage.vector_store import search as vector_search
 
@@ -149,7 +149,7 @@ def memory_search(query: str, limit: int = 3) -> str:
 
     try:
         from palimind.config import load_config
-        from palimind.embedder import generate_embeddings_batch
+        from palimind.core.embedder import generate_embeddings_batch
         from palimind.storage.chat_store import search_chat_episodes
 
         config = load_config(root)

@@ -71,7 +71,7 @@ export type ChatMode = 'document' | 'llm';
 export type LlmSubMode = 'default' | 'moe';
 export type Theme = 'dark' | 'light';
 
-export type AppView = 'fields' | 'palivision' | 'agents';
+export type AppView = 'fields' | 'agents';
 
 export interface AgentDefinition {
   id: string;
@@ -131,22 +131,4 @@ export interface ToolMeta {
   tier: number;
   requires_approval: boolean;
   parameters?: Record<string, string>;
-}
-
-export interface GlanceMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  ts?: number;
-}
-
-export interface GlanceSession {
-  id: string;
-  title: string;
-  messages: GlanceMessage[];
-  screen_summary?: string;
-  screenshot_b64?: string;
-  ocr_text?: string;
-  chat_model?: string;
-  created_at?: number;
-  updated_at?: number;
 }

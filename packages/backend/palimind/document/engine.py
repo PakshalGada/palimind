@@ -304,7 +304,7 @@ class DocumentEngine:
         sources: list[str],
         executor: ThreadPoolExecutor,
     ) -> dict[str, Any]:
-        from palimind.embedder import generate_embeddings_batch
+        from palimind.core.embedder import generate_embeddings_batch
 
         # ── Kick off LLM query rewrite in the background ────────────────
         # It overlaps with embedding + search below; we only wait for it at
@@ -464,7 +464,7 @@ class DocumentEngine:
         graph_results = [r for r in all_results if r.get("search_type") == "graph"]
         if self.rerank_enabled and non_graph and query.strip():
             try:
-                from palimind.reranker import rerank
+                from palimind.core.reranker import rerank
 
                 candidates = non_graph[:30]
                 reranked = rerank(
@@ -550,7 +550,7 @@ class DocumentEngine:
         long_term_episodes: list[dict] | None = None,
     ) -> Iterator[str]:
         """Stream the answer from the LLM using retrieved context."""
-        from palimind.memory import format_hierarchical_memory_context
+        from palimind.memory.hierarchical import format_hierarchical_memory_context
 
         ctx_text = context.get("content", "")
         sources = context.get("sources", [])

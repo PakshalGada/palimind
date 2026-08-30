@@ -2,7 +2,7 @@
 name: palimind-frontend
 description: >
   React/TypeScript conventions for the Palimind UI. REQUIRED when editing
-  packages/frontend. Triggers: React, Vite, component, hook, SSE, glance,
+  packages/frontend. Triggers: React, Vite, component, hook, SSE,
   chat UI, styling, tokens.
 ---
 
@@ -13,7 +13,6 @@ description: >
 - App: `packages/frontend/` (React 19, TypeScript, Vite).
 - `src/components/` — shared components (ChatArea, Sidebar, SettingsModal…).
 - `src/views/` — top-level views (currently Agents.tsx).
-- `src/glance/` — the separate Glance popup app (`glance.html` entry).
 - `src/api.ts` — backend client; SSE streams are consumed inline today.
 
 ## Conventions
@@ -25,7 +24,6 @@ description: >
   over hard-coded colors for anything user-visible.
 - Markdown rendering uses marked + katex with DOMPurify sanitization — never
   bypass the sanitizer for model output.
-- Keep the Glance popup bundle small and independent of main-app state.
 - Backend base URL is same-origin (`http://127.0.0.1:8000`) in dev; do not
   hardcode hosts in components.
 

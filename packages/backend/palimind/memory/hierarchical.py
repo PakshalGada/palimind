@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from palimind.session_store import get_sessions_index_file, load_session_by_id
+from palimind.memory.session_store import get_sessions_index_file, load_session_by_id
 from palimind.storage.chat_store import search_chat_episodes
 
 
@@ -55,7 +55,7 @@ def get_hierarchical_memory(
     long_term_episodes: list[dict] = []
     if long_term_limit > 0 and query and query.strip():
         try:
-            from palimind.embedder import generate_embeddings_batch
+            from palimind.core.embedder import generate_embeddings_batch
 
             embs = generate_embeddings_batch([query], ollama_url, embed_model)
             if embs and embs[0]:

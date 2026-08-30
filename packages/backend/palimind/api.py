@@ -12,13 +12,6 @@ from palimind.exceptions import (
     ParseError,
     ResponseError,
 )
-from palimind.indexing import (
-    extract_chunks,
-    index_exists,
-    initialize_index,
-    require_index,
-    update_index,
-)
 from palimind.models import (
     ChunkInfo,
     FileIndexError,
@@ -29,7 +22,14 @@ from palimind.models import (
     RetrievedContext,
     UpdateIndexResult,
 )
-from palimind.querying import document_query_stream, query, query_stream
+from palimind.rag.indexing import (
+    extract_chunks,
+    index_exists,
+    initialize_index,
+    require_index,
+    update_index,
+)
+from palimind.rag.querying import document_query_stream, query, query_stream
 
 __all__ = [
     "CaptionError",

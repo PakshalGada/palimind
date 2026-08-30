@@ -285,7 +285,7 @@ def ui(
         if opencode_bin is None:
             print_warning("OpenCode not found on PATH — skipping auth step")
         else:
-            from palimind.opencode_auth import get_key
+            from palimind.opencode.auth import get_key
 
             if get_key() is None:
                 print_warning("OpenCode not authenticated — opening auth login...")

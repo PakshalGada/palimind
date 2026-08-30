@@ -167,7 +167,7 @@ async def run_moe_pipeline(
     root: Path | None = None,
     worker_url: str | None = None,
 ) -> dict[str, Any]:
-    from palimind.memory import format_hierarchical_memory_context
+    from palimind.memory.hierarchical import format_hierarchical_memory_context
 
     memory_ctx = format_hierarchical_memory_context(mid_term_summary, long_term_episodes or [])
 
@@ -270,7 +270,7 @@ async def run_moe_pipeline(
                 sub_task,
                 worker_model,
                 worker_url or ollama_url,
-                8,
+                12,
                 on_step_callback,
             )
 
