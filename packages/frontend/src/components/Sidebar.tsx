@@ -22,7 +22,7 @@ function titleCaseToken(token: string): string {
 
 function deriveFieldTitle(path: string): string {
   const leaf = getPathLeaf(path);
-  if (!leaf) return "Field Workspace";
+  if (!leaf) return "Knowledge Base";
   const cleaned = leaf
     .replace(/\b\d{8}T\d{6}Z(?:-\d+)*\b/gi, "")
     .replace(/\b\d{8,14}\b/g, "")
@@ -33,7 +33,7 @@ function deriveFieldTitle(path: string): string {
   const title = source.split(" ").filter(Boolean).map(titleCaseToken).join(" ");
   if (/^[A-Z0-9]{2,5}$/.test(title) || title.length <= 4)
     return `${title} Workspace`;
-  return title || "Field Workspace";
+  return title || "Knowledge Base";
 }
 
 function getStoredTitles(): Record<string, string> {
@@ -76,10 +76,13 @@ export default function Sidebar() {
     addToast,
     selectedAgentId,
     setSelectedAgentId,
+    setChatMode,
   } = useApp();
 
+  const chatScope = () => (activeView === 'chat' ? 'chat' : 'field');
+
   const [fields, setFields] = useState<string[]>([]);
-  const [syncText, setSyncText] = useState("Sync Active Field");
+  const [syncText, setSyncText] = useState("Sync Active Knowledge Base");
   const [treeField, setTreeField] = useState<string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
   const [agents, setAgents] = useState<AgentListItem[]>([]);
@@ -92,7 +95,7 @@ export default function Sidebar() {
       setActiveField(data.active_field);
       setIsIndexing(data.is_indexing);
       if (data.is_indexing) {
-        setIndexingStatus(data.indexing_status || "Indexing field...");
+        setIndexingStatus(data.indexing_status || "Indexing knowledge base...");
       }
     } catch (e) {
       console.error("fetchFields error:", e);
@@ -165,12 +168,12 @@ export default function Sidebar() {
       setSyncText("Error!");
       addToast(`Sync failed: ${msg}`);
     }
-    setTimeout(() => setSyncText("Sync Active Field"), 3000);
+    setTimeout(() => setSyncText("Sync Active Knowledge Base"), 3000);
   };
 
   const handleNewSession = async () => {
     try {
-      const data = await api.sessions.new(`Session ${sessions.length + 1}`);
+      const data = await api.sessions.new(`Session ${sessions.length + 1}`, chatScope());
       if (!data.error) {
         setSessions(data.sessions as typeof sessions);
         setActiveSessionId(data.active_session_id);
@@ -182,7 +185,7 @@ export default function Sidebar() {
 
   const handleSwitchSession = async (id: string) => {
     try {
-      const data = await api.sessions.setActive(id);
+      const data = await api.sessions.setActive(id, chatScope());
       if (!data.error) {
         setSessions(data.sessions as typeof sessions);
         setActiveSessionId(data.active_session_id);
@@ -194,7 +197,7 @@ export default function Sidebar() {
 
   const handleDeleteSession = async (id: string) => {
     try {
-      const data = await api.sessions.remove(id);
+      const data = await api.sessions.remove(id, chatScope());
       if (!data.error) {
         setSessions(data.sessions as typeof sessions);
         setActiveSessionId(data.active_session_id);
@@ -292,6 +295,46 @@ export default function Sidebar() {
     });
   };
 
+  const sessionsSidebar = (
+    <div className="sessions-sidebar-container">
+      <div className="sessions-sidebar-header">
+        <h3>Sessions</h3>
+        <button
+          className="icon-btn"
+          title="New Session"
+          aria-label="Create new session"
+          onClick={handleNewSession}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </button>
+      </div>
+      <div className="session-list">
+        {sessions.map((sess) => (
+          <div
+            key={sess.id}
+            className={`session-tab ${sess.id === activeSessionId ? "active" : ""}`}
+            onClick={() => handleSwitchSession(sess.id)}
+            onContextMenu={(e) => showSessionMenu(e, sess.id)}
+          >
+            <span className="session-tab-name">{sess.name}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <aside className="sidebar" id="main-sidebar">
       <div className="logo">
@@ -325,10 +368,36 @@ export default function Sidebar() {
 
       <nav className="sidebar-nav" aria-label="Workspace mode">
         <button
+          className={`sidebar-nav-item${activeView === "chat" ? " active" : ""}`}
+          aria-label="Chat mode"
+          title="Chat — talk with a local LLM using general knowledge only"
+          onClick={() => {
+            setActiveView("chat");
+            setChatMode("llm");
+          }}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          Chat
+        </button>
+        <button
           className={`sidebar-nav-item${activeView === "fields" ? " active" : ""}`}
-          aria-label="Fields mode"
-          title="PaliSpace — chat with your indexed documents and workspaces"
-          onClick={() => setActiveView("fields")}
+          aria-label="Knowledge Base mode"
+          title="Knowledge Base — chat with your indexed documents and workspaces"
+          onClick={() => {
+            setActiveView("fields");
+            setChatMode("document");
+          }}
         >
           <svg
             width="14"
@@ -342,7 +411,7 @@ export default function Sidebar() {
           >
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
           </svg>
-          PaliSpace
+          Knowledge Base
         </button>
         <button
           className={`sidebar-nav-item${activeView === "agents" ? " active" : ""}`}
@@ -369,15 +438,21 @@ export default function Sidebar() {
         </button>
       </nav>
 
+      {activeView === "chat" && (
+        <div className="chat-sidebar-content">
+          {sessionsSidebar}
+        </div>
+      )}
+
       {activeView === "fields" && (
       <div id="fields-sidebar-content">
         <div className="fields-container">
             <div className="fields-header">
-              <h3>Fields</h3>
+              <h3>Knowledge Bases</h3>
               <button
                 className="icon-btn"
-                title="Add Field"
-                aria-label="Add field"
+                title="Add Knowledge Base"
+                aria-label="Add knowledge base"
                 onClick={() => {
                   const modal = document.getElementById("dir-picker-modal");
                   if (modal) {
@@ -436,43 +511,7 @@ export default function Sidebar() {
             </button>
           </div>
 
-          <div className="sessions-sidebar-container">
-            <div className="sessions-sidebar-header">
-              <h3>Sessions</h3>
-              <button
-                className="icon-btn"
-                title="New Session"
-                aria-label="Create new session"
-                onClick={handleNewSession}
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              </button>
-            </div>
-            <div className="session-list">
-              {sessions.map((sess) => (
-                <div
-                  key={sess.id}
-                  className={`session-tab ${sess.id === activeSessionId ? "active" : ""}`}
-                  onClick={() => handleSwitchSession(sess.id)}
-                  onContextMenu={(e) => showSessionMenu(e, sess.id)}
-                >
-                  <span className="session-tab-name">{sess.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          {sessionsSidebar}
 
           {treeField && (
             <div className="modal" onClick={() => setTreeField(null)}>

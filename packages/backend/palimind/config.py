@@ -95,3 +95,24 @@ def save_config(root: Path, config: dict) -> None:
     path = config_path(root)
     with path.open("w") as f:
         json.dump({**DEFAULTS, **config}, f, indent=2)
+
+
+GLOBAL_CONFIG_PATH = Path.home() / ".palimind_global.json"
+
+
+def load_global_config() -> dict:
+    """Load user-level config (~/.palimind_global.json) merged over defaults.
+
+    Used by global-scope features (global chat, global agents) that operate
+    outside any knowledge base.
+    """
+    config = dict(DEFAULTS)
+    try:
+        if GLOBAL_CONFIG_PATH.exists():
+            data = json.loads(GLOBAL_CONFIG_PATH.read_text("utf-8"))
+            for key, value in data.items():
+                if value not in (None, ""):
+                    config[key] = value
+    except Exception:
+        pass
+    return config

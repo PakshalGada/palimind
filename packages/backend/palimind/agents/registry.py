@@ -12,8 +12,9 @@ _registry_lock = threading.Lock()
 def get_registry() -> AgentCatalog:
     """Return the process-wide AgentCatalog singleton.
 
-    Initialized lazily on first access and (re)loaded at FastAPI startup
-    with the active field so field-scoped agents resolve correctly.
+    Initialized lazily on first access. Agents are global — they live in
+    ``~/.palimind/agents`` and are shared across every knowledge base and the
+    global chat.
     """
     global _registry
     if _registry is None:
@@ -31,15 +32,15 @@ def get_registry() -> AgentCatalog:
 
 
 def set_registry_field(field_root: Path | None) -> None:
-    """Repoint the singleton catalog at a field root and reload.
+    """Record the active field root on the singleton catalog.
 
-    Called whenever the active field changes (e.g. at FastAPI startup and
-    when the user switches fields) so field-scoped agents merge correctly.
+    Agents themselves are global, but the active field root is kept so agent
+    runs started outside a chat context (Agents panel, scheduler) default to
+    that knowledge base as their working root.
     """
     reg = get_registry()
     with _registry_lock:
         reg.field_root = field_root
-        reg.load()
 
 
 def reset_registry() -> None:

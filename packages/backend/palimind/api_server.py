@@ -145,6 +145,26 @@ class AppState:
 state = AppState()
 state.load()
 
+
+def _chat_root(scope: str) -> Path | None:
+    """Resolve the session/config root for a chat scope.
+
+    ``scope="chat"`` uses a global, knowledge-base-independent store under the
+    user's home directory. ``scope="field"`` (default) uses the active
+    knowledge base.
+    """
+    if scope == "chat":
+        return Path.home()
+    return state.active_field
+
+
+def _global_chat_config() -> dict:
+    """Config for global chat scope — merges persisted global settings into defaults."""
+    from palimind.config import load_global_config
+
+    return load_global_config()
+
+
 # -- Clipboard capture state --
 captured_text: str = ""
 
@@ -378,8 +398,14 @@ def build_file_tree(root: Path) -> list[dict]:
 async def startup_event():
     state.loop = asyncio.get_running_loop()
 
+    from palimind.agents.catalog import migrate_field_agents
     from palimind.agents.registry import set_registry_field
     from palimind.agents.scheduler import start_scheduler
+
+    roots = list(state.fields)
+    if state.active_field and state.active_field not in roots:
+        roots.append(state.active_field)
+    migrate_field_agents([Path(r) for r in roots])
 
     set_registry_field(state.active_field)
     start_scheduler(state.loop)
@@ -671,44 +697,48 @@ async def api_update():
 
 
 @app.get("/api/sessions")
-async def get_sessions():
-    if not state.active_field:
-        return {"error": "No active field"}
-    sessions_data = await asyncio.to_thread(load_sessions, state.active_field)
+async def get_sessions(scope: str = "field"):
+    root = _chat_root(scope)
+    if root is None:
+        return {"error": "No active knowledge base"}
+    sessions_data = await asyncio.to_thread(load_sessions, root)
     return sessions_data
 
 
 @app.post("/api/sessions/new")
-async def create_session(req: Request):
-    if not state.active_field:
-        return {"error": "No active field"}
+async def create_session(req: Request, scope: str = "field"):
+    root = _chat_root(scope)
+    if root is None:
+        return {"error": "No active knowledge base"}
     data = await req.json()
     name = data.get("name", "New Session")
-    sessions_data = await asyncio.to_thread(add_new_session, state.active_field, name)
+    sessions_data = await asyncio.to_thread(add_new_session, root, name)
     return sessions_data
 
 
 @app.post("/api/sessions/set_active")
-async def set_active_session(req: Request):
-    if not state.active_field:
-        return {"error": "No active field"}
+async def set_active_session(req: Request, scope: str = "field"):
+    root = _chat_root(scope)
+    if root is None:
+        return {"error": "No active knowledge base"}
     data = await req.json()
     session_id = data.get("session_id")
     if not session_id:
         return {"error": "session_id is required"}
-    sessions_data = await asyncio.to_thread(set_active_session_id, state.active_field, session_id)
+    sessions_data = await asyncio.to_thread(set_active_session_id, root, session_id)
     return sessions_data
 
 
 @app.post("/api/sessions/remove")
-async def remove_session(req: Request):
-    if not state.active_field:
-        return {"error": "No active field"}
+async def remove_session(req: Request, scope: str = "field"):
+    root = _chat_root(scope)
+    if root is None:
+        return {"error": "No active knowledge base"}
     data = await req.json()
     session_id = data.get("session_id")
     if not session_id:
         return {"error": "session_id is required"}
-    sessions_data = await asyncio.to_thread(delete_session, state.active_field, session_id)
+    sessions_data = await asyncio.to_thread(delete_session, root, session_id)
     return sessions_data
 
 
@@ -787,22 +817,31 @@ async def chat_stream(
     chat_mode: str = "document",
     web_search: str = "false",
     llm_sub_mode: str | None = None,
+    scope: str = "field",
 ):
-    if not state.active_field:
+    root = _chat_root(scope)
+    if root is None:
 
         async def err_stream():
-            yield f"data: {json.dumps({'type': 'error', 'text': 'No active field'})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'text': 'No active knowledge base'})}\n\n"
 
         return StreamingResponse(err_stream(), media_type="text/event-stream")
 
-    from palimind.config import load_config
+    is_global_chat = scope == "chat"
+    if is_global_chat:
+        # Global chat never queries documents — plain LLM only.
+        chat_mode = "llm"
+        config = _global_chat_config()
+    else:
+        from palimind.config import load_config
+
+        config = load_config(root)
     from palimind.core.persona import persona_block
 
-    config = load_config(state.active_field)
     ollama_url = config.get("ollama_base_url", "http://localhost:11434")
     chat_model = config.get("chat_model", "llama3")
     embed_model = config.get("embed_model", "nomic-embed-text")
-    persona = persona_block(state.active_field)
+    persona = persona_block(root) if not is_global_chat else ""
 
     # ── @agent mention routing ────────────────────────────────────────
     stripped_q = q.lstrip()
@@ -817,12 +856,13 @@ async def chat_stream(
             if defn is not None and defn.enabled:
                 agent_input = mention_parts[1].strip() if len(mention_parts) > 1 else ""
                 return await agent_mode_stream(
-                    state.active_field,
+                    root,
                     defn.name,
                     agent_input or "Run your task.",
                     session_id,
                     ollama_url,
                     chat_model,
+                    working_root=root if not is_global_chat else None,
                 )
 
     moe_sub_mode = (
@@ -836,7 +876,7 @@ async def chat_stream(
 
     mem = await asyncio.to_thread(
         get_hierarchical_memory,
-        state.active_field,
+        root,
         session_id,
         q,
         ollama_url,
@@ -865,7 +905,7 @@ async def chat_stream(
             files_filter,
             resolve_model_url(chat_model, ollama_url),
             chat_model,
-            state.active_field,
+            root,
             web_search,
             long_term_episodes=long_term_episodes,
             persona=persona,
@@ -891,7 +931,7 @@ async def chat_stream(
             files_filter,
             ollama_url,
             chat_model,
-            state.active_field,
+            root,
             web_search,
             orchestrator_model=orchestrator_model,
             worker_model=worker_model,
@@ -910,7 +950,7 @@ async def chat_stream(
         files_filter,
         resolve_model_url(chat_model, ollama_url),
         chat_model,
-        state.active_field,
+        root,
         web_search,
         long_term_episodes=long_term_episodes,
         persona=persona,
@@ -1116,9 +1156,10 @@ async def get_models():
     """Fetch available models from configured Ollama instance."""
     from palimind.config import load_config
 
-    config = {}
     if state.active_field:
         config = load_config(state.active_field)
+    else:
+        config = _global_chat_config()
     ollama_url = config.get("ollama_base_url", "http://localhost:11434")
     current_model = config.get("chat_model", "gemma4:e2b")
     try:
@@ -1263,13 +1304,16 @@ async def rebuild_document_graph():
 
 
 @app.get("/api/config")
-async def get_config():
-    """Return current config for the active field."""
+async def get_config(scope: str = "field"):
+    """Return current config for the active scope."""
     from palimind.config import load_config
 
-    config = {}
-    if state.active_field:
+    if scope == "chat":
+        config = _global_chat_config()
+    elif state.active_field:
         config = load_config(state.active_field)
+    else:
+        config = {}
     return {
         "chat_model": config.get("chat_model", "llama3"),
         "embed_model": config.get("embed_model", "nomic-embed-text"),
@@ -1309,9 +1353,21 @@ async def update_persona(req: Request):
 
 
 @app.patch("/api/config/moe")
-async def update_moe_config(req: Request):
-    """Update MoE configuration for the active field."""
+async def update_moe_config(req: Request, scope: str = "field"):
+    """Update MoE configuration for the active field (or global chat scope)."""
     data = await req.json()
+    if scope == "chat":
+        global_data = {}
+        if GLOBAL_CONFIG_PATH.exists():
+            try:
+                global_data = json.loads(GLOBAL_CONFIG_PATH.read_text("utf-8"))
+            except Exception:
+                pass
+        for key in ("moe_orchestrator_model", "moe_worker_model", "moe_sub_mode"):
+            if key in data:
+                global_data[key] = data[key]
+        GLOBAL_CONFIG_PATH.write_text(json.dumps(global_data, indent=2), "utf-8")
+        return {"status": "success"}
     from palimind.config import config_path, load_config, palimind_dir
 
     if state.active_field:

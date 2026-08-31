@@ -40,7 +40,7 @@ const EMPTY_DEF: Partial<AgentDefinition> = {
   tier_policy: 'tier1+2',
   memory_scope: 'field',
   context_fields: [],
-  visibility: 'field',
+  visibility: 'global',
   run_mode: 'on_demand',
   schedule: '',
   watcher_pattern: '',
@@ -716,12 +716,12 @@ function AgentConfigModal({
                     <select value={draft.memory_scope || 'none'} onChange={e => patch({ memory_scope: e.target.value as AgentDefinition['memory_scope'] })}>
                       <option value="none">None</option>
                       <option value="session">Session</option>
-                      <option value="field">Field</option>
+                      <option value="field">Global</option>
                     </select>
                   </label>
                 </div>
                 <div className="agent-field">
-                  <span className="agent-field-label">Workspace Context — PaliSpaces the agent can see</span>
+                  <span className="agent-field-label">Workspace Context — Knowledge Bases the agent can see</span>
                   <div className="context-chips">
                     {fields.length === 0 && <span className="agents-empty">No workspaces added yet.</span>}
                     {fields.map(path => {
@@ -786,12 +786,6 @@ function AgentConfigModal({
                   </label>
                   <label className="agent-field">Human-in-Loop Threshold
                     <input type="number" step="0.1" min="0" max="1" value={draft.human_in_loop_threshold ?? 0} onChange={e => patch({ human_in_loop_threshold: parseFloat(e.target.value) })} />
-                  </label>
-                  <label className="agent-field">Visibility
-                    <select value={draft.visibility || 'field'} onChange={e => patch({ visibility: e.target.value as AgentDefinition['visibility'] })}>
-                      <option value="field">Field</option>
-                      <option value="global">Global</option>
-                    </select>
                   </label>
                 </div>
               </details>

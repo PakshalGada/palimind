@@ -21,15 +21,16 @@ export default function App() {
 
   useEffect(() => {
     async function init() {
+      const scope = activeView === 'chat' ? 'chat' : 'field';
       try {
         const [fieldsData, configData] = await Promise.all([
           api.fields.list(),
-          api.config.get(),
+          api.config.get(scope),
         ]);
         setActiveField(fieldsData.active_field);
         setIsIndexing(fieldsData.is_indexing);
         if (fieldsData.is_indexing) {
-          setIndexingStatus(fieldsData.indexing_status || 'Indexing field...');
+          setIndexingStatus(fieldsData.indexing_status || 'Indexing knowledge base...');
         }
         if (configData.chat_model) {
           setCurrentModel(configData.chat_model);
@@ -49,21 +50,30 @@ export default function App() {
       }
     }
     init();
-  }, []);
+  }, [activeView]);
 
   useEffect(() => {
+    if (activeView === 'chat') {
+      api.sessions.list('chat').then(data => {
+        if (!data.error) {
+          setSessions(data.sessions);
+          setActiveSessionId(data.active_session_id);
+        }
+      }).catch(() => {});
+      return;
+    }
     if (!activeField) {
       setSessions([]);
       setActiveSessionId(null);
       return;
     }
-    api.sessions.list().then(data => {
+    api.sessions.list('field').then(data => {
       if (!data.error) {
         setSessions(data.sessions);
         setActiveSessionId(data.active_session_id);
       }
     }).catch(() => {});
-  }, [activeField]);
+  }, [activeField, activeView]);
 
   const containerClass = [
     'app-container',
@@ -77,7 +87,7 @@ export default function App() {
       <Sidebar />
       {activeView === "agents" ? (
         <Agents />
-      ) : activeField ? (
+      ) : activeView === "chat" || activeField ? (
         <ChatArea />
       ) : (
         <WelcomeScreen />

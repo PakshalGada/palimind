@@ -76,12 +76,12 @@ interface AppContextType extends AppState {
 export const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [activeView, setActiveView] = useState<AppView>('fields');
+  const [activeView, setActiveView] = useState<AppView>('chat');
   const [activeField, setActiveField] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<AppState['sessions']>([]);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
-  const [chatMode, setChatMode] = useState<ChatMode>('document');
+  const [chatMode, setChatMode] = useState<ChatMode>('llm');
   const [isGenerating, setIsGenerating] = useState(false);
   const [theme, setThemeState] = useState<Theme>(() => (localStorage.getItem('theme') as Theme) || 'dark');
   const [currentModel, setCurrentModel] = useState('Loading...');
@@ -139,7 +139,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const data = await api.fields.list();
       setIsIndexing(data.is_indexing);
       if (data.is_indexing) {
-        setIndexingStatus(data.indexing_status || 'Indexing field...');
+        setIndexingStatus(data.indexing_status || 'Indexing knowledge base...');
       }
       setActiveField(data.active_field);
     } catch (e) {
@@ -148,16 +148,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshSessions = useCallback(async () => {
-    if (!activeField) return;
+    const scope = activeView === 'chat' ? 'chat' : 'field';
+    if (scope === 'field' && !activeField) return;
     try {
-      const data = await api.sessions.list();
+      const data = await api.sessions.list(scope);
       if (data.error) return;
       setSessions(data.sessions);
       setActiveSessionId(data.active_session_id);
     } catch (e) {
       console.error('Error fetching sessions:', e);
     }
-  }, [activeField]);
+  }, [activeField, activeView]);
 
   const refreshFileTree = useCallback(async () => {
     // handled in FileTreeView component
@@ -176,7 +177,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const data = JSON.parse(ev.data);
         if (data.type === 'indexing_start') {
           setIsIndexing(true);
-          setIndexingStatus(data.message || 'Indexing field...');
+          setIndexingStatus(data.message || 'Indexing knowledge base...');
         } else if (data.type === 'indexing_complete' || data.type === 'indexing_error') {
           setIsIndexing(false);
           setIndexingStatus('');

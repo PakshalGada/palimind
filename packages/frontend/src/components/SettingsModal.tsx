@@ -202,7 +202,7 @@ export default function SettingsModal() {
           <div className="settings-group">
             <label>Persona</label>
             <p className="settings-hint">
-              Customizes how the assistant responds in this field. Leave empty to
+              Customizes how the assistant responds in this knowledge base. Leave empty to
               use the default behavior.
             </p>
             <input

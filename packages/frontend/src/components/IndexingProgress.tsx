@@ -9,7 +9,7 @@ export default function IndexingProgress() {
     <div id="indexing-progress-container" className="indexing-progress-container">
       <div className="progress-bar-label" id="progress-bar-label">
         <span className="pulse-dot" />
-        {indexingStatus || 'Indexing Field...'}
+        {indexingStatus || 'Indexing Knowledge Base...'}
       </div>
       <div className="progress-bar-track">
         <div className="progress-bar-fill" />

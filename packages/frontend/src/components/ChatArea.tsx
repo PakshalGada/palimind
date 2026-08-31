@@ -6,7 +6,7 @@ import InputArea from './InputArea';
 import ThinkingOverlay from './ThinkingOverlay';
 
 export default function ChatArea() {
-  const { sessions, activeSessionId, chatMode } = useApp();
+  const { sessions, activeSessionId, activeView } = useApp();
   const messagesRef = useRef<HTMLDivElement>(null);
 
   const currentSess = sessions.find(s => s.id === activeSessionId);
@@ -23,7 +23,7 @@ export default function ChatArea() {
   return (
     <main className="chat-area" id="main-area">
       <div id="chat-interface" className={`chat-interface${isEmpty ? ' empty-chat' : ''}`}>
-        <IndexingProgress />
+        {activeView !== 'chat' && <IndexingProgress />}
 
         <div id="messages-scroll-area" className="messages" ref={messagesRef}>
           {!isEmpty && currentSess?.messages.map((msg, i) => (
@@ -34,13 +34,6 @@ export default function ChatArea() {
 
         <div className="chat-empty-hero" aria-hidden={!isEmpty}>
           <h1>Palimind</h1>
-          <p>
-            {chatMode === 'document'
-              ? <>Ask questions about your indexed files — answers come straight from your documents.</>
-              : <>Chat directly with a local LLM on your machine.</>}
-            <br />
-            Tip: type <strong>@agent</strong> (e.g. <strong>@nova</strong>) to delegate a task to an AI agent.
-          </p>
         </div>
 
         <ThinkingOverlay />

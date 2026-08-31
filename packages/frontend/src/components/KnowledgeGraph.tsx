@@ -36,7 +36,7 @@ export default function KnowledgeGraph() {
       setStats(`${nodes.length} nodes · ${edges.length} edges`);
 
       if (nodes.length === 0) {
-        containerRef.current.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted)">No graph data. Sync your field first.</div>';
+        containerRef.current.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted)">No graph data. Sync your knowledge base first.</div>';
         return;
       }
 

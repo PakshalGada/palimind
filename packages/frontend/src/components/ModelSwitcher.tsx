@@ -5,7 +5,8 @@ import type { ModelItem, Recommendation, HardwareData } from '../types';
 import LoadingSpinner from './LoadingSpinner';
 
 export default function ModelSwitcher() {
-  const { currentModel, setCurrentModel, addToast } = useApp();
+  const { currentModel, setCurrentModel, addToast, activeView } = useApp();
+  const scope = activeView === 'chat' ? 'chat' : 'field';
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'models' | 'cookbook'>('models');
   const [models, setModels] = useState<ModelItem[]>([]);
@@ -72,7 +73,7 @@ export default function ModelSwitcher() {
     setCurrentModel(modelId);
     setIsOpen(false);
     try {
-      const data = await api.config.setModel(modelId);
+      const data = await api.config.setModel(modelId, scope);
       if (data.error) {
         addToast('Model switch failed: ' + data.error);
       } else {

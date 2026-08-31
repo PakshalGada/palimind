@@ -116,13 +116,9 @@ def delete_memory_entry(agent_id: str, index: int) -> None:
 
 
 def _runs_dir() -> Path:
-    from palimind.agents.registry import get_registry
+    from palimind.agents.catalog import GLOBAL_AGENTS_DIR
 
-    field_root = get_registry().field_root
-    if field_root is not None:
-        base = field_root / ".palimind" / "agents" / "runs"
-    else:
-        base = Path.home() / ".palimind" / "agents" / "runs"
+    base = GLOBAL_AGENTS_DIR / "runs"
     base.mkdir(parents=True, exist_ok=True)
     return base
 
@@ -222,18 +218,22 @@ def _make_approval_provider(
 # ── entry point ───────────────────────────────────────────────────────────
 
 
-def _field_models() -> tuple[str, str, str]:
-    """Return (chat_model, ollama_url, light_model) for the active field."""
-    from palimind.agents.registry import get_registry
-    from palimind.config import load_config
+def _field_models(field_root: Path | None = None) -> tuple[str, str, str]:
+    """Return (chat_model, ollama_url, light_model) for the given working root.
 
-    field_root = get_registry().field_root
-    if field_root is None:
-        return "", "http://localhost:11434", ""
-    try:
-        config = load_config(field_root)
-    except Exception:
-        config = {}
+    Falls back to the active field, then to the global (user-level) config.
+    """
+    from palimind.agents.registry import get_registry
+    from palimind.config import load_config, load_global_config
+
+    root = field_root if field_root is not None else get_registry().field_root
+    if root is None:
+        config = load_global_config()
+    else:
+        try:
+            config = load_config(root)
+        except Exception:
+            config = {}
     chat = config.get("chat_model", "llama3")
     ollama = config.get("ollama_base_url", "http://localhost:11434")
     light = config.get("light_model", "") or chat
@@ -288,10 +288,10 @@ _CONTEXT_FILE_LIMIT = 250
 
 
 def _workspace_context_block(context_fields: list[str]) -> str:
-    """Summarise the contents of the palispaces (fields) attached to an agent.
+    """Summarise the contents of the knowledge bases attached to an agent.
 
-    Returns a [WORKSPACE CONTEXT] block listing each field and a sample of
-    its file paths so the agent knows what material it can draw on.
+    Returns a [WORKSPACE CONTEXT] block listing each knowledge base and a
+    sample of its file paths so the agent knows what material it can draw on.
     """
     from itertools import islice
 
@@ -333,6 +333,7 @@ async def run_with_definition(
     input: str,
     session_id: str = "",
     emit: Callable[[str, dict], Awaitable[None]] | None = None,
+    calling_root: Path | None = None,
 ) -> str:
     """Run an agent from its definition.
 
@@ -341,6 +342,10 @@ async def run_with_definition(
     max iterations from the definition, runs the existing agent loop, and
     on completion appends a result entry to agent memory when
     memory_scope is not "none".
+
+    ``calling_root`` is the calling knowledge base — the agent's tools are
+    sandboxed to it. When omitted it defaults to the active field, and when
+    neither is set the agent runs unsandboxed (legacy behaviour).
 
     ``emit(event_type, payload)`` is an optional async callback for the
     SSE reasoning chain (agent:thought / tool_call / tool_result /
@@ -366,14 +371,25 @@ async def run_with_definition(
 
     approval_provider = _make_approval_provider(ra, emit)
 
-    chat_model, ollama_url, light_model = _field_models()
+    chat_model, ollama_url, light_model = _field_models(calling_root)
     requested_model = definition.model or chat_model or "llama3"
     model, fallback_note = _resolve_available_model(requested_model, chat_model, ollama_url)
-    field_root = None
     from palimind.agents.registry import get_registry
 
-    field_root = get_registry().field_root
-    set_tool_context(field_root, ollama_url, model, light_model)
+    working_root = calling_root if calling_root is not None else get_registry().field_root
+    context_fields = [Path(str(cf)).expanduser() for cf in (getattr(definition, "context_fields", []) or [])]
+    extra_roots = [
+        cf
+        for cf in context_fields
+        if cf.is_dir() and (working_root is None or cf.resolve() != working_root.resolve())
+    ]
+    set_tool_context(
+        working_root,
+        ollama_url,
+        model,
+        light_model,
+        extra_roots=extra_roots,
+    )
 
     memory_block = ""
     if definition.memory_scope != "none":

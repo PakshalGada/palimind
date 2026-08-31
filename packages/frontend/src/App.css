@@ -1,7 +1,9 @@
 /* ==========================================================================
-   Typography — Universal Sans (xAI/Grok-style) via @font-face + Inter fallback.
-   Drop licensed WOFF2 files into public/fonts/ (see public/fonts/README.md);
-   until then the stack degrades to Inter automatically.
+   Typography — Universal Sans (xAI/Grok-style) + IBM Plex Mono via @font-face,
+   with Inter fallback.
+   Drop licensed Universal Sans WOFF2 files into public/fonts/ (see
+   public/fonts/README.md); until then the sans stack degrades to Inter.
+   IBM Plex Mono (OFL) is bundled for code.
    ========================================================================== */
 @font-face {
     font-family: "Universal Sans";
@@ -45,6 +47,34 @@
     font-weight: 550;
     font-display: swap;
 }
+@font-face {
+    font-family: "IBM Plex Mono";
+    src: url("/fonts/IBMPlexMono-400.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+}
+@font-face {
+    font-family: "IBM Plex Mono";
+    src: url("/fonts/IBMPlexMono-400Italic.woff2") format("woff2");
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Noto Serif";
+    src: url("/fonts/NotoSerif-400.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 400 600;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Noto Serif";
+    src: url("/fonts/NotoSerif-400Italic.woff2") format("woff2");
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+}
 
 :root {
     --font-sans:
@@ -73,6 +103,11 @@
         Consolas,
         "Liberation Mono",
         monospace;
+    --font-serif:
+        "Noto Serif",
+        Georgia,
+        "Times New Roman",
+        serif;
     /* Grok-style type scale */
     --text-body: 16px;
     --text-ui: 14px;
@@ -255,6 +290,7 @@ body {
     border-bottom: 1px solid var(--border-subtle);
 }
 .sidebar-wordmark {
+    font-family: var(--font-serif);
     font-weight: 600;
     font-size: 0.95rem;
     letter-spacing: -0.01em;
@@ -1207,6 +1243,14 @@ select {
     padding: 8px;
     overflow: hidden;
 }
+.chat-sidebar-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+    padding: 8px;
+    overflow: hidden;
+}
 .agent-mention-popup {
     position: absolute;
     bottom: calc(100% + 6px);
@@ -1810,6 +1854,7 @@ select {
     margin-top: 0;
 }
 .chat-empty-hero h1 {
+    font-family: var(--font-serif);
     font-size: 2.2rem;
     font-weight: 600;
     margin-bottom: 10px;

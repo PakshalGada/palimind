@@ -56,10 +56,10 @@ export const api = {
     remove: (path: string) => post<{ status?: string }>('/fields/remove', { path }),
   },
   sessions: {
-    list: () => get<{ sessions: { id: string; name: string; messages: { role: string; content: string; sources?: string[] }[] }[]; active_session_id: string | null; error?: string }>('/sessions'),
-    new: (name: string) => post<{ error?: string; sessions: unknown[]; active_session_id: string }>('/sessions/new', { name }),
-    setActive: (sessionId: string) => post<{ error?: string; sessions: unknown[]; active_session_id: string }>('/sessions/set_active', { session_id: sessionId }),
-    remove: (sessionId: string) => post<{ error?: string; sessions: unknown[]; active_session_id: string }>('/sessions/remove', { session_id: sessionId }),
+    list: (scope = 'field') => get<{ sessions: { id: string; name: string; messages: { role: string; content: string; sources?: string[] }[] }[]; active_session_id: string | null; error?: string }>(`/sessions?scope=${scope}`),
+    new: (name: string, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/new?scope=${scope}`, { name }),
+    setActive: (sessionId: string, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/set_active?scope=${scope}`, { session_id: sessionId }),
+    remove: (sessionId: string, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/remove?scope=${scope}`, { session_id: sessionId }),
   },
   sync: () => post<{ status: string; indexed_files?: number; deleted_files?: number; error?: string }>('/update'),
   files: {
@@ -67,9 +67,9 @@ export const api = {
     treeSub: (path: string) => get<{ children?: TreeNode[]; error?: string }>(`/files/tree/sub?path=${encodeURIComponent(path)}`),
   },
   config: {
-    get: () => get<{ chat_model?: string; moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string; persona_name?: string; persona_system_prompt?: string }>('/config'),
-    setModel: (modelId: string) => patch<{ error?: string }>('/config/model', { model_id: modelId }),
-    setMoe: (data: { moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string }) => patch<{ error?: string }>('/config/moe', data),
+    get: (scope = 'field') => get<{ chat_model?: string; moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string; persona_name?: string; persona_system_prompt?: string }>(`/config?scope=${scope}`),
+    setModel: (modelId: string, scope = 'field') => patch<{ error?: string }>(`/config/model?scope=${scope}`, { model_id: modelId }),
+    setMoe: (data: { moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string }, scope = 'field') => patch<{ error?: string }>(`/config/moe?scope=${scope}`, data),
     setPersona: (data: { persona_name?: string; persona_system_prompt?: string }) =>
       patch<{ error?: string; status?: string }>('/config/persona', data),
   },

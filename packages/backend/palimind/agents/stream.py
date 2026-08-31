@@ -22,6 +22,7 @@ async def agent_event_stream(
     defn: AgentDefinition,
     input: str,
     session_id: str = "",
+    working_root: Path | None = None,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Run an agent and stream reasoning-chain events as dicts.
 
@@ -29,13 +30,18 @@ async def agent_event_stream(
     agent:tool_result / agent:waiting_for_human / agent:completed / error.
     The underlying run is registered in RunningAgents so it can be
     cancelled via POST /api/agents/{id}/cancel.
+
+    ``working_root`` is the calling knowledge base the agent's tools are
+    sandboxed to (defaults to the active field).
     """
     queue: asyncio.Queue = asyncio.Queue()
 
     async def emit_event(etype: str, payload: dict[str, Any]) -> None:
         await queue.put({"type": etype, **payload})
 
-    task = asyncio.create_task(run_with_definition(defn, input, session_id, emit=emit_event))
+    task = asyncio.create_task(
+        run_with_definition(defn, input, session_id, emit=emit_event, calling_root=working_root)
+    )
     try:
         while True:
             if task.done():
@@ -73,8 +79,13 @@ async def agent_mode_stream(
     session_id: str | None,
     ollama_url: str,
     chat_model: str,
+    working_root: Path | None = None,
 ) -> StreamingResponse:
     """Route an @agent-name chat invocation to run_with_definition.
+
+    ``field_root`` is used for chat session storage; ``working_root`` is the
+    knowledge base the agent's tools are sandboxed to (defaults to the active
+    field when None).
 
     Streams the agent reasoning chain (agent:thought / tool_call /
     tool_result / waiting_for_human / completed) as SSE, appends the user
@@ -121,7 +132,7 @@ async def agent_mode_stream(
         yield agent_sse("reasoning", {"text": f"🤖 Running agent '{agent_name}'..."})
 
         full_text = ""
-        async for ev in agent_event_stream(defn, agent_input or "Run your task.", session_id or ""):
+        async for ev in agent_event_stream(defn, agent_input or "Run your task.", session_id or "", working_root=working_root):
             etype = ev.get("type", "")
             payload = {k: v for k, v in ev.items() if k != "type"}
             yield agent_sse(etype, payload)

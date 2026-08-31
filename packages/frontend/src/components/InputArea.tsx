@@ -30,7 +30,11 @@ export default function InputArea() {
     setThinkingText,
     setAgentStates,
     setAgentLoading,
+    activeView,
   } = useApp();
+
+  const isChatView = activeView === 'chat';
+  const scope = isChatView ? 'chat' : 'field';
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState("");
@@ -169,12 +173,12 @@ export default function InputArea() {
     async (mode: "default" | "moe") => {
       setLlmSubMode(mode);
       try {
-        await api.config.setMoe({ moe_sub_mode: mode });
+        await api.config.setMoe({ moe_sub_mode: mode }, scope);
       } catch (e) {
         console.error("Failed to save MoE sub mode:", e);
       }
     },
-    [setLlmSubMode],
+    [setLlmSubMode, scope],
   );
 
   const parseParamsB = (model: ModelItem): number => {
@@ -260,10 +264,10 @@ export default function InputArea() {
       setThinkingText(`${thinkingBaseRef.current} ${elapsed}s`);
     }, 200);
 
-    const mode = chatMode;
+    const mode = isChatView ? "llm" : chatMode;
     const sub_mode = mode === "llm" ? llmSubMode : "";
     const url =
-      `/api/chat?q=${encodeURIComponent(text)}&chat_mode=${mode}${sub_mode ? `&llm_sub_mode=${sub_mode}` : ""}${activeSessionId ? `&session_id=${activeSessionId}` : ""}` +
+      `/api/chat?q=${encodeURIComponent(text)}&chat_mode=${mode}&scope=${scope}${sub_mode ? `&llm_sub_mode=${sub_mode}` : ""}${activeSessionId ? `&session_id=${activeSessionId}` : ""}` +
       (selectedFiles.size > 0
         ? `&files=${encodeURIComponent(Array.from(selectedFiles).join(","))}`
         : "");
@@ -536,6 +540,8 @@ export default function InputArea() {
     value,
     isGenerating,
     chatMode,
+    isChatView,
+    scope,
     llmSubMode,
     activeSessionId,
     selectedFiles,
@@ -599,6 +605,7 @@ export default function InputArea() {
 
   return (
     <div className="input-area">
+      {!isChatView && (
       <div
         className="chat-mode-toggle"
         title="Document: answers only from your indexed files. LLM: chat directly with the model."
@@ -615,6 +622,7 @@ export default function InputArea() {
           </div>
         </label>
       </div>
+      )}
 
 
 
@@ -697,13 +705,7 @@ export default function InputArea() {
             ref={textareaRef}
             rows={1}
             aria-label="Chat message"
-            placeholder={
-              isMoeActive
-                ? "Ask 4 expert agents in parallel..."
-                : chatMode === "document"
-                  ? "Ask your documents...  (type @ to call an agent)"
-                  : "Chat with the model...  (type @ to call an agent)"
-            }
+            placeholder="Ask anything"
             value={value}
             onChange={(e) => {
               setValue(e.target.value);
@@ -826,7 +828,7 @@ export default function InputArea() {
                                 onClick={() => {
                                   setOrchestratorModel(m.model_id);
                                   api.config
-                                    .setMoe({ moe_orchestrator_model: m.model_id })
+                                    .setMoe({ moe_orchestrator_model: m.model_id }, scope)
                                     .catch(() => {});
                                 }}
                               >
@@ -848,7 +850,7 @@ export default function InputArea() {
                                 onClick={() => {
                                   setOrchestratorModel(m.model_id);
                                   api.config
-                                    .setMoe({ moe_orchestrator_model: m.model_id })
+                                    .setMoe({ moe_orchestrator_model: m.model_id }, scope)
                                     .catch(() => {});
                                 }}
                               >
@@ -881,7 +883,7 @@ export default function InputArea() {
                                 onClick={() => {
                                   setWorkerModel(m.model_id);
                                   api.config
-                                    .setMoe({ moe_worker_model: m.model_id })
+                                    .setMoe({ moe_worker_model: m.model_id }, scope)
                                     .catch(() => {});
                                 }}
                               >
@@ -903,7 +905,7 @@ export default function InputArea() {
                                 onClick={() => {
                                   setWorkerModel(m.model_id);
                                   api.config
-                                    .setMoe({ moe_worker_model: m.model_id })
+                                    .setMoe({ moe_worker_model: m.model_id }, scope)
                                     .catch(() => {});
                                 }}
                               >

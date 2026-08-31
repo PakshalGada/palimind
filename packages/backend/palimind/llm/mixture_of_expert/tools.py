@@ -8,6 +8,7 @@ from typing import Any
 
 _tool_context: dict[str, Any] = {
     "root": None,
+    "extra_roots": [],
     "ollama_url": "",
     "chat_model": "",
     "light_model": "",
@@ -20,11 +21,13 @@ def set_tool_context(
     ollama_url: str = "",
     chat_model: str = "",
     light_model: str = "",
+    extra_roots: list[Path] | None = None,
 ) -> None:
     with _context_lock:
         _tool_context.update(
             {
                 "root": root,
+                "extra_roots": list(extra_roots or []),
                 "ollama_url": ollama_url,
                 "chat_model": chat_model,
                 "light_model": light_model,
@@ -41,6 +44,10 @@ def _workspace_root() -> Path | None:
     return _get_context().get("root")
 
 
+def _extra_roots() -> list[Path]:
+    return list(_get_context().get("extra_roots") or [])
+
+
 # ── sandbox helpers ───────────────────────────────────────────────────────
 
 MAX_READ_BYTES = 256_000  # 256 KB per file read
@@ -48,17 +55,19 @@ MAX_WRITE_BYTES = 512_000
 
 
 def _resolve_in_workspace(path: str) -> Path | None:
-    """Resolve *path* and confine it to the workspace root; None if outside."""
-    root = _workspace_root()
-    if root is None:
+    """Resolve *path* and confine it to the workspace root(s); None if outside."""
+    roots = [r for r in [_workspace_root(), *_extra_roots()] if r is not None]
+    if not roots:
         p = Path(path).resolve()
         return p  # no workspace configured — allow (legacy behaviour)
-    p = (root / path).resolve() if not Path(path).is_absolute() else Path(path).resolve()
-    try:
-        p.relative_to(root.resolve())
-    except ValueError:
-        return None
-    return p
+    p = (roots[0] / path).resolve() if not Path(path).is_absolute() else Path(path).resolve()
+    for root in roots:
+        try:
+            p.relative_to(root.resolve())
+            return p
+        except ValueError:
+            continue
+    return None
 
 
 # ── web tools ─────────────────────────────────────────────────────────────

@@ -143,17 +143,13 @@ class AgentDefinition:
 
     # ── memory file ─────────────────────────────────────────────────────
 
-    def set_memory_file(self, field_root: Path | None) -> str:
-        """Compute and persist the memory file path based on scope."""
-        if self.memory_scope == "none" or field_root is None:
+    def set_memory_file(self, field_root: Path | None = None) -> str:
+        """Compute and persist the memory file path (global for all agents)."""
+        if self.memory_scope == "none":
             self.memory_file = ""
-        elif self.memory_scope == "session":
-            self.memory_file = str(
-                field_root / ".palimind" / "sessions" / "agent_memory" / f"{self.id}.json"
-            )
         else:
             self.memory_file = str(
-                field_root / ".palimind" / "agents" / "memory" / f"{self.id}.json"
+                GLOBAL_AGENTS_DIR / "memory" / f"{self.id}.json"
             )
         return self.memory_file
 
@@ -241,43 +237,27 @@ class AgentCatalog:
 
     # ── paths ───────────────────────────────────────────────────────────
 
-    def _field_dir(self) -> Path | None:
-        if self.field_root is None:
-            return None
-        return self.field_root / ".palimind" / "agents"
-
     def _dir_for(self, defn: AgentDefinition) -> Path:
-        if defn.visibility == "global":
-            return GLOBAL_AGENTS_DIR
-        field_dir = self._field_dir()
-        if field_dir is None:
-            return GLOBAL_AGENTS_DIR
-        return field_dir
+        # Agents are global — definitions always live in ~/.palimind/agents.
+        return GLOBAL_AGENTS_DIR
 
     # ── loading / merging ───────────────────────────────────────────────
 
     def load(self) -> AgentCatalog:
 
-        def _load_dir(path: Path, precedence: int, target: dict[str, tuple[AgentDefinition, int]]):
+        def _load_dir(path: Path, target: dict[str, tuple[AgentDefinition, int]]):
             if not path.exists():
                 return
             for f in sorted(path.glob("*.json")):
                 try:
                     data = json.loads(f.read_text("utf-8"))
                     defn = AgentDefinition.from_dict(data)
-                    name = defn.name
-                    existing = target.get(name)
-                    if existing is None or precedence >= existing[1]:
-                        target[name] = (defn, precedence)
+                    target[defn.name] = (defn, 0)
                 except Exception as e:
                     print(f"[agents] skipping invalid definition {f}: {e}")
 
-        # Global loads first (precedence 0), field overrides (precedence 1).
         target: dict[str, tuple[AgentDefinition, int]] = {}
-        _load_dir(GLOBAL_AGENTS_DIR, 0, target)
-        field_dir = self._field_dir()
-        if field_dir is not None:
-            _load_dir(field_dir, 1, target)
+        _load_dir(GLOBAL_AGENTS_DIR, target)
 
         with self._lock:
             self._by_name = {name: defn for name, (defn, _p) in target.items()}
@@ -365,3 +345,43 @@ class AgentCatalog:
         path = self._dir_for(defn) / f"{defn.name}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(defn.to_dict(), indent=2), "utf-8")
+
+
+def migrate_field_agents(field_roots: list[Path]) -> int:
+    """Copy any field-scoped agent definitions into the global agents dir.
+
+    Agents are now global; field-scoped definitions are migrated once so the
+    user keeps their agents. A same-named global agent is never overwritten
+    (the field copy is skipped). Returns the number of migrated agents.
+    """
+    GLOBAL_AGENTS_DIR.mkdir(parents=True, exist_ok=True)
+    migrated = 0
+    seen_global = {p.stem for p in GLOBAL_AGENTS_DIR.glob("*.json")}
+    for root in field_roots:
+        if root is None:
+            continue
+        field_dir = Path(root) / ".palimind" / "agents"
+        if not field_dir.is_dir():
+            continue
+        for f in sorted(field_dir.glob("*.json")):
+            name = f.stem
+            if name in seen_global:
+                continue
+            try:
+                data = json.loads(f.read_text("utf-8"))
+                defn = AgentDefinition.from_dict(data)
+                if defn.name != name:
+                    name = defn.name
+                if name in seen_global:
+                    continue
+                defn.visibility = "global"
+                defn.set_memory_file()
+                target = GLOBAL_AGENTS_DIR / f"{defn.name}.json"
+                if target.exists():
+                    continue
+                target.write_text(json.dumps(defn.to_dict(), indent=2), "utf-8")
+                seen_global.add(defn.name)
+                migrated += 1
+            except Exception as e:
+                print(f"[agents] failed to migrate field agent {f}: {e}")
+    return migrated
