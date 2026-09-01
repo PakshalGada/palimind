@@ -114,7 +114,7 @@ async def post_result(
             field_root,
             session_id,
             "system",
-            f"**[Agent {defn_name}]** {input[:200]}\n\n{output[:2000]}",
+            f"**[Agent {defn_name}]** {input[:200]}\n\n{output}",
             mode="agent",
             mode_params={"agent_name": defn_name, "status": status},
         )

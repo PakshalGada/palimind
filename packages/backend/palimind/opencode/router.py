@@ -29,7 +29,7 @@ from pathlib import Path
 PROXY_URL = os.environ.get("OPENCODE_PROXY_URL", "http://127.0.0.1:11435").rstrip("/")
 OPENCODE_BASE_URL = os.environ.get("OPENCODE_BASE_URL", "https://opencode.ai/zen/go/v1").rstrip("/")
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 _models_cache: list[dict] | None = None
 _cache_lock = threading.Lock()

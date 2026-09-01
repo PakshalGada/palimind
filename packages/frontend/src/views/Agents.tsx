@@ -1042,7 +1042,7 @@ function StepItem({ ev }: { ev: StepEvent }) {
       return (
         <div className="agent-step-toolresult" onClick={() => setOpen(!open)}>
           <span className="tool-result-label">tool result {open ? '-' : '+'}</span>
-          {open && <pre>{String(ev.result || '').slice(0, 2000)}</pre>}
+          {open && <pre>{String(ev.result || '')}</pre>}
         </div>
       );
     case 'agent:waiting_for_human':
