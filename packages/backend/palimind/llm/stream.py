@@ -148,6 +148,8 @@ def _progress_event_to_sse(event: dict) -> list[str]:
         ]
     elif etype == "synthesizing":
         return [f"data: {json.dumps({'type': 'reasoning', 'text': event.get('text', '')})}\n\n"]
+    elif etype == "verifying":
+        return [f"data: {json.dumps({'type': 'reasoning', 'text': event.get('text', '')})}\n\n"]
     return []
 
 
@@ -262,6 +264,27 @@ async def moe_mode_stream(
                         label = ao.get("label") or f"Agent {ao.get('agent_id', '?')}"
                         out_content = ao.get("output", "No output").strip()
                         process_block += f"**{label}:**\n{out_content}\n\n"
+
+                usage = result.get("usage") or {}
+                if usage:
+                    prompt_tokens = sum(int(v.get("prompt_tokens", 0)) for v in usage.values())
+                    completion_tokens = sum(
+                        int(v.get("completion_tokens", 0)) for v in usage.values()
+                    )
+                    if prompt_tokens or completion_tokens:
+                        process_block += (
+                            f"\n**Tokens:** {prompt_tokens + completion_tokens} total "
+                            f"({prompt_tokens} in / {completion_tokens} out)\n"
+                        )
+
+                timings = result.get("timings") or {}
+                if timings.get("total"):
+                    stage_parts = []
+                    for stage in ("route", "briefing", "plan", "agents", "synthesis", "verify"):
+                        if stage in timings:
+                            stage_parts.append(f"{stage} {timings[stage]:.0f}s")
+                    stage_str = f" ({', '.join(stage_parts)})" if stage_parts else ""
+                    process_block += f"\n**Time:** {timings['total']:.0f}s{stage_str}\n"
 
                 process_block += "</div>\n</details>\n"
                 full_text += process_block

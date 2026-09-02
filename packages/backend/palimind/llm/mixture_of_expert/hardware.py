@@ -90,10 +90,6 @@ def estimate_hardware_requirements(
     overhead_worker = vram_worker + 256
     fits_gpu = True
     if gpu_vram_mb > 0:
-        layered_orch = 192
-        layered_worker = 192
-        (vram_orch - layered_orch) // 32
-        (vram_worker - layered_worker) // 32
         sequential_vram = max(overhead_orch, overhead_worker)
         fits_gpu = sequential_vram <= gpu_vram_mb
     fits_ram = True

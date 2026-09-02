@@ -228,6 +228,17 @@ Agent runtime behavior is configurable via environment variables, including:
 | `PALIMIND_ALLOWED_PATHS` | (empty) | Extra paths file tools may access |
 | `PALIMIND_AGENT_SCHEDULER_TICK` | `15` | Scheduler poll interval (s) |
 
+Mixture-of-Experts tuning (all optional):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PALIMIND_MOE_NUM_CTX` | `8192` | Ollama `num_ctx` for MoE LLM calls |
+| `PALIMIND_MOE_CONTEXT_BUDGET_TOKENS` | `6000` | Live agent-history budget; older tool exchanges are compacted |
+| `PALIMIND_MOE_MAX_CONCURRENCY` | `0` | Max parallel agents (`0` = auto: Ollama/RAM-aware) |
+| `PALIMIND_MOE_MAX_AGENT_ITERATIONS` | `12` | Hard ceiling on tool iterations per agent |
+| `PALIMIND_MOE_VERIFY` | `true` | Post-synthesis critique + one refinement pass |
+| `PALIMIND_LLM_RETRIES` | `2` | Bounded retries for transient LLM failures |
+
 ---
 
 ## Tech Stack

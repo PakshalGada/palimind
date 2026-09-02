@@ -24,6 +24,11 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
+def _env_str(name: str, default: str | None = None) -> str | None:
+    raw = os.environ.get(name, "").strip()
+    return raw or default
+
+
 def _env_bool(name: str, default: bool) -> bool:
     raw = os.environ.get(name, "")
     if raw.strip().lower() in ("1", "true", "yes", "on"):
@@ -75,6 +80,29 @@ AGENT_RUN_HISTORY_LIMIT: int = _env_int("PALIMIND_AGENT_RUN_HISTORY_LIMIT", 200)
 
 # How many conversation messages to keep per agent chat log.
 AGENT_CHAT_LIMIT: int = _env_int("PALIMIND_AGENT_CHAT_LIMIT", 300)
+
+# ── Mixture-of-Experts tuning ─────────────────────────────────────────────
+
+# Context window (Ollama num_ctx) for MoE LLM calls. Larger windows allow
+# more agent tool history but cost more tokens per call.
+MOE_NUM_CTX: int = _env_int("PALIMIND_MOE_NUM_CTX", 8192)
+
+# Approximate token budget for the *live* portion of an agent's message
+# history. When the estimated size exceeds this, the oldest tool exchanges
+# are compacted into a condensed "working notes" block.
+MOE_CONTEXT_BUDGET_TOKENS: int = _env_int("PALIMIND_MOE_CONTEXT_BUDGET_TOKENS", 6000)
+
+# Max parallel agents. 0 = auto (RAM- and Ollama-aware heuristic).
+MOE_MAX_CONCURRENCY: int = _env_int("PALIMIND_MOE_MAX_CONCURRENCY", 0)
+
+# Hard ceiling on tool iterations per agent (adaptive budget clamps to this).
+MOE_MAX_AGENT_ITERATIONS: int = _env_int("PALIMIND_MOE_MAX_AGENT_ITERATIONS", 12)
+
+# Run the post-synthesis verification/critique pass (uses the light model).
+MOE_VERIFY: bool = _env_bool("PALIMIND_MOE_VERIFY", True)
+
+# Bounded retries for transient LLM failures (timeout / HTTP 5xx / 429).
+LLM_RETRIES: int = _env_int("PALIMIND_LLM_RETRIES", 2)
 
 # Bind address for the API server (loopback-only by default).
 SERVER_HOST: str = "127.0.0.1"

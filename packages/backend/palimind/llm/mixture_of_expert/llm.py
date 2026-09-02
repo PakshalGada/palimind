@@ -10,11 +10,14 @@ Consolidates the duplicated `_llm_chat` helpers and adds support for:
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 
 class LLMError(Exception):
-    pass
+    def __init__(self, message: str, *, transient: bool = False) -> None:
+        super().__init__(message)
+        self.transient = transient
 
 
 def llm_chat(
@@ -27,6 +30,8 @@ def llm_chat(
     temperature: float | None = None,
     read_timeout: float = 300.0,
     num_predict: int | None = None,
+    num_ctx: int | None = None,
+    transport: Any | None = None,
 ) -> dict[str, Any]:
     """Call Ollama /api/chat and return a normalized result dict.
 
@@ -36,9 +41,16 @@ def llm_chat(
             "tool_calls": [                      # normalized native tool calls
                 {"name": str, "arguments": dict}
             ],
+            "usage": {                           # token counts when available
+                "prompt_tokens": int,
+                "completion_tokens": int,
+            },
         }
     Raises:
         LLMError on HTTP/timeout/decode failures.
+
+    ``transport`` is a test seam (httpx.MockTransport) and is never set in
+    production callers.
     """
     import httpx
 
@@ -58,20 +70,25 @@ def llm_chat(
         options["temperature"] = temperature
     if num_predict is not None:
         options["num_predict"] = num_predict
+    if num_ctx is not None:
+        options["num_ctx"] = num_ctx
     if options:
         payload["options"] = options
 
     try:
         with httpx.Client(
-            timeout=httpx.Timeout(connect=10.0, read=read_timeout, write=10.0, pool=10.0)
+            timeout=httpx.Timeout(connect=10.0, read=read_timeout, write=10.0, pool=10.0),
+            transport=transport,
         ) as client:
             resp = client.post(url, json=payload)
+            if resp.status_code in (429, 500, 502, 503, 504):
+                raise LLMError(f"LLM HTTP {resp.status_code}: {resp.text[:200]}", transient=True)
             resp.raise_for_status()
             data = resp.json()
     except httpx.TimeoutException as e:
-        raise LLMError(f"LLM timed out: {e}") from e
+        raise LLMError(f"LLM timed out: {e}", transient=True) from e
     except httpx.HTTPError as e:
-        raise LLMError(f"LLM HTTP error: {e}") from e
+        raise LLMError(f"LLM HTTP error: {e}", transient=True) from e
     except json.JSONDecodeError as e:
         raise LLMError(f"Invalid LLM response: {e}") from e
 
@@ -92,7 +109,13 @@ def llm_chat(
                 args = {"_raw": args}
         tool_calls.append({"name": name, "arguments": args or {}})
 
-    return {"content": content, "tool_calls": tool_calls}
+    usage: dict[str, int] = {}
+    if data.get("prompt_eval_count") is not None:
+        usage["prompt_tokens"] = int(data["prompt_eval_count"])
+    if data.get("eval_count") is not None:
+        usage["completion_tokens"] = int(data["eval_count"])
+
+    return {"content": content, "tool_calls": tool_calls, "usage": usage}
 
 
 def llm_chat_safe(
@@ -101,13 +124,28 @@ def llm_chat_safe(
     ollama_url: str,
     *,
     error_prefix: str = "[LLM error",
+    retries: int | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """llm_chat that never raises; errors come back as content."""
-    try:
-        return llm_chat(messages, model, ollama_url, **kwargs)
-    except LLMError as e:
-        return {"content": f"{error_prefix}: {e}]", "tool_calls": []}
+    """llm_chat that never raises; errors come back as content.
+
+    Transient failures (timeouts, HTTP 5xx/429) are retried with a short
+    backoff; permanent errors surface immediately as content.
+    """
+    from palimind.settings import LLM_RETRIES
+
+    if retries is None:
+        retries = LLM_RETRIES
+    attempt = 0
+    while True:
+        try:
+            return llm_chat(messages, model, ollama_url, **kwargs)
+        except LLMError as e:
+            if e.transient and attempt < retries:
+                attempt += 1
+                time.sleep(min(0.5 * (2 ** (attempt - 1)), 4.0))
+                continue
+            return {"content": f"{error_prefix}: {e}]", "tool_calls": [], "usage": {}}
 
 
 # ── native tool schemas ──────────────────────────────────────────────

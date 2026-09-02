@@ -14,6 +14,11 @@ from palimind.llm.mixture_of_expert.tools import (
     TOOL_REGISTRY,
     call_tool,
 )
+from palimind.settings import (
+    MOE_CONTEXT_BUDGET_TOKENS,
+    MOE_MAX_AGENT_ITERATIONS,
+    MOE_NUM_CTX,
+)
 
 
 def _report_web_step(
@@ -43,6 +48,67 @@ WRAP_UP_PROMPT = (
 # Hard cap on the size of a tool result fed back into the model context so a
 # single huge result cannot blow up the window and stall the loop.
 MAX_TOOL_RESULT_CHARS = 8000
+
+# ── context management ────────────────────────────────────────────────────
+
+
+def _estimated_tokens(texts: list[str]) -> int:
+    """Cheap token approximation (chars / 4), good enough for budgeting."""
+    return sum(max(1, len(t) // 4) for t in texts)
+
+
+def _condense_pair(assistant_msg: dict, user_msg: dict) -> str:
+    a = (assistant_msg.get("content") or "").replace("\n", " ")[:140]
+    u = (user_msg.get("content") or "").replace("\n", " ")[:260]
+    return f"- {a} -> {u}"
+
+
+def _compact_context(
+    live: list[dict],
+    working_notes: list[str],
+    budget_tokens: int,
+) -> list[str]:
+    """Pop the oldest assistant/user exchanges off ``live`` and condense them
+    into ``working_notes`` until the live region fits the token budget.
+
+    System and task messages live outside ``live`` and are never touched.
+    """
+    notes = list(working_notes)
+    while (
+        len(live) >= 2 and _estimated_tokens([m.get("content", "") for m in live]) > budget_tokens
+    ):
+        notes.append(_condense_pair(live[0], live[1]))
+        del live[0:2]
+    return notes
+
+
+def _chat_messages(
+    base: list[dict],
+    live: list[dict],
+    working_notes: list[str],
+) -> list[dict]:
+    """Assemble the message list sent to the model: system + task, an optional
+    condensed working-notes block, then the live exchange window."""
+    if not working_notes:
+        return base + live
+    notes_block = "WORKING NOTES (condensed earlier tool history):\n" + "\n".join(working_notes)
+    return base + [{"role": "system", "content": notes_block}] + live
+
+
+def _budget_for_sub_task(sub_task: dict[str, Any], hard_cap: int) -> int:
+    """Adaptive per-agent tool-iteration budget from the plan.
+
+    Base 8; +2 when compute/file tools are present (they need edit loops),
+    +2 when web research is involved (fetch-and-read cycles). Clamped so the
+    total never exceeds the configured hard cap.
+    """
+    tools = set(sub_task.get("tools", []))
+    budget = 8
+    if tools & {"run_python", "write_file"}:
+        budget += 2
+    if "web_search" in tools:
+        budget += 2
+    return min(max(budget, 4), max(hard_cap, 4))
 
 
 def _tool_signature(tool_name: str, tool_args: dict[str, Any] | None) -> str:
@@ -134,13 +200,15 @@ def run_agent(
     sub_task: dict[str, Any],
     worker_model: str,
     ollama_url: str,
-    max_tool_iterations: int = 8,
+    max_tool_iterations: int | None = None,
     on_step: Callable[[str], None] | None = None,
     definition: Any | None = None,
     extra_system_prompt: str = "",
     event_cb: Callable[[str, dict], Any] | None = None,
     approval_provider: Callable[[dict], dict] | None = None,
     session_id: str = "",
+    briefing: str = "",
+    usage_cb: Callable[[dict], None] | None = None,
 ) -> str:
     """Run one agent loop.
 
@@ -158,8 +226,15 @@ def run_agent(
       (write_file, run_python) when the HITL threshold > 0; returns
       {"approved": bool, "correction": str}.
     - ``session_id``: optional correlation id (logged only).
+    - ``briefing``: shared pre-searched context injected into the task
+      prompt so every agent starts with the same findings (no duplicate
+      turn-0 web searches).
+    - ``usage_cb``: invoked once with accumulated token counts.
     """
     del session_id  # correlation only; kept for interface compatibility
+
+    if max_tool_iterations is None:
+        max_tool_iterations = _budget_for_sub_task(sub_task, MOE_MAX_AGENT_ITERATIONS)
 
     allowed_tools = [t for t in sub_task.get("tools", []) if t in TOOL_REGISTRY]
     native_tools = (
@@ -192,22 +267,47 @@ Be concise and effective."""
     if extra_system_prompt:
         system_prompt = f"{system_prompt}\n\n{extra_system_prompt}"
 
-    messages = [
+    base = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": build_agent_prompt(agent_id, sub_task, worker_model)},
+        {
+            "role": "user",
+            "content": build_agent_prompt(agent_id, sub_task, worker_model, briefing=briefing),
+        },
     ]
+    live: list[dict] = []
+    working_notes: list[str] = []
+
+    usage: dict[str, int] = {"prompt_tokens": 0, "completion_tokens": 0}
+
+    def _track(result: dict) -> None:
+        u = result.get("usage") or {}
+        usage["prompt_tokens"] += int(u.get("prompt_tokens", 0))
+        usage["completion_tokens"] += int(u.get("completion_tokens", 0))
+
+    def _call(tools: list[dict] | None, extra_user: str | None = None) -> dict[str, Any]:
+        msgs = _chat_messages(base, live, working_notes)
+        if extra_user:
+            msgs = msgs + [{"role": "user", "content": extra_user}]
+        result = llm_chat_safe(
+            msgs,
+            worker_model,
+            ollama_url,
+            tools=tools,
+            error_prefix=f"[Agent {agent_id} error",
+            temperature=temperature,
+            num_ctx=MOE_NUM_CTX,
+        )
+        _track(result)
+        return result
+
+    def _finish_usage() -> None:
+        if usage_cb is not None:
+            usage_cb(dict(usage))
 
     full_log: list[str] = []
     recent_tool_calls: list[str] = []
     for iteration in range(max_tool_iterations):
-        result = llm_chat_safe(
-            messages,
-            worker_model,
-            ollama_url,
-            tools=native_tools,
-            error_prefix=f"[Agent {agent_id} error",
-            temperature=temperature,
-        )
+        result = _call(native_tools)
         response = result["content"]
         _emit_event(
             event_cb, "agent:thought", {"text": (response or "")[:2000], "iteration": iteration}
@@ -217,11 +317,11 @@ Be concise and effective."""
         if result["tool_calls"]:
             for tc in result["tool_calls"]:
                 tool_name = tc["name"]
-                tool_args = {k: v for k, v in (tc.get("arguments") or {}).items()}
+                native_args = {k: v for k, v in (tc.get("arguments") or {}).items()}
                 tool_result = _execute_tool(
                     agent_id,
                     tool_name,
-                    tool_args,
+                    native_args,
                     sub_task,
                     on_step,
                     full_log,
@@ -230,10 +330,10 @@ Be concise and effective."""
                     response=response,
                     event_cb=event_cb,
                 )
-                messages.append(
+                live.append(
                     {"role": "assistant", "content": response or f"[tool call: {tool_name}]"}
                 )
-                messages.append(
+                live.append(
                     {
                         "role": "user",
                         "content": (
@@ -241,15 +341,16 @@ Be concise and effective."""
                         ),
                     }
                 )
-                recent_tool_calls.append(_tool_signature(tool_name, tool_args))
+                recent_tool_calls.append(_tool_signature(tool_name, native_args))
+            working_notes = _compact_context(live, working_notes, MOE_CONTEXT_BUDGET_TOKENS)
             if _is_looping(recent_tool_calls):
                 _emit_event(
                     event_cb,
                     "agent:thought",
                     {"text": "Repeated tool call detected — wrapping up.", "iteration": iteration},
                 )
-                messages.append({"role": "assistant", "content": response})
-                messages.append({"role": "user", "content": WRAP_UP_PROMPT})
+                live.append({"role": "assistant", "content": response})
+                live.append({"role": "user", "content": WRAP_UP_PROMPT})
             continue
 
         # ── 2. Text-protocol tool call (fallback) ─────────────────────
@@ -284,43 +385,29 @@ Be concise and effective."""
             tool_msg = f"Tool '{tool_name}' returned:\n{tool_result[:MAX_TOOL_RESULT_CHARS]}"
             full_log.append(f"[Agent {agent_id}] Called {tool_name}: {tool_args}")
             full_log.append(f"[Agent {agent_id}] Result: {tool_result[:200]}")
-            messages.append({"role": "assistant", "content": response})
-            messages.append({"role": "user", "content": tool_msg})
+            live.append({"role": "assistant", "content": response})
+            live.append({"role": "user", "content": tool_msg})
             recent_tool_calls.append(_tool_signature(tool_name, tool_args))
+            working_notes = _compact_context(live, working_notes, MOE_CONTEXT_BUDGET_TOKENS)
             if _is_looping(recent_tool_calls):
                 _emit_event(
                     event_cb,
                     "agent:thought",
                     {"text": "Repeated tool call detected — wrapping up.", "iteration": iteration},
                 )
-                messages.append({"role": "assistant", "content": response})
-                messages.append({"role": "user", "content": WRAP_UP_PROMPT})
+                live.append({"role": "assistant", "content": response})
+                live.append({"role": "user", "content": WRAP_UP_PROMPT})
             continue
 
-        # ── 3. Proactive fallback: research agents search on turn 0 ───
-        if "web_search" in allowed_tools and iteration == 0 and "FINAL_ANSWER:" not in response:
-            query = sub_task.get("task", "")[:100] or "latest information"
-            if on_step:
-                on_step(f"Searching web: '{query[:60]}'")
-
-            tool_result = call_tool("web_search", query=query, max_results=3)
-            _report_web_step(on_step, "web_search", tool_result)
-
-            tool_msg = f"Tool 'web_search' auto-executed for research returned:\n{tool_result[:MAX_TOOL_RESULT_CHARS]}"
-            full_log.append(f"[Agent {agent_id}] Auto-executed web_search: {query}")
-            messages.append({"role": "assistant", "content": response})
-            messages.append({"role": "user", "content": tool_msg})
-            recent_tool_calls.append(_tool_signature("web_search", {"query": query}))
-            continue
-
-        # ── 4. Final answer ───────────────────────────────────────────
+        # ── 3. Final answer ───────────────────────────────────────────
         if "FINAL_ANSWER:" in response:
             final_answer = parse_agent_output(response)
             full_log.append(f"[Agent {agent_id}] Final answer ({len(final_answer)} chars)")
+            _finish_usage()
             return final_answer
 
-        messages.append({"role": "assistant", "content": response})
-        messages.append(
+        live.append({"role": "assistant", "content": response})
+        live.append(
             {
                 "role": "user",
                 "content": (
@@ -342,14 +429,7 @@ Be concise and effective."""
             "iteration": max_tool_iterations,
         },
     )
-    result = llm_chat_safe(
-        messages + [{"role": "user", "content": WRAP_UP_PROMPT}],
-        worker_model,
-        ollama_url,
-        tools=None,
-        error_prefix=f"[Agent {agent_id} error",
-        temperature=temperature,
-    )
+    result = _call(None, extra_user=WRAP_UP_PROMPT)
     response = result["content"] or ""
     _emit_event(
         event_cb,
@@ -357,6 +437,7 @@ Be concise and effective."""
         {"text": response[:2000], "iteration": max_tool_iterations},
     )
     final_answer = parse_agent_output(response)
+    _finish_usage()
     if final_answer and "FINAL_ANSWER:" in response:
         return final_answer
     if final_answer and not final_answer.startswith("[Agent "):

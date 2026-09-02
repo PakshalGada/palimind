@@ -88,17 +88,25 @@ def build_agent_prompt(
     agent_id: int,
     sub_task: dict[str, Any],
     worker_model: str,
+    briefing: str = "",
 ) -> str:
     agent_label = sub_task.get("label") or f"Agent {agent_id}"
     tools = sub_task.get("tools", [])
 
     web_search_instruction = ""
     if "web_search" in tools:
-        web_search_instruction = "\nIMPORTANT: You have web research tools. Execute a web search first with a relevant query to fetch up-to-date information before answering. Use fetch_url to read promising result pages in depth.\n"
+        web_search_instruction = "\nIMPORTANT: You have web research tools. Use them when the shared briefing above or your task needs newer or deeper information than is already provided.\n"
 
     doc_search_instruction = ""
     if "document_search" in tools:
         doc_search_instruction = "\nYou have access to the user's indexed workspace documents via document_search. Use it when the task references the user's files or knowledge base.\n"
+
+    briefing_section = ""
+    if briefing and briefing.strip():
+        briefing_section = (
+            "\n\nSHARED WEB BRIEFING (already gathered by the orchestrator — do not "
+            f"repeat the same searches):\n{briefing.strip()}\n"
+        )
 
     return f"""You are Agent {agent_id} ({agent_label}). You are running with model ({worker_model}).
 
@@ -108,7 +116,7 @@ Your assigned task from Orchestrator:
 Context: {sub_task.get("context", "")}
 
 Available tools: {", ".join(tools) if tools else "(none — reason directly)"}
-{web_search_instruction}{doc_search_instruction}
+{briefing_section}{web_search_instruction}{doc_search_instruction}
 Think step by step to complete your task using your tools.
 When using a tool (if native tool calls are unavailable):
   TOOL: tool_name
@@ -143,7 +151,51 @@ Your expert agents produced the following results:
 
 Synthesize these results into a single, cohesive, well-structured final answer.
 Combine information, resolve any conflicts, and present a clear response to the user.
-Be thorough and cite which agent provided which information."""
+Be thorough and attribute facts to their source.
+
+Citations: when a claim comes from a specific agent, reference it inline as
+[Agent N] (using the agent's number). When a claim comes from memory context,
+mark it as [memory]. Never invent citations — if you are unsure where a fact
+came from, leave it uncited. If agents contradict each other, say which version
+you adopted and why."""
+
+
+def build_verify_prompt(
+    user_query: str,
+    synthesis: str,
+    agent_outputs: list[dict[str, Any]],
+) -> str:
+    outputs_section = ""
+    for ao in agent_outputs:
+        outputs_section += (
+            f"\n--- Agent {ao['agent_id']} Output ---\n{ao.get('output', 'No output')}\n"
+        )
+    return f"""You are a strict quality reviewer. The user asked:
+"{user_query}"
+
+A draft final answer was synthesized from several expert agents:
+
+--- Draft Final Answer ---
+{synthesis}
+--- End Draft ---
+
+The expert agent outputs used to build it:
+{outputs_section}
+
+Review the draft for:
+1. Did it actually answer the user's question? (missing_scope)
+2. Did it ignore important facts or agent outputs? (missing_facts)
+3. Do any claims contradict the agent outputs, or do agents contradict each other? (conflicts)
+4. Any specific improvements? (suggestions)
+
+Respond with ONLY a JSON object:
+{{
+  "answers_query": true,
+  "missing_scope": "",
+  "missing_facts": "",
+  "conflicts": "",
+  "suggestions": ""
+}}"""
 
 
 def parse_plan(text: str, num_workers: int = 4) -> list[dict[str, Any]]:
