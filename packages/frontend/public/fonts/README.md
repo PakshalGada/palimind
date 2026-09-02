@@ -1,8 +1,8 @@
 # Fonts
 
 The UI uses **Universal Sans** (designed by Briton Smith / Family Type) for body
-text, headings, and UI labels, **Noto Serif** for the Palimind logo/wordmark, and
-**IBM Plex Mono** (SIL OFL) for code and monospace elements.
+text, headings, and UI labels, **Space Grotesk** (SIL OFL) for the Palimind
+logo/wordmark, and **IBM Plex Mono** (SIL OFL) for code and monospace elements.
 
 ## Bundled (open source)
 
@@ -12,8 +12,8 @@ Downloaded from Google Fonts:
 public/fonts/
 ├── IBMPlexMono-400.woff2       # Code — Regular / 400
 ├── IBMPlexMono-400Italic.woff2 # Code — Regular italic / 400
-├── NotoSerif-400.woff2         # Logo/wordmark — variable 400–600
-└── NotoSerif-400Italic.woff2   # Logo/wordmark — italic / 400
+├── SpaceGrotesk-var.woff2      # Logo/wordmark — variable 300–700 (latin subset)
+└── NotoSerif-400Italic.woff2   # Legacy serif fallback — italic / 400
 ```
 
 ## Universal Sans (bring your licensed files)
