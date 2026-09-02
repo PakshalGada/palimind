@@ -7,12 +7,15 @@ DESKTOP_DIR := apps/desktop
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dev build test lint fmt typecheck icons check-imports backend-test frontend-test clean
+.PHONY: help dev build test lint fmt typecheck icons check-imports backend-test frontend-test frontend-build clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "\033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
-dev: ## Run the desktop app in dev mode (backend must be installed: pip install -e packages/backend)
+frontend-build: ## Build the frontend bundle
+	npm run build --prefix $(FRONTEND_DIR)
+
+dev: frontend-build ## Run the desktop app in dev mode (backend must be installed: pip install -e packages/backend)
 	cd $(BACKEND_DIR) && python -m palimind.cli.main ui
 
 backend: ## Start only the FastAPI backend on :8000

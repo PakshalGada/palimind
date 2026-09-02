@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { ArrowUp, Square } from "lucide-react";
 import ModelSwitcher from "./ModelSwitcher";
 import LoadingSpinner from "./LoadingSpinner";
 import AgentAvatar from "./AgentAvatar";
@@ -8,6 +9,13 @@ import type { AgentState } from "../AppContext";
 import { formatMarkdown } from "../utils/markdown";
 import { api } from "../api";
 import type { AgentListItem, ModelItem } from "../types";
+import {
+  PromptInput,
+  PromptInputAction,
+  PromptInputActions,
+  PromptInputTextarea,
+} from "./prompt-kit/prompt-input";
+import { Button } from "./ui/button";
 
 export default function InputArea() {
   const {
@@ -89,10 +97,6 @@ export default function InputArea() {
     if (!ta) return;
     ta.style.height = "auto";
     ta.style.height = `${ta.scrollHeight}px`;
-    const cc = ta.closest(".ai-command-center") as HTMLElement;
-    if (cc) {
-      cc.classList.toggle("expanded", ta.scrollHeight > 45);
-    }
   }, []);
 
   useEffect(() => {
@@ -626,9 +630,16 @@ export default function InputArea() {
 
 
 
-      <div
+      <PromptInput
         className="ai-command-center"
         id="ai-command-center"
+        value={value}
+        onValueChange={(nextValue) => {
+          setValue(nextValue);
+          updateMention(nextValue);
+        }}
+        isLoading={isGenerating}
+        onSubmit={handleSend}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -657,6 +668,7 @@ export default function InputArea() {
                   {(file.size / 1024).toFixed(1)}KB
                 </span>
                 <button
+                  type="button"
                   className="chip-remove"
                   onClick={() => removeAttachment(idx)}
                 >
@@ -677,47 +689,49 @@ export default function InputArea() {
           </div>
         )}
 
-        <div className="command-input-row" style={{ position: "relative" }}>
-          {mention && (
-            <div className="agent-mention-popup">
-              <div className="agent-mention-header">Call an agent</div>
-              {mentionMatches.length === 0 && (
-                <div className="agent-mention-empty">No matching agents</div>
-              )}
-              {mentionMatches.map((a, i) => (
-                <div
-                  key={a.id}
-                  className={`agent-mention-item${i === mentionIndex ? " selected" : ""}`}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    applyMention(a.name);
-                  }}
-                  onMouseEnter={() => setMentionIndex(i)}
-                >
-                  <AgentAvatar seed={a.color_seed || a.id + a.name} thinking={!!a.running} size={20} />
-                  <span className="agent-mention-name">@{a.name}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          <textarea
-            id="chat-input"
-            ref={textareaRef}
-            rows={1}
-            aria-label="Chat message"
-            placeholder="Ask anything"
-            value={value}
-            onChange={(e) => {
-              setValue(e.target.value);
-              updateMention(e.target.value);
-            }}
-            onKeyDown={handleKeyDown}
-          />
+        {mention && (
+          <div className="agent-mention-popup">
+            <div className="agent-mention-header">Call an agent</div>
+            {mentionMatches.length === 0 && (
+              <div className="agent-mention-empty">No matching agents</div>
+            )}
+            {mentionMatches.map((a, i) => (
+              <div
+                key={a.id}
+                className={`agent-mention-item${i === mentionIndex ? " selected" : ""}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  applyMention(a.name);
+                }}
+                onMouseEnter={() => setMentionIndex(i)}
+              >
+                <AgentAvatar seed={a.color_seed || a.id + a.name} thinking={!!a.running} size={20} />
+                <span className="agent-mention-name">@{a.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
+        <PromptInputTextarea
+          id="chat-input"
+          ref={textareaRef}
+          rows={1}
+          aria-label="Chat message"
+          placeholder="Ask me anything..."
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            updateMention(e.target.value);
+          }}
+          onKeyDown={handleKeyDown}
+        />
+
+        <div className="composer-footer">
           {chatMode === "llm" && (
             <div className="moe-toggle-wrapper">
               <button
                 ref={moeBtnRef}
+                type="button"
                 className={`moe-toggle-btn${isMoeActive ? " moe-active" : ""}`}
                 onClick={() => setMoePopupOpen(!moePopupOpen)}
               >
@@ -930,50 +944,39 @@ export default function InputArea() {
             </div>
           )}
 
-          <button
-            id="btn-send"
-            className={`send-btn${isGenerating ? " animating-stop" : ""}`}
-            disabled={!isGenerating && isEmpty}
-            onClick={() => {
-              if (isGenerating) {
-                const ac = (
-                  window as unknown as { __abortController?: AbortController }
-                ).__abortController;
-                if (ac) ac.abort();
-                setIsGenerating(false);
-              } else {
-                handleSend();
-              }
-            }}
-          >
-            <svg
-              className="send-icon"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ display: isGenerating ? "none" : "block" }}
+          <PromptInputActions className="prompt-composer-actions">
+            <PromptInputAction
+              tooltip={isGenerating ? "Stop generation" : "Send message"}
             >
-              <line x1="12" y1="19" x2="12" y2="5" />
-              <polyline points="5 12 12 5 19 12" />
-            </svg>
-            <svg
-              className="stop-icon"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              style={{ display: isGenerating ? "block" : "none" }}
-            >
-              <rect x="4" y="4" width="16" height="16" rx="2" ry="2" />
-            </svg>
-          </button>
+              <Button
+                id="btn-send"
+                type="button"
+                variant="default"
+                size="icon"
+                className={`send-btn${isGenerating ? " animating-stop" : ""}`}
+                disabled={!isGenerating && isEmpty}
+                onClick={() => {
+                  if (isGenerating) {
+                    const ac = (
+                      window as unknown as { __abortController?: AbortController }
+                    ).__abortController;
+                    if (ac) ac.abort();
+                    setIsGenerating(false);
+                  } else {
+                    handleSend();
+                  }
+                }}
+              >
+                {isGenerating ? (
+                  <Square className="stop-icon" aria-hidden="true" />
+                ) : (
+                  <ArrowUp className="send-icon" aria-hidden="true" />
+                )}
+              </Button>
+            </PromptInputAction>
+          </PromptInputActions>
         </div>
-      </div>
+      </PromptInput>
       <ModelSwitcher />
     </div>
   );

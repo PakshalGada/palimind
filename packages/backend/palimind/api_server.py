@@ -92,14 +92,18 @@ class SPAStaticFiles(StaticFiles):
 
     async def get_response(self, path: str, scope):
         try:
-            return await super().get_response(path, scope)
+            response = await super().get_response(path, scope)
         except StarletteHTTPException:
-            pass
-        # File/dir not found → fall back to the SPA entry point
-        try:
-            return await super().get_response("index.html", scope)
-        except Exception:
-            raise
+            response = None
+        if response is None:
+            # File/dir not found → fall back to the SPA entry point
+            response = await super().get_response("index.html", scope)
+        # Never cache HTML: the webview would otherwise keep the stale
+        # index.html that references old hashed bundles that no longer exist,
+        # leaving the app blank/broken after a frontend rebuild.
+        if response.headers.get("content-type", "").startswith("text/html"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
 
 
 if UI_DIR.exists():

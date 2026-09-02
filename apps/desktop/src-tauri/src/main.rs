@@ -108,6 +108,13 @@ fn wait_for_backend(url: &str, max_attempts: u32) -> bool {
 // ── App entry-point ──────────────────────────────────────────────────────────
 
 fn main() {
+    // Work around a WebKitGTK/NVIDIA crash on hybrid-GPU systems: the web
+    // process aborts while unloading libEGL_nvidia (with Mesa's libgallium in
+    // the stack), which takes the window down ~2s after launch. Disabling the
+    // GL-compositing and dmabuf paths keeps the webview on the safe path.
+    std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+    std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+
     // Determine project root (the repo checkout that contains packages/backend)
     let exe_dir = std::env::current_exe()
         .ok()
