@@ -377,7 +377,9 @@ async def run_with_definition(
     from palimind.agents.registry import get_registry
 
     working_root = calling_root if calling_root is not None else get_registry().field_root
-    context_fields = [Path(str(cf)).expanduser() for cf in (getattr(definition, "context_fields", []) or [])]
+    context_fields = [
+        Path(str(cf)).expanduser() for cf in (getattr(definition, "context_fields", []) or [])
+    ]
     extra_roots = [
         cf
         for cf in context_fields

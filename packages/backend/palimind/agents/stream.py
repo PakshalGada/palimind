@@ -132,7 +132,9 @@ async def agent_mode_stream(
         yield agent_sse("reasoning", {"text": f"🤖 Running agent '{agent_name}'..."})
 
         full_text = ""
-        async for ev in agent_event_stream(defn, agent_input or "Run your task.", session_id or "", working_root=working_root):
+        async for ev in agent_event_stream(
+            defn, agent_input or "Run your task.", session_id or "", working_root=working_root
+        ):
             etype = ev.get("type", "")
             payload = {k: v for k, v in ev.items() if k != "type"}
             yield agent_sse(etype, payload)

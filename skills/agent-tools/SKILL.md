@@ -37,11 +37,11 @@ skills (SKILL.md) for AI coding agents and are never shipped in the app.
 ```python
 from palimind.agents.tools.base import Tool, ToolContext, ToolResult
 
+
 class MyTool(Tool):
     name = "my-tool"
 
-    async def run(self, ctx: ToolContext, **kwargs) -> ToolResult:
-        ...
+    async def run(self, ctx: ToolContext, **kwargs) -> ToolResult: ...
 ```
 
 4. Register it via `palimind.agents.tools.registry` (auto-discovers folders).

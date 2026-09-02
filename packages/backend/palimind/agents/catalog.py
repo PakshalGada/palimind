@@ -148,9 +148,7 @@ class AgentDefinition:
         if self.memory_scope == "none":
             self.memory_file = ""
         else:
-            self.memory_file = str(
-                GLOBAL_AGENTS_DIR / "memory" / f"{self.id}.json"
-            )
+            self.memory_file = str(GLOBAL_AGENTS_DIR / "memory" / f"{self.id}.json")
         return self.memory_file
 
 
