@@ -289,9 +289,11 @@ async def api_chat(req: ChatRequest):
                         continue
                     choices = chunk.get("choices") or []
                     delta_content = ""
+                    delta_reasoning = ""
                     if choices:
                         delta = choices[0].get("delta") or {}
-                        delta_content = delta.get("content") or delta.get("reasoning_content") or ""
+                        delta_content = delta.get("content") or ""
+                        delta_reasoning = delta.get("reasoning_content") or ""
                     if delta_content:
                         yield (
                             json.dumps(
@@ -300,6 +302,21 @@ async def api_chat(req: ChatRequest):
                                     "message": {
                                         "role": "assistant",
                                         "content": delta_content,
+                                    },
+                                    "done": False,
+                                }
+                            )
+                            + "\n"
+                        )
+                    if delta_reasoning:
+                        yield (
+                            json.dumps(
+                                {
+                                    "model": req.model,
+                                    "message": {
+                                        "role": "assistant",
+                                        "content": "",
+                                        "reasoning": delta_reasoning,
                                     },
                                     "done": False,
                                 }

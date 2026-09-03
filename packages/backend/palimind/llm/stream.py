@@ -62,6 +62,11 @@ async def llm_mode_stream(
             system_prompt = f"{system_prompt}\n\n{memory_ctx}"
 
         full_text = ""
+        reasoning_parts: list[str] = []
+
+        def on_reasoning(chunk: str) -> None:
+            reasoning_parts.append(chunk)
+
         try:
             stream = generate_response_stream(
                 query=q,
@@ -72,8 +77,15 @@ async def llm_mode_stream(
                 system_prompt=system_prompt,
                 history=history_to_send,
                 is_chat_only=True,
+                on_reasoning=on_reasoning,
             )
+            emitted_thinking = False
             for token in stream:
+                if not emitted_thinking and reasoning_parts:
+                    yield (
+                        f"data: {json.dumps({'type': 'thinking', 'text': ''.join(reasoning_parts)})}\n\n"
+                    )
+                    emitted_thinking = True
                 full_text += token
                 yield (f"data: {json.dumps({'type': 'token', 'text': token})}\n\n")
         except Exception as e:

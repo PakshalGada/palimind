@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from palimind.config import load_config
@@ -48,6 +49,7 @@ def query_stream(
     long_term_episodes: list[dict] | None = None,
     session_id: str | None = None,
     web_search: bool = False,
+    on_reasoning: Callable[[str], None] | None = None,
 ) -> QueryStream:
     from palimind.memory.hierarchical import format_hierarchical_memory_context
 
@@ -66,6 +68,7 @@ def query_stream(
         chat_model=config["chat_model"],
         system_prompt=prompt,
         history=history,
+        on_reasoning=on_reasoning,
     )
     return RetrievedContext(text_contexts=(), image_paths=(), sources=()), stream
 
@@ -105,6 +108,7 @@ def document_query_stream(
     mid_term_summary: str | None = None,
     long_term_episodes: list[dict] | None = None,
     files_filter: list[str] | None = None,
+    on_reasoning: Callable[[str], None] | None = None,
 ) -> QueryStream:
     """Strict document-mode query with hybrid retrieval and knowledge graph."""
     from palimind.document.engine import DocumentEngine
@@ -130,5 +134,6 @@ def document_query_stream(
         history=history,
         mid_term_summary=mid_term_summary,
         long_term_episodes=long_term_episodes,
+        on_reasoning=on_reasoning,
     )
     return ctx, stream

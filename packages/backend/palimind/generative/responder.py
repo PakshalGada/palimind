@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import httpx
@@ -29,8 +29,14 @@ def generate_response_stream(
     system_prompt: str,
     history: list[dict] | None = None,
     is_chat_only: bool = False,
+    on_reasoning: Callable[[str], None] | None = None,
 ) -> Iterator[str]:
-    """Yield response tokens from Ollama."""
+    """Yield response tokens from Ollama.
+
+    ``on_reasoning`` receives chain-of-thought fragments (``reasoning`` field)
+    emitted by reasoning models separately from the answer text, so the answer
+    stream stays clean and callers can surface the thinking on demand.
+    """
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
@@ -85,9 +91,14 @@ def generate_response_stream(
                     if not line:
                         continue
                     data = json.loads(line)
-                    content = data.get("message", {}).get("content")
+                    message = data.get("message", {}) or {}
+                    content = message.get("content")
                     if content:
                         yield content
+                    if on_reasoning is not None:
+                        reasoning = message.get("reasoning")
+                        if reasoning:
+                            on_reasoning(reasoning)
     except httpx.TimeoutException as e:
         raise ResponseError(f"Response generation timed out: {e}") from e
     except httpx.HTTPError as e:

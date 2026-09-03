@@ -292,6 +292,8 @@ export default function InputArea() {
 
     let contentDiv: HTMLElement | null = null;
     let fullText = "";
+    let thinkingDetails: HTMLDetailsElement | null = null;
+    let thinkingBody: HTMLElement | null = null;
 
     const fmtTs = (s: number) => {
       const sec = Math.round(s);
@@ -399,6 +401,28 @@ export default function InputArea() {
         renderMediaCitations(data.citations || []);
       } else if (data.type === "reasoning") {
         setThinkingText(data.text.replace(/[>*_]/g, "").trim());
+      } else if (data.type === "thinking") {
+        const t = String(data.text || "").trim();
+        if (!t || !messagesContainer) return;
+        if (!thinkingDetails) {
+          thinkingDetails = document.createElement("details");
+          thinkingDetails.className = "thinking-block";
+          const summary = document.createElement("summary");
+          summary.className = "thinking-toggle";
+          summary.textContent = "Thinking";
+          thinkingDetails.appendChild(summary);
+          thinkingBody = document.createElement("div");
+          thinkingBody.className = "thinking-body";
+          thinkingDetails.appendChild(thinkingBody);
+          const wrapper = document.createElement("div");
+          wrapper.className = "message-wrapper";
+          wrapper.appendChild(thinkingDetails);
+          const msgDiv = document.createElement("div");
+          msgDiv.className = "message system-message";
+          msgDiv.appendChild(wrapper);
+          messagesContainer.appendChild(msgDiv);
+        }
+        thinkingBody!.textContent = (thinkingBody!.textContent || "") + t;
       } else if (data.type === "progress") {
         setThinkingText(data.text);
       } else if (data.type === "agent_progress") {

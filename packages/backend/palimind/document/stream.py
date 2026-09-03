@@ -128,6 +128,11 @@ async def document_mode_stream(
         )
 
         full_text = ""
+        reasoning_parts: list[str] = []
+
+        def on_reasoning(chunk: str) -> None:
+            reasoning_parts.append(chunk)
+
         try:
             stream = engine.stream_answer(
                 q,
@@ -136,8 +141,15 @@ async def document_mode_stream(
                 history=history_to_send,
                 mid_term_summary=mid_term_summary,
                 long_term_episodes=long_term_episodes,
+                on_reasoning=on_reasoning,
             )
+            emitted_thinking = False
             for token in stream:
+                if not emitted_thinking and reasoning_parts:
+                    yield (
+                        f"data: {json.dumps({'type': 'thinking', 'text': ''.join(reasoning_parts)})}\n\n"
+                    )
+                    emitted_thinking = True
                 full_text += token
                 yield (f"data: {json.dumps({'type': 'token', 'text': token})}\n\n")
         except Exception as e:

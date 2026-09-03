@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -548,6 +548,7 @@ class DocumentEngine:
         history: list[dict] | None = None,
         mid_term_summary: str | None = None,
         long_term_episodes: list[dict] | None = None,
+        on_reasoning: Callable[[str], None] | None = None,
     ) -> Iterator[str]:
         """Stream the answer from the LLM using retrieved context."""
         from palimind.memory.hierarchical import format_hierarchical_memory_context
@@ -596,6 +597,7 @@ class DocumentEngine:
             system_prompt=sys,
             history=history,
             is_chat_only=not bool(ctx_text),
+            on_reasoning=on_reasoning,
         )
         yield from stream
 
@@ -609,6 +611,7 @@ def document_query_stream(
     history: list[dict] | None = None,
     mid_term_summary: str | None = None,
     files_filter: list[str] | None = None,
+    on_reasoning: Callable[[str], None] | None = None,
 ) -> tuple[dict[str, Any], Iterator[str]]:
     """Run a strict document-mode query. Returns (context_info, token_stream)."""
     engine = DocumentEngine(root)
@@ -625,5 +628,6 @@ def document_query_stream(
         system_prompt=system_prompt,
         history=history,
         mid_term_summary=mid_term_summary,
+        on_reasoning=on_reasoning,
     )
     return context, stream

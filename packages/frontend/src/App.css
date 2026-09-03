@@ -2587,6 +2587,66 @@ summary.moe-process-summary:hover {
     margin-top: 0;
 }
 
+details.thinking-block {
+    margin: 4px 0 12px 0;
+    background: var(--glass-bg);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    transition: border-color 0.2s;
+}
+details.thinking-block[open] {
+    border-color: var(--text-muted);
+}
+summary.thinking-toggle {
+    padding: 7px 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.15s;
+    outline: none;
+    list-style: none;
+}
+summary.thinking-toggle::-webkit-details-marker {
+    display: none;
+}
+summary.thinking-toggle::before {
+    content: "💭";
+    font-size: 0.8rem;
+}
+details[open] summary.thinking-toggle::before {
+    content: "💭";
+}
+summary.thinking-toggle::after {
+    content: "▼";
+    font-size: 0.6rem;
+    margin-left: auto;
+    transition: transform 0.2s ease;
+    display: inline-block;
+}
+details[open] summary.thinking-toggle::after {
+    transform: rotate(180deg);
+}
+summary.thinking-toggle:hover {
+    background: var(--accent-soft);
+}
+.thinking-body {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border-subtle);
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
 .message-wrapper {
     display: flex;
     flex-direction: column;
