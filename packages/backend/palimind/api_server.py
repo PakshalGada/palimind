@@ -854,12 +854,12 @@ async def chat_stream(
         candidate = mention_parts[0].strip() if mention_parts else ""
         if candidate:
             from palimind.agents.registry import get_registry
-            from palimind.agents.stream import agent_mode_stream
+            from palimind.agents.service import agent_sse_stream
 
             defn = get_registry().get(candidate)
             if defn is not None and defn.enabled:
                 agent_input = mention_parts[1].strip() if len(mention_parts) > 1 else ""
-                return await agent_mode_stream(
+                return await agent_sse_stream(
                     root,
                     defn.name,
                     agent_input or "Run your task.",
@@ -1462,6 +1462,9 @@ async def save_opencode_key(req: Request):
         return {"error": "Invalid API key: must be at least 10 characters"}
 
     headers = {"Authorization": f"Bearer {key}"}
+    from palimind.opencode.session import SESSION_HEADER, opencode_session_id
+
+    headers[SESSION_HEADER] = opencode_session_id()
     timeout = httpx.Timeout(connect=15.0, read=15.0, write=15.0, pool=15.0)
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:

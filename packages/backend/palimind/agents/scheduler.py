@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from palimind.agents.runtime import is_running, run_with_definition
+from palimind.agents.service import is_running, run_agent
 from palimind.settings import AGENT_SCHEDULER_TICK
 
 RESULTS_SESSION_NAME = "_agent_results"
@@ -130,7 +130,7 @@ async def _fire_agent(defn: Any, input: str, source: str) -> None:
 
     field_root = get_registry().field_root
     try:
-        output = await run_with_definition(defn, input, session_id=f"_{source}")
+        output = await run_agent(defn, input, session_id=f"_{source}")
         if field_root is not None:
             await post_result(field_root, defn.name, input, output, "success")
     except asyncio.CancelledError:

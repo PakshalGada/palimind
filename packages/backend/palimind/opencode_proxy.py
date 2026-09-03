@@ -90,6 +90,21 @@ def _auth_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {key}"}
 
 
+def _upstream_headers(client_headers: dict | None = None) -> dict[str, str]:
+    """Headers for upstream OpenCode Go requests.
+
+    Always includes ``x-opencode-session``: the value passed in by the caller
+    (per-conversation) when present, otherwise a stable per-process id. This
+    header is required by OpenCode Go.
+    """
+    from palimind.opencode.session import SESSION_HEADER, opencode_session_id
+
+    headers = _auth_headers()
+    session = (client_headers or {}).get(SESSION_HEADER)
+    headers[SESSION_HEADER] = session or opencode_session_id()
+    return headers
+
+
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
@@ -116,7 +131,7 @@ async def _fetch_model_ids(client: httpx.AsyncClient) -> list[str]:
     """Fetch and cache available model ids from the upstream /models endpoint."""
     global _models_cache
     if _models_cache is None:
-        resp = await client.get(f"{BASE_URL}/models", headers=_auth_headers())
+        resp = await client.get(f"{BASE_URL}/models", headers=_upstream_headers())
         resp.raise_for_status()
         data = resp.json()
         _models_cache = [m.get("id", "") for m in data.get("data", []) if m.get("id")]
@@ -198,7 +213,7 @@ async def api_tags():
     """Ollama-style model listing backed by the OpenAI-compatible /models."""
     try:
         async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT) as client:
-            resp = await client.get(f"{BASE_URL}/models", headers=_auth_headers())
+            resp = await client.get(f"{BASE_URL}/models", headers=_upstream_headers())
             resp.raise_for_status()
             data = resp.json()
     except Exception:
@@ -234,7 +249,7 @@ async def api_chat(req: ChatRequest):
                 resp = await client.post(
                     f"{BASE_URL}/chat/completions",
                     json=payload,
-                    headers=_auth_headers(),
+                    headers=_upstream_headers(req.headers),
                 )
                 resp.raise_for_status()
                 data = resp.json()
@@ -258,7 +273,7 @@ async def api_chat(req: ChatRequest):
                 "POST",
                 f"{BASE_URL}/chat/completions",
                 json=payload,
-                headers=_auth_headers(),
+                headers=_upstream_headers(req.headers),
             ) as response:
                 response.raise_for_status()
                 async for line in response.aiter_lines():
@@ -348,7 +363,7 @@ async def api_generate(req: GenerateRequest):
             resp = await client.post(
                 f"{BASE_URL}/chat/completions",
                 json=payload,
-                headers=_auth_headers(),
+                headers=_upstream_headers(req.headers),
             )
             resp.raise_for_status()
             data = resp.json()

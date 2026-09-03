@@ -85,8 +85,11 @@ def ensure_proxy() -> bool:
 
 
 def _get_json(url: str, headers: dict | None = None, timeout: int = 8) -> dict | None:
+    from palimind.opencode.session import SESSION_HEADER, opencode_session_id
+
     req = urllib.request.Request(url, method="GET")
     req.add_header("User-Agent", "Palimind/2.0")
+    req.add_header(SESSION_HEADER, opencode_session_id())
     for k, v in (headers or {}).items():
         req.add_header(k, v)
     try:

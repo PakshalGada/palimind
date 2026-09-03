@@ -17,7 +17,7 @@ from palimind.agents.runtime import (
     read_memory,
     resolve_approval,
 )
-from palimind.agents.stream import agent_event_stream
+from palimind.agents.service import stream_agent
 from palimind.llm.mixture_of_expert.tools import TOOL_REGISTRY
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
@@ -163,7 +163,7 @@ async def run_agent(agent_id: str, req: Request):
     async def gen():
         import json
 
-        async for ev in agent_event_stream(defn, agent_input, session_id):
+        async for ev in stream_agent(defn, agent_input, session_id):
             yield f"data: {json.dumps(ev)}\n\n"
         yield 'data: {"type": "done"}\n\n'
 
