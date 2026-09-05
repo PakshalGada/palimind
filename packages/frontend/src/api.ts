@@ -87,6 +87,7 @@ export const api = {
       patch<AgentListItem & { error?: string }>(`/agents/${agentId}`, changes),
     remove: (agentId: string) => del<{ error?: string; status?: string }>(`/agents/${agentId}`),
     tools: () => get<{ tools: Record<string, ToolMeta> }>('/agents/tools'),
+    validateCron: (schedule: string) => post<{ valid: boolean; error?: string | null }>('/agents/validate-cron', { schedule }),
     memory: (agentId: string, page = 1, perPage = 20) =>
       get<{ entries: MemoryEntry[]; total: number; page: number; per_page: number }>(
         `/agents/${agentId}/memory?page=${page}&per_page=${perPage}`,

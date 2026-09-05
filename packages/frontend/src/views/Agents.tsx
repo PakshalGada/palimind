@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { formatMarkdown } from '../utils/markdown';
 import AgentAvatar from '../components/AgentAvatar';
+import CronEditor from '../components/CronEditor';
 import { useConfirm } from '../components/ConfirmDialog';
 import { useApp } from '../AppContext';
 import type { AgentDefinition, AgentListItem, MemoryEntry, ModelItem, RunRecord, ToolMeta } from '../types';
@@ -683,10 +684,10 @@ function AgentConfigModal({
                   </div>
                 </div>
                 {draft.run_mode === 'scheduled' ? (
-                  <label className="agent-field">Cron Schedule
-                    <input value={draft.schedule || ''} placeholder="*/15 * * * *" onChange={e => patch({ schedule: e.target.value })} />
-                    <span className="agent-field-hint">Standard 5-field cron. The scheduler runs the agent on this cadence.</span>
-                  </label>
+                  <div className="agent-field">
+                    <span className="agent-field-label">Schedule</span>
+                    <CronEditor value={draft.schedule || ''} onChange={v => patch({ schedule: v })} />
+                  </div>
                 ) : draft.run_mode === 'watcher' ? (
                   <label className="agent-field">Watcher Pattern (glob)
                     <input value={draft.watcher_pattern || ''} placeholder="*.md" onChange={e => patch({ watcher_pattern: e.target.value })} />

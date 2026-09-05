@@ -17,7 +17,7 @@ import os
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -235,7 +235,7 @@ async def api_tags():
 
 
 @app.post("/api/chat")
-async def api_chat(req: ChatRequest):
+async def api_chat(req: ChatRequest, request: Request):
     openai_messages = _to_openai_messages(req.messages)
     payload = {
         "model": req.model,
@@ -249,7 +249,7 @@ async def api_chat(req: ChatRequest):
                 resp = await client.post(
                     f"{BASE_URL}/chat/completions",
                     json=payload,
-                    headers=_upstream_headers(req.headers),
+                    headers=_upstream_headers(request.headers),
                 )
                 resp.raise_for_status()
                 data = resp.json()
@@ -268,61 +268,105 @@ async def api_chat(req: ChatRequest):
 
     # Streaming: convert upstream SSE to NDJSON Ollama-style lines.
     async def ndjson_stream():
+        sent_any = False
         async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT) as client:
-            async with client.stream(
-                "POST",
-                f"{BASE_URL}/chat/completions",
-                json=payload,
-                headers=_upstream_headers(req.headers),
-            ) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    line = line.strip()
-                    if not line.startswith("data:"):
-                        continue
-                    body = line[len("data:") :].strip()
-                    if body == "[DONE]":
-                        break
-                    try:
-                        chunk = json.loads(body)
-                    except json.JSONDecodeError:
-                        continue
-                    choices = chunk.get("choices") or []
-                    delta_content = ""
-                    delta_reasoning = ""
-                    if choices:
-                        delta = choices[0].get("delta") or {}
-                        delta_content = delta.get("content") or ""
-                        delta_reasoning = delta.get("reasoning_content") or ""
-                    if delta_content:
-                        yield (
-                            json.dumps(
-                                {
-                                    "model": req.model,
-                                    "message": {
-                                        "role": "assistant",
-                                        "content": delta_content,
-                                    },
-                                    "done": False,
-                                }
+            try:
+                async with client.stream(
+                    "POST",
+                    f"{BASE_URL}/chat/completions",
+                    json=payload,
+                    headers=_upstream_headers(request.headers),
+                ) as response:
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        line = line.strip()
+                        if not line.startswith("data:"):
+                            continue
+                        body = line[len("data:") :].strip()
+                        if body == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(body)
+                        except json.JSONDecodeError:
+                            continue
+                        if chunk.get("error"):
+                            raise httpx.RemoteProtocolError(f"upstream error: {chunk['error']}")
+                        choices = chunk.get("choices") or []
+                        delta_content = ""
+                        delta_reasoning = ""
+                        if choices:
+                            delta = choices[0].get("delta") or {}
+                            delta_content = delta.get("content") or ""
+                            delta_reasoning = delta.get("reasoning_content") or ""
+                        if delta_content:
+                            sent_any = True
+                            yield (
+                                json.dumps(
+                                    {
+                                        "model": req.model,
+                                        "message": {
+                                            "role": "assistant",
+                                            "content": delta_content,
+                                        },
+                                        "done": False,
+                                    }
+                                )
+                                + "\n"
                             )
-                            + "\n"
-                        )
-                    if delta_reasoning:
-                        yield (
-                            json.dumps(
-                                {
-                                    "model": req.model,
-                                    "message": {
-                                        "role": "assistant",
-                                        "content": "",
-                                        "reasoning": delta_reasoning,
-                                    },
-                                    "done": False,
-                                }
+                        if delta_reasoning:
+                            sent_any = True
+                            yield (
+                                json.dumps(
+                                    {
+                                        "model": req.model,
+                                        "message": {
+                                            "role": "assistant",
+                                            "content": "",
+                                            "reasoning": delta_reasoning,
+                                        },
+                                        "done": False,
+                                    }
+                                )
+                                + "\n"
                             )
-                            + "\n"
+            except httpx.HTTPStatusError as e:
+                # The upstream answered with an error status (e.g. 500). Before
+                # any content was forwarded, surface it as a clean error line
+                # instead of aborting the stream; otherwise re-raise.
+                if not sent_any:
+                    yield (
+                        json.dumps(
+                            {
+                                "error": (
+                                    f"upstream {e.response.status_code}: "
+                                    f"{e.response.text[:300]}"
+                                )
+                            }
                         )
+                        + "\n"
+                    )
+                else:
+                    raise
+            except httpx.TransportError as e:
+                # The upstream dropped the connection mid-stream. If nothing has
+                # been forwarded yet, abort so the caller can retry the request;
+                # otherwise close cleanly with an honest marker instead of a
+                # silently truncated reply.
+                if not sent_any:
+                    raise
+                yield (
+                    json.dumps(
+                        {
+                            "model": req.model,
+                            "message": {
+                                "role": "assistant",
+                                "content": f"\n\n[stream interrupted: {e}]",
+                            },
+                            "done": False,
+                        }
+                    )
+                    + "\n"
+                )
         yield (
             json.dumps(
                 {
@@ -350,7 +394,7 @@ async def api_embed(req: EmbedRequest):
 
 
 @app.post("/api/generate")
-async def api_generate(req: GenerateRequest):
+async def api_generate(req: GenerateRequest, request: Request):
     # Resolve model: fall back to vision model when the requested one is unknown.
     used_model = req.model
     try:
@@ -380,7 +424,7 @@ async def api_generate(req: GenerateRequest):
             resp = await client.post(
                 f"{BASE_URL}/chat/completions",
                 json=payload,
-                headers=_upstream_headers(req.headers),
+                headers=_upstream_headers(request.headers),
             )
             resp.raise_for_status()
             data = resp.json()
