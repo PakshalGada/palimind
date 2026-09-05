@@ -3713,7 +3713,7 @@ input:checked + .toggle-slider .llm-mode {
 }
 .agent-msg-bubble {
   position: relative;
-  max-width: min(72%, 460px);
+  max-width: 800px;
   padding: 8px 12px 6px;
   font-size: 0.88rem;
   line-height: 1.45;
@@ -3758,7 +3758,7 @@ input:checked + .toggle-slider .llm-mode {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-width: 80%;
+  max-width: 800px;
 }
 .agent-msg-chain {
   font-size: 0.72rem;
@@ -3885,12 +3885,11 @@ input:checked + .toggle-slider .llm-mode {
 }
 .agent-input-pill {
   display: flex;
-  align-items: flex-end;
-  gap: 8px;
+  flex-direction: column;
   background: var(--glass-bg);
   border: 1px solid var(--border-color);
-  border-radius: 36px;
-  padding: 6px 8px 6px 16px;
+  border-radius: 24px;
+  padding: 12px 14px 10px;
   width: 100%;
   max-width: 760px;
   box-shadow: var(--shadow-sm);
@@ -3906,43 +3905,31 @@ input:checked + .toggle-slider .llm-mode {
 .agent-chat-input textarea {
   flex: 1;
   resize: none;
-  padding: 9px 4px;
   border: none;
   background: transparent;
   color: var(--text-main);
-  font-size: 0.88rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  padding: 2px 4px 0;
   max-height: 160px;
+  outline: none;
 }
 .agent-chat-input textarea:focus {
   outline: none;
 }
-.agent-chat-send,
-.agent-chat-stop {
-  display: inline-flex;
+.agent-input-footer {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  margin-bottom: 1px;
-  transition:
-    transform 0.15s ease,
-    opacity 0.12s ease;
+  gap: 10px;
+  padding-top: 8px;
 }
-.agent-chat-send {
-  background: var(--primary-color);
-  color: var(--primary-text);
+.agent-input-hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
 }
-.agent-chat-send:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-.agent-chat-stop {
-  background: var(--danger-soft);
-  color: var(--danger-strong);
+.agent-input-footer .send-btn {
+  margin-left: auto;
 }
 
 /* circular agent icon buttons */

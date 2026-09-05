@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowUp, Square } from 'lucide-react';
 import { api } from '../api';
 import { formatMarkdown } from '../utils/markdown';
 import AgentAvatar from '../components/AgentAvatar';
 import CronEditor from '../components/CronEditor';
+import { Button } from '../components/ui/button';
 import { useConfirm } from '../components/ConfirmDialog';
 import { useApp } from '../AppContext';
 import type { AgentDefinition, AgentListItem, MemoryEntry, ModelItem, RunRecord, ToolMeta } from '../types';
@@ -1115,20 +1117,27 @@ function AgentChatInput({
           onChange={e => { setValue(e.target.value); adjustHeight(); }}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
         />
-        {disabled ? (
-          <button className="agent-chat-stop" onClick={() => onStop(agentId)} data-tooltip="Stop">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="4" y="4" width="16" height="16" rx="2" ry="2" />
-            </svg>
-          </button>
-        ) : (
-          <button className="agent-chat-send" onClick={send} disabled={!value.trim()} data-tooltip="Send">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="19" x2="12" y2="5" />
-              <polyline points="5 12 12 5 19 12" />
-            </svg>
-          </button>
-        )}
+        <div className="agent-input-footer">
+          <span className="agent-input-hint">Enter to send · Shift+Enter for new line</span>
+          <Button
+            type="button"
+            variant="default"
+            size="icon"
+            className={`send-btn${disabled ? ' animating-stop' : ''}`}
+            disabled={!disabled && !value.trim()}
+            onClick={() => {
+              if (disabled) onStop(agentId);
+              else send();
+            }}
+            title={disabled ? 'Stop generation' : 'Send message'}
+          >
+            {disabled ? (
+              <Square className="stop-icon" aria-hidden="true" />
+            ) : (
+              <ArrowUp className="send-icon" aria-hidden="true" />
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );
