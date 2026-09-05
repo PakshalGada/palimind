@@ -303,6 +303,16 @@ def _token_estimate(text: str) -> int:
     return max(1, len(text) // 4)
 
 
+def _prefix_section(content: str, main_section: str, section_title: str) -> str:
+    """Prepend the section heading to a chunk so FTS/embeddings see it."""
+    heading = (main_section or section_title).strip()
+    if not heading:
+        return content
+    if content.startswith(heading) or content.startswith(f"[{heading}]"):
+        return content
+    return f"{heading}\n{content}"
+
+
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 
@@ -340,10 +350,11 @@ def rich_chunk_document(
         for table_text in table_texts:
             if len(table_text.strip()) < 20:
                 continue
-            wc = len(table_text.split())
+            content = _prefix_section(table_text, main_section, section_title)
+            wc = len(content.split())
             chunks.append(
                 RichChunk(
-                    content=table_text,
+                    content=content,
                     chunk_type="table",
                     chunk_index=chunk_index,
                     section_title=section_title,
@@ -355,7 +366,7 @@ def rich_chunk_document(
                     doc_type=doc_meta.doc_type,
                     entity_name=doc_meta.entity_name,
                     word_count=wc,
-                    token_estimate=_token_estimate(table_text),
+                    token_estimate=_token_estimate(content),
                     file_path=doc_meta.path,
                 )
             )
@@ -366,10 +377,11 @@ def rich_chunk_document(
         for chunk_text in text_chunks:
             if not chunk_text.strip():
                 continue
-            wc = len(chunk_text.split())
+            content = _prefix_section(chunk_text, main_section, section_title)
+            wc = len(content.split())
             chunks.append(
                 RichChunk(
-                    content=chunk_text,
+                    content=content,
                     chunk_type="text",
                     chunk_index=chunk_index,
                     section_title=section_title,
@@ -381,7 +393,7 @@ def rich_chunk_document(
                     doc_type=doc_meta.doc_type,
                     entity_name=doc_meta.entity_name,
                     word_count=wc,
-                    token_estimate=_token_estimate(chunk_text),
+                    token_estimate=_token_estimate(content),
                     file_path=doc_meta.path,
                 )
             )

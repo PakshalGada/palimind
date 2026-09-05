@@ -212,6 +212,7 @@ Per-workspace settings live in `.palimind/config.json` (created in the directory
 | `summarise`            | `true`                   | Generate per-file summaries      |
 | `retrieval_limit`      | `10`                     | Chunks returned per retrieval    |
 | `context_token_budget` | `8000`                   | Max tokens in LLM context        |
+| `num_ctx`              | `16384`                  | Ollama context window (must cover `context_token_budget` + prompt overhead) |
 | `rerank`               | `true`                   | Rerank fused results             |
 | `query_rewrite`        | `true`                   | LLM query rewriting at retrieval |
 | `ollama_base_url`      | `http://localhost:11434` | Ollama endpoint                  |

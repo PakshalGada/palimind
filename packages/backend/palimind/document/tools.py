@@ -4,10 +4,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from palimind.core.embedder import generate_embedding
 from palimind.document.graph import DocGraph
-from palimind.storage.db import fts_search, get_connection, get_file_summary
-from palimind.storage.vector_store import search as vector_search
+from palimind.storage.db import get_connection, get_file_summary
 
 
 class DocumentToolSet:
@@ -37,78 +35,26 @@ class DocumentToolSet:
     # ── search ───────────────────────────────────────────────────────────
 
     def search_documents(self, query: str, limit: int = 8) -> dict[str, Any]:
-        """Hybrid search: semantic vector + BM25 keyword + graph traversal.
+        """Hybrid search via the shared pipeline: semantic + BM25 + rerank
+        + graph traversal.
 
         Returns ranked chunks with source attribution.
         """
+        from palimind.rag.retrieve import hybrid_search
+
         self._progress_msg(f"Searching documents for: {query}")
 
-        conn = get_connection(self.root)
-        results: list[dict] = []
-        seen_content: set[str] = set()
-
-        try:
-            # 1. Semantic vector search
-            query_vec = generate_embedding(query, self.ollama_url, self.embed_model, root=self.root)
-            vec_results = vector_search(self.root, query_vec, limit=limit)
-            for r in vec_results:
-                content = r.get("content", "")
-                if content and content not in seen_content:
-                    seen_content.add(content)
-                    r["search_type"] = "semantic"
-                    r["relevance"] = "high"
-                    results.append(r)
-
-            # 2. BM25 keyword search for complementary results
-            kw_results = fts_search(conn, query, limit=limit)
-            for r in kw_results:
-                content = r.get("content", "")
-                if content and content not in seen_content:
-                    seen_content.add(content)
-                    r["search_type"] = "keyword"
-                    r["relevance"] = "medium"
-                    results.append(r)
-
-            # 3. Graph-based expansion
-            if self.graph:
-                for r in list(results):
-                    fp = r.get("file_path", "")
-                    if fp:
-                        related = self.graph.get_related_files(fp)
-                        for rel_fp in related[:3]:
-                            summary = get_file_summary(conn, rel_fp)
-                            if summary:
-                                results.append(
-                                    {
-                                        "file_path": rel_fp,
-                                        "content": f"[Related document: {rel_fp}]\n{summary[:2000]}",
-                                        "section_title": "Related Document",
-                                        "search_type": "graph",
-                                        "relevance": "low",
-                                        "doc_year": r.get("doc_year"),
-                                        "doc_type": r.get("doc_type"),
-                                    }
-                                )
-        finally:
-            conn.close()
-
-        # Deduplicate by file_path + content prefix.
-        # Always keep graph-based results; cap regular results at *limit*.
-        seen_paths: set[str] = set()
-        deduped: list[dict] = []
-        regular_count = 0
-        for r in results:
-            is_graph = r.get("search_type") == "graph"
-            if not is_graph and regular_count >= limit:
-                continue
-            if not is_graph:
-                regular_count += 1
-            key = f"{r.get('file_path', '')}::{r.get('content', '')[:100]}"
-            if key not in seen_paths:
-                seen_paths.add(key)
-                deduped.append(r)
-
-        return {"success": True, "results": deduped, "total": len(deduped)}
+        context = hybrid_search(
+            self.root,
+            query,
+            limit=limit,
+            ollama_url=self.ollama_url,
+            embed_model=self.embed_model,
+            context_token_budget=None,
+            graph=self.graph,
+        )
+        results = context.get("results", [])
+        return {"success": True, "results": results, "total": len(results)}
 
     def search_by_metadata(
         self,

@@ -90,55 +90,46 @@ def fetch_url(url: str, max_chars: int = 4000) -> str:
 
 
 def document_search(query: str, limit: int = 6) -> str:
-    """Search the user's indexed documents (semantic + keyword hybrid)."""
+    """Search the user's indexed documents (hybrid semantic + BM25 + rerank)."""
     ctx = _get_context()
     root = ctx.get("root")
     if root is None:
         return "Error: no active workspace configured for document search."
 
     from palimind.config import load_config
-    from palimind.core.embedder import generate_embedding
-    from palimind.storage.db import fts_search, get_connection
-    from palimind.storage.vector_store import search as vector_search
+    from palimind.rag.retrieve import hybrid_search
 
     config = load_config(root)
     ollama_url = ctx.get("ollama_url") or config.get("ollama_base_url", "http://localhost:11434")
     embed_model = config.get("embed_model", "nomic-embed-text")
-
-    seen: set[int] = set()
-    results: list[dict] = []
-
-    try:
-        qvec = generate_embedding(query, ollama_url, embed_model, root=root)
-        if qvec:
-            for r in vector_search(root, qvec, limit=limit):
-                cid = r.get("chunk_db_id")
-                if cid is not None and cid not in seen:
-                    seen.add(cid)
-                    r["search_type"] = "semantic"
-                    results.append(r)
-    except Exception as e:
-        results.append({"content": f"[semantic search unavailable: {e}]", "file_path": ""})
+    light_model = (
+        ctx.get("light_model")
+        or config.get("light_model", "")
+        or config.get("chat_model", "")
+    )
 
     try:
-        conn = get_connection(root)
-        try:
-            for r in fts_search(conn, query, limit=limit):
-                cid = r.get("chunk_db_id")
-                if cid is not None and cid not in seen:
-                    seen.add(cid)
-                    r["search_type"] = "keyword"
-                    results.append(r)
-        finally:
-            conn.close()
+        context = hybrid_search(
+            root,
+            query,
+            limit=limit,
+            ollama_url=ollama_url,
+            embed_model=embed_model,
+            light_model=light_model,
+            rerank_enabled=bool(config.get("rerank", True)),
+            rerank_model=config.get("rerank_model") or "BAAI/bge-reranker-base",
+            query_rewrite_enabled=bool(config.get("query_rewrite", True)),
+            context_token_budget=config.get("context_token_budget"),
+        )
     except Exception as e:
-        results.append({"content": f"[keyword search unavailable: {e}]", "file_path": ""})
+        return f"[document search unavailable: {e}]"
 
+    results = context.get("results", [])
     if not results:
         return f"No indexed documents matched '{query}'."
 
     parts = [f"=== DOCUMENT SEARCH RESULTS FOR: '{query}' ===\n"]
-    for idx, r in enumerate(results[:limit], start=1):
+    for idx, r in enumerate(results, start=1):
         fp = r.get("file_path", "") or "unknown"
         sec = r.get("section_title", "") or r.get("main_section", "")
         sec_str = f" → {sec}" if sec else ""

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi.responses import StreamingResponse
 
+from palimind.config import load_config
 from palimind.memory.session_store import (
     append_message_to_session,
     background_update_memory,
@@ -68,10 +69,12 @@ async def document_mode_stream(
             f"data: {json.dumps({'type': 'reasoning', 'text': 'Running multi-pass hybrid search (semantic + BM25 keyword + graph expansion)...'})}\n\n"
         )
 
+        retrieval_limit = int(load_config(active_field).get("retrieval_limit", 10))
+
         context = await asyncio.to_thread(
             engine.retrieve_context,
             q,
-            limit=15,
+            limit=retrieval_limit,
             history=history_to_send,
             mid_term_summary=mid_term_summary,
             long_term_episodes=long_term_episodes,
@@ -104,6 +107,29 @@ async def document_mode_stream(
             )
         if media_refs:
             yield (f"data: {json.dumps({'type': 'media_citations', 'citations': media_refs})}\n\n")
+
+        # Structured text citations — clickable source spans for the UI
+        text_refs = []
+        seen_text: set[str] = set()
+        for r in context.get("results", []):
+            if r.get("media_start_ts") is not None:
+                continue
+            fp = r.get("file_path", "")
+            cid = r.get("chunk_db_id")
+            key = f"{fp}:{cid}"
+            if key in seen_text:
+                continue
+            seen_text.add(key)
+            text_refs.append(
+                {
+                    "file": fp,
+                    "section": r.get("section_title") or r.get("main_section") or "",
+                    "snippet": (r.get("content", "") or "")[:160],
+                    "chunk_id": cid,
+                }
+            )
+        if text_refs:
+            yield (f"data: {json.dumps({'type': 'citations', 'citations': text_refs})}\n\n")
 
         if errors:
             for err in errors:

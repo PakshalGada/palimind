@@ -12,8 +12,10 @@ DB_FILE = "index.db"
 DEFAULTS = {
     "embed_model": "nomic-embed-text",
     "chat_model": "gemma4:e2b",
+    "vision_model": "llava",  # Ollama multimodal model used to caption images
     "chunk_size": 3000,
     "chunk_overlap": 500,
+    "video_chunk_chars": 800,  # transcript chunk size for videos (chars)
     "turbovec_bit_width": 4,  # 2 or 4 — compression vs accuracy trade-off
     "summarise": True,  # Generate per-file summaries at index time
     "summary_max_chars": 8000,  # Characters fed to the summariser (truncated)
@@ -21,6 +23,7 @@ DEFAULTS = {
     "extract_timeline": True,  # Extract timeline events at index time
     "retrieval_limit": 10,  # Number of chunks returned per retrieval call
     "context_token_budget": 8000,  # Maximum tokens assembled into LLM context
+    "num_ctx": 16384,  # Ollama context window; must cover context_token_budget + prompt overhead
     "comparison_chunks_per_doc": 4,  # Chunks retrieved per document in comparison mode
     "rerank": True,  # Rerank fused results with a local cross-encoder
     "rerank_model": "BAAI/bge-reranker-base",  # Local cross-encoder for reranking

@@ -144,7 +144,7 @@ def _extract_video_chunks(file_path: Path, root: Path, config: dict) -> list[Ric
         chunks_raw, _segments = parse_video(
             file_path,
             whisper_model=config.get("video_whisper_model", "base"),
-            chunk_chars=config.get("chunk_size", 800),
+            chunk_chars=config.get("video_chunk_chars", 800),
             max_chunk_seconds=float(config.get("video_chunk_seconds", 90)),
         )
     except RuntimeError as e:
@@ -404,7 +404,7 @@ def update_index(
                 texts = [c.content for c in rich_chunks]
                 try:
                     embeddings = generate_embeddings_batch(
-                        texts, config["ollama_base_url"], config["embed_model"]
+                        texts, config["ollama_base_url"], config["embed_model"], root=root
                     )
                 except EmbeddingError as e:
                     file_errors.append(FileIndexError(rel_path, str(e)))

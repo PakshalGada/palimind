@@ -10,6 +10,25 @@ import httpx
 
 from palimind.exceptions import ImageEncodeError, ResponseError
 
+_MIN_CTX = 2048  # Ollama's default window when num_ctx is not set
+
+
+def _effective_num_ctx(messages: list[dict], configured: int | None) -> int:
+    """Pick a ``num_ctx`` that fits the assembled prompt, capped by config.
+
+    Ollama's default window is 2048 tokens; anything longer is silently
+    truncated (oldest tokens dropped first), which destroys long RAG contexts —
+    the top-ranked chunks sit at the head of the prompt and get evicted first.
+    Grow the window to cover the estimated prompt (+ margin) up to the
+    configured ceiling so retrieved context actually reaches the model.
+    """
+    if not messages:
+        return _MIN_CTX
+    est = sum(len(m.get("content") or "") // 3 for m in messages) + 512
+    if configured and configured > 0:
+        return max(_MIN_CTX, min(est, configured))
+    return max(_MIN_CTX, est)
+
 
 def encode_image(image_path: str) -> str:
     path = Path(image_path)
@@ -30,6 +49,7 @@ def generate_response_stream(
     system_prompt: str,
     history: list[dict] | None = None,
     is_chat_only: bool = False,
+    num_ctx: int | None = None,
     on_reasoning: Callable[[str], None] | None = None,
 ) -> Iterator[str]:
     """Yield response tokens from Ollama.
@@ -80,7 +100,13 @@ def generate_response_stream(
 
     messages.append(user_message)
     url = f"{ollama_url.rstrip('/')}/api/chat"
-    payload = {"model": chat_model, "messages": messages, "stream": True}
+    payload: dict = {"model": chat_model, "messages": messages, "stream": True}
+
+    # Without num_ctx Ollama defaults to a 2048-token window and silently
+    # truncates longer prompts, dropping the earliest (highest-ranked) context.
+    eff_ctx = _effective_num_ctx(messages, num_ctx)
+    if eff_ctx and eff_ctx > 0:
+        payload["options"] = {"num_ctx": eff_ctx}
 
     # Transient failures (connection dropped mid-stream before any tokens were
     # produced, connect/read errors, timeouts) are retried with a short backoff.

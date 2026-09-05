@@ -380,6 +380,31 @@ export default function InputArea() {
       messagesContainer.appendChild(row);
     };
 
+    const renderTextCitations = (
+      citations: {
+        file: string;
+        section?: string;
+        snippet?: string;
+        chunk_id?: number;
+      }[],
+    ) => {
+      if (!citations.length || !messagesContainer) return;
+      const row = document.createElement("div");
+      row.className = "media-citations-row";
+      row.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;";
+      citations.forEach((c) => {
+        const chip = document.createElement("span");
+        chip.className = "media-citation-chip";
+        chip.title = c.snippet || c.file;
+        chip.style.cssText =
+          "display:inline-flex;align-items:center;gap:6px;background:var(--accent-bg);color:var(--text-main);border:1px solid var(--border-color,#444);border-radius:999px;padding:4px 12px;font-size:0.78rem;";
+        const baseName = c.file.split(/[\\/]/).pop() || c.file;
+        chip.textContent = c.section ? `${baseName} → ${c.section}` : baseName;
+        row.appendChild(chip);
+      });
+      messagesContainer.appendChild(row);
+    };
+
     eventSource.onmessage = async (event) => {
       const data = JSON.parse(event.data);
 
@@ -399,6 +424,8 @@ export default function InputArea() {
         }
       } else if (data.type === "media_citations") {
         renderMediaCitations(data.citations || []);
+      } else if (data.type === "citations") {
+        renderTextCitations(data.citations || []);
       } else if (data.type === "reasoning") {
         setThinkingText(data.text.replace(/[>*_]/g, "").trim());
       } else if (data.type === "thinking") {

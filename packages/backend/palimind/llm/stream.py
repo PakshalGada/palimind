@@ -38,6 +38,7 @@ async def llm_mode_stream(
     No document context, no internet access, no code execution, no tools."""
 
     async def plain_stream():
+        from palimind.config import load_config
         from palimind.generative.responder import generate_response_stream
         from palimind.memory.hierarchical import format_hierarchical_memory_context
 
@@ -68,6 +69,7 @@ async def llm_mode_stream(
             reasoning_parts.append(chunk)
 
         try:
+            num_ctx = load_config(active_field).get("num_ctx")
             stream = generate_response_stream(
                 query=q,
                 context="",
@@ -77,6 +79,7 @@ async def llm_mode_stream(
                 system_prompt=system_prompt,
                 history=history_to_send,
                 is_chat_only=True,
+                num_ctx=num_ctx,
                 on_reasoning=on_reasoning,
             )
             emitted_thinking = False
