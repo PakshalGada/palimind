@@ -4,16 +4,18 @@ import { api } from '../api';
 import type { TreeNode } from '../types';
 import LoadingSpinner from './LoadingSpinner';
 
-function TreeNodeComponent({ node, selectedFiles }: {
+function TreeNodeComponent({ node, selectedFiles, toggle }: {
   node: TreeNode;
   selectedFiles: Set<string>;
+  toggle: (path: string) => void;
 }) {
   const [collapsed, setCollapsed] = useState(true);
   const [children, setChildren] = useState<TreeNode[] | null>(null);
   const [loading, setLoading] = useState(false);
   const isDir = node.type === 'directory';
+  const isSelected = selectedFiles.has(node.path);
 
-  const toggle = useCallback(async () => {
+  const toggleNode = useCallback(async () => {
     if (!collapsed) {
       setCollapsed(true);
       return;
@@ -33,17 +35,26 @@ function TreeNodeComponent({ node, selectedFiles }: {
 
   return (
     <div className="tree-node">
-      <div className="tree-node-row">
+      <div className={`tree-node-row${isSelected ? ' selected' : ''}`}>
         <span className="tree-chevron" style={{ visibility: isDir ? 'visible' : 'hidden' }}>
           {isDir && (
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-              onClick={toggle}
+              onClick={toggleNode}
               style={{ transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.15s' }}
             >
               <polyline points="6 9 12 15 18 9" />
             </svg>
           )}
         </span>
+        {!isDir && (
+          <input
+            type="checkbox"
+            className="tree-select-check"
+            checked={isSelected}
+            onChange={() => toggle(node.path)}
+            title="Filter chat to this file"
+          />
+        )}
         <span className="tree-icon-container">
           {isDir ? (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -63,7 +74,7 @@ function TreeNodeComponent({ node, selectedFiles }: {
             <LoadingSpinner size="sm" text="Loading..." inline />
           ) : children?.length ? (
             children.map((child, i) => (
-              <TreeNodeComponent key={i} node={child} selectedFiles={selectedFiles} />
+              <TreeNodeComponent key={i} node={child} selectedFiles={selectedFiles} toggle={toggle} />
             ))
           ) : (
             <div style={{ color: 'var(--text-muted)', padding: '4px 8px', fontSize: '0.78rem' }}>Empty</div>
@@ -75,7 +86,7 @@ function TreeNodeComponent({ node, selectedFiles }: {
 }
 
 export default function FileTreeView({ modal }: { modal?: boolean }) {
-  const { activeField, selectedFiles } = useApp();
+  const { activeField, selectedFiles, toggleSelectedFile, clearSelectedFiles } = useApp();
   const [treeData, setTreeData] = useState<TreeNode[] | null>(null);
 
   const fetchTree = useCallback(async () => {
@@ -110,13 +121,21 @@ export default function FileTreeView({ modal }: { modal?: boolean }) {
       return <div style={{ color: 'var(--text-muted)', padding: 8 }}>Empty folder</div>;
     }
     return treeData.map((node, i) => (
-      <TreeNodeComponent key={i} node={node} selectedFiles={selectedFiles} />
+      <TreeNodeComponent key={i} node={node} selectedFiles={selectedFiles} toggle={toggleSelectedFile} />
     ));
   };
+
+  const filterBar = selectedFiles.size > 0 ? (
+    <div className="tree-filter-bar">
+      <span>Filtering chat to {selectedFiles.size} file{selectedFiles.size === 1 ? '' : 's'}</span>
+      <button className="tree-clear-filter" onClick={clearSelectedFiles}>Clear</button>
+    </div>
+  ) : null;
 
   if (modal) {
     return (
       <div id="file-tree" className="file-tree">
+        {filterBar}
         {renderTree()}
       </div>
     );
@@ -125,6 +144,7 @@ export default function FileTreeView({ modal }: { modal?: boolean }) {
   return (
     <div className="file-explorer-container">
       <div className="file-tree">
+        {filterBar}
         {renderTree()}
       </div>
     </div>

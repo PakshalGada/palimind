@@ -287,6 +287,35 @@ def _assemble_context(
     return parts, kept
 
 
+def _entity_boost(
+    all_results: list[dict], graph: Any | None, query: str, bonus: float = 0.15
+) -> list[dict]:
+    """Promote chunks from files matching entities named in *query*.
+
+    This makes the knowledge graph change answers directly: a query that names
+    an entity boosts that entity's documents' fused scores instead of merely
+    appending unranked summaries.
+    """
+    if graph is None or not query.strip():
+        return all_results
+    try:
+        matched = graph.match_entities(query)
+        boosted_files: set[str] = set()
+        for node_id in matched:
+            boosted_files.update(graph.files_for_entity(node_id))
+        if not boosted_files:
+            return all_results
+    except Exception as e:
+        logger.debug(f"Entity boost failed: {e}")
+        return all_results
+
+    for r in all_results:
+        if r.get("file_path") in boosted_files:
+            r["rrf_score"] = (r.get("rrf_score") or 0) + bonus
+            r["entity_boosted"] = True
+    return sorted(all_results, key=lambda r: -(r.get("rrf_score") or 0))
+
+
 def hybrid_search(
     root: Path,
     query: str,
@@ -454,6 +483,9 @@ def hybrid_search(
         # ── Fusion: RRF across all ranked lists ──────────────────────────
         fused = rrf_fuse(ranked_lists)
         all_results = [entry["result"] for entry in fused]
+
+        # ── Entity boost: promote files whose graph entities match the query
+        all_results = _entity_boost(all_results, graph, query)
 
         # ── Graph-based expansion of fused results ──────────────────────
         try:

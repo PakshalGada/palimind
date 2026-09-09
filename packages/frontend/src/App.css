@@ -1392,6 +1392,42 @@ select {
     background: var(--bg-hover);
     color: var(--text-main);
 }
+.tree-node-row.selected {
+    background: var(--accent-bg);
+    color: var(--text-main);
+    box-shadow: inset 2px 0 0 var(--text-main);
+}
+.tree-select-check {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+    cursor: pointer;
+    accent-color: var(--text-main);
+}
+.tree-filter-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 4px 6px;
+    padding: 6px 8px;
+    background: var(--accent-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-size: 0.74rem;
+    color: var(--text-main);
+}
+.tree-clear-filter {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.74rem;
+    text-decoration: underline;
+}
+.tree-clear-filter:hover {
+    color: var(--text-main);
+}
 .tree-node-children {
     display: flex;
     flex-direction: column;
@@ -4368,6 +4404,24 @@ input:checked + .toggle-slider .llm-mode {
 }
 .model-picker-item.selected {
   background: var(--accent-soft);
+}
+.agent-input-footer .model-picker {
+  width: auto;
+  min-width: 150px;
+  max-width: 230px;
+  flex-shrink: 0;
+}
+.agent-input-footer .model-picker-btn {
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+.agent-input-footer .model-picker-dropdown {
+  top: calc(100% + 6px);
+  bottom: auto;
+  width: 260px;
+  right: 0;
+  left: auto;
 }
 .model-picker-name {
   color: var(--text-main);

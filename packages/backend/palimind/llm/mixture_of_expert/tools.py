@@ -53,6 +53,8 @@ def _extra_roots() -> list[Path]:
 MAX_READ_BYTES = 256_000  # 256 KB per file read
 MAX_WRITE_BYTES = 512_000
 
+_SKIP_DIRS = {".git", ".palimind", "node_modules", "__pycache__", "venv", ".venv", ".idea", ".vscode"}
+
 
 def _resolve_in_workspace(path: str) -> Path | None:
     """Resolve *path* and confine it to the workspace root(s); None if outside."""
@@ -68,6 +70,61 @@ def _resolve_in_workspace(path: str) -> Path | None:
         except ValueError:
             continue
     return None
+
+
+def _is_skipped(p: Path, base: Path) -> bool:
+    """Skip hidden/vendor directories when recursing under *base*."""
+    try:
+        rel = p.relative_to(base)
+    except ValueError:
+        return True
+    return any(part.startswith(".") or part in _SKIP_DIRS for part in rel.parts[:-1])
+
+
+# ── auto-reindex on write (debounced) ────────────────────────────────────
+
+_reindex_lock = threading.Lock()
+_reindex_timer: threading.Timer | None = None
+
+
+def _schedule_reindex() -> None:
+    """Debounced background reindex of the workspace after a file write.
+
+    Bounded: only one pending reindex timer is kept, so bursts of writes
+    cannot create an unbounded thread explosion. The pending timer reindexes
+    from the latest on-disk state when it fires.
+    """
+    root = _workspace_root()
+    if root is None:
+        return
+    if not (root / ".palimind" / "index.db").exists():
+        return
+    global _reindex_timer
+    with _reindex_lock:
+        if _reindex_timer is not None:
+            return  # a reindex is already scheduled
+        _reindex_timer = threading.Timer(2.0, _run_reindex, args=(root,))
+        _reindex_timer.daemon = True
+        _reindex_timer.start()
+
+
+def _run_reindex(root: Path) -> None:
+    global _reindex_timer
+    with _reindex_lock:
+        _reindex_timer = None  # allow new writes to schedule a fresh reindex
+    try:
+        from palimind.config import load_config
+        from palimind.document.graph import build_doc_graph_incremental
+        from palimind.rag.indexing import update_index
+
+        update_index(root)
+        cfg = load_config(root)
+        build_doc_graph_incremental(
+            root, cfg.get("ollama_base_url", "http://localhost:11434")
+        )
+        print(f"[tools] auto-reindexed workspace {root}")
+    except Exception as e:
+        print(f"[tools] auto-reindex failed: {e}")
 
 
 # ── web tools ─────────────────────────────────────────────────────────────
@@ -197,9 +254,10 @@ def write_file(path: str, content: str) -> str:
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, "utf-8")
-        return f"Successfully wrote {len(content)} bytes to {path}"
     except Exception as e:
         return f"Error writing file {path}: {e}"
+    _schedule_reindex()
+    return f"Successfully wrote {len(content)} bytes to {path}"
 
 
 def list_files(path: str = ".") -> str:
@@ -220,6 +278,96 @@ def list_files(path: str = ".") -> str:
         return "\n".join(items) if items else "(empty directory)"
     except Exception as e:
         return f"Error listing files: {e}"
+
+
+def glob_files(pattern: str, path: str = ".", max_results: int = 200) -> str:
+    """Recursively list workspace files whose path matches a glob pattern."""
+    base = _resolve_in_workspace(path)
+    if base is None:
+        return f"Error: access denied — '{path}' is outside the workspace"
+    if not base.is_dir():
+        return f"Error: path not found at {path}"
+    matches: list[str] = []
+    try:
+        for p in base.rglob(pattern):
+            if p.is_dir() or _is_skipped(p, base):
+                continue
+            matches.append(str(p.relative_to(base)))
+            if len(matches) >= max_results:
+                break
+    except Exception as e:
+        return f"Error globbing files: {e}"
+    return "\n".join(matches) if matches else f"No files match '{pattern}' under {path}"
+
+
+def grep_files(pattern: str, path: str = ".", max_results: int = 50) -> str:
+    """Search file contents inside the workspace (recursive, case-insensitive)."""
+    import re as _re
+
+    base = _resolve_in_workspace(path)
+    if base is None:
+        return f"Error: access denied — '{path}' is outside the workspace"
+    if not base.is_dir():
+        return f"Error: path not found at {path}"
+    try:
+        rx = _re.compile(pattern, _re.IGNORECASE)
+    except _re.error as e:
+        return f"Error: invalid pattern: {e}"
+
+    matches: list[str] = []
+    scanned = 0
+    try:
+        for p in base.rglob("*"):
+            if not p.is_file() or _is_skipped(p, base):
+                continue
+            scanned += 1
+            if scanned > 1000:
+                break
+            try:
+                text = p.read_bytes()[:MAX_READ_BYTES].decode("utf-8", errors="replace")
+            except OSError:
+                continue
+            for lineno, line in enumerate(text.splitlines(), start=1):
+                if rx.search(line):
+                    matches.append(f"{p.relative_to(base)}:{lineno}: {line.strip()[:160]}")
+                    if len(matches) >= max_results:
+                        break
+            if len(matches) >= max_results:
+                break
+    except Exception as e:
+        return f"Error searching files: {e}"
+    if not matches:
+        return f"No matches for '{pattern}' under {path}"
+    return "\n".join(matches)
+
+
+def search_replace(path: str, old_string: str, new_string: str, count: int = 1) -> str:
+    """Surgical in-file replacement (surgical edits instead of full overwrite)."""
+    p = _resolve_in_workspace(path)
+    if p is None:
+        return f"Error: access denied — '{path}' is outside the workspace"
+    if not p.is_file():
+        return f"Error: file not found at {path}"
+    if not old_string:
+        return "Error: old_string is required"
+    try:
+        text = p.read_text("utf-8")
+    except Exception as e:
+        return f"Error reading file {path}: {e}"
+    if old_string not in text:
+        return f"Error: 'old_string' not found in {path}"
+    occurrences = text.count(old_string)
+    n = max(1, min(int(count or 1), 100))
+    replaced = min(n, occurrences)
+    new_text = text.replace(old_string, new_string, replaced)
+    if len(new_text.encode("utf-8")) > MAX_WRITE_BYTES:
+        return f"Error: result too large (max {MAX_WRITE_BYTES} bytes)"
+    try:
+        p.write_text(new_text, "utf-8")
+    except Exception as e:
+        return f"Error writing file {path}: {e}"
+    _schedule_reindex()
+    return f"Replaced {replaced} of {occurrences} occurrence(s) of '{old_string}' in {path}"
 
 
 # ── compute tools ─────────────────────────────────────────────────────────
@@ -303,6 +451,10 @@ def summarize(text: str, max_chars: int = 1000) -> str:
 # ── registry ──────────────────────────────────────────────────────────────
 
 
+def _meta(tier: int, requires_approval: bool) -> dict[str, Any]:
+    return {"tier": tier, "requires_approval": requires_approval}
+
+
 TOOL_REGISTRY: dict[str, dict] = {
     "web_search": {
         "fn": web_search,
@@ -311,6 +463,7 @@ TOOL_REGISTRY: dict[str, dict] = {
             "query": "The search query string",
             "max_results": "Optional: maximum number of results (default 4)",
         },
+        "meta": _meta(1, False),
     },
     "fetch_url": {
         "fn": fetch_url,
@@ -319,6 +472,7 @@ TOOL_REGISTRY: dict[str, dict] = {
             "url": "The full URL to fetch (http/https)",
             "max_chars": "Optional: maximum characters to return (default 4000)",
         },
+        "meta": _meta(1, False),
     },
     "document_search": {
         "fn": document_search,
@@ -327,6 +481,7 @@ TOOL_REGISTRY: dict[str, dict] = {
             "query": "The search query",
             "limit": "Optional: maximum chunks to return (default 6)",
         },
+        "meta": _meta(1, False),
     },
     "memory_search": {
         "fn": memory_search,
@@ -335,6 +490,7 @@ TOOL_REGISTRY: dict[str, dict] = {
             "query": "The search query",
             "limit": "Optional: maximum episodes (default 3)",
         },
+        "meta": _meta(1, False),
     },
     "read_file": {
         "fn": read_file,
@@ -342,6 +498,7 @@ TOOL_REGISTRY: dict[str, dict] = {
         "parameters": {
             "path": "Absolute or workspace-relative path to the file",
         },
+        "meta": _meta(1, False),
     },
     "write_file": {
         "fn": write_file,
@@ -350,6 +507,7 @@ TOOL_REGISTRY: dict[str, dict] = {
             "path": "Absolute or workspace-relative path to the file",
             "content": "Text content to write",
         },
+        "meta": _meta(2, True),
     },
     "list_files": {
         "fn": list_files,
@@ -357,6 +515,38 @@ TOOL_REGISTRY: dict[str, dict] = {
         "parameters": {
             "path": "Optional: directory path (default '.')",
         },
+        "meta": _meta(1, False),
+    },
+    "glob_files": {
+        "fn": glob_files,
+        "description": "Recursively list workspace files matching a glob pattern (e.g. '**/*.py').",
+        "parameters": {
+            "pattern": "The glob pattern to match file paths",
+            "path": "Optional: directory to search from (default '.')",
+            "max_results": "Optional: max results (default 200)",
+        },
+        "meta": _meta(1, False),
+    },
+    "grep_files": {
+        "fn": grep_files,
+        "description": "Search file contents inside the workspace for a pattern (case-insensitive regex).",
+        "parameters": {
+            "pattern": "Regex or plain-text pattern to search for",
+            "path": "Optional: directory to search from (default '.')",
+            "max_results": "Optional: max matches (default 50)",
+        },
+        "meta": _meta(1, False),
+    },
+    "search_replace": {
+        "fn": search_replace,
+        "description": "Surgically replace occurrences of a string in a workspace file.",
+        "parameters": {
+            "path": "Absolute or workspace-relative path to the file",
+            "old_string": "Exact text to find",
+            "new_string": "Replacement text",
+            "count": "Optional: number of occurrences to replace (default 1)",
+        },
+        "meta": _meta(2, True),
     },
     "run_python": {
         "fn": run_python,
@@ -365,6 +555,7 @@ TOOL_REGISTRY: dict[str, dict] = {
             "code": "Python code to execute",
             "timeout": "Optional: timeout in seconds (default 15)",
         },
+        "meta": _meta(2, True),
     },
     "summarize": {
         "fn": summarize,
@@ -373,15 +564,50 @@ TOOL_REGISTRY: dict[str, dict] = {
             "text": "The text to summarize",
             "max_chars": "Optional: target length in characters (default 1000)",
         },
+        "meta": _meta(1, False),
     },
 }
 
 
+def _register_plugin_tools() -> None:
+    """Lazily merge plugin tools (run_shell, csv_query, sqlite_query,
+    query_graph) into the registry so the UI and agent loop see them."""
+    import importlib
+
+    plugins = [
+        ("run_shell", "palimind.agents.tools.shell-exec.tool", "run_shell"),
+        ("csv_query", "palimind.agents.tools.csv-query.tool", "csv_query"),
+        ("sqlite_query", "palimind.agents.tools.sqlite-query.tool", "sqlite_query"),
+        ("query_graph", "palimind.agents.tools.knowledge-graph.tool", "query_graph"),
+    ]
+    for name, module_path, func_name in plugins:
+        if name in TOOL_REGISTRY:
+            continue
+        try:
+            mod = importlib.import_module(module_path)
+            fn = getattr(mod, func_name)
+            definition = getattr(mod, "TOOL_DEFINITION", {})
+        except Exception as e:
+            print(f"[plugins] failed to load {name}: {e}")
+            continue
+        TOOL_REGISTRY[name] = {
+            "fn": fn,
+            "description": definition.get("description", ""),
+            "parameters": definition.get("parameters", {}),
+            "meta": _meta(
+                int(definition.get("tier", 3)),
+                bool(definition.get("requires_approval", False)),
+            ),
+        }
+
+
 def get_tool_names() -> list[str]:
+    _register_plugin_tools()
     return sorted(TOOL_REGISTRY.keys())
 
 
 def call_tool(name: str, **kwargs: Any) -> str:
+    _register_plugin_tools()
     entry = TOOL_REGISTRY.get(name)
     if not entry:
         return f"Error: unknown tool '{name}'. Available: {', '.join(get_tool_names())}"

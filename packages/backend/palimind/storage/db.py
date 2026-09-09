@@ -337,6 +337,56 @@ def get_all_files(conn: sqlite3.Connection) -> list[dict]:
     ]
 
 
+def get_files_with_hash(conn: sqlite3.Connection) -> list[dict]:
+    """Return every indexed file with its md5 hash (used for incremental graphs)."""
+    cur = conn.execute(
+        "SELECT path, md5_hash, summary, doc_year, doc_type, entity_name FROM files ORDER BY path"
+    )
+    return [
+        {
+            "path": row[0],
+            "md5": row[1] or "",
+            "summary": row[2] or "",
+            "doc_year": row[3],
+            "doc_type": row[4] or "other",
+            "entity_name": row[5] or "",
+        }
+        for row in cur.fetchall()
+    ]
+
+
+def get_chunk_ids_for_file(conn: sqlite3.Connection, path: str) -> list[tuple[int, str]]:
+    """Return ``(chunk_id, content)`` pairs for a file, ordered by chunk_index."""
+    cur = conn.execute(
+        """
+        SELECT c.id, c.content FROM chunks c
+        JOIN files f ON c.file_id = f.id
+        WHERE f.path = ? ORDER BY c.chunk_index
+        """,
+        (path,),
+    )
+    return cur.fetchall()
+
+
+def clear_entity_mentions_for_path(conn: sqlite3.Connection, path: str) -> None:
+    conn.execute(
+        """
+        DELETE FROM entity_mentions WHERE chunk_id IN (
+            SELECT c.id FROM chunks c JOIN files f ON c.file_id = f.id WHERE f.path = ?
+        )
+        """,
+        (path,),
+    )
+
+
+def insert_entity_mentions(conn: sqlite3.Connection, rows: list[tuple]) -> None:
+    conn.executemany(
+        "INSERT INTO entity_mentions(chunk_id, entity_text, entity_type, context) "
+        "VALUES (?, ?, ?, ?)",
+        rows,
+    )
+
+
 def get_chunks_for_file(conn: sqlite3.Connection, path: str) -> list[str]:
     """Return all chunk contents for a given file path, ordered by chunk_index."""
     cur = conn.execute(

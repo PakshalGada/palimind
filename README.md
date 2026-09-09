@@ -2,11 +2,6 @@
 
 PaliMind is an open-source, **local-first AI intelligence platform** that brings a full suite of AI productivity tools to your desktop. All inference runs on your own machine via **Ollama** - no cloud subscription, no external API keys required, and no data ever leaves your computer.
 
-It is built on a dual-layer architecture:
-
-- A **Python / FastAPI backend** that handles all AI/ML work (indexing, retrieval, chat, agents, voice).
-- A **Tauri 2 desktop shell** (Rust) wrapping a **React + TypeScript + Vite** frontend for native OS integration.
-
 ---
 
 ## Table of Contents
@@ -38,9 +33,13 @@ The core retrieval-augmented generation (RAG) engine. Point it at any folder and
 - **Knowledge graph** - entities and relationships extracted from documents, queryable and visualized.
 - **Summarisation** - per-file summaries, financial fact extraction, and timeline extraction at index time.
 
+![PaliSpace - Chat](assets/chat.png)
+![PaliSpace - Knowledge Base](assets/knowledge_base.png)
+![PaliSpace - Knowledge Graph](assets/knowledge_graph.png)
+
 ### PalIAgents - Agent System
 
-A runtime for creating and running specialized agents that can call tools to complete tasks. Agents can be created, run manually, invoked from chat with `@mention` syntax, and scheduled.
+A runtime for creating and running specialized agents that can call tools to complete tasks. Agents can be created, run manually, invoked from chat with `@mention` syntax, and also can be scheduled.
 
 Available tools include:
 
@@ -57,6 +56,7 @@ Available tools include:
 
 Agents maintain their own memory, run history, and chat logs. Tool calls are audited and debug-traced by default.
 
+![PalIAgents - Agents](assets/agents.png)
 
 ### OpenCode Integration
 

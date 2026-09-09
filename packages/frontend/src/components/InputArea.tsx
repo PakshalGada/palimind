@@ -213,6 +213,24 @@ export default function InputArea() {
     const text = value.trim();
     if (!text && attachedFiles.length === 0) return;
 
+    // Index dropped attachments as captures so document-mode RAG can find them.
+    if (attachedFiles.length > 0) {
+      try {
+        await Promise.all(
+          attachedFiles.map(async (file) => {
+            const content = await file.text();
+            await fetch("/api/capture/file", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: file.name, content }),
+            });
+          }),
+        );
+      } catch (e) {
+        console.error("attachment upload failed:", e);
+      }
+    }
+
     setValue("");
     setAttachedFiles([]);
     setIsGenerating(true);

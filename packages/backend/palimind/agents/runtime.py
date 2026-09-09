@@ -287,43 +287,42 @@ _CONTEXT_SCAN_BUDGET = 4000
 _CONTEXT_FILE_LIMIT = 250
 
 
-def _workspace_context_block(context_fields: list[str]) -> str:
-    """Summarise the contents of the knowledge bases attached to an agent.
+def _workspace_context_block(working_root: Path | None) -> str:
+    """Summarise the contents of the selected knowledge base.
 
-    Returns a [WORKSPACE CONTEXT] block listing each knowledge base and a
-    sample of its file paths so the agent knows what material it can draw on.
+    Agents are global, but each run operates on the knowledge base the user
+    currently has selected (the calling/active field). Returns a
+    [WORKSPACE CONTEXT] block listing that knowledge base and a sample of its
+    file paths so the agent knows what material it can draw on.
     """
+    if working_root is None or not Path(working_root).is_dir():
+        return ""
     from itertools import islice
 
-    lines: list[str] = []
-    for raw in context_fields[:5]:
-        root = Path(str(raw)).expanduser()
-        if not root.is_dir():
+    root = Path(working_root).expanduser()
+    lines: list[str] = [f"Workspace '{root.name}': {root}"]
+    count = 0
+    for entry in islice(root.rglob("*"), _CONTEXT_SCAN_BUDGET):
+        if entry.is_dir():
             continue
-        lines.append(f"Workspace '{root.name}': {root}")
-        count = 0
-        for entry in islice(root.rglob("*"), _CONTEXT_SCAN_BUDGET):
-            if entry.is_dir():
-                continue
-            name = entry.name
-            if (
-                ".palimind" in entry.parts
-                or "node_modules" in entry.parts
-                or "__pycache__" in entry.parts
-                or name.startswith(".")
-            ):
-                continue
-            try:
-                rel = entry.relative_to(root)
-            except ValueError:
-                continue
-            lines.append(f"  - {rel}")
-            count += 1
-            if count >= _CONTEXT_FILE_LIMIT:
-                lines.append("  - ... (more files exist)")
-                break
-        lines.append("")
-    if not lines:
+        name = entry.name
+        if (
+            ".palimind" in entry.parts
+            or "node_modules" in entry.parts
+            or "__pycache__" in entry.parts
+            or name.startswith(".")
+        ):
+            continue
+        try:
+            rel = entry.relative_to(root)
+        except ValueError:
+            continue
+        lines.append(f"  - {rel}")
+        count += 1
+        if count >= _CONTEXT_FILE_LIMIT:
+            lines.append("  - ... (more files exist)")
+            break
+    if count == 0:
         return ""
     return "[WORKSPACE CONTEXT]\n" + "\n".join(lines).rstrip() + "\n"
 
@@ -383,20 +382,12 @@ async def run_with_definition(
     from palimind.agents.registry import get_registry
 
     working_root = calling_root if calling_root is not None else get_registry().field_root
-    context_fields = [
-        Path(str(cf)).expanduser() for cf in (getattr(definition, "context_fields", []) or [])
-    ]
-    extra_roots = [
-        cf
-        for cf in context_fields
-        if cf.is_dir() and (working_root is None or cf.resolve() != working_root.resolve())
-    ]
     set_tool_context(
         working_root,
         ollama_url,
         model,
         light_model,
-        extra_roots=extra_roots,
+        extra_roots=[],
     )
 
     memory_block = ""
@@ -411,7 +402,7 @@ async def run_with_definition(
     custom_prompt = definition.system_prompt or ""
     if memory_block:
         custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + memory_block
-    context_block = _workspace_context_block(getattr(definition, "context_fields", []) or [])
+    context_block = _workspace_context_block(working_root)
     if context_block:
         custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + context_block
 

@@ -60,7 +60,7 @@ function fmtTime(ts?: number): string {
 }
 
 export default function Agents() {
-  const { selectedAgentId, setSelectedAgentId } = useApp();
+  const { selectedAgentId, setSelectedAgentId, addToast } = useApp();
   const confirm = useConfirm();
   const [agents, setAgents] = useState<AgentListItem[]>([]);
   const [messagesByAgent, setMessagesByAgent] = useState<Record<string, ChatMessage[]>>({});
@@ -204,6 +204,17 @@ export default function Agents() {
     await api.agents.cancel(agentId);
   }, []);
 
+  const changeAgentModel = useCallback(async (agentId: string, model: string) => {
+    try {
+      await api.agents.update(agentId, { model });
+      refresh();
+      notifyChanged();
+      addToast(model ? `Agent model set to ${model}` : 'Agent using default model');
+    } catch (e) {
+      addToast(`Failed to change model: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }, [refresh, notifyChanged, addToast]);
+
   const clearConversation = useCallback(async (agentId: string) => {
     const ok = await confirm('Clear this conversation? The chat log on disk will be deleted.', {
       title: 'Clear Conversation',
@@ -275,6 +286,8 @@ export default function Agents() {
           <AgentChatInput
             agentId={selected.id}
             agentName={selected.name}
+            model={selected.model || ''}
+            onModelChange={(m) => changeAgentModel(selected.id, m)}
             onSend={sendMessage}
             onStop={stopAgent}
             disabled={agentWorking}
@@ -412,17 +425,12 @@ function AgentConfigModal({
   const [memTotal, setMemTotal] = useState(0);
   const [memPage, setMemPage] = useState(1);
   const [history, setHistory] = useState<RunRecord[]>([]);
-  const [fields, setFields] = useState<string[]>([]);
   const confirm = useConfirm();
 
   const patch = (p: Partial<AgentDefinition>) => {
     setDraft(d => ({ ...d, ...p }));
     setDirty(true);
   };
-
-  useEffect(() => {
-    api.fields.list().then(d => setFields(d.fields || [])).catch(() => {});
-  }, []);
 
   useEffect(() => {
     api.agents.tools().then(d => setTools(d.tools || {})).catch(() => {});
@@ -513,13 +521,6 @@ function AgentConfigModal({
     const cur = new Set(draft.tools || []);
     if (cur.has(id)) cur.delete(id); else cur.add(id);
     setDraft(d => ({ ...d, tools: Array.from(cur) }));
-    setDirty(true);
-  };
-
-  const toggleContextField = (path: string) => {
-    const cur = new Set(draft.context_fields || []);
-    if (cur.has(path)) cur.delete(path); else cur.add(path);
-    setDraft(d => ({ ...d, context_fields: Array.from(cur) }));
     setDirty(true);
   };
 
@@ -724,27 +725,11 @@ function AgentConfigModal({
                   </label>
                 </div>
                 <div className="agent-field">
-                  <span className="agent-field-label">Workspace Context — Knowledge Bases the agent can see</span>
-                  <div className="context-chips">
-                    {fields.length === 0 && <span className="agents-empty">No workspaces added yet.</span>}
-                    {fields.map(path => {
-                      const on = (draft.context_fields || []).includes(path);
-                      return (
-                        <button
-                          type="button"
-                          key={path}
-                          title={path}
-                          className={`context-chip${on ? ' on' : ''}`}
-                          onClick={() => toggleContextField(path)}
-                        >
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                          {path.split(/[\\/]/).filter(Boolean).pop()}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <span className="agent-field-label">Knowledge Base</span>
+                  <span className="agent-field-hint">
+                    This agent works on the knowledge base currently selected in the app.
+                    Switch fields in the sidebar to point it at a different workspace.
+                  </span>
                 </div>
                 <div className="toggle-stack">
                   <label className="toggle-row">
@@ -1079,10 +1064,12 @@ function ApprovalCard({
 /* ── Chat Input ──────────────────────────────────────────────────── */
 
 function AgentChatInput({
-  agentId, agentName, onSend, onStop, disabled,
+  agentId, agentName, model, onModelChange, onSend, onStop, disabled,
 }: {
   agentId: string;
   agentName: string;
+  model: string;
+  onModelChange: (model: string) => void;
   onSend: (agentId: string, text: string) => void;
   onStop: (agentId: string) => void;
   disabled: boolean;
@@ -1118,6 +1105,7 @@ function AgentChatInput({
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
         />
         <div className="agent-input-footer">
+          <ModelPicker value={model} onChange={onModelChange} />
           <span className="agent-input-hint">Enter to send · Shift+Enter for new line</span>
           <Button
             type="button"

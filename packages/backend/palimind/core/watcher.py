@@ -28,6 +28,7 @@ class FieldWatcher:
         self.on_change_callback = on_change_callback
         self.observer = None
         self.debounce_timer = None
+        self.last_changed = ""
         self.lock = threading.Lock()
 
     def start(self):
@@ -51,10 +52,19 @@ class FieldWatcher:
 
     def _on_file_changed(self, filepath):
         with self.lock:
-            if self.debounce_timer:
-                self.debounce_timer.cancel()
+            self.last_changed = str(filepath)
+            # Bounded debounce: only spawn ONE pending timer at a time. If a
+            # timer is already pending, just refresh the path — the pending
+            # timer fires with the latest change. This prevents a burst of
+            # filesystem events from creating an unbounded thread explosion.
+            if self.debounce_timer is not None:
+                return
             self.debounce_timer = threading.Timer(2.0, self._trigger_callback)
+            self.debounce_timer.daemon = True
             self.debounce_timer.start()
 
     def _trigger_callback(self):
-        self.on_change_callback(self.root)
+        with self.lock:
+            changed = self.last_changed
+            self.debounce_timer = None
+        self.on_change_callback(self.root, changed)

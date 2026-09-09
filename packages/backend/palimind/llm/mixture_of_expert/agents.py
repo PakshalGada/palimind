@@ -12,6 +12,7 @@ from palimind.llm.mixture_of_expert.planner import (
 from palimind.llm.mixture_of_expert.tools import (
     AVAILABLE_TOOLS_DESC,
     TOOL_REGISTRY,
+    _register_plugin_tools,
     call_tool,
 )
 from palimind.settings import (
@@ -138,7 +139,23 @@ def _is_looping(recent: list[str], repeats: int = 3) -> bool:
 # ── custom-agent (definition-based) support ───────────────────────────────
 
 # Tools that mutate state and may require human-in-the-loop approval.
-RISKY_TOOLS = {"write_file", "run_python"}
+RISKY_TOOLS = {"write_file", "run_python", "search_replace", "run_shell"}
+
+# Definition-less (MoE) runs may not silently mutate the workspace: these
+# require an approval flow. Isolated compute (run_python) stays allowed.
+MOE_MUTATION_TOOLS = {"write_file", "search_replace", "run_shell"}
+
+# tier_policy -> allowed tool tiers (tier 1 read-only, 2 write/execute, 3 privileged)
+TIER_POLICY_ALLOWED = {
+    "tier1": {1},
+    "tier1+2": {1, 2},
+    "all": {1, 2, 3},
+}
+
+
+def _tool_tier(tool_name: str) -> int:
+    info = TOOL_REGISTRY.get(tool_name, {})
+    return int((info.get("meta") or {}).get("tier", 3))
 
 
 def _emit_event(event_cb: Callable[[str, dict], Any] | None, etype: str, payload: dict) -> None:
@@ -161,37 +178,77 @@ def _gate_tool(
 ) -> str | None:
     """Return a denial-reason string if the tool call must be blocked.
 
-    Enforces the definition's write/shell access flags unconditionally and
-    consults ``approval_provider`` for risky tools when a HITL threshold is
-    configured. Returns None when the call may proceed.
+    For definition-driven agents: enforces tier_policy and the write/shell
+    access flags, then consults ``approval_provider`` for risky tools when a
+    HITL threshold is configured. For definition-less (MoE) runs, file
+    mutations require an approval flow; without one they are denied so MoE
+    cannot silently overwrite the workspace. Returns None when the call may
+    proceed.
     """
     if definition is not None:
-        if tool_name == "write_file" and not getattr(definition, "write_access", True):
+        # tier_policy gate
+        policy = getattr(definition, "tier_policy", "tier1+2") or "tier1+2"
+        allowed = TIER_POLICY_ALLOWED.get(policy, TIER_POLICY_ALLOWED["tier1+2"])
+        if _tool_tier(tool_name) not in allowed:
+            return (
+                f"Access denied: tool '{tool_name}' is tier {_tool_tier(tool_name)} "
+                f"but this agent's tier_policy is '{policy}'"
+            )
+
+        # access-flag gates
+        if tool_name in ("write_file", "search_replace") and not getattr(
+            definition, "write_access", True
+        ):
             return f"Access denied: this agent does not have write_access ('{tool_name}' blocked)"
-        if tool_name == "run_python" and not getattr(definition, "shell_access", True):
+        if tool_name in ("run_python", "run_shell") and not getattr(
+            definition, "shell_access", True
+        ):
             return f"Access denied: this agent does not have shell_access ('{tool_name}' blocked)"
 
         threshold = float(getattr(definition, "human_in_loop_threshold", 0.0) or 0.0)
         if approval_provider is not None and threshold > 0 and tool_name in RISKY_TOOLS:
-            try:
-                result = approval_provider(
-                    {
-                        "tool": tool_name,
-                        "args": tool_args,
-                        "confidence": 0.0,
-                        "threshold": threshold,
-                        "reasoning": (response or "")[:300],
-                    }
-                )
-                approved = bool((result or {}).get("approved"))
-                correction = (result or {}).get("correction", "")
-                if not approved:
-                    reason = "the human reviewer rejected this action"
-                    if correction:
-                        reason += f' with feedback: "{correction}"'
-                    return f"Human reviewer rejected '{tool_name}': {reason}"
-            except Exception as e:
-                return f"Approval flow error for '{tool_name}': {e}"
+            return _request_approval(tool_name, tool_args, approval_provider, response)
+        return None
+
+    # ── definition-less (MoE) runs ─────────────────────────────────────
+    # Isolated compute stays allowed; file mutations and shell execution must
+    # be explicitly approved, mirroring named-agent write_access/HITL.
+    if tool_name in MOE_MUTATION_TOOLS:
+        if approval_provider is None:
+            return (
+                f"Access denied: '{tool_name}' mutates the workspace and requires "
+                "human approval. Use a configured agent with write/shell access, or "
+                "approve the action in the UI."
+            )
+        return _request_approval(tool_name, tool_args, approval_provider, response)
+    return None
+
+
+def _request_approval(
+    tool_name: str,
+    tool_args: dict[str, Any],
+    approval_provider: Callable[[dict], dict],
+    response: str,
+) -> str | None:
+    try:
+        result = approval_provider(
+            {
+                "tool": tool_name,
+                "args": tool_args,
+                "confidence": 0.0,
+                "threshold": 0.0,
+                "reasoning": (response or "")[:300],
+            }
+        )
+        approved = bool((result or {}).get("approved"))
+        correction = (result or {}).get("correction", "")
+        if not approved:
+            reason = "the human reviewer rejected this action"
+            if correction:
+                reason += f' with feedback: "{correction}"'
+            return f"Human reviewer rejected '{tool_name}': {reason}"
+    except Exception as e:
+        return f"Approval flow error for '{tool_name}': {e}"
     return None
 
 
@@ -232,6 +289,8 @@ def run_agent(
     - ``usage_cb``: invoked once with accumulated token counts.
     """
     del session_id  # correlation only; kept for interface compatibility
+
+    _register_plugin_tools()
 
     if max_tool_iterations is None:
         max_tool_iterations = _budget_for_sub_task(sub_task, MOE_MAX_AGENT_ITERATIONS)

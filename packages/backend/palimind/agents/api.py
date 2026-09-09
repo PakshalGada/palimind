@@ -18,22 +18,9 @@ from palimind.agents.runtime import (
     resolve_approval,
 )
 from palimind.agents.service import stream_agent
-from palimind.llm.mixture_of_expert.tools import TOOL_REGISTRY
+from palimind.llm.mixture_of_expert.tools import TOOL_REGISTRY, _register_plugin_tools
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
-
-# tier 1 = read-only / safe, tier 2 = write & execute, tier 3 = privileged
-TOOL_META: dict[str, dict[str, Any]] = {
-    "web_search": {"tier": 1, "requires_approval": False},
-    "fetch_url": {"tier": 1, "requires_approval": False},
-    "document_search": {"tier": 1, "requires_approval": False},
-    "memory_search": {"tier": 1, "requires_approval": False},
-    "read_file": {"tier": 1, "requires_approval": False},
-    "list_files": {"tier": 1, "requires_approval": False},
-    "summarize": {"tier": 1, "requires_approval": False},
-    "write_file": {"tier": 2, "requires_approval": True},
-    "run_python": {"tier": 2, "requires_approval": True},
-}
 
 
 def _agent_item(defn: AgentDefinition) -> dict[str, Any]:
@@ -89,15 +76,17 @@ async def delete_agent(agent_id: str):
 
 @router.get("/tools")
 async def agent_tools():
+    _register_plugin_tools()
     tools: dict[str, dict[str, Any]] = {}
     for name in sorted(TOOL_REGISTRY):
         info = TOOL_REGISTRY[name]
-        meta = TOOL_META.get(name, {"tier": 3, "requires_approval": True})
+        meta = info.get("meta", {"tier": 3, "requires_approval": True})
         tools[name] = {
             "id": name,
             "description": info.get("description", ""),
             "parameters": info.get("parameters", {}),
-            **meta,
+            "tier": int(meta.get("tier", 3)),
+            "requires_approval": bool(meta.get("requires_approval", True)),
         }
     return {"tools": tools}
 

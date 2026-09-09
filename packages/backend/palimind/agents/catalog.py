@@ -380,6 +380,77 @@ def migrate_field_agents(field_roots: list[Path]) -> int:
                 target.write_text(json.dumps(defn.to_dict(), indent=2), "utf-8")
                 seen_global.add(defn.name)
                 migrated += 1
+                # Field-scoped definitions no longer exist — remove the source
+                # copy so no per-knowledge-base agent files linger.
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
             except Exception as e:
                 print(f"[agents] failed to migrate field agent {f}: {e}")
+    # Drop the now-empty per-field agents directories so nothing reads them.
+    for root in field_roots:
+        if root is None:
+            continue
+        field_dir = Path(root) / ".palimind" / "agents"
+        try:
+            if field_dir.is_dir() and not any(field_dir.iterdir()):
+                field_dir.rmdir()
+        except OSError:
+            pass
+    return migrated
+
+
+def migrate_field_chats(field_roots: list[Path]) -> int:
+    """Merge per-knowledge-base agent chats into the single global chat log.
+
+    Chats are now global (one conversation per agent across all KBs). For each
+    ``{field}/.palimind/agents/chats/{agent_id}.json`` the entries are merged
+    into ``~/.palimind/agents/chats/{agent_id}.json`` — union sorted by
+    timestamp, deduplicated on ``(role, content, timestamp)`` — then the field
+    copy is deleted. Returns the number of chat files migrated.
+    """
+    global_chats = Path.home() / ".palimind" / "agents" / "chats"
+    global_chats.mkdir(parents=True, exist_ok=True)
+    migrated = 0
+    for root in field_roots:
+        if root is None:
+            continue
+        chats_dir = Path(root) / ".palimind" / "agents" / "chats"
+        if not chats_dir.is_dir():
+            continue
+        for f in sorted(chats_dir.glob("*.json")):
+            agent_id = f.stem
+            try:
+                entries = json.loads(f.read_text("utf-8"))
+                if not isinstance(entries, list):
+                    continue
+                merged: dict[tuple, dict] = {}
+                target = global_chats / f"{agent_id}.json"
+                if target.exists():
+                    try:
+                        for e in json.loads(target.read_text("utf-8")):
+                            if isinstance(e, dict):
+                                merged[(e.get("role"), e.get("content"), e.get("timestamp"))] = e
+                    except Exception:
+                        pass
+                for e in entries:
+                    if isinstance(e, dict):
+                        merged[(e.get("role"), e.get("content"), e.get("timestamp"))] = e
+                merged_list = sorted(
+                    merged.values(), key=lambda e: float(e.get("timestamp", 0) or 0)
+                )
+                target.write_text(json.dumps(merged_list, indent=2), "utf-8")
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
+                migrated += 1
+            except Exception as e:
+                print(f"[agents] failed to migrate field chat {f}: {e}")
+        try:
+            if not any(chats_dir.iterdir()):
+                chats_dir.rmdir()
+        except OSError:
+            pass
     return migrated

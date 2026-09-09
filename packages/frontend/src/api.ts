@@ -145,7 +145,7 @@ export const api = {
     recommendations: (top = 10) => get<{ recommendations?: Recommendation[] }>(`/cookbook/recommendations?top=${top}`),
   },
   graph: {
-    get: () => get<GraphData & { error?: string }>('/document/graph'),
+    get: () => get<GraphData & { error?: string; needs_rebuild?: boolean }>('/document/graph'),
     rebuild: () => post<{ error?: string }>('/document/graph/rebuild'),
   },
   fs: {

@@ -11,13 +11,9 @@ CHAT_ROLES = ("user", "agent")
 
 
 def _chat_dir() -> Path:
-    from palimind.agents.registry import get_registry
-
-    field_root = get_registry().field_root
-    if field_root is not None:
-        base = field_root / ".palimind" / "agents" / "chats"
-    else:
-        base = Path.home() / ".palimind" / "agents" / "chats"
+    """Agent conversations are global — one chat per agent across all
+    knowledge bases, stored under ~/.palimind/agents/chats."""
+    base = Path.home() / ".palimind" / "agents" / "chats"
     base.mkdir(parents=True, exist_ok=True)
     return base
 

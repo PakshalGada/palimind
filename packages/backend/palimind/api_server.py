@@ -244,9 +244,9 @@ async def background_index_field(path: Path):
 
             cfg = load_config(path)
             ollama_url = cfg.get("ollama_base_url", "http://localhost:11434")
-            from palimind.document.graph import build_doc_graph
+            from palimind.document.graph import build_doc_graph_incremental
 
-            await asyncio.to_thread(build_doc_graph, path, ollama_url)
+            await asyncio.to_thread(build_doc_graph_incremental, path, ollama_url)
         except Exception as e:
             print(f"Background graph build failed: {e}")
 
@@ -264,15 +264,30 @@ async def background_index_field(path: Path):
         )
 
 
-def handle_watcher_change(root: Path):
+def handle_watcher_change(root: Path, changed_path: str = ""):
     print(f"Watcher: detected file changes in {root}. Syncing index...")
     try:
-        # Write debug file to verify execution
-        debug_path = root / ".palimind" / "watcher_debug.txt"
-        debug_path.write_text(f"Watcher ran at {time.time()}", "utf-8")
-
         result = update_index(root)
         print("Watcher: index updated successfully.")
+
+        # Keep the knowledge graph in sync with the changed files.
+        try:
+            from palimind.config import load_config
+            from palimind.document.graph import build_doc_graph_incremental
+
+            cfg = load_config(root)
+            build_doc_graph_incremental(root, cfg.get("ollama_base_url", "http://localhost:11434"))
+        except Exception as e:
+            print(f"Watcher: incremental graph update failed: {e}")
+
+        # Fire watcher-mode agents whose glob matches the changed file.
+        try:
+            from palimind.agents.scheduler import check_watcher_triggers
+
+            check_watcher_triggers(root, changed_path)
+        except Exception as e:
+            print(f"Watcher: trigger dispatch failed: {e}")
+
         if state.loop:
             asyncio.run_coroutine_threadsafe(
                 broadcast_event(
@@ -290,15 +305,30 @@ def handle_watcher_change(root: Path):
 
 
 def update_watcher(path: Path | None):
-    # Watcher is disabled. Syncing only occurs when user manually triggers it.
-    pass
+    """Start (or restart) the file watcher for the active field."""
+    if state.watcher:
+        try:
+            state.watcher.stop()
+        except Exception:
+            pass
+        state.watcher = None
+    if path is None:
+        return
+    from palimind.core.watcher import FieldWatcher
+
+    try:
+        watcher = FieldWatcher(path, handle_watcher_change)
+        watcher.start()
+        state.watcher = watcher
+        print(f"Watcher: watching {path}")
+    except Exception as e:
+        print(f"Watcher: failed to start for {path}: {e}")
 
 
 def _add_capture_to_field(root: Path, text: str) -> dict:
     """Index a captured text snippet into a field's vector DB and rebuild the knowledge graph."""
     from palimind.config import load_config
     from palimind.core.embedder import generate_embedding
-    from palimind.document.graph import build_doc_graph
     from palimind.storage.db import get_connection, insert_chunks, upsert_file
     from palimind.storage.vector_store import VectorStore
 
@@ -350,9 +380,11 @@ def _add_capture_to_field(root: Path, text: str) -> dict:
     finally:
         conn.close()
 
-    # Rebuild knowledge graph in background
+    # Update knowledge graph incrementally in background
     try:
-        build_doc_graph(root, config["ollama_base_url"])
+        from palimind.document.graph import build_doc_graph_incremental
+
+        build_doc_graph_incremental(root, config["ollama_base_url"])
     except Exception as e:
         print(f"[capture] graph rebuild failed: {e}")
 
@@ -402,7 +434,7 @@ def build_file_tree(root: Path) -> list[dict]:
 async def startup_event():
     state.loop = asyncio.get_running_loop()
 
-    from palimind.agents.catalog import migrate_field_agents
+    from palimind.agents.catalog import migrate_field_agents, migrate_field_chats
     from palimind.agents.registry import set_registry_field
     from palimind.agents.scheduler import start_scheduler
 
@@ -410,6 +442,7 @@ async def startup_event():
     if state.active_field and state.active_field not in roots:
         roots.append(state.active_field)
     migrate_field_agents([Path(r) for r in roots])
+    migrate_field_chats([Path(r) for r in roots])
 
     set_registry_field(state.active_field)
     start_scheduler(state.loop)
@@ -510,6 +543,33 @@ async def select_field(req: Request):
 
         traceback.print_exc()
         return {"error": f"Failed to save capture: {str(e)}"}
+
+
+@app.post("/api/capture/file")
+async def capture_file(req: Request):
+    """Index an attached file's text into the active field as a capture.
+
+    The frontend reads file contents (UTF-8 text) and posts them here so a
+    dropped attachment becomes searchable by document-mode RAG before the
+    follow-up chat query runs.
+    """
+    if not state.active_field:
+        return {"error": "No active field"}
+    data = await req.json()
+    name = str(data.get("name", "attachment")).strip() or "attachment"
+    content = str(data.get("content", ""))
+    if not content.strip():
+        return {"error": "No content to index"}
+    try:
+        if len(content) > 200_000:
+            content = content[:200_000]
+        text = f"[Attachment: {name}]\n{content}"
+        result = await asyncio.to_thread(_add_capture_to_field, state.active_field, text)
+        if "error" in result:
+            return result
+        return {"status": "success", "capture_id": result.get("capture_id")}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @app.get("/api/fields")
@@ -673,16 +733,18 @@ async def api_update():
     try:
         result = await asyncio.to_thread(update_index, state.active_field)
 
-        # Fire and forget graph build so we don't block the UI
+        # Fire and forget incremental graph update so we don't block the UI
         async def _build_graph():
             try:
                 from palimind.config import load_config
 
                 cfg = load_config(state.active_field)
                 ollama_url = cfg.get("ollama_base_url", "http://localhost:11434")
-                from palimind.document.graph import build_doc_graph
+                from palimind.document.graph import build_doc_graph_incremental
 
-                await asyncio.to_thread(build_doc_graph, state.active_field, ollama_url)
+                await asyncio.to_thread(
+                    build_doc_graph_incremental, state.active_field, ollama_url
+                )
             except Exception as e:
                 print(f"Background graph build failed: {e}")
 
@@ -1227,33 +1289,27 @@ async def update_model(req: Request):
 
 @app.get("/api/document/graph")
 async def get_document_graph():
-    """Return the document knowledge graph for the active field."""
+    """Return the document knowledge graph for the active field (load-only)."""
     if not state.active_field:
         return {"error": "No active field", "nodes": [], "edges": []}
     try:
-        from palimind.config import load_config as _lc
-        from palimind.document.graph import load_doc_graph
+        from palimind.document.graph import DocGraph
 
-        cfg = _lc(state.active_field)
-        ollama_url = cfg.get("ollama_base_url", "http://localhost:11434")
-        graph = await asyncio.to_thread(
-            load_doc_graph, state.active_field, ollama_url, force_rebuild=False
-        )
-        # If loaded graph has no nodes but index exists, force rebuild
-        if len(graph.nodes) == 0:
+        graph = DocGraph.load(state.active_field)
+        needs_rebuild = False
+        if graph is None or len(graph.nodes) == 0:
             from palimind.storage.db import get_all_files, get_connection
 
             try:
                 conn = get_connection(state.active_field)
                 files = get_all_files(conn)
                 conn.close()
-                if files:
-                    print(f"[graph] empty graph but {len(files)} files indexed — forcing rebuild")
-                    graph = await asyncio.to_thread(
-                        load_doc_graph, state.active_field, ollama_url, force_rebuild=True
-                    )
-            except Exception as check_err:
-                print(f"[graph] check error: {check_err}")
+                needs_rebuild = bool(files)
+            except Exception:
+                needs_rebuild = False
+            if graph is None:
+                graph = DocGraph(state.active_field)
+
         nodes = []
         for nid, ndata in graph.nodes.items():
             nodes.append(
@@ -1274,6 +1330,7 @@ async def get_document_graph():
             "node_count": len(nodes),
             "edge_count": len(edges),
             "indexed_files": len(graph.file_nodes),
+            "needs_rebuild": needs_rebuild,
         }
     except Exception as e:
         import traceback
