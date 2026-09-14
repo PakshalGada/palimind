@@ -122,11 +122,11 @@ def test_parse_docx_extracts_paragraph_text(tmp_path: Path) -> None:
 
 
 def test_parse_pdf_emits_page_markers(tmp_path: Path) -> None:
-    import fitz
+    import pymupdf
 
     from palimind.ingestion.doc_parser import parse_pdf
 
-    doc = fitz.open()
+    doc = pymupdf.open()
     for _ in range(2):
         page = doc.new_page()
         page.insert_text((72, 72), "Hello page content")

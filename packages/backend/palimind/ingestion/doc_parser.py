@@ -4,8 +4,8 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree
 
-import fitz  # PyMuPDF
 import pandas as pd
+import pymupdf  # PyMuPDF
 from pptx import Presentation
 
 from palimind.exceptions import ParseError
@@ -15,7 +15,7 @@ from palimind.ingestion.ocr import extract_text_from_image
 def parse_pdf(file_path: Path) -> str:
     text_content = []
     try:
-        doc = fitz.open(file_path)
+        doc = pymupdf.open(file_path)
         for page_no, page in enumerate(doc, start=1):
             page_text = page.get_text("text").strip()
             if not page_text:
