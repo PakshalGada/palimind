@@ -99,9 +99,7 @@ def test_gate_tool_enforces_tier_policy() -> None:
 
 
 def test_gate_tool_enforces_access_flags() -> None:
-    assert "write_access" in _gate_tool(
-        "write_file", {}, definition=_defn(write_access=False)
-    )
+    assert "write_access" in _gate_tool("write_file", {}, definition=_defn(write_access=False))
     assert "shell_access" in _gate_tool(
         "run_shell", {"command": "ls"}, definition=_defn(shell_access=False)
     )
@@ -111,9 +109,7 @@ def test_gate_tool_moe_denies_mutations_without_approval() -> None:
     denial = _gate_tool("write_file", {}, definition=None, approval_provider=None)
     assert denial and "human approval" in denial
 
-    denial2 = _gate_tool(
-        "run_shell", {"command": "ls"}, definition=None, approval_provider=None
-    )
+    denial2 = _gate_tool("run_shell", {"command": "ls"}, definition=None, approval_provider=None)
     assert denial2 is not None
 
     # Isolated compute stays allowed for MoE
@@ -122,12 +118,15 @@ def test_gate_tool_moe_denies_mutations_without_approval() -> None:
 
 def test_gate_tool_moe_allows_with_approval() -> None:
     provider = lambda pending: {"approved": True, "correction": ""}  # noqa: E731
-    assert _gate_tool(
-        "write_file", {"path": "x", "content": "y"}, definition=None,
-        approval_provider=provider,
-    ) is None
-    rejector = lambda pending: {"approved": False, "correction": "no"}  # noqa: E731
-    denial = _gate_tool(
-        "write_file", {"path": "x"}, definition=None, approval_provider=rejector
+    assert (
+        _gate_tool(
+            "write_file",
+            {"path": "x", "content": "y"},
+            definition=None,
+            approval_provider=provider,
+        )
+        is None
     )
+    rejector = lambda pending: {"approved": False, "correction": "no"}  # noqa: E731
+    denial = _gate_tool("write_file", {"path": "x"}, definition=None, approval_provider=rejector)
     assert denial and "rejected" in denial

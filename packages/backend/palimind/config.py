@@ -28,6 +28,7 @@ DEFAULTS = {
     "rerank": True,  # Rerank fused results with a local cross-encoder
     "rerank_model": "BAAI/bge-reranker-base",  # Local cross-encoder for reranking
     "query_rewrite": True,  # LLM query rewriting at retrieval time
+    "auto_reindex": False,  # Watcher auto-reindexes on file change (CPU/GIL heavy; off = manual Sync)
     "video_extensions": [".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v"],
     "video_whisper_model": "base",  # Whisper tier for offline video transcription
     "video_chunk_seconds": 90,  # Max transcript chunk duration in seconds

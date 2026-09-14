@@ -25,6 +25,20 @@ def _get_cross_encoder(model_name: str):
         if _model is not None and _model_name == model_name:
             return _model
         try:
+            import os
+
+            for k, v in (
+                ("OMP_NUM_THREADS", "2"),
+                ("OMP_WAIT_POLICY", "PASSIVE"),
+                ("MKL_NUM_THREADS", "2"),
+            ):
+                os.environ.setdefault(k, v)
+            try:
+                import torch
+
+                torch.set_num_threads(2)
+            except Exception:
+                pass
             from sentence_transformers import CrossEncoder
 
             logger.info(f"Loading reranker model: {model_name}")

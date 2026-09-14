@@ -332,6 +332,17 @@ def update_index(
     *,
     on_progress: ProgressCallback | None = None,
 ) -> UpdateIndexResult:
+    from palimind.storage.db import INDEX_WRITE_LOCK
+
+    with INDEX_WRITE_LOCK:
+        return _update_index_locked(root, on_progress=on_progress)
+
+
+def _update_index_locked(
+    root: Path,
+    *,
+    on_progress: ProgressCallback | None = None,
+) -> UpdateIndexResult:
     root = require_index(root)
     config = load_config(root)
     init_db(root)

@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from pathlib import Path
 
 from palimind.config import db_path
+
+# Serializes full reindex / graph builds so two can never run concurrently
+# against the same field's SQLite + vector store (thread-safety + CPU guard).
+INDEX_WRITE_LOCK = threading.Lock()
 
 
 def init_db(root: Path) -> None:

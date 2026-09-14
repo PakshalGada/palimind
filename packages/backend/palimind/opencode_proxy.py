@@ -338,8 +338,7 @@ async def api_chat(req: ChatRequest, request: Request):
                         json.dumps(
                             {
                                 "error": (
-                                    f"upstream {e.response.status_code}: "
-                                    f"{e.response.text[:300]}"
+                                    f"upstream {e.response.status_code}: {e.response.text[:300]}"
                                 )
                             }
                         )

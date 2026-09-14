@@ -53,7 +53,16 @@ def _extra_roots() -> list[Path]:
 MAX_READ_BYTES = 256_000  # 256 KB per file read
 MAX_WRITE_BYTES = 512_000
 
-_SKIP_DIRS = {".git", ".palimind", "node_modules", "__pycache__", "venv", ".venv", ".idea", ".vscode"}
+_SKIP_DIRS = {
+    ".git",
+    ".palimind",
+    "node_modules",
+    "__pycache__",
+    "venv",
+    ".venv",
+    ".idea",
+    ".vscode",
+}
 
 
 def _resolve_in_workspace(path: str) -> Path | None:
@@ -90,14 +99,22 @@ _reindex_timer: threading.Timer | None = None
 def _schedule_reindex() -> None:
     """Debounced background reindex of the workspace after a file write.
 
-    Bounded: only one pending reindex timer is kept, so bursts of writes
-    cannot create an unbounded thread explosion. The pending timer reindexes
-    from the latest on-disk state when it fires.
+    Opt-in via the field's ``auto_reindex`` config (default off) because a
+    full reindex is CPU/GIL-heavy and can starve the API server. Bounded:
+    only one pending reindex timer is kept, so bursts of writes cannot create
+    an unbounded thread explosion.
     """
     root = _workspace_root()
     if root is None:
         return
     if not (root / ".palimind" / "index.db").exists():
+        return
+    try:
+        from palimind.config import load_config
+
+        if not load_config(root).get("auto_reindex", False):
+            return
+    except Exception:
         return
     global _reindex_timer
     with _reindex_lock:
@@ -116,12 +133,15 @@ def _run_reindex(root: Path) -> None:
         from palimind.config import load_config
         from palimind.document.graph import build_doc_graph_incremental
         from palimind.rag.indexing import update_index
+        from palimind.storage.db import INDEX_WRITE_LOCK
+
+        if INDEX_WRITE_LOCK.locked():
+            print("[tools] auto-reindex skipped — another reindex is running")
+            return
 
         update_index(root)
         cfg = load_config(root)
-        build_doc_graph_incremental(
-            root, cfg.get("ollama_base_url", "http://localhost:11434")
-        )
+        build_doc_graph_incremental(root, cfg.get("ollama_base_url", "http://localhost:11434"))
         print(f"[tools] auto-reindexed workspace {root}")
     except Exception as e:
         print(f"[tools] auto-reindex failed: {e}")
@@ -160,9 +180,7 @@ def document_search(query: str, limit: int = 6) -> str:
     ollama_url = ctx.get("ollama_url") or config.get("ollama_base_url", "http://localhost:11434")
     embed_model = config.get("embed_model", "nomic-embed-text")
     light_model = (
-        ctx.get("light_model")
-        or config.get("light_model", "")
-        or config.get("chat_model", "")
+        ctx.get("light_model") or config.get("light_model", "") or config.get("chat_model", "")
     )
 
     try:

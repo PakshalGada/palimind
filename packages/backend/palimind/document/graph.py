@@ -378,7 +378,9 @@ def _extract_entities_batched(
         for idx, (fp, _) in enumerate(batch):
             entities = parsed.get(f"FILE {idx + 1}", [])
             if isinstance(entities, list):
-                extracted[fp] = [str(e).strip() for e in entities if isinstance(e, str) and len(e) > 1]
+                extracted[fp] = [
+                    str(e).strip() for e in entities if isinstance(e, str) and len(e) > 1
+                ]
     return extracted
 
 
@@ -507,6 +509,13 @@ def _write_entity_mentions(g: DocGraph, conn, paths: list[str]) -> None:
 
 def build_doc_graph(root: Path, ollama_url: str, light_model: str = "") -> DocGraph:
     """Full rebuild of the document knowledge graph."""
+    from palimind.storage.db import INDEX_WRITE_LOCK
+
+    with INDEX_WRITE_LOCK:
+        return _build_doc_graph_locked(root, ollama_url, light_model)
+
+
+def _build_doc_graph_locked(root: Path, ollama_url: str, light_model: str = "") -> DocGraph:
     from palimind.storage.db import get_connection, get_files_with_hash
 
     config = load_config(root)
@@ -532,11 +541,18 @@ def build_doc_graph(root: Path, ollama_url: str, light_model: str = "") -> DocGr
     return g
 
 
-def build_doc_graph_incremental(
-    root: Path, ollama_url: str, light_model: str = ""
-) -> DocGraph:
+def build_doc_graph_incremental(root: Path, ollama_url: str, light_model: str = "") -> DocGraph:
     """Incrementally update the graph: drop deleted files, re-extract only
     new/changed files. Falls back to a full build when no graph exists."""
+    from palimind.storage.db import INDEX_WRITE_LOCK
+
+    with INDEX_WRITE_LOCK:
+        return _build_doc_graph_incremental_locked(root, ollama_url, light_model)
+
+
+def _build_doc_graph_incremental_locked(
+    root: Path, ollama_url: str, light_model: str = ""
+) -> DocGraph:
     from palimind.storage.db import get_connection, get_files_with_hash
 
     existing = DocGraph.load(root)
@@ -556,9 +572,7 @@ def build_doc_graph_incremental(
     prev_hashes = dict(existing.file_hashes)
 
     deleted = [p for p in prev_hashes if p not in current]
-    changed = [
-        p for p, f in current.items() if p not in prev_hashes or prev_hashes[p] != f["md5"]
-    ]
+    changed = [p for p, f in current.items() if p not in prev_hashes or prev_hashes[p] != f["md5"]]
 
     if deleted:
         for p in deleted:

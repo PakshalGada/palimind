@@ -9,6 +9,20 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+# ── Cap native thread pools BEFORE any heavy lib (torch/onnxruntime/OpenMP)
+# ── is imported. Without this, OCR/rerank/indexing can spin up dozens of
+# ── worker threads that busy-wait a CPU core and wedge the API server.
+for _k, _v in (
+    ("OMP_NUM_THREADS", "2"),
+    ("OMP_WAIT_POLICY", "PASSIVE"),
+    ("OMP_PROC_BIND", "false"),
+    ("MKL_NUM_THREADS", "2"),
+    ("OPENBLAS_NUM_THREADS", "2"),
+    ("VECLIB_MAXIMUM_THREADS", "2"),
+    ("NUMEXPR_NUM_THREADS", "2"),
+):
+    _os.environ.setdefault(_k, _v)
+
 
 def _detach_stdio() -> None:
     """
@@ -265,43 +279,54 @@ async def background_index_field(path: Path):
 
 
 def handle_watcher_change(root: Path, changed_path: str = ""):
-    print(f"Watcher: detected file changes in {root}. Syncing index...")
+    print(f"Watcher: detected file changes in {root}.")
+    # Auto-reindex is opt-in via config 'auto_reindex' (default off). A full
+    # field reindex does CPU-heavy work (OCR, table extraction, embeddings)
+    # that starves the async event loop and wedges the server — so by default
+    # the watcher only fires watcher-mode agents and leaves indexing to manual
+    # Sync. When enabled, it is single-flight: events during a running
+    # reindex are skipped because update_index crawls the whole field anyway.
+    from palimind.config import load_config
+    from palimind.storage.db import INDEX_WRITE_LOCK
+
+    cfg = load_config(root)
+    if cfg.get("auto_reindex", False) and not INDEX_WRITE_LOCK.locked():
+        try:
+            result = update_index(root)
+            print("Watcher: index updated successfully.")
+
+            # Keep the knowledge graph in sync with the changed files.
+            try:
+                from palimind.document.graph import build_doc_graph_incremental
+
+                build_doc_graph_incremental(
+                    root, cfg.get("ollama_base_url", "http://localhost:11434")
+                )
+            except Exception as e:
+                print(f"Watcher: incremental graph update failed: {e}")
+
+            if state.loop:
+                asyncio.run_coroutine_threadsafe(
+                    broadcast_event(
+                        {
+                            "type": "sync",
+                            "message": f"[{root.name}] Context Updated",
+                            "indexed": result.indexed_files,
+                            "deleted": result.deleted_files,
+                        }
+                    ),
+                    state.loop,
+                )
+        except Exception as e:
+            print(f"Watcher: index update failed: {e}")
+
+    # Fire watcher-mode agents whose glob matches the changed file.
     try:
-        result = update_index(root)
-        print("Watcher: index updated successfully.")
+        from palimind.agents.scheduler import check_watcher_triggers
 
-        # Keep the knowledge graph in sync with the changed files.
-        try:
-            from palimind.config import load_config
-            from palimind.document.graph import build_doc_graph_incremental
-
-            cfg = load_config(root)
-            build_doc_graph_incremental(root, cfg.get("ollama_base_url", "http://localhost:11434"))
-        except Exception as e:
-            print(f"Watcher: incremental graph update failed: {e}")
-
-        # Fire watcher-mode agents whose glob matches the changed file.
-        try:
-            from palimind.agents.scheduler import check_watcher_triggers
-
-            check_watcher_triggers(root, changed_path)
-        except Exception as e:
-            print(f"Watcher: trigger dispatch failed: {e}")
-
-        if state.loop:
-            asyncio.run_coroutine_threadsafe(
-                broadcast_event(
-                    {
-                        "type": "sync",
-                        "message": f"[{root.name}] Context Updated",
-                        "indexed": result.indexed_files,
-                        "deleted": result.deleted_files,
-                    }
-                ),
-                state.loop,
-            )
+        check_watcher_triggers(root, changed_path)
     except Exception as e:
-        print(f"Watcher: index update failed: {e}")
+        print(f"Watcher: trigger dispatch failed: {e}")
 
 
 def update_watcher(path: Path | None):
@@ -742,9 +767,7 @@ async def api_update():
                 ollama_url = cfg.get("ollama_base_url", "http://localhost:11434")
                 from palimind.document.graph import build_doc_graph_incremental
 
-                await asyncio.to_thread(
-                    build_doc_graph_incremental, state.active_field, ollama_url
-                )
+                await asyncio.to_thread(build_doc_graph_incremental, state.active_field, ollama_url)
             except Exception as e:
                 print(f"Background graph build failed: {e}")
 

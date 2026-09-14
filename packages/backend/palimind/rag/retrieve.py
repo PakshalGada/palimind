@@ -366,8 +366,11 @@ def hybrid_search(
     try:
         # ── Kick off LLM query rewrite in the background ────────────────
         rewrite_future = executor.submit(
-            rewrite_queries, query, ollama_url=ollama_url,
-            light_model=light_model, enabled=query_rewrite_enabled,
+            rewrite_queries,
+            query,
+            ollama_url=ollama_url,
+            light_model=light_model,
+            enabled=query_rewrite_enabled,
         )
 
         base_variants = base_query_variants(query)
@@ -398,9 +401,7 @@ def hybrid_search(
         variant_vectors: dict[str, list[float]] = {}
         if index_ok and base_variants:
             try:
-                vecs = generate_embeddings_batch(
-                    base_variants, ollama_url, embed_model, root=root
-                )
+                vecs = generate_embeddings_batch(base_variants, ollama_url, embed_model, root=root)
                 variant_vectors = {
                     qv: vec for qv, vec in zip(base_variants, vecs, strict=False) if vec
                 }
@@ -581,9 +582,7 @@ def hybrid_search(
         executor.shutdown(wait=False, cancel_futures=True)
 
 
-def _fts_with_candidates(
-    conn: Any, query: str, candidate_ids: set[int], limit: int
-) -> list[dict]:
+def _fts_with_candidates(conn: Any, query: str, candidate_ids: set[int], limit: int) -> list[dict]:
     """FTS search restricted to a candidate set of chunk ids."""
     try:
         placeholders = ",".join("?" * len(candidate_ids))

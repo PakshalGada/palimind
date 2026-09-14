@@ -65,9 +65,7 @@ def test_remove_file_drops_sections_and_orphan_entities(tmp_path: Path) -> None:
     assert "file:reports/a.pdf" not in g.nodes
     assert g.file_nodes.get("reports/a.pdf") is None
     # "Risk Factors" section belonged to a.pdf only
-    assert not any(
-        n.startswith("section:reports/a.pdf") for n in g.nodes
-    )
+    assert not any(n.startswith("section:reports/a.pdf") for n in g.nodes)
     # "Acme" entity is still linked via b.pdf, so it survives
     assert "entity:acme" in g.nodes
 
@@ -119,9 +117,7 @@ def test_load_doc_graph_builds_when_forced(tmp_path: Path, monkeypatch) -> None:
     assert "file:a.md" in g.nodes
 
 
-def test_incremental_drops_deleted_and_refreshes_changed(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_incremental_drops_deleted_and_refreshes_changed(tmp_path: Path, monkeypatch) -> None:
     from palimind.document.graph import build_doc_graph_incremental
     from palimind.storage import db as db_module
 
@@ -138,18 +134,26 @@ def test_incremental_drops_deleted_and_refreshes_changed(
         db_module,
         "get_files_with_hash",
         lambda conn: [
-            {"path": "a.md", "md5": "h2", "summary": "A v2", "doc_year": None,
-             "doc_type": "other", "entity_name": "SharedCo"},
-            {"path": "c.md", "md5": "h1", "summary": "C", "doc_year": None,
-             "doc_type": "other", "entity_name": ""},
+            {
+                "path": "a.md",
+                "md5": "h2",
+                "summary": "A v2",
+                "doc_year": None,
+                "doc_type": "other",
+                "entity_name": "SharedCo",
+            },
+            {
+                "path": "c.md",
+                "md5": "h1",
+                "summary": "C",
+                "doc_year": None,
+                "doc_type": "other",
+                "entity_name": "",
+            },
         ],
     )
-    monkeypatch.setattr(
-        "palimind.document.graph._extract_entities_batched", lambda *a, **k: {}
-    )
-    monkeypatch.setattr(
-        "palimind.document.graph._write_entity_mentions", lambda *a, **k: None
-    )
+    monkeypatch.setattr("palimind.document.graph._extract_entities_batched", lambda *a, **k: {})
+    monkeypatch.setattr("palimind.document.graph._write_entity_mentions", lambda *a, **k: None)
 
     out = build_doc_graph_incremental(tmp_path, "http://ollama", "m")
     assert out.file_nodes.get("b.md") is None  # deleted path removed
@@ -158,9 +162,7 @@ def test_incremental_drops_deleted_and_refreshes_changed(
     assert out.file_hashes["c.md"] == "h1"  # untouched file stays
 
 
-def test_incremental_falls_back_to_full_build_when_empty(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_incremental_falls_back_to_full_build_when_empty(tmp_path: Path, monkeypatch) -> None:
     from palimind.document.graph import build_doc_graph_incremental
 
     (tmp_path / ".palimind").mkdir()
