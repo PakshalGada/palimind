@@ -4,15 +4,13 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree
 
-import pandas as pd
-import pymupdf  # PyMuPDF
-from pptx import Presentation
-
 from palimind.exceptions import ParseError
 from palimind.ingestion.ocr import extract_text_from_image
 
 
 def parse_pdf(file_path: Path) -> str:
+    import pymupdf  # PyMuPDF (heavy; imported lazily)
+
     text_content = []
     try:
         doc = pymupdf.open(file_path)
@@ -34,6 +32,8 @@ def parse_pdf(file_path: Path) -> str:
 
 
 def parse_pptx(file_path: Path) -> str:
+    from pptx import Presentation
+
     text_content = []
     try:
         prs = Presentation(file_path)
@@ -52,6 +52,8 @@ def parse_pptx(file_path: Path) -> str:
 
 
 def parse_xlsx(file_path: Path) -> str:
+    import pandas as pd
+
     text_content = []
     try:
         df_dict = pd.read_excel(file_path, sheet_name=None, engine="openpyxl")

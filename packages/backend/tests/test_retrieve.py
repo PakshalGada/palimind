@@ -7,6 +7,8 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree
 
+import pytest
+
 from palimind.rag.retrieve import (
     _assemble_context,
     base_query_variants,
@@ -122,7 +124,7 @@ def test_parse_docx_extracts_paragraph_text(tmp_path: Path) -> None:
 
 
 def test_parse_pdf_emits_page_markers(tmp_path: Path) -> None:
-    import pymupdf
+    pymupdf = pytest.importorskip("pymupdf")
 
     from palimind.ingestion.doc_parser import parse_pdf
 
