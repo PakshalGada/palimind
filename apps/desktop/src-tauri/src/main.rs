@@ -221,6 +221,27 @@ fn main() {
         .setup(move |app| {
             let handle: AppHandle = app.handle().clone();
 
+            // ── Microphone (Linux / WebKitGTK) ───────────────────────────
+            // WebKitGTK disables media streams by default and denies every
+            // permission request, which makes `getUserMedia` fail so the
+            // in-app voice input can never record. Enable media capture and
+            // grant permission requests for this window.
+            #[cfg(target_os = "linux")]
+            if let Some(win) = app.get_webview_window("main") {
+                use webkit2gtk::{PermissionRequestExt, SettingsExt, WebViewExt};
+                let _ = win.with_webview(|webview| {
+                    let wv = webview.inner();
+                    if let Some(settings) = wv.settings() {
+                        settings.set_enable_media_stream(true);
+                        settings.set_enable_mediasource(true);
+                    }
+                    wv.connect_permission_request(|_wv, req| {
+                        req.allow();
+                        true
+                    });
+                });
+            }
+
             // ── Global shortcut ──────────────────────────────────────────
             let h1 = handle.clone();
 

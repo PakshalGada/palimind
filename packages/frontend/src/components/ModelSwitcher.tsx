@@ -25,6 +25,11 @@ export default function ModelSwitcher() {
   const [modelsError, setModelsError] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const [pullInput, setPullInput] = useState('');
+  const [pulling, setPulling] = useState<
+    Record<string, { status: string; percent: number | null; done: boolean; error?: string }>
+  >({});
+  const pullEsRef = useRef<Record<string, EventSource>>({});
 
   const filteredModels = searchQuery.trim()
     ? models.filter(m => {
@@ -73,6 +78,78 @@ export default function ModelSwitcher() {
     } catch { setRecommendations([]); }
     setRecLoading(false);
   }, []);
+
+  const pullModel = useCallback(
+    (rawName: string) => {
+      const name = rawName.trim();
+      if (!name || pullEsRef.current[name]) return;
+      setPulling((prev) => ({
+        ...prev,
+        [name]: { status: 'starting…', percent: null, done: false },
+      }));
+      const es = new EventSource(api.models.pullUrl(name));
+      pullEsRef.current[name] = es;
+      es.onmessage = (ev) => {
+        try {
+          const d = JSON.parse(ev.data) as {
+            status?: string;
+            percent?: number | null;
+            done?: boolean;
+            error?: string;
+          };
+          if (d.error) {
+            es.close();
+            delete pullEsRef.current[name];
+            setPulling((prev) => ({
+              ...prev,
+              [name]: { status: '', percent: null, done: false, error: d.error },
+            }));
+            addToast(`Download failed: ${d.error}`);
+            return;
+          }
+          setPulling((prev) => ({
+            ...prev,
+            [name]: { status: d.status || 'downloading', percent: d.percent ?? null, done: !!d.done },
+          }));
+          if (d.done) {
+            es.close();
+            delete pullEsRef.current[name];
+            addToast(`${name} is ready`);
+            fetchModels();
+            setTimeout(
+              () =>
+                setPulling((prev) => {
+                  const next = { ...prev };
+                  delete next[name];
+                  return next;
+                }),
+              2500,
+            );
+          }
+        } catch {
+          // ignore malformed frame
+        }
+      };
+      es.onerror = () => {
+        es.close();
+        delete pullEsRef.current[name];
+        setPulling((prev) =>
+          prev[name]?.done
+            ? prev
+            : { ...prev, [name]: { status: '', percent: null, done: false, error: 'connection lost' } },
+        );
+      };
+    },
+    [addToast, fetchModels],
+  );
+
+  useEffect(
+    () => () => {
+      Object.values(pullEsRef.current).forEach((es) => es.close());
+      pullEsRef.current = {};
+    },
+    [],
+  );
 
   const selectModel = async (modelId: string) => {
     if (modelId === currentModel) { setIsOpen(false); return; }
@@ -220,7 +297,49 @@ export default function ModelSwitcher() {
                   onKeyDown={handleKeyboard}
                 />
               </div>
+              <div className="ms-pull-row">
+                <input
+                  type="text"
+                  className="ms-pull-input"
+                  placeholder="Pull a model (e.g. llama3.2)"
+                  value={pullInput}
+                  onChange={(e) => setPullInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      pullModel(pullInput);
+                      setPullInput('');
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="ms-pull-btn"
+                  onClick={() => {
+                    pullModel(pullInput);
+                    setPullInput('');
+                  }}
+                >
+                  Pull
+                </button>
+              </div>
               <div id="model-list" className="model-list" role="listbox">
+                {Object.entries(pulling).map(([name, p]) =>
+                  p.error || p.done ? null : (
+                    <div key={`pull-${name}`} className="model-list-item pull-item">
+                      <span className="model-list-item-name">{name}</span>
+                      <span className="model-list-item-meta">
+                        {p.status}
+                        {p.percent != null ? ` · ${p.percent}%` : ''}
+                      </span>
+                      <div className="pull-bar-track">
+                        <div
+                          className="pull-bar-fill"
+                          style={p.percent != null ? { width: `${p.percent}%` } : undefined}
+                        />
+                      </div>
+                    </div>
+                  ),
+                )}
                 {modelsLoading && <LoadingSpinner text="Loading available models..." className="model-list-loading" />}
                 {modelsError && !modelsLoading && (
                   <div className="model-empty-state">
@@ -281,13 +400,44 @@ export default function ModelSwitcher() {
                 ) : recommendations.length === 0 ? (
                   <div className="model-menu-state empty">No recommendations</div>
                 ) : (
-                  recommendations.map((rec, i) => (
-                    <div key={i} className="rec-card">
-                      <span className="rec-card-name">{rec.name}</span>
-                      <span className="rec-card-size">{rec.params_b}B · {rec.file_size_gb}GB</span>
-                      <span className={`fit-badge ${fitClass(rec.fit)}`}>{fitLabel(rec.fit)}</span>
-                    </div>
-                  ))
+                  recommendations.map((rec, i) => {
+                    const p = pulling[rec.name];
+                    return (
+                      <div key={i} className="rec-card">
+                        <span className="rec-card-name">{rec.name}</span>
+                        <span className="rec-card-size">{rec.params_b}B · {rec.file_size_gb}GB</span>
+                        <span className={`fit-badge ${fitClass(rec.fit)}`}>{fitLabel(rec.fit)}</span>
+                        {p ? (
+                          p.error ? (
+                            <span className="rec-error">{p.error}</span>
+                          ) : p.done ? (
+                            <span className="rec-done">Ready</span>
+                          ) : (
+                            <div className="rec-progress">
+                              <div className="rec-progress-track">
+                                <div
+                                  className="rec-progress-fill"
+                                  style={p.percent != null ? { width: `${p.percent}%` } : undefined}
+                                />
+                              </div>
+                              <span className="rec-progress-label">
+                                {p.status}
+                                {p.percent != null ? ` — ${p.percent}%` : ''}
+                              </span>
+                            </div>
+                          )
+                        ) : (
+                          <button
+                            type="button"
+                            className="rec-pull-btn"
+                            onClick={() => pullModel(rec.name)}
+                          >
+                            Download
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>

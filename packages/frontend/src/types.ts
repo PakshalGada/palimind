@@ -154,6 +154,14 @@ export interface RecentRun extends RunRecord {
   agent_name: string;
 }
 
+export interface SetupTask {
+  key: string;
+  label: string;
+  status: string;
+  progress: number | null;
+  message: string;
+}
+
 export interface AgentChatMessage {
   role: 'user' | 'agent';
   content: string;

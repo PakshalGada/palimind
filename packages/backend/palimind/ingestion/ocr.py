@@ -37,17 +37,23 @@ def get_reader(gpu: bool = True):
     if _reader is None:
         import easyocr  # lazy import — only load when OCR is actually needed
 
+        from palimind import setup_status
+
+        setup_status.start("ocr", "Preparing OCR models (first run)")
         _limit_threads()
         try:
-            _reader = easyocr.Reader(
-                ["en"],
-                gpu=gpu,
-                intra_op_num_threads=2,
-                inter_op_num_threads=2,
-            )
-        except TypeError:
-            # older easyocr without thread-knob params
-            _reader = easyocr.Reader(["en"], gpu=gpu)
+            try:
+                _reader = easyocr.Reader(
+                    ["en"],
+                    gpu=gpu,
+                    intra_op_num_threads=2,
+                    inter_op_num_threads=2,
+                )
+            except TypeError:
+                # older easyocr without thread-knob params
+                _reader = easyocr.Reader(["en"], gpu=gpu)
+        finally:
+            setup_status.finish("ocr")
     return _reader
 
 

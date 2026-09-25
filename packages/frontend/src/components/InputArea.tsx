@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { ArrowUp, Square } from "lucide-react";
+import { ArrowUp, Loader2, Mic, Square } from "lucide-react";
 import ModelSwitcher from "./ModelSwitcher";
 import LoadingSpinner from "./LoadingSpinner";
 import AgentAvatar from "./AgentAvatar";
 import ActivityChain from "./ActivityChain";
+import MicWave from "./MicWave";
 import { useApp } from "../AppContext";
 import type { ActivityMode, AgentState } from "../AppContext";
 import { formatMarkdown } from "../utils/markdown";
+import { exportWAV } from "../utils/audio";
 import { api } from "../api";
 import type { AgentListItem, ModelItem } from "../types";
 import {
@@ -42,6 +44,11 @@ export default function InputArea() {
     activeView,
     selectedAgentId,
     setActivity,
+    isRecording,
+    setIsRecording,
+    isTranscribing,
+    setIsTranscribing,
+    addToast,
   } = useApp();
 
   const isChatView = activeView === 'chat' || activeView === 'agents';
@@ -69,6 +76,12 @@ export default function InputArea() {
   const [mention, setMention] = useState<{ query: string } | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
   const [chainSlot, setChainSlot] = useState<HTMLElement | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const pcmRef = useRef<Float32Array[]>([]);
+  const levelRef = useRef(0);
 
   useEffect(() => {
     api.agents
@@ -76,6 +89,106 @@ export default function InputArea() {
       .then((d) => setAllAgents((d.agents || []).filter((a) => a.enabled)))
       .catch(() => {});
   }, []);
+
+  // ── voice input (speech-to-text) ──────────────────────────────────
+  // Captures raw PCM via Web Audio (portable across Chromium and WebKitGTK,
+  // unlike MediaRecorder codecs), converts to WAV and posts to /voice/transcribe.
+  const stopMediaTracks = () => {
+    mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+    mediaStreamRef.current = null;
+  };
+
+  const transcribePcm = async (samples: Float32Array, sampleRate: number) => {
+    setIsTranscribing(true);
+    try {
+      const wav = exportWAV(samples, sampleRate);
+      const res = await api.voice.transcribe(wav);
+      const text = (res.text || "").trim();
+      if (text) {
+        setValue((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text));
+        requestAnimationFrame(() => textareaRef.current?.focus());
+      } else if (res.error) {
+        addToast(res.error);
+      }
+    } catch (e) {
+      addToast(`Transcription failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    setIsTranscribing(false);
+  };
+
+  const startRecording = async () => {
+    if (isRecording || isTranscribing) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      const ctx = new AudioContext();
+      audioCtxRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      sourceNodeRef.current = source;
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+      pcmRef.current = [];
+      processor.onaudioprocess = (e) => {
+        const chan = e.inputBuffer.getChannelData(0);
+        pcmRef.current.push(new Float32Array(chan));
+        let sum = 0;
+        for (let i = 0; i < chan.length; i++) sum += chan[i] * chan[i];
+        const rms = Math.sqrt(sum / chan.length);
+        levelRef.current = Math.min(1, rms * 6);
+      };
+      // A muted gain node keeps the processor running without playing the mic.
+      const silent = ctx.createGain();
+      silent.gain.value = 0;
+      source.connect(processor);
+      processor.connect(silent);
+      silent.connect(ctx.destination);
+      setIsRecording(true);
+    } catch (e) {
+      stopMediaTracks();
+      levelRef.current = 0;
+      addToast(`Microphone unavailable: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!isRecording) return;
+    setIsRecording(false);
+    levelRef.current = 0;
+    const ctx = audioCtxRef.current;
+    const sampleRate = ctx?.sampleRate || 44100;
+    try {
+      processorRef.current?.disconnect();
+    } catch {
+      // ignore
+    }
+    try {
+      sourceNodeRef.current?.disconnect();
+    } catch {
+      // ignore
+    }
+    stopMediaTracks();
+    const chunks = pcmRef.current;
+    pcmRef.current = [];
+    processorRef.current = null;
+    sourceNodeRef.current = null;
+    audioCtxRef.current = null;
+    if (ctx) {
+      try {
+        await ctx.close();
+      } catch {
+        // ignore
+      }
+    }
+    const total = chunks.reduce((n, c) => n + c.length, 0);
+    if (total === 0) return;
+    const merged = new Float32Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      merged.set(chunk, offset);
+      offset += chunk.length;
+    }
+    await transcribePcm(merged, sampleRate);
+  };
 
   const mentionMatches = mention
     ? allAgents.filter((a) =>
@@ -1259,6 +1372,36 @@ export default function InputArea() {
           )}
 
           <PromptInputActions className="prompt-composer-actions">
+            {isRecording && (
+              <span className="mic-listening" role="status" aria-live="polite">
+                <MicWave levelRef={levelRef} active={isRecording} />
+                Listening…
+              </span>
+            )}
+            <PromptInputAction
+              tooltip={
+                isTranscribing
+                  ? "Transcribing…"
+                  : isRecording
+                    ? "Stop recording"
+                    : "Voice input"
+              }
+            >
+              <button
+                type="button"
+                className={`mic-btn${isRecording ? " active" : ""}${isTranscribing ? " processing" : ""}`}
+                aria-label={isRecording ? "Stop recording" : "Voice input"}
+                title={isRecording ? "Stop recording" : "Voice input"}
+                disabled={isTranscribing}
+                onClick={() => (isRecording ? stopRecording() : startRecording())}
+              >
+                {isTranscribing ? (
+                  <Loader2 size={16} className="spin" aria-hidden="true" />
+                ) : (
+                  <Mic size={16} aria-hidden="true" />
+                )}
+              </button>
+            </PromptInputAction>
             <PromptInputAction
               tooltip={isGenerating ? "Stop generation" : "Send message"}
             >

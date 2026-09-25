@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
 import { api } from './api';
-import type { AppView, ChatMode, LlmSubMode, Theme } from './types';
+import type { AppView, ChatMode, LlmSubMode, SetupTask, Theme } from './types';
 
 interface Toast {
   id: number;
@@ -61,6 +61,7 @@ interface AppState {
   selectedAgentId: string | null;
   agentLoading: { seed: string; name: string } | null;
   activity: ActivityState | null;
+  setupTasks: SetupTask[];
 }
 
 interface AppContextType extends AppState {
@@ -123,6 +124,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [agentLoading, setAgentLoading] = useState<{ seed: string; name: string } | null>(null);
   const [activity, setActivity] = useState<ActivityState | null>(null);
+  const [setupTasks, setSetupTasks] = useState<SetupTask[]>([]);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   const toastId = useRef(0);
@@ -237,6 +239,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => es.close();
   }, [setIsIndexing, setIndexingStatus]);
 
+  // Poll first-run model download/load status so the user sees progress even
+  // though the backend's stdout/stderr are detached in the packaged app.
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const data = await api.setup.status();
+        if (!cancelled) setSetupTasks(data.tasks || []);
+      } catch {
+        // backend not ready yet — ignore
+      }
+    };
+    void tick();
+    const timer = window.setInterval(tick, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -264,6 +286,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         selectedAgentId, setSelectedAgentId,
         agentLoading, setAgentLoading,
         activity, setActivity,
+        setupTasks,
         refreshFields, refreshSessions, refreshFileTree,
         abortController, setAbortController,
       }}

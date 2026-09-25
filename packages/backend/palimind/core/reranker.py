@@ -24,6 +24,9 @@ def _get_cross_encoder(model_name: str):
     with _load_lock:
         if _model is not None and _model_name == model_name:
             return _model
+        from palimind import setup_status
+
+        setup_status.start("reranker", f"Preparing reranker model ({model_name})")
         try:
             import os
 
@@ -47,6 +50,8 @@ def _get_cross_encoder(model_name: str):
         except Exception as e:
             logger.warning(f"Failed to load reranker model {model_name}: {e}")
             _model = None
+        finally:
+            setup_status.finish("reranker")
     return _model
 
 

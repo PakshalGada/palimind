@@ -2257,6 +2257,7 @@ dependencies = [
  "tauri-plugin-process",
  "tauri-plugin-shell",
  "ureq",
+ "webkit2gtk",
 ]
 
 [[package]]

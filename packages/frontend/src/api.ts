@@ -1,4 +1,4 @@
-import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, Approval, DirItem, GraphData, HardwareData, MemoryEntry, ModelItem, RecentRun, Recommendation, RunRecord, SkillMeta, ToolMeta, TreeNode } from './types';
+import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, Approval, DirItem, GraphData, HardwareData, MemoryEntry, ModelItem, RecentRun, Recommendation, RunRecord, SetupTask, SkillMeta, ToolMeta, TreeNode } from './types';
 
 const BASE = '/api';
 
@@ -79,6 +79,15 @@ export const api = {
       save: (key: string) => post<{ status?: string; error?: string }>('/settings/opencode-key', { key }),
       remove: () => del<{ status?: string; error?: string }>('/settings/opencode-key'),
     },
+    voice: {
+      status: () =>
+        get<{
+          stt_whisper_model: string;
+          options: { id: string; label: string; size_mb: number; note: string }[];
+        }>('/settings/voice'),
+      save: (data: { stt_whisper_model: string }) =>
+        patch<{ status?: string; error?: string }>('/settings/voice', data),
+    },
   },
   agents: {
     list: () => get<{ agents?: AgentListItem[]; error?: string }>('/agents'),
@@ -147,6 +156,10 @@ export const api = {
   },
   models: {
     list: () => get<{ models?: ModelItem[]; current_model?: string; status?: string }>('/models'),
+    pullUrl: (model: string) => `${BASE}/models/pull?model=${encodeURIComponent(model)}`,
+  },
+  setup: {
+    status: () => get<{ tasks: SetupTask[] }>('/setup/status'),
   },
   cookbook: {
     hardware: () => get<HardwareData & { error?: string }>('/cookbook/hardware'),

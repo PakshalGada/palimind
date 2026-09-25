@@ -8,6 +8,7 @@ import SettingsModal from './components/SettingsModal';
 import DirectoryPicker from './components/DirectoryPicker';
 import KnowledgeGraph from './components/KnowledgeGraph';
 import ToastContainer from './components/ToastContainer';
+import SetupProgress from './components/SetupProgress';
 import AgentManager from './features/agents/AgentManager';
 import AgentHeader from './features/agents/AgentHeader';
 
@@ -95,6 +96,7 @@ export default function App() {
 
   return (
     <div className={containerClass}>
+      <SetupProgress />
       <Sidebar />
       {activeView === "agents" ? (
         <div className="agents-main">

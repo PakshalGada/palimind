@@ -77,6 +77,13 @@ TOOL_AUDIT_LOG: bool = _env_bool("PALIMIND_TOOL_AUDIT_LOG", True)
 # built-ins (web search / page fetch) legitimately take a while.
 TOOL_TIMEOUT_S: int = _env_int("PALIMIND_TOOL_TIMEOUT", 120)
 
+# ── speech-to-text ────────────────────────────────────────────────────────
+
+# faster-whisper model used by the microphone dictation (downloaded on first
+# use from HuggingFace). English-only `.en` models are faster on CPU. Can be
+# overridden per-user in Settings (Voice) — see palimind.audio.stt.
+STT_WHISPER_MODEL: str = _env_str("PALIMIND_STT_WHISPER_MODEL", "base.en") or "base.en"
+
 # ── browser tools ─────────────────────────────────────────────────────────
 
 # Domains the browser may visit. When ALLOWED is non-empty the browser is

@@ -1567,16 +1567,163 @@ select {
     height: 36px;
     min-width: 36px;
     padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.mic-btn:hover {
+    background: var(--accent-bg);
+    color: var(--text-main);
 }
 .mic-btn.active {
-    background: var(--bg-active);
-    color: var(--text-main);
-    border: 1px solid var(--border-color);
+    background: var(--danger-soft);
+    color: var(--danger-strong);
+    border: none;
+    border-radius: 50%;
 }
 .mic-btn.processing {
-    background: var(--bg-active);
+    background: var(--accent-bg);
     color: var(--text-main);
+    border-radius: 50%;
     animation: pulse 1.5s infinite;
+}
+.mic-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+.mic-listening {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 10px;
+    font-size: 0.75rem;
+    color: var(--danger-strong);
+    white-space: nowrap;
+}
+.mic-waves {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 16px;
+}
+.mic-wave-bar {
+    width: 3px;
+    height: 16px;
+    border-radius: 2px;
+    background: var(--danger-strong);
+    transform-origin: center;
+    transform: scaleY(0.15);
+    transition: transform 0.06s linear;
+}
+.spin {
+    animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ── in-app model pull (download) ─────────────────────────────────── */
+.ms-pull-row {
+    display: flex;
+    gap: 6px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+.ms-pull-input {
+    flex: 1;
+    min-width: 0;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-main);
+    font-size: 0.78rem;
+    padding: 6px 9px;
+    outline: none;
+}
+.ms-pull-input:focus {
+    border-color: var(--focus-ring);
+}
+.ms-pull-btn,
+.rec-pull-btn {
+    border: 1px solid var(--border-color);
+    background: var(--panel-bg-2);
+    color: var(--text-main);
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    padding: 5px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.ms-pull-btn:hover,
+.rec-pull-btn:hover {
+    background: var(--surface-hover);
+}
+.pull-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+}
+.pull-bar-track {
+    height: 3px;
+    width: 100%;
+    background: var(--border-color);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.pull-bar-fill {
+    height: 100%;
+    width: 35%;
+    background: var(--primary-color);
+    border-radius: 2px;
+    animation: progress-slide 1.5s infinite ease-in-out;
+}
+.rec-pull-btn {
+    align-self: flex-start;
+    margin-top: 6px;
+}
+.rec-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+    width: 100%;
+}
+.rec-progress-track {
+    height: 4px;
+    width: 100%;
+    background: var(--border-color);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.rec-progress-fill {
+    height: 100%;
+    width: 35%;
+    background: var(--primary-color);
+    border-radius: 2px;
+    animation: progress-slide 1.5s infinite ease-in-out;
+}
+.rec-progress-label {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+.rec-done {
+    margin-top: 6px;
+    font-size: 0.72rem;
+    color: #34d399;
+}
+.rec-error {
+    margin-top: 6px;
+    font-size: 0.72rem;
+    color: var(--danger-strong);
 }
 .indexing-progress-container {
     position: fixed;
@@ -1596,6 +1743,9 @@ select {
     font-family: var(--font-mono);
     color: var(--text-main);
     font-weight: 500;
+}
+.setup-task + .setup-task {
+    margin-top: 10px;
 }
 .progress-bar-track {
     width: 100%;

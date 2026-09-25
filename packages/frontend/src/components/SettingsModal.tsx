@@ -13,6 +13,12 @@ export default function SettingsModal() {
   const [ocKeyMsg, setOcKeyMsg] = useState('');
   const [ocKeyIsError, setOcKeyIsError] = useState(false);
   const [ocKeyBusy, setOcKeyBusy] = useState(false);
+  const [sttModel, setSttModel] = useState('base.en');
+  const [sttOptions, setSttOptions] = useState<
+    { id: string; label: string; size_mb: number; note: string }[]
+  >([]);
+  const [sttMsg, setSttMsg] = useState('');
+  const [sttBusy, setSttBusy] = useState(false);
 
   useEffect(() => {
     api.config.get().then((cfg) => {
@@ -23,7 +29,24 @@ export default function SettingsModal() {
       setOcKeyConfigured(s.configured);
       setOcKeyMasked(s.masked ?? null);
     }).catch(() => {});
+    api.settings.voice.status().then((v) => {
+      setSttModel(v.stt_whisper_model || 'base.en');
+      setSttOptions(v.options || []);
+    }).catch(() => {});
   }, []);
+
+  const saveSttModel = async () => {
+    setSttBusy(true);
+    setSttMsg('');
+    try {
+      const res = await api.settings.voice.save({ stt_whisper_model: sttModel });
+      setSttMsg(res.error ? `Error: ${res.error}` : 'Saved');
+    } catch (e) {
+      setSttMsg(`Error: ${e instanceof Error ? e.message : e}`);
+    }
+    setSttBusy(false);
+    setTimeout(() => setSttMsg(''), 2500);
+  };
 
   const close = () => {
     const modal = document.getElementById('settings-modal');
@@ -196,6 +219,34 @@ export default function SettingsModal() {
                   {ocKeyMsg}
                 </span>
               )}
+            </div>
+          </div>
+
+          <div className="settings-group">
+            <label htmlFor="stt-model">Speech-to-text model (microphone)</label>
+            <p className="settings-hint">
+              Local Whisper model used for voice input. The first use downloads it
+              (progress appears in the banner at the top). English-only &ldquo;.en&rdquo;
+              models are faster on CPU.
+            </p>
+            <select
+              id="stt-model"
+              className="settings-input"
+              value={sttModel}
+              onChange={(e) => setSttModel(e.target.value)}
+            >
+              {sttOptions.length === 0 && <option value={sttModel}>{sttModel}</option>}
+              {sttOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label} · ~{o.size_mb} MB — {o.note}
+                </option>
+              ))}
+            </select>
+            <div className="settings-actions">
+              <button className="action-btn primary" onClick={saveSttModel} disabled={sttBusy}>
+                {sttBusy ? 'Saving...' : 'Save'}
+              </button>
+              {sttMsg && <span className="settings-status">{sttMsg}</span>}
             </div>
           </div>
 

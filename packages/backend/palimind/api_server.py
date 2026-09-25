@@ -1279,6 +1279,14 @@ async def voice_synthesize(request: Request):
         return Response(status_code=500, content=f"Synthesis error: {str(e)}")
 
 
+@app.get("/api/setup/status")
+async def setup_status_endpoint():
+    """Active first-run model downloads / loads, for the UI progress banner."""
+    from palimind import setup_status
+
+    return {"tasks": setup_status.snapshot()}
+
+
 # -- Model Switcher & Config Endpoints --
 
 
@@ -1369,6 +1377,72 @@ async def get_models():
             "current_model": current_model,
             "status": "offline",
         }
+
+
+@app.get("/api/models/pull")
+async def pull_model(model: str):
+    """Proxy Ollama's model-pull progress as SSE so the UI can show a bar.
+
+    Emits ``{"status","completed","total","percent","done"}`` frames and a
+    final ``{"done": true}``; ``{"error": ...}`` on failure.
+    """
+    from palimind.config import load_config
+
+    if not model or not model.strip():
+
+        async def err_stream():
+            yield f"data: {json.dumps({'error': 'model is required'})}\n\n"
+
+        return StreamingResponse(err_stream(), media_type="text/event-stream")
+
+    if state.active_field:
+        config = load_config(state.active_field)
+    else:
+        config = _global_chat_config()
+    ollama_url = config.get("ollama_base_url", "http://localhost:11434").rstrip("/")
+
+    async def gen():
+        try:
+            async with httpx.AsyncClient(timeout=None) as client:
+                async with client.stream(
+                    "POST",
+                    f"{ollama_url}/api/pull",
+                    json={"model": model.strip(), "stream": True},
+                ) as resp:
+                    if resp.status_code >= 400:
+                        body = await resp.aread()
+                        detail = body[:200].decode("utf-8", errors="replace")
+                        yield f"data: {json.dumps({'error': f'Ollama HTTP {resp.status_code}: {detail}'})}\n\n"
+                        return
+                    async for line in resp.aiter_lines():
+                        if not line.strip():
+                            continue
+                        try:
+                            obj = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        total = obj.get("total")
+                        completed = obj.get("completed")
+                        percent = (
+                            int(completed * 100 / total)
+                            if (total and completed is not None)
+                            else None
+                        )
+                        payload = {
+                            "status": obj.get("status", ""),
+                            "completed": completed,
+                            "total": total,
+                            "percent": percent,
+                            "done": obj.get("status") == "success",
+                        }
+                        if obj.get("error"):
+                            payload["error"] = obj["error"]
+                        yield f"data: {json.dumps(payload)}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
+        except Exception as e:  # noqa: BLE001 - surface as an SSE error frame
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 @app.patch("/api/config/model")
@@ -1713,6 +1787,80 @@ async def delete_opencode_key():
     except ValueError as e:
         return {"error": str(e)}
     return {"status": "success"}
+
+
+# -- Settings: Voice / Speech-to-text --
+
+VOICE_STT_OPTIONS = [
+    {
+        "id": "tiny.en",
+        "label": "Tiny (English)",
+        "size_mb": 75,
+        "note": "Fastest, least accurate",
+    },
+    {
+        "id": "base.en",
+        "label": "Base (English)",
+        "size_mb": 145,
+        "note": "Recommended default for CPU",
+    },
+    {
+        "id": "small.en",
+        "label": "Small (English)",
+        "size_mb": 480,
+        "note": "More accurate, slower on CPU",
+    },
+    {
+        "id": "distil-small.en",
+        "label": "Distil Small (English)",
+        "size_mb": 330,
+        "note": "Fast and accurate (English)",
+    },
+    {
+        "id": "small",
+        "label": "Small (multilingual)",
+        "size_mb": 480,
+        "note": "For non-English dictation",
+    },
+    {
+        "id": "medium",
+        "label": "Medium (multilingual)",
+        "size_mb": 1500,
+        "note": "Slower on CPU",
+    },
+    {
+        "id": "large-v3",
+        "label": "Large v3 (multilingual)",
+        "size_mb": 3100,
+        "note": "Best accuracy; needs a GPU",
+    },
+]
+
+
+@app.get("/api/settings/voice")
+async def get_voice_settings():
+    """Return the configured microphone STT model and the selectable options."""
+    from palimind.audio.stt import resolve_model_name
+
+    return {"stt_whisper_model": resolve_model_name(), "options": VOICE_STT_OPTIONS}
+
+
+@app.patch("/api/settings/voice")
+async def update_voice_settings(req: Request):
+    """Persist the microphone STT model to the global config."""
+    data = await req.json()
+    model = str(data.get("stt_whisper_model", "")).strip()
+    if not model:
+        return {"error": "stt_whisper_model is required"}
+    try:
+        global_data: dict = {}
+        if GLOBAL_CONFIG_PATH.exists():
+            global_data = json.loads(GLOBAL_CONFIG_PATH.read_text("utf-8"))
+        global_data["stt_whisper_model"] = model
+        GLOBAL_CONFIG_PATH.write_text(json.dumps(global_data, indent=2), "utf-8")
+    except Exception as e:
+        return {"error": str(e)}
+    return {"status": "success", "stt_whisper_model": model}
 
 
 # -- Cookbook / Hardware Endpoints --

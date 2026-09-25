@@ -58,6 +58,7 @@ DEFAULTS = {
     "moe_orchestrator_model": "",
     "moe_worker_model": "",
     "moe_sub_mode": "default",  # "default" or "moe"
+    "stt_whisper_model": "base.en",  # faster-whisper model for mic dictation
     "persona_name": "",
     "persona_system_prompt": "",
 }
