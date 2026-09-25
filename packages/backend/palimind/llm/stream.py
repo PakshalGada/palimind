@@ -52,7 +52,7 @@ async def llm_mode_stream(
             )
 
         yield (
-            f"data: {json.dumps({'type': 'reasoning', 'text': '💬 LLM Mode — general knowledge only (no document context)'})}\n\n"
+            f"data: {json.dumps({'type': 'reasoning', 'text': 'LLM Mode — general knowledge only (no document context)'})}\n\n"
         )
 
         system_prompt = _LLM_SYSTEM_PROMPT

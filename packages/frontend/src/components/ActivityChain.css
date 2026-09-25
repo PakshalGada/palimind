@@ -1,0 +1,143 @@
+/* Chain of thought — transparent timeline rail (no card, no background). */
+
+.ac-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.ac-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.ac-header-left { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.ac-header-right { display: flex; align-items: center; gap: 8px; }
+.ac-mode-icon { color: var(--text-muted); flex: 0 0 auto; }
+.ac-title-main {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.ac-subtitle { display: none; }
+.ac-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ac-collapse {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  display: inline-flex;
+}
+.ac-collapse:hover { color: var(--text-main); }
+
+.ac-steps {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 12px 0 4px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ac-step { position: relative; display: flex; gap: 12px; }
+.ac-node {
+  position: relative;
+  z-index: 1;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.ac-node--active { border-color: var(--text-main); color: var(--text-main); }
+.ac-node--done { border-color: var(--border-color); color: var(--text-muted); }
+.ac-node--error { border-color: var(--danger); color: var(--danger); }
+.ac-line {
+  position: absolute;
+  left: 8px;
+  top: 20px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--border-subtle);
+}
+
+.ac-body { flex: 1; min-width: 0; padding-bottom: 14px; }
+.ac-step-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 0;
+}
+.ac-step-head:hover .ac-step-title { color: var(--text-main); }
+.ac-step-icon { color: var(--text-muted); flex: 0 0 auto; }
+.ac-step-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ac-step--active .ac-step-title { color: var(--text-main); font-weight: 500; }
+.ac-step--pending .ac-step-title { color: var(--text-muted); }
+.ac-step-done { color: var(--text-muted); flex: 0 0 auto; }
+.ac-step-detail {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border-color);
+  border-radius: 0;
+  padding: 0 0 0 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow: auto;
+}
+.ac-children {
+  margin-top: 8px;
+  margin-left: 2px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ac-spin { animation: ac-spin 0.9s linear infinite; }
+@keyframes ac-spin { to { transform: rotate(360deg); } }

@@ -4,8 +4,9 @@ import { ArrowUp, Square } from "lucide-react";
 import ModelSwitcher from "./ModelSwitcher";
 import LoadingSpinner from "./LoadingSpinner";
 import AgentAvatar from "./AgentAvatar";
+import ActivityChain from "./ActivityChain";
 import { useApp } from "../AppContext";
-import type { AgentState } from "../AppContext";
+import type { ActivityMode, AgentState } from "../AppContext";
 import { formatMarkdown } from "../utils/markdown";
 import { api } from "../api";
 import type { AgentListItem, ModelItem } from "../types";
@@ -40,6 +41,7 @@ export default function InputArea() {
     setAgentLoading,
     activeView,
     selectedAgentId,
+    setActivity,
   } = useApp();
 
   const isChatView = activeView === 'chat' || activeView === 'agents';
@@ -66,6 +68,7 @@ export default function InputArea() {
   const [allAgents, setAllAgents] = useState<AgentListItem[]>([]);
   const [mention, setMention] = useState<{ query: string } | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
+  const [chainSlot, setChainSlot] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     api.agents
@@ -215,8 +218,8 @@ export default function InputArea() {
     (a, b) => parseParamsB(b) - parseParamsB(a),
   );
 
-  const largerModels = sortedModels.filter((m) => parseParamsB(m) >= 7);
-  const smallerModels = sortedModels.filter((m) => parseParamsB(m) < 7);
+  // Online (OpenCode proxy) models have no local size metadata.
+  const isOnline = (m: ModelItem) => !m.parameter_size && !m.size_gb;
 
   const handleSend = useCallback(async () => {
     if (isGenerating) return;
@@ -263,6 +266,11 @@ export default function InputArea() {
     userMsgDiv.className = "message user-message";
     userMsgDiv.innerHTML = `<div class="message-wrapper"><div class="message-content" style="background:var(--msg-user-bg);border:1px solid var(--border-color);padding:12px 16px;border-radius:var(--radius-lg);max-width:100%;font-size:0.9rem;">${text || "Sent attachments."}</div></div>`;
     messagesContainer?.appendChild(userMsgDiv);
+    // Chain-of-thought slot: directly below the question, in the answer stream.
+    const chainSlotEl = document.createElement("div");
+    chainSlotEl.className = "cot-inline";
+    userMsgDiv.insertAdjacentElement("afterend", chainSlotEl);
+    setChainSlot(chainSlotEl);
     const scrollArea = document.getElementById("messages-scroll-area");
     if (scrollArea) {
       scrollArea.scrollTo({
@@ -275,6 +283,146 @@ export default function InputArea() {
     setAgentStates([]);
     setAgentLoading(null);
     const thinkingBaseRef = { current: "Thinking..." };
+
+    // ── unified activity chain (same shell for every mode) ────────────
+    const agentInfo = selectedAgentId
+      ? allAgents.find((a) => a.id === selectedAgentId)
+      : undefined;
+    let actMode: ActivityMode = "llm";
+    let actTitle = "LLM";
+    if (activeView === "agents") {
+      actMode = "agent";
+      actTitle = agentInfo?.name || "Agent";
+    } else if (chatMode === "document") {
+      actMode = "document";
+      actTitle = "Document";
+    } else if (llmSubMode === "moe") {
+      actMode = "moe";
+      actTitle = "Mixture of Experts";
+    }
+    setActivity({
+      mode: actMode,
+      title: actTitle,
+      subtitle: actMode === "agent" ? "agent" : undefined,
+      seed:
+        actMode === "agent" && agentInfo
+          ? agentInfo.color_seed || agentInfo.id + agentInfo.name
+          : undefined,
+      steps: [],
+    });
+
+    let stepSeq = 0;
+    const newId = () => `st${Date.now().toString(36)}${(stepSeq++).toString(36)}`;
+    const addStep = (kind: string, title: string, detail = "") => {
+      thinkingBaseRef.current = title;
+      setActivity((prev) =>
+        prev
+          ? {
+              ...prev,
+              steps: [
+                ...prev.steps,
+                { id: newId(), kind, title, detail, status: "active" as const },
+              ],
+            }
+          : prev,
+      );
+    };
+    const completeActive = () =>
+      setActivity((prev) =>
+        prev
+          ? {
+              ...prev,
+              steps: prev.steps.map((s) =>
+                s.status === "active" ? { ...s, status: "done" as const } : s,
+              ),
+            }
+          : prev,
+      );
+    const setActiveDetail = (text: string) =>
+      setActivity((prev) => {
+        if (!prev || prev.steps.length === 0) return prev;
+        const steps = [...prev.steps];
+        const i = steps.length - 1;
+        steps[i] = { ...steps[i], detail: text.length > 2000 ? text.slice(-2000) : text };
+        return { ...prev, steps };
+      });
+    const agentStepIds: Record<number, string> = {};
+    const addAgentStep = (aid: number, title: string, detail = "") => {
+      thinkingBaseRef.current = title;
+      const sid = newId();
+      agentStepIds[aid] = sid;
+      setActivity((prev) =>
+        prev
+          ? {
+              ...prev,
+              steps: [
+                ...prev.steps,
+                {
+                  id: sid,
+                  kind: "agent",
+                  title,
+                  detail,
+                  status: "active" as const,
+                  children: [],
+                },
+              ],
+            }
+          : prev,
+      );
+    };
+    const completeAgentStep = (aid: number) => {
+      const sid = agentStepIds[aid];
+      if (!sid) return;
+      setActivity((prev) =>
+        prev
+          ? {
+              ...prev,
+              steps: prev.steps.map((s) =>
+                s.id === sid ? { ...s, status: "done" as const } : s,
+              ),
+            }
+          : prev,
+      );
+    };
+    const appendAgentChild = (aid: number, text: string) => {
+      const sid = agentStepIds[aid];
+      if (!sid) return;
+      setActivity((prev) =>
+        prev
+          ? {
+              ...prev,
+              steps: prev.steps.map((s) =>
+                s.id === sid
+                  ? {
+                      ...s,
+                      children: [
+                        ...(s.children || []),
+                        { id: newId(), kind: "thought", title: text, status: "done" as const },
+                      ],
+                    }
+                  : s,
+              ),
+            }
+          : prev,
+      );
+    };
+    const reasonKind = (text: string): string => {
+      const t = text.toLowerCase();
+      if (t.includes("document mode") || t.includes("llm mode")) return "mode";
+      if (t.includes("routing")) return "route";
+      if (t.includes("briefing")) return "briefing";
+      if (t.includes("planning") || t.includes("plan")) return "plan";
+      if (t.includes("graph")) return "graph";
+      if (t.includes("search")) return "search";
+      if (t.includes("passage") || t.includes("source")) return "docs";
+      if (t.includes("synthesi")) return "synthesis";
+      if (t.includes("verif")) return "verify";
+      if (t.includes("generat")) return "answer";
+      return "info";
+    };
+    let agentsStarted = false;
+    let reasoningStarted = false;
+    let answerStarted = false;
 
     // When an agent is being invoked in this PaliSpace, surface the same
     // animated profile-picture loading the Agents view uses.
@@ -312,6 +460,8 @@ export default function InputArea() {
       setThinkingText("");
       setAgentStates([]);
       setAgentLoading(null);
+      setActivity(null);
+      setChainSlot(null);
       setIsGenerating(false);
       refreshSessions().then(() => {
         if (messagesContainer) messagesContainer.innerHTML = "";
@@ -357,7 +507,7 @@ export default function InputArea() {
       const titleSpan = document.createElement("span");
       titleSpan.textContent = `${filePath} @ ${fmtTs(start)}${end ? `–${fmtTs(end)}` : ""}`;
       const closeBtn = document.createElement("button");
-      closeBtn.textContent = "✕";
+      closeBtn.textContent = "Close";
       closeBtn.style.cssText =
         "background:none;border:none;color:inherit;font-size:1rem;cursor:pointer;padding:4px 8px;";
       closeBtn.onclick = () => {
@@ -455,7 +605,10 @@ export default function InputArea() {
       } else if (data.type === "citations") {
         renderTextCitations(data.citations || []);
       } else if (data.type === "reasoning") {
-        setThinkingText(data.text.replace(/[>*_]/g, "").trim());
+        const reasonText = String(data.text || "").replace(/[>*_]/g, "").trim();
+        setThinkingText(reasonText);
+        completeActive();
+        addStep(reasonKind(reasonText), reasonText);
       } else if (data.type === "thinking") {
         const t = String(data.text || "").trim();
         if (!t || !messagesContainer) return;
@@ -478,6 +631,12 @@ export default function InputArea() {
           messagesContainer.appendChild(msgDiv);
         }
         thinkingBody!.textContent = (thinkingBody!.textContent || "") + t;
+        if (!reasoningStarted) {
+          completeActive();
+          addStep("reason", "Reasoning");
+          reasoningStarted = true;
+        }
+        setActiveDetail(t);
       } else if (data.type === "progress") {
         setThinkingText(data.text);
       } else if (data.type === "agent_progress") {
@@ -504,22 +663,46 @@ export default function InputArea() {
           };
           return [...prev, newAgent];
         });
+        const aid = data.agent_id as number;
+        if ((data.status || "working") === "complete") {
+          completeAgentStep(aid);
+        } else if (!agentStepIds[aid]) {
+          if (!agentsStarted) {
+            completeActive();
+            agentsStarted = true;
+          }
+          addAgentStep(aid, data.label || `Agent ${aid}`, data.task || "");
+        }
       } else if (data.type === "agent_thinking") {
+        const aid = data.agent_id as number;
+        const step = data.text as string;
         setAgentStates((prev: AgentState[]) => {
-          const aid = data.agent_id as number;
-          const step = data.text as string;
           return prev.map((a) =>
             a.agent_id === aid ? { ...a, steps: [...a.steps, step] } : a,
           );
         });
+        appendAgentChild(aid, step);
       } else if (data.type === "agent:thought") {
         const t = String(data.text || "").replace(/\s+/g, " ").trim();
         if (t && !t.startsWith("FINAL_ANSWER")) {
           setThinkingText(t.slice(0, 90));
+          completeActive();
+          addStep("thought", "Thinking", t.slice(0, 400));
         }
       } else if (data.type === "agent:tool_call") {
         setThinkingText(`Using tool: ${String(data.tool || "…")}`);
+        completeActive();
+        addStep(
+          "tool",
+          String(data.tool || "tool"),
+          data.args != null ? JSON.stringify(data.args) : "",
+        );
       } else if (data.type === "agent:completed") {
+        if (!answerStarted) {
+          completeActive();
+          addStep("answer", "Answer");
+          answerStarted = true;
+        }
         clearInterval(timerInterval);
         setThinkingText("");
         const finalOutput = String(data.output || "").trim();
@@ -548,6 +731,8 @@ export default function InputArea() {
         }
       } else if (data.type === "agent:waiting_for_human") {
         setThinkingText(`Awaiting approval: ${data.tool || "action"}`);
+        completeActive();
+        addStep("approval", "Approval required", String(data.tool || ""));
         if (!messagesContainer) return;
         const card = document.createElement("div");
         card.className = "approval-card";
@@ -601,6 +786,11 @@ export default function InputArea() {
         const approvalScroll = document.getElementById("messages-scroll-area");
         if (approvalScroll) approvalScroll.scrollTop = approvalScroll.scrollHeight;
       } else if (data.type === "agent:token") {
+        if (!answerStarted) {
+          completeActive();
+          addStep("answer", "Answer");
+          answerStarted = true;
+        }
         if (data.reset) {
           fullText = "";
           if (contentDiv) contentDiv.innerHTML = "";
@@ -630,6 +820,11 @@ export default function InputArea() {
           contentDiv.innerHTML = formatMarkdown(fullText);
         }
       } else if (data.type === "token") {
+        if (!answerStarted) {
+          completeActive();
+          addStep("answer", "Answer");
+          answerStarted = true;
+        }
         if (!contentDiv) {
           clearInterval(timerInterval);
           setThinkingText("");
@@ -660,6 +855,8 @@ export default function InputArea() {
         setThinkingText("");
         setAgentStates([]);
         setAgentLoading(null);
+        setActivity(null);
+        setChainSlot(null);
         if (!contentDiv) {
           contentDiv = document.createElement("div");
           contentDiv.className = "message-content";
@@ -683,6 +880,8 @@ export default function InputArea() {
         setThinkingText("");
         setAgentStates([]);
         setAgentLoading(null);
+        setActivity(null);
+        setChainSlot(null);
         eventSource.close();
         setIsGenerating(false);
         refreshSessions().then(() => {
@@ -696,6 +895,8 @@ export default function InputArea() {
       setThinkingText("");
       setAgentStates([]);
       setAgentLoading(null);
+      setActivity(null);
+      setChainSlot(null);
       eventSource.close();
       setIsGenerating(false);
       refreshSessions().then(() => {
@@ -716,6 +917,9 @@ export default function InputArea() {
     setIsGenerating,
     refreshSessions,
     allAgents,
+    activeView,
+    selectedAgentId,
+    setActivity,
   ]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -990,13 +1194,11 @@ export default function InputArea() {
                     <div className="moe-popup-models">
                       <div className="moe-popup-field">
                         <label className="moe-popup-label">Orchestrator</label>
-                        <div className="moe-popup-hint">
-                          Larger model — creates plan & synthesizes results
-                        </div>
+                        <div className="moe-popup-hint">Plans and synthesizes results</div>
                         <div className="moe-popup-model-list">
                           {modelsLoading ? (
                             <LoadingSpinner size="sm" text="Loading models..." className="moe-popup-loading" />
-                          ) : largerModels.length === 0 ? (
+                          ) : (
                             sortedModels.map((m) => (
                               <div
                                 key={m.model_id}
@@ -1012,31 +1214,7 @@ export default function InputArea() {
                                   {m.display_name || m.model_id}
                                 </span>
                                 <span className="moe-popup-model-size">
-                                  {m.parameter_size || m.size_gb
-                                    ? `${m.size_gb || "?"}GB`
-                                    : ""}
-                                </span>
-                              </div>
-                            ))
-                          ) : (
-                            [...largerModels, ...smallerModels].map((m) => (
-                              <div
-                                key={m.model_id}
-                                className={`moe-popup-model-item${(orchestratorModel || currentModel) === m.model_id ? " selected" : ""}`}
-                                onClick={() => {
-                                  setOrchestratorModel(m.model_id);
-                                  api.config
-                                    .setMoe({ moe_orchestrator_model: m.model_id }, scope)
-                                    .catch(() => {});
-                                }}
-                              >
-                                <span className="moe-popup-model-name">
-                                  {m.display_name || m.model_id}
-                                </span>
-                                <span className="moe-popup-model-size">
-                                  {m.parameter_size || m.size_gb
-                                    ? `${m.size_gb || "?"}GB`
-                                    : ""}
+                                  {isOnline(m) ? "online" : m.size_gb ? `${m.size_gb}GB` : m.parameter_size || ""}
                                 </span>
                               </div>
                             ))
@@ -1045,13 +1223,11 @@ export default function InputArea() {
                       </div>
                       <div className="moe-popup-field">
                         <label className="moe-popup-label">Worker</label>
-                        <div className="moe-popup-hint">
-                          Smaller model — runs on 4 agents in parallel
-                        </div>
+                        <div className="moe-popup-hint">Runs the expert agents in parallel</div>
                         <div className="moe-popup-model-list">
                           {modelsLoading ? (
                             <LoadingSpinner size="sm" text="Loading models..." className="moe-popup-loading" />
-                          ) : smallerModels.length === 0 ? (
+                          ) : (
                             sortedModels.map((m) => (
                               <div
                                 key={m.model_id}
@@ -1067,31 +1243,7 @@ export default function InputArea() {
                                   {m.display_name || m.model_id}
                                 </span>
                                 <span className="moe-popup-model-size">
-                                  {m.parameter_size || m.size_gb
-                                    ? `${m.size_gb || "?"}GB`
-                                    : ""}
-                                </span>
-                              </div>
-                            ))
-                          ) : (
-                            smallerModels.map((m) => (
-                              <div
-                                key={m.model_id}
-                                className={`moe-popup-model-item${(workerModel || currentModel) === m.model_id ? " selected" : ""}`}
-                                onClick={() => {
-                                  setWorkerModel(m.model_id);
-                                  api.config
-                                    .setMoe({ moe_worker_model: m.model_id }, scope)
-                                    .catch(() => {});
-                                }}
-                              >
-                                <span className="moe-popup-model-name">
-                                  {m.display_name || m.model_id}
-                                </span>
-                                <span className="moe-popup-model-size">
-                                  {m.parameter_size || m.size_gb
-                                    ? `${m.size_gb || "?"}GB`
-                                    : ""}
+                                  {isOnline(m) ? "online" : m.size_gb ? `${m.size_gb}GB` : m.parameter_size || ""}
                                 </span>
                               </div>
                             ))
@@ -1140,6 +1292,7 @@ export default function InputArea() {
         </div>
       </PromptInput>
       <ModelSwitcher />
+      {chainSlot && createPortal(<ActivityChain />, chainSlot)}
     </div>
   );
 }

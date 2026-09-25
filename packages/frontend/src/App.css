@@ -536,6 +536,11 @@ body {
     min-height: 0;
     min-width: 0;
 }
+/* Chain of thought appears inline, below the current question. */
+.cot-inline {
+    max-width: 760px;
+    width: 100%;
+}
 .active-field-badge {
     font-size: 0.72rem;
     background: var(--bg-active);
@@ -2680,16 +2685,25 @@ summary.thinking-toggle::-webkit-details-marker {
     display: none;
 }
 summary.thinking-toggle::before {
-    content: "💭";
-    font-size: 0.8rem;
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    display: inline-block;
+    flex: 0 0 auto;
 }
 details[open] summary.thinking-toggle::before {
-    content: "💭";
+    background: var(--text-secondary);
 }
 summary.thinking-toggle::after {
-    content: "▼";
-    font-size: 0.6rem;
+    content: "";
+    width: 0;
+    height: 0;
     margin-left: auto;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid var(--text-muted);
     transition: transform 0.2s ease;
     display: inline-block;
 }

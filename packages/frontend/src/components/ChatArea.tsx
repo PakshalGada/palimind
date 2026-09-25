@@ -3,7 +3,6 @@ import { useApp } from '../AppContext';
 import { formatMarkdown } from '../utils/markdown';
 import IndexingProgress from './IndexingProgress';
 import InputArea from './InputArea';
-import ThinkingOverlay from './ThinkingOverlay';
 
 export default function ChatArea() {
   const { sessions, activeSessionId, activeView } = useApp();
@@ -17,8 +16,6 @@ export default function ChatArea() {
       messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
     }
   }, [currentSess?.messages]);
-
-
 
   return (
     <main className="chat-area" id="main-area">
@@ -36,7 +33,6 @@ export default function ChatArea() {
           <h1>Palimind</h1>
         </div>
 
-        <ThinkingOverlay />
         <InputArea />
       </div>
     </main>

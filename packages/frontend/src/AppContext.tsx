@@ -15,6 +15,27 @@ export interface AgentState {
   steps: string[];
 }
 
+export type ActivityMode = 'llm' | 'document' | 'moe' | 'agent';
+export type ActivityStatus = 'pending' | 'active' | 'done' | 'error';
+
+export interface ActivityStep {
+  id: string;
+  kind: string;
+  title: string;
+  detail?: string;
+  status: ActivityStatus;
+  children?: ActivityStep[];
+}
+
+export interface ActivityState {
+  mode: ActivityMode;
+  title: string;
+  subtitle?: string;
+  /** Avatar seed when the activity belongs to a named agent. */
+  seed?: string;
+  steps: ActivityStep[];
+}
+
 interface AppState {
   activeView: AppView;
   activeField: string | null;
@@ -39,6 +60,7 @@ interface AppState {
   agentStates: AgentState[];
   selectedAgentId: string | null;
   agentLoading: { seed: string; name: string } | null;
+  activity: ActivityState | null;
 }
 
 interface AppContextType extends AppState {
@@ -66,6 +88,7 @@ interface AppContextType extends AppState {
   setAgentStates: React.Dispatch<React.SetStateAction<AgentState[]>>;
   setSelectedAgentId: (id: string | null) => void;
   setAgentLoading: (v: { seed: string; name: string } | null) => void;
+  setActivity: React.Dispatch<React.SetStateAction<ActivityState | null>>;
   refreshFields: () => Promise<void>;
   refreshSessions: () => Promise<void>;
   refreshFileTree: () => Promise<void>;
@@ -99,6 +122,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [agentStates, setAgentStates] = useState<AgentState[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [agentLoading, setAgentLoading] = useState<{ seed: string; name: string } | null>(null);
+  const [activity, setActivity] = useState<ActivityState | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   const toastId = useRef(0);
@@ -239,6 +263,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         agentStates, setAgentStates,
         selectedAgentId, setSelectedAgentId,
         agentLoading, setAgentLoading,
+        activity, setActivity,
         refreshFields, refreshSessions, refreshFileTree,
         abortController, setAbortController,
       }}

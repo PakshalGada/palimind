@@ -165,7 +165,7 @@ async def agent_sse_stream(
                 mode_params=mode_params,
             )
 
-        yield agent_sse("reasoning", {"text": f"🤖 Running agent '{agent_name}'..."})
+        yield agent_sse("reasoning", {"text": f"Running agent '{agent_name}'..."})
 
         full_text = ""
         async for ev in stream_agent(

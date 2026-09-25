@@ -50,7 +50,7 @@ async def document_mode_stream(
         engine = DocumentEngine(active_field, ollama_url, chat_model)
 
         yield (
-            f"data: {json.dumps({'type': 'reasoning', 'text': '📄 Document Mode — searching indexed documents only'})}\n\n"
+            f"data: {json.dumps({'type': 'reasoning', 'text': 'Document Mode — searching indexed documents only'})}\n\n"
         )
 
         yield (
