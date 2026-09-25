@@ -8,30 +8,43 @@ import SettingsModal from './components/SettingsModal';
 import DirectoryPicker from './components/DirectoryPicker';
 import KnowledgeGraph from './components/KnowledgeGraph';
 import ToastContainer from './components/ToastContainer';
-import Agents from './views/Agents';
+import AgentManager from './features/agents/AgentManager';
+import AgentHeader from './features/agents/AgentHeader';
 
 export default function App() {
   const {
     activeView,
+    selectedAgentId,
     activeField, setActiveField, setSessions, setActiveSessionId,
     setCurrentModel, setLlmSubMode, setOrchestratorModel, setWorkerModel,
     setIsIndexing, setIndexingStatus, addToast,
     isRecording, isTranscribing, isSpeaking,
   } = useApp();
 
+  // The Agents area reuses the global chat surface but is backed by the
+  // selected agent's own scope (separate sessions, model and settings). With
+  // no agent selected the scope is intentionally empty — it must never fall
+  // back to global or knowledge-base chat.
+  const scope =
+    activeView === 'agents'
+      ? selectedAgentId
+        ? `agent:${selectedAgentId}`
+        : ''
+      : activeView === 'chat'
+        ? 'chat'
+        : 'field';
+
   useEffect(() => {
     async function init() {
-      const scope = activeView === 'chat' ? 'chat' : 'field';
       try {
-        const [fieldsData, configData] = await Promise.all([
-          api.fields.list(),
-          api.config.get(scope),
-        ]);
+        const fieldsData = await api.fields.list();
         setActiveField(fieldsData.active_field);
         setIsIndexing(fieldsData.is_indexing);
         if (fieldsData.is_indexing) {
           setIndexingStatus(fieldsData.indexing_status || 'Indexing knowledge base...');
         }
+        if (!scope) return;
+        const configData = await api.config.get(scope);
         if (configData.chat_model) {
           setCurrentModel(configData.chat_model);
         }
@@ -50,30 +63,28 @@ export default function App() {
       }
     }
     init();
-  }, [activeView]);
+  }, [scope]);
 
   useEffect(() => {
-    if (activeView === 'chat') {
-      api.sessions.list('chat').then(data => {
-        if (!data.error) {
-          setSessions(data.sessions);
-          setActiveSessionId(data.active_session_id);
-        }
-      }).catch(() => {});
-      return;
-    }
-    if (!activeField) {
+    if (!scope || (scope === 'field' && !activeField)) {
       setSessions([]);
       setActiveSessionId(null);
       return;
     }
-    api.sessions.list('field').then(data => {
-      if (!data.error) {
-        setSessions(data.sessions);
-        setActiveSessionId(data.active_session_id);
-      }
+    // Clear the previous scope first, and ignore a late response from a scope
+    // we have already left, so histories never cross between scopes.
+    let cancelled = false;
+    setSessions([]);
+    setActiveSessionId(null);
+    api.sessions.list(scope).then(data => {
+      if (cancelled || data.error) return;
+      setSessions(data.sessions);
+      setActiveSessionId(data.active_session_id);
     }).catch(() => {});
-  }, [activeField, activeView]);
+    return () => {
+      cancelled = true;
+    };
+  }, [scope, activeField]);
 
   const containerClass = [
     'app-container',
@@ -86,12 +97,20 @@ export default function App() {
     <div className={containerClass}>
       <Sidebar />
       {activeView === "agents" ? (
-        <Agents />
+        <div className="agents-main">
+          <AgentHeader />
+          {selectedAgentId ? (
+            <ChatArea />
+          ) : (
+            <div className="agents-nosel">Select an agent to start chatting.</div>
+          )}
+        </div>
       ) : activeView === "chat" || activeField ? (
         <ChatArea />
       ) : (
         <WelcomeScreen />
       )}
+      <AgentManager />
       <SettingsModal />
       <DirectoryPicker />
       <KnowledgeGraph />

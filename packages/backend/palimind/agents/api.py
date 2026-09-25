@@ -5,16 +5,18 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
+from palimind.agents import activity, approvals
 from palimind.agents.catalog import AgentDefinition
 from palimind.agents.chat import clear_chat, read_chat
+from palimind.agents.memory import read_memory
 from palimind.agents.registry import get_registry
 from palimind.agents.runtime import (
     cancel_agent,
     clear_agent_memory,
     delete_memory_entry,
     get_last_run,
+    get_run,
     get_run_history,
-    read_memory,
     resolve_approval,
 )
 from palimind.agents.service import stream_agent
@@ -91,6 +93,61 @@ async def agent_tools():
     return {"tools": tools}
 
 
+@router.get("/skills")
+async def agent_skills():
+    """List the skills that can be attached to agents."""
+    from palimind.agents.skills import list_skills
+
+    return {"skills": list_skills()}
+
+
+@router.get("/activity")
+async def agent_activity():
+    """Live activity for the Mission Control wall: what each agent is doing
+    right now, plus a bounded wire of recent events."""
+    return activity.snapshot()
+
+
+@router.get("/approvals")
+async def agent_approvals():
+    """All pending human-in-the-loop approvals across agents (the Inbox)."""
+    return {"approvals": approvals.list_pending()}
+
+
+@router.get("/runs/recent")
+async def recent_runs(limit: int = 30):
+    """Recent runs across every agent, newest first (traces stripped)."""
+    cap = max(1, min(int(limit or 30), 100))
+    items: list[dict] = []
+    for defn in get_registry().all():
+        for record in get_run_history(defn.id, limit=cap):
+            stripped = {k: v for k, v in record.items() if k != "trace"}
+            items.append({"agent_id": defn.id, "agent_name": defn.name, **stripped})
+    items.sort(key=lambda r: float(r.get("timestamp", 0) or 0), reverse=True)
+    return {"runs": items[:cap]}
+
+
+@router.post("/hooks/{token}")
+async def agent_webhook(token: str, req: Request):
+    """Run a webhook-mode agent. The token is the agent's webhook_token."""
+    defn = get_registry().get_by_webhook_token(token)
+    if defn is None:
+        return {"error": "unknown webhook token"}
+    if not defn.enabled:
+        return {"error": "agent is disabled"}
+    if defn.run_mode != "webhook":
+        return {"error": "agent is not in webhook mode"}
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    payload = str(body.get("input") or body.get("q") or "").strip() or "Run your task."
+    from palimind.agents.service import run_agent
+
+    output = await run_agent(defn, payload, session_id="_webhook")
+    return {"status": "success", "output": output}
+
+
 @router.post("/validate-cron")
 async def validate_cron(req: Request):
     from palimind.agents.catalog import validate_cron as vc
@@ -98,6 +155,17 @@ async def validate_cron(req: Request):
     body = await req.json()
     error = vc(str(body.get("schedule", "")))
     return {"valid": error is None, "error": error}
+
+
+@router.post("/{agent_id}/recall-preview")
+async def recall_preview(agent_id: str, req: Request):
+    """Preview which memory entries would be recalled for a query."""
+    body = await req.json()
+    from palimind.agents.memory import recall_memory
+
+    query = str(body.get("query", ""))
+    k = int(body.get("k", 8) or 8)
+    return {"entries": recall_memory(agent_id, query, k=k)}
 
 
 @router.get("/{agent_id}/memory")
@@ -131,7 +199,20 @@ async def clear_memory(agent_id: str):
 
 @router.get("/{agent_id}/history")
 async def agent_history(agent_id: str, limit: int = 50):
-    return {"history": list(reversed(get_run_history(agent_id, limit=limit)))}
+    history = list(reversed(get_run_history(agent_id, limit=limit)))
+    # The list view omits the (potentially large) reasoning trace; fetch a
+    # single run via /runs/{run_id} when the user expands it.
+    for record in history:
+        record.pop("trace", None)
+    return {"history": history}
+
+
+@router.get("/{agent_id}/runs/{run_id}")
+async def agent_run_detail(agent_id: str, run_id: str):
+    record = get_run(agent_id, run_id)
+    if record is None:
+        return {"error": "run not found"}
+    return record
 
 
 @router.post("/{agent_id}/run")

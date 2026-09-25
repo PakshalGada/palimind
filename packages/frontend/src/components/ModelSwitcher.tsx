@@ -5,8 +5,13 @@ import type { ModelItem, Recommendation, HardwareData } from '../types';
 import LoadingSpinner from './LoadingSpinner';
 
 export default function ModelSwitcher() {
-  const { currentModel, setCurrentModel, addToast, activeView } = useApp();
-  const scope = activeView === 'chat' ? 'chat' : 'field';
+  const { currentModel, setCurrentModel, addToast, activeView, selectedAgentId } = useApp();
+  const scope =
+    activeView === 'agents' && selectedAgentId
+      ? `agent:${selectedAgentId}`
+      : activeView === 'chat'
+        ? 'chat'
+        : 'field';
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'models' | 'cookbook'>('models');
   const [models, setModels] = useState<ModelItem[]>([]);
@@ -36,7 +41,8 @@ export default function ModelSwitcher() {
     try {
       const data = await api.models.list();
       if (data.models) setModels(data.models);
-      if (data.current_model) {
+      // Keep the agent's own model when scoped to an agent.
+      if (data.current_model && !scope.startsWith('agent:')) {
         setCurrentModel(data.current_model);
       }
       if (data.status === 'offline') {
@@ -48,7 +54,7 @@ export default function ModelSwitcher() {
       setModelsError('Could not reach backend');
     }
     setModelsLoading(false);
-  }, [setCurrentModel]);
+  }, [setCurrentModel, scope]);
 
   const fetchHardware = useCallback(async () => {
     setHwLoading(true);

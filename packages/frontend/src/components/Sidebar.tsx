@@ -79,7 +79,14 @@ export default function Sidebar() {
     setChatMode,
   } = useApp();
 
-  const chatScope = () => (activeView === 'chat' ? 'chat' : 'field');
+  const chatScope = () =>
+    activeView === 'agents'
+      ? selectedAgentId
+        ? `agent:${selectedAgentId}`
+        : ''
+      : activeView === 'chat'
+        ? 'chat'
+        : 'field';
 
   const [fields, setFields] = useState<string[]>([]);
   const [syncText, setSyncText] = useState("Sync Active Knowledge Base");
@@ -541,30 +548,32 @@ export default function Sidebar() {
         <div className="sidebar-agents-content">
           <div className="fields-header">
             <h3>Agents</h3>
-            <button
-              className="icon-btn"
-              data-tooltip="New Agent"
-              aria-label="Create new agent"
-              onClick={() =>
-                window.dispatchEvent(new CustomEvent("palimind:new-agent"))
-              }
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            <span className="sidebar-header-actions">
+              <button
+                className="icon-btn"
+                data-tooltip="New Agent"
+                aria-label="Create new agent"
+                onClick={() =>
+                  window.dispatchEvent(new CustomEvent("palimind:new-agent"))
+                }
               >
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </button>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+            </span>
           </div>
-          <div className="session-list">
+          <div className="session-list agent-list-section">
             {agents.map((a) => (
               <div
                 key={a.id}
@@ -574,6 +583,21 @@ export default function Sidebar() {
               >
                 <AgentAvatar seed={a.color_seed || a.id + a.name} size={20} />
                 <span className="session-tab-name">{a.name}</span>
+                <button
+                  className="icon-btn agent-menu-btn"
+                  title="Options"
+                  aria-label={`Options for ${a.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    showAgentMenu(e, a);
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="5" r="1.6" />
+                    <circle cx="12" cy="12" r="1.6" />
+                    <circle cx="12" cy="19" r="1.6" />
+                  </svg>
+                </button>
               </div>
             ))}
             {agents.length === 0 && (

@@ -147,18 +147,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // One canonical scope per view. The Agents view is deliberately empty when
+  // no agent is selected — it must never fall back to global/field chat.
+  const sessionScope =
+    activeView === 'agents'
+      ? selectedAgentId
+        ? `agent:${selectedAgentId}`
+        : ''
+      : activeView === 'chat'
+        ? 'chat'
+        : 'field';
+
+  const sessionScopeRef = useRef(sessionScope);
+  useEffect(() => {
+    sessionScopeRef.current = sessionScope;
+  }, [sessionScope]);
+
   const refreshSessions = useCallback(async () => {
-    const scope = activeView === 'chat' ? 'chat' : 'field';
-    if (scope === 'field' && !activeField) return;
+    const requested = sessionScope;
+    if (!requested) {
+      setSessions([]);
+      setActiveSessionId(null);
+      return;
+    }
+    if (requested === 'field' && !activeField) {
+      setSessions([]);
+      setActiveSessionId(null);
+      return;
+    }
     try {
-      const data = await api.sessions.list(scope);
-      if (data.error) return;
+      const data = await api.sessions.list(requested);
+      // Ignore a late response from a scope we have since left.
+      if (data.error || sessionScopeRef.current !== requested) return;
       setSessions(data.sessions);
       setActiveSessionId(data.active_session_id);
     } catch (e) {
       console.error('Error fetching sessions:', e);
     }
-  }, [activeField, activeView]);
+  }, [activeField, sessionScope]);
 
   const refreshFileTree = useCallback(async () => {
     // handled in FileTreeView component

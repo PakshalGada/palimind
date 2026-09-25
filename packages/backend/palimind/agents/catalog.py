@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import secrets
 import threading
 import uuid
 from dataclasses import asdict, dataclass, field, fields
@@ -14,7 +15,7 @@ GLOBAL_AGENTS_DIR = Path.home() / ".palimind" / "agents"
 TIER_POLICIES = ("tier1", "tier1+2", "all")
 MEMORY_SCOPES = ("none", "session", "field")
 VISIBILITIES = ("field", "global")
-RUN_MODES = ("on_demand", "scheduled", "watcher")
+RUN_MODES = ("on_demand", "scheduled", "watcher", "webhook")
 
 _NAME_RE = re.compile(r"^[\w-]{1,64}$")
 
@@ -47,6 +48,9 @@ class AgentDefinition:
     write_access: bool
     shell_access: bool
     enabled: bool
+    self_critique: bool = False
+    skills: list[str] = field(default_factory=list)
+    webhook_token: str = ""
     context_fields: list[str] = field(default_factory=list)
     color_seed: str = ""
 
@@ -77,6 +81,9 @@ class AgentDefinition:
         write_access: bool = False,
         shell_access: bool = False,
         enabled: bool = True,
+        self_critique: bool = False,
+        skills: list[str] | None = None,
+        webhook_token: str = "",
         context_fields: list[str] | None = None,
         field_root: Path | None = None,
         color_seed: str = "",
@@ -103,6 +110,9 @@ class AgentDefinition:
             write_access=write_access,
             shell_access=shell_access,
             enabled=enabled,
+            self_critique=self_critique,
+            skills=list(skills or []),
+            webhook_token=webhook_token or secrets.token_urlsafe(24),
             context_fields=list(context_fields or []),
             color_seed=color_seed,
         )
@@ -137,8 +147,13 @@ class AgentDefinition:
         cleaned.setdefault("write_access", False)
         cleaned.setdefault("shell_access", False)
         cleaned.setdefault("enabled", True)
+        cleaned.setdefault("self_critique", False)
+        cleaned.setdefault("skills", [])
+        cleaned.setdefault("webhook_token", "")
         cleaned.setdefault("context_fields", [])
         cleaned.setdefault("color_seed", "")
+        if not cleaned.get("webhook_token"):
+            cleaned["webhook_token"] = secrets.token_urlsafe(24)
         return cls(**cleaned)
 
     # ── memory file ─────────────────────────────────────────────────────
@@ -278,6 +293,15 @@ class AgentCatalog:
     def get_by_id(self, agent_id: str) -> AgentDefinition | None:
         with self._lock:
             return self._by_id.get(agent_id)
+
+    def get_by_webhook_token(self, token: str) -> AgentDefinition | None:
+        if not token:
+            return None
+        with self._lock:
+            for defn in self._by_name.values():
+                if defn.webhook_token and secrets.compare_digest(defn.webhook_token, token):
+                    return defn
+        return None
 
     # ── mutation ────────────────────────────────────────────────────────
 

@@ -164,15 +164,65 @@ state = AppState()
 state.load()
 
 
+def _agent_chat_root(agent_id: str) -> Path:
+    """Per-agent private store (sessions, config) under the agents folder."""
+    return Path.home() / ".palimind" / "agents" / agent_id
+
+
+_agent_sessions_seeded: set[str] = set()
+
+
+def _ensure_agent_sessions(agent_id: str) -> None:
+    """Give each agent its own session store, seeded from its chat log.
+
+    Agents keep their own conversation history. On first use we migrate the
+    legacy per-agent chat log into a session so nothing is lost.
+    """
+    if not agent_id or agent_id in _agent_sessions_seeded:
+        return
+    _agent_sessions_seeded.add(agent_id)
+    root = _agent_chat_root(agent_id)
+    try:
+        from palimind.memory.session_store import (
+            append_message_to_session,
+            get_sessions_index_file,
+            load_sessions,
+        )
+
+        if get_sessions_index_file(root).exists():
+            return
+        from palimind.agents.chat import read_chat
+
+        history = read_chat(agent_id)
+        if not history:
+            return
+        # load_sessions creates the agent's default session on first use.
+        data = load_sessions(root)
+        session_id = data.get("active_session_id")
+        if not session_id:
+            return
+        for message in history:
+            role = "system" if str(message.get("role")) == "agent" else "user"
+            content = str(message.get("content", "") or "")
+            if content:
+                append_message_to_session(root, session_id, role, content)
+    except Exception as e:
+        print(f"[agents] failed to seed sessions for {agent_id}: {e}")
+
+
 def _chat_root(scope: str) -> Path | None:
     """Resolve the session/config root for a chat scope.
 
     ``scope="chat"`` uses a global, knowledge-base-independent store under the
-    user's home directory. ``scope="field"`` (default) uses the active
-    knowledge base.
+    user's home directory. ``scope="agent:<id>"`` uses that agent's own store
+    so its conversations are kept entirely separate from global/field chat.
+    ``scope="field"`` (default) uses the active knowledge base.
     """
     if scope == "chat":
         return Path.home()
+    if scope.startswith("agent:"):
+        agent_id = scope.split(":", 1)[1].strip()
+        return _agent_chat_root(agent_id) if agent_id else None
     return state.active_field
 
 
@@ -790,6 +840,8 @@ async def get_sessions(scope: str = "field"):
     root = _chat_root(scope)
     if root is None:
         return {"error": "No active knowledge base"}
+    if scope.startswith("agent:"):
+        await asyncio.to_thread(_ensure_agent_sessions, scope.split(":", 1)[1].strip())
     sessions_data = await asyncio.to_thread(load_sessions, root)
     return sessions_data
 
@@ -898,6 +950,44 @@ async def get_file_tree_sub(path: str = ""):
     return {"children": children}
 
 
+async def _agent_scope_chat(scope: str, q: str, session_id: str | None) -> StreamingResponse:
+    """Route a chat directly to the agent named by ``scope="agent:<id>"``.
+
+    The agent's conversations are stored in its own private session store, so
+    they never mix with global or knowledge-base chat.
+    """
+    from palimind.agents.registry import get_registry
+    from palimind.agents.service import agent_sse_stream
+    from palimind.config import load_global_config
+    from palimind.opencode.router import resolve_model_url
+
+    agent_id = scope.split(":", 1)[1].strip()
+    defn = get_registry().get_by_id(agent_id)
+    if defn is None or not defn.enabled:
+
+        async def err_stream():
+            msg = "Agent not found" if defn is None else "Agent is disabled"
+            yield f"data: {json.dumps({'type': 'error', 'text': msg})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+        return StreamingResponse(err_stream(), media_type="text/event-stream")
+
+    _ensure_agent_sessions(agent_id)
+    global_cfg = load_global_config()
+    ollama_url = global_cfg.get("ollama_base_url", "http://localhost:11434")
+    model = defn.model or global_cfg.get("chat_model", "llama3")
+    return await agent_sse_stream(
+        _agent_chat_root(agent_id),
+        defn.name,
+        q,
+        session_id,
+        resolve_model_url(model, ollama_url),
+        model,
+        working_root=None,
+        prefix_mention=False,
+    )
+
+
 @app.get("/api/chat")
 async def chat_stream(
     q: str,
@@ -908,6 +998,9 @@ async def chat_stream(
     llm_sub_mode: str | None = None,
     scope: str = "field",
 ):
+    if scope.startswith("agent:"):
+        return await _agent_scope_chat(scope, q, session_id)
+
     root = _chat_root(scope)
     if root is None:
 
@@ -1279,12 +1372,22 @@ async def get_models():
 
 
 @app.patch("/api/config/model")
-async def update_model(req: Request):
-    """Update the active chat model for the current field."""
+async def update_model(req: Request, scope: str = "field"):
+    """Update the chat model for the current scope (field, chat or agent)."""
     data = await req.json()
     model_id = data.get("model_id")
     if not model_id:
         return {"error": "model_id is required"}
+
+    if scope.startswith("agent:"):
+        from palimind.agents.registry import get_registry
+
+        agent_id = scope.split(":", 1)[1].strip()
+        try:
+            get_registry().update(agent_id, {"model": model_id})
+        except Exception as e:
+            return {"error": str(e)}
+        return {"status": "success", "model": model_id}
 
     from palimind.config import config_path, load_config, palimind_dir
 
@@ -1392,6 +1495,22 @@ async def get_config(scope: str = "field"):
     """Return current config for the active scope."""
     from palimind.config import load_config
 
+    if scope.startswith("agent:"):
+        from palimind.agents.registry import get_registry
+
+        base = _global_chat_config()
+        agent_id = scope.split(":", 1)[1].strip()
+        defn = get_registry().get_by_id(agent_id)
+        return {
+            "chat_model": (defn.model if defn and defn.model else base.get("chat_model", "llama3")),
+            "embed_model": base.get("embed_model", "nomic-embed-text"),
+            "ollama_base_url": base.get("ollama_base_url", "http://localhost:11434"),
+            "moe_orchestrator_model": "",
+            "moe_worker_model": "",
+            "moe_sub_mode": "default",
+            "persona_name": defn.name if defn else "",
+            "persona_system_prompt": defn.system_prompt if defn else "",
+        }
     if scope == "chat":
         config = _global_chat_config()
     elif state.active_field:
@@ -1440,6 +1559,9 @@ async def update_persona(req: Request):
 async def update_moe_config(req: Request, scope: str = "field"):
     """Update MoE configuration for the active field (or global chat scope)."""
     data = await req.json()
+    if scope.startswith("agent:"):
+        # MoE does not apply to a single agent — accept and ignore.
+        return {"status": "success", "note": "MoE settings do not apply to an agent"}
     if scope == "chat":
         global_data = {}
         if GLOBAL_CONFIG_PATH.exists():
@@ -1502,6 +1624,25 @@ async def moe_hardware_check():
         }
     except Exception as e:
         return {"error": str(e)}
+
+
+@app.get("/api/browser/screenshot")
+async def browser_screenshot_live():
+    """Return a PNG of the agent browser's current page for the live view.
+
+    404 when no browser session is open (or Playwright is unavailable), so the
+    UI can hide the panel without logging an error.
+    """
+    from palimind.agents.tools.browser.tool import screenshot_png
+
+    png = await asyncio.to_thread(screenshot_png)
+    if not png:
+        raise HTTPException(status_code=404, detail="No active browser session")
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 # -- Settings: OpenCode API Key --

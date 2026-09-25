@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,54 @@ from typing import Any
 from palimind.settings import AGENT_MEMORY_MAX_ENTRIES
 
 ALLOWED_TYPES = ("fact", "preference", "result", "error")
+
+_WORD_RE = re.compile(r"[a-z0-9]+")
+_STOPWORDS = {
+    "the",
+    "and",
+    "for",
+    "are",
+    "was",
+    "were",
+    "with",
+    "that",
+    "this",
+    "from",
+    "have",
+    "has",
+    "had",
+    "you",
+    "your",
+    "our",
+    "its",
+    "into",
+    "about",
+    "what",
+    "when",
+    "where",
+    "which",
+    "who",
+    "how",
+    "why",
+    "can",
+    "will",
+    "would",
+    "should",
+    "could",
+    "not",
+    "but",
+    "all",
+    "any",
+    "some",
+    "use",
+    "using",
+    "run",
+    "ran",
+}
+
+
+def _tokens(text: str) -> set[str]:
+    return {w for w in _WORD_RE.findall(text.lower()) if len(w) > 2 and w not in _STOPWORDS}
 
 
 def _memory_path(agent_id: str) -> Path | None:
@@ -43,6 +92,27 @@ def read_memory(agent_id: str) -> list[dict[str, Any]]:
         return sorted(entries, key=lambda e: str(e.get("timestamp", "")))
     except Exception:
         return []
+
+
+def recall_memory(agent_id: str, query: str, k: int = 8) -> list[dict[str, Any]]:
+    """Return the memory entries most relevant to *query*.
+
+    Uses lightweight lexical overlap (fast, no embedding call) and falls back
+    to the most recent entries when nothing matches.
+    """
+    entries = read_memory(agent_id)
+    if not entries:
+        return []
+    query_tokens = _tokens(query)
+    if not query_tokens:
+        return entries[-k:]
+    scored: list[tuple[int, str, dict[str, Any]]] = []
+    for e in entries:
+        overlap = len(query_tokens & _tokens(str(e.get("content", ""))))
+        scored.append((overlap, str(e.get("timestamp", "")), e))
+    scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    relevant = [e for score, _ts, e in scored if score > 0][:k]
+    return relevant or entries[-k:]
 
 
 def append_memory(agent_id: str, entry_type: str, content: str) -> None:

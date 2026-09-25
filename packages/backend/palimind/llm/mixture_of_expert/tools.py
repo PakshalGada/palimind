@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import threading
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,9 @@ def set_tool_context(
                 "ollama_url": ollama_url,
                 "chat_model": chat_model,
                 "light_model": light_model,
+                # A fresh top-level run starts at depth 0; the delegate tool
+                # increments this so sub-agents cannot recurse unbounded.
+                "delegate_depth": 0,
             }
         )
 
@@ -38,6 +42,25 @@ def set_tool_context(
 def _get_context() -> dict[str, Any]:
     with _context_lock:
         return dict(_tool_context)
+
+
+# ── per-call execution context (set/read by individual tools) ─────────────
+# Distinct from the run context above: this carries short-lived flags a tool
+# sets immediately before invoking a shared helper (e.g. browse-url requesting
+# a screenshot). Guarded by its own lock so parallel agents cannot cross-talk.
+
+_execution_context: dict[str, Any] = {"browse_screenshot": False}
+_execution_lock = threading.Lock()
+
+
+def set_execution_context(**kwargs: Any) -> None:
+    with _execution_lock:
+        _execution_context.update(kwargs)
+
+
+def _get_execution_context() -> dict[str, Any]:
+    with _execution_lock:
+        return dict(_execution_context)
 
 
 def _workspace_root() -> Path | None:
@@ -466,6 +489,66 @@ def summarize(text: str, max_chars: int = 1000) -> str:
     return result["content"] or text[:max_chars]
 
 
+# ── delegation tool ───────────────────────────────────────────────────────
+
+
+def delegate(task: str, max_iterations: int = 6) -> str:
+    """Run a focused, read-only sub-agent on a self-contained task.
+
+    Lets an agent fan work out to a child without losing its own thread. The
+    child gets the safe (read/network) tool set only and cannot delegate
+    further, so recursion is bounded to a single level.
+    """
+    ctx = _get_context()
+    depth = int(ctx.get("delegate_depth", 0) or 0)
+    if depth >= 1:
+        return "Error: delegate depth limit reached — sub-agents cannot delegate further."
+    if not task or not str(task).strip():
+        return "Error: task is required"
+
+    ollama_url = ctx.get("ollama_url") or ""
+    model = ctx.get("chat_model") or ctx.get("light_model") or ""
+    if not ollama_url or not model:
+        return "Error: delegation unavailable (no model/url configured)."
+
+    from palimind.llm.mixture_of_expert.agents import run_agent as _run_agent
+
+    sub_task: dict[str, Any] = {
+        "agent_id": 901,
+        "label": "Delegated sub-agent",
+        "task": str(task),
+        "tools": [
+            "web_search",
+            "fetch_url",
+            "document_search",
+            "memory_search",
+            "read_file",
+            "list_files",
+            "glob_files",
+            "grep_files",
+            "summarize",
+        ],
+        "context": "",
+    }
+
+    with _context_lock:
+        _tool_context["delegate_depth"] = depth + 1
+    try:
+        output = _run_agent(
+            901,
+            sub_task,
+            model,
+            ollama_url,
+            max_tool_iterations=max(1, int(max_iterations)),
+        )
+    except Exception as e:  # noqa: BLE001 - a failed child must not kill the parent
+        return f"Error: delegated run failed: {e}"
+    finally:
+        with _context_lock:
+            _tool_context["delegate_depth"] = depth
+    return output or "[delegated sub-agent produced no output]"
+
+
 # ── registry ──────────────────────────────────────────────────────────────
 
 
@@ -584,21 +667,53 @@ TOOL_REGISTRY: dict[str, dict] = {
         },
         "meta": _meta(1, False),
     },
+    "delegate": {
+        "fn": delegate,
+        "description": (
+            "Delegate a self-contained research or analysis task to a focused "
+            "read-only sub-agent and return its findings."
+        ),
+        "parameters": {
+            "task": "A clear, self-contained task description for the sub-agent",
+            "max_iterations": "Optional: maximum tool steps for the sub-agent (default 6)",
+        },
+        "meta": _meta(1, False),
+    },
 }
 
 
+# Folder-based tools registered into the live registry. Names are the public
+# tool ids agents select; (module_path, function) maps to the manifest
+# implementation. `python-exec` and `web-search` are intentionally omitted —
+# their ids (`run_python`, `web_search`) already exist as core tools.
+_PLUGIN_TOOLS: list[tuple[str, str, str]] = [
+    ("run_shell", "palimind.agents.tools.shell-exec.tool", "run_shell"),
+    ("csv_query", "palimind.agents.tools.csv-query.tool", "csv_query"),
+    ("sqlite_query", "palimind.agents.tools.sqlite-query.tool", "sqlite_query"),
+    ("query_graph", "palimind.agents.tools.knowledge-graph.tool", "query_graph"),
+    ("browse_url", "palimind.agents.tools.browse-url.tool", "browse_url"),
+    ("arxiv_search", "palimind.agents.tools.arxiv-search.tool", "arxiv_search"),
+    ("fetch_rss", "palimind.agents.tools.rss-fetch.tool", "fetch_rss"),
+    ("mqtt", "palimind.agents.tools.mqtt.tool", "mqtt"),
+]
+
+# Plugins that expose several tools from one module via a module-level `TOOLS`
+# mapping (name -> {fn, description, parameters, tier, requires_approval, ...}).
+_MULTI_TOOL_PLUGINS: list[str] = [
+    "palimind.agents.tools.browser.tool",
+    "palimind.agents.tools.research.tool",
+]
+
+
 def _register_plugin_tools() -> None:
-    """Lazily merge plugin tools (run_shell, csv_query, sqlite_query,
-    query_graph) into the registry so the UI and agent loop see them."""
+    """Lazily merge every folder-based tool into the live registry so the UI
+    and the agent loop can see and call them. Idempotent and best-effort: one
+    unloadable plugin must never break the rest."""
     import importlib
 
-    plugins = [
-        ("run_shell", "palimind.agents.tools.shell-exec.tool", "run_shell"),
-        ("csv_query", "palimind.agents.tools.csv-query.tool", "csv_query"),
-        ("sqlite_query", "palimind.agents.tools.sqlite-query.tool", "sqlite_query"),
-        ("query_graph", "palimind.agents.tools.knowledge-graph.tool", "query_graph"),
-    ]
-    for name, module_path, func_name in plugins:
+    from palimind.settings import TOOL_TIMEOUT_S
+
+    for name, module_path, func_name in _PLUGIN_TOOLS:
         if name in TOOL_REGISTRY:
             continue
         try:
@@ -616,7 +731,29 @@ def _register_plugin_tools() -> None:
                 int(definition.get("tier", 3)),
                 bool(definition.get("requires_approval", False)),
             ),
+            "timeout_s": int(definition.get("timeout_s") or TOOL_TIMEOUT_S),
         }
+
+    for module_path in _MULTI_TOOL_PLUGINS:
+        try:
+            mod = importlib.import_module(module_path)
+            module_tools = getattr(mod, "TOOLS", {})
+        except Exception as e:
+            print(f"[plugins] failed to load multi-tool module {module_path}: {e}")
+            continue
+        for name, spec in module_tools.items():
+            if name in TOOL_REGISTRY:
+                continue
+            TOOL_REGISTRY[name] = {
+                "fn": spec["fn"],
+                "description": spec.get("description", ""),
+                "parameters": spec.get("parameters", {}),
+                "meta": _meta(
+                    int(spec.get("tier", 3)),
+                    bool(spec.get("requires_approval", False)),
+                ),
+                "timeout_s": int(spec.get("timeout_s") or TOOL_TIMEOUT_S),
+            }
 
 
 def get_tool_names() -> list[str]:
@@ -625,15 +762,36 @@ def get_tool_names() -> list[str]:
 
 
 def call_tool(name: str, **kwargs: Any) -> str:
+    """Execute a registered tool under the sandbox (timeout, output clamp and
+    audit), returning a string. Never raises — errors come back as text so the
+    agent loop can feed them back to the model."""
     _register_plugin_tools()
     entry = TOOL_REGISTRY.get(name)
     if not entry:
         return f"Error: unknown tool '{name}'. Available: {', '.join(get_tool_names())}"
+    fn = entry["fn"]
+
+    # Surface bad arguments as an argument error (the loop retries/adjusts),
+    # rather than a tool crash. Non-introspectable callables are let through.
     try:
-        return str(entry["fn"](**kwargs))
+        inspect.signature(fn).bind(**kwargs)
     except TypeError as e:
         return f"Tool '{name}' argument error: {e}"
-    except Exception as e:
+    except (ValueError, AttributeError):
+        pass
+
+    from palimind.agents.tools.sandbox import run_sandboxed_sync
+    from palimind.settings import TOOL_TIMEOUT_S
+
+    timeout_s = int(entry.get("timeout_s") or TOOL_TIMEOUT_S)
+    try:
+        return run_sandboxed_sync(
+            lambda: fn(**kwargs),
+            timeout_s=timeout_s,
+            tool_name=name,
+            args_summary=kwargs,
+        )
+    except Exception as e:  # noqa: BLE001 - tools must never crash the loop
         return f"Tool '{name}' error: {e}"
 
 

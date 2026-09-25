@@ -58,9 +58,11 @@ async def stream_agent(
     """Run an agent and stream reasoning-chain events as dicts.
 
     Yields ``{"type": ...}`` dicts: agent:thought / agent:tool_call /
-    agent:tool_result / agent:waiting_for_human / agent:completed / error.
-    The underlying run is registered in RunningAgents so it can be
-    cancelled via POST /api/agents/{id}/cancel.
+    agent:tool_result / agent:waiting_for_human / agent:token /
+    agent:completed / error. ``agent:token`` frames carry the final answer in
+    chunks so the UI can render it progressively. The underlying run is
+    registered in RunningAgents so it can be cancelled via
+    POST /api/agents/{id}/cancel.
 
     ``working_root`` is the calling knowledge base the agent's tools are
     sandboxed to (defaults to the active field).
@@ -111,6 +113,7 @@ async def agent_sse_stream(
     ollama_url: str,
     chat_model: str,
     working_root: Path | None = None,
+    prefix_mention: bool = True,
 ) -> StreamingResponse:
     """Route an @agent-name chat invocation to an agent run.
 
@@ -119,8 +122,9 @@ async def agent_sse_stream(
     field when None).
 
     Streams the agent reasoning chain (agent:thought / tool_call /
-    tool_result / waiting_for_human / completed) as SSE, appends the user
-    message and final output to the chat session, and ends with 'done'.
+    tool_result / waiting_for_human / agent:token / completed) as SSE,
+    appends the user message and final output to the chat session, and ends
+    with 'done'.
     """
     from palimind.agents.registry import get_registry
 
@@ -150,12 +154,13 @@ async def agent_sse_stream(
         from palimind.memory.session_store import append_message_to_session
 
         if session_id:
+            user_text = f"@{agent_name} {agent_input}".strip() if prefix_mention else agent_input
             await asyncio.to_thread(
                 append_message_to_session,
                 field_root,
                 session_id,
                 "user",
-                f"@{agent_name} {agent_input}".strip(),
+                user_text,
                 mode="agent",
                 mode_params=mode_params,
             )

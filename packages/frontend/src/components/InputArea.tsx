@@ -39,10 +39,20 @@ export default function InputArea() {
     setAgentStates,
     setAgentLoading,
     activeView,
+    selectedAgentId,
   } = useApp();
 
-  const isChatView = activeView === 'chat';
-  const scope = isChatView ? 'chat' : 'field';
+  const isChatView = activeView === 'chat' || activeView === 'agents';
+  // The Agents view reuses this exact composer but targets the selected
+  // agent's own scope (separate sessions + model), not global chat.
+  const scope =
+    activeView === 'agents'
+      ? selectedAgentId
+        ? `agent:${selectedAgentId}`
+        : ''
+      : isChatView
+        ? 'chat'
+        : 'field';
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState("");
@@ -534,6 +544,89 @@ export default function InputArea() {
             msgDiv.appendChild(wrapper);
             messagesContainer?.appendChild(msgDiv);
           }
+          contentDiv.innerHTML = formatMarkdown(fullText);
+        }
+      } else if (data.type === "agent:waiting_for_human") {
+        setThinkingText(`Awaiting approval: ${data.tool || "action"}`);
+        if (!messagesContainer) return;
+        const card = document.createElement("div");
+        card.className = "approval-card";
+        card.style.cssText =
+          "border:1px solid var(--border-color);border-radius:10px;padding:12px;margin:8px 0;max-width:640px;background:var(--panel-bg);";
+        const title = document.createElement("div");
+        title.style.cssText = "font-size:0.85rem;color:var(--text-main);margin-bottom:8px;";
+        title.innerHTML = `<strong>Approval required</strong> — <code>${String(data.tool || "")}</code>`;
+        card.appendChild(title);
+        if (data.args != null) {
+          const pre = document.createElement("pre");
+          pre.style.cssText =
+            "margin:0 0 8px;padding:8px;background:var(--bg-color);border-radius:6px;font-size:0.75rem;color:var(--text-secondary);white-space:pre-wrap;word-break:break-word;max-height:180px;overflow:auto;";
+          pre.textContent =
+            typeof data.args === "string" ? data.args : JSON.stringify(data.args, null, 2);
+          card.appendChild(pre);
+        }
+        const correction = document.createElement("input");
+        correction.type = "text";
+        correction.placeholder = "Optional correction / feedback…";
+        correction.style.cssText =
+          "width:100%;padding:7px 10px;border:1px solid var(--border-color);border-radius:6px;background:var(--input-bg);color:var(--text-main);margin-bottom:8px;";
+        card.appendChild(correction);
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;gap:8px;";
+        const approveBtn = document.createElement("button");
+        approveBtn.textContent = "Approve";
+        approveBtn.className = "action-btn primary";
+        const rejectBtn = document.createElement("button");
+        rejectBtn.textContent = "Reject";
+        rejectBtn.className = "action-btn danger-btn";
+        const finish = (approved: boolean) => {
+          approveBtn.disabled = true;
+          rejectBtn.disabled = true;
+          correction.disabled = true;
+          const status = document.createElement("div");
+          status.style.cssText = "font-size:0.78rem;color:var(--text-muted);margin-top:6px;";
+          status.textContent = approved ? "Approved — resuming…" : "Rejected.";
+          card.appendChild(status);
+          api.agents
+            .approve(String(data.agent_id), approved, correction.value)
+            .catch(() => {});
+          setThinkingText(approved ? "Resuming…" : "Rejected");
+        };
+        approveBtn.onclick = () => finish(true);
+        rejectBtn.onclick = () => finish(false);
+        row.appendChild(approveBtn);
+        row.appendChild(rejectBtn);
+        card.appendChild(row);
+        messagesContainer.appendChild(card);
+        const approvalScroll = document.getElementById("messages-scroll-area");
+        if (approvalScroll) approvalScroll.scrollTop = approvalScroll.scrollHeight;
+      } else if (data.type === "agent:token") {
+        if (data.reset) {
+          fullText = "";
+          if (contentDiv) contentDiv.innerHTML = "";
+        } else if (data.text) {
+          if (!contentDiv) {
+            clearInterval(timerInterval);
+            setThinkingText("");
+            if (!totalThoughtDuration) {
+              const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+              totalThoughtDuration = `${elapsed}s`;
+            }
+            contentDiv = document.createElement("div");
+            contentDiv.className = "message-content";
+            const wrapper = document.createElement("div");
+            wrapper.className = "message-wrapper";
+            const badgeDiv = document.createElement("div");
+            badgeDiv.className = "thought-duration-badge";
+            badgeDiv.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Thought for ${totalThoughtDuration}`;
+            wrapper.appendChild(badgeDiv);
+            wrapper.appendChild(contentDiv);
+            const msgDiv = document.createElement("div");
+            msgDiv.className = "message system-message";
+            msgDiv.appendChild(wrapper);
+            messagesContainer?.appendChild(msgDiv);
+          }
+          fullText += data.text;
           contentDiv.innerHTML = formatMarkdown(fullText);
         }
       } else if (data.type === "token") {

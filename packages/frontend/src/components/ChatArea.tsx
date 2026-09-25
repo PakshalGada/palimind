@@ -23,7 +23,7 @@ export default function ChatArea() {
   return (
     <main className="chat-area" id="main-area">
       <div id="chat-interface" className={`chat-interface${isEmpty ? ' empty-chat' : ''}`}>
-        {activeView !== 'chat' && <IndexingProgress />}
+        {activeView !== 'chat' && activeView !== 'agents' && <IndexingProgress />}
 
         <div id="messages-scroll-area" className="messages" ref={messagesRef}>
           {!isEmpty && currentSess?.messages.map((msg, i) => (

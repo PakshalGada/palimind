@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from typing import Any
 
-from palimind.llm.mixture_of_expert.llm import llm_chat_safe, ollama_tools_from_registry
+from palimind.llm.mixture_of_expert.llm import (
+    LLMError,
+    llm_chat_safe,
+    llm_chat_stream,
+    ollama_tools_from_registry,
+)
 from palimind.llm.mixture_of_expert.planner import (
     build_agent_prompt,
     parse_agent_output,
@@ -139,7 +145,16 @@ def _is_looping(recent: list[str], repeats: int = 3) -> bool:
 # ── custom-agent (definition-based) support ───────────────────────────────
 
 # Tools that mutate state and may require human-in-the-loop approval.
-RISKY_TOOLS = {"write_file", "run_python", "search_replace", "run_shell"}
+RISKY_TOOLS = {
+    "write_file",
+    "run_python",
+    "search_replace",
+    "run_shell",
+    # Browser interactions can submit forms / trigger side effects.
+    "browser_click",
+    "browser_type",
+    "browser_press",
+}
 
 # Definition-less (MoE) runs may not silently mutate the workspace: these
 # require an approval flow. Isolated compute (run_python) stays allowed.
@@ -166,6 +181,19 @@ def _emit_event(event_cb: Callable[[str, dict], Any] | None, etype: str, payload
         event_cb(etype, payload)
     except Exception as e:
         print(f"[Agent] event emit failed ({etype}): {e}")
+
+
+# Final answers are emitted as chunked `agent:token` events so the UI can
+# render them progressively. Chunk size trades event volume (each crossing the
+# sync→async bridge) against smoother streaming.
+_TOKEN_CHUNK_CHARS = 200
+
+
+def _emit_tokens(event_cb: Callable[[str, dict], Any] | None, text: str) -> None:
+    if event_cb is None or not text:
+        return
+    for i in range(0, len(text), _TOKEN_CHUNK_CHARS):
+        _emit_event(event_cb, "agent:token", {"text": text[i : i + _TOKEN_CHUNK_CHARS]})
 
 
 def _gate_tool(
@@ -266,6 +294,8 @@ def run_agent(
     session_id: str = "",
     briefing: str = "",
     usage_cb: Callable[[dict], None] | None = None,
+    token_stream: bool = False,
+    reflect: bool = False,
 ) -> str:
     """Run one agent loop.
 
@@ -287,6 +317,9 @@ def run_agent(
       prompt so every agent starts with the same findings (no duplicate
       turn-0 web searches).
     - ``usage_cb``: invoked once with accumulated token counts.
+    - ``token_stream``: when True and ``event_cb`` is set, stream the final
+      answer live from the model as ``agent:token`` events (with a ``reset``
+      event if streamed text turns out to be internal reasoning).
     """
     del session_id  # correlation only; kept for interface compatibility
 
@@ -294,6 +327,15 @@ def run_agent(
 
     if max_tool_iterations is None:
         max_tool_iterations = _budget_for_sub_task(sub_task, MOE_MAX_AGENT_ITERATIONS)
+
+    # The definition's context_budget (tokens) caps the live exchange window;
+    # fall back to the global MoE budget, never below a usable floor.
+    ctx_budget = int(getattr(definition, "context_budget", 0) or 0) or MOE_CONTEXT_BUDGET_TOKENS
+    ctx_budget = max(1000, ctx_budget)
+
+    # Set True once the final answer has been streamed live, so the caller
+    # does not emit it a second time as chunked tokens.
+    streamed_answer = [False]
 
     allowed_tools = [t for t in sub_task.get("tools", []) if t in TOOL_REGISTRY]
     native_tools = (
@@ -343,21 +385,139 @@ Be concise and effective."""
         usage["prompt_tokens"] += int(u.get("prompt_tokens", 0))
         usage["completion_tokens"] += int(u.get("completion_tokens", 0))
 
-    def _call(tools: list[dict] | None, extra_user: str | None = None) -> dict[str, Any]:
+    def _call(
+        tools: list[dict] | None,
+        extra_user: str | None = None,
+        stream_mode: str | None = None,
+    ) -> dict[str, Any]:
+        """Call the worker model.
+
+        ``stream_mode``:
+          - ``None``         — non-streaming (retrying) call.
+          - ``"detect"``     — stream but only surface tokens once the
+                               ``FINAL_ANSWER:`` marker appears.
+          - ``"always"``     — stream every token (used for the forced
+                               wrap-up synthesis, where tools are disabled).
+        """
         msgs = _chat_messages(base, live, working_notes)
         if extra_user:
             msgs = msgs + [{"role": "user", "content": extra_user}]
+
+        if not (token_stream and stream_mode):
+            result = llm_chat_safe(
+                msgs,
+                worker_model,
+                ollama_url,
+                tools=tools,
+                error_prefix=f"[Agent {agent_id} error",
+                temperature=temperature,
+                num_ctx=MOE_NUM_CTX,
+            )
+            _track(result)
+            return result
+
+        from palimind.settings import LLM_RETRIES
+
+        marker = "FINAL_ANSWER:"
+        content = ""
+        tool_calls: list[dict[str, Any]] = []
+        call_usage: dict[str, int] = {}
+        emitting = stream_mode == "always"
+        if emitting:
+            streamed_answer[0] = True
+
+        for attempt in range(LLM_RETRIES + 1):
+            try:
+                for ev in llm_chat_stream(
+                    msgs,
+                    worker_model,
+                    ollama_url,
+                    tools=tools,
+                    temperature=temperature,
+                    num_ctx=MOE_NUM_CTX,
+                ):
+                    if ev["type"] == "token":
+                        content += ev["text"]
+                        if not emitting and marker in content:
+                            tail = content.split(marker, 1)[1]
+                            if tail:
+                                emitting = True
+                                streamed_answer[0] = True
+                                _emit_event(event_cb, "agent:token", {"text": tail, "stream": True})
+                        elif emitting:
+                            _emit_event(
+                                event_cb, "agent:token", {"text": ev["text"], "stream": True}
+                            )
+                    elif ev["type"] == "tool_calls":
+                        tool_calls = ev["tool_calls"]
+                    elif ev["type"] == "usage":
+                        call_usage = ev["usage"]
+                break
+            except LLMError as e:
+                if e.transient and attempt < LLM_RETRIES and not content:
+                    time.sleep(min(0.5 * (2**attempt), 4.0))
+                    continue
+                if emitting:
+                    _emit_event(event_cb, "agent:token", {"reset": True})
+                    streamed_answer[0] = False
+                return {
+                    "content": f"[Agent {agent_id} error: {e}]",
+                    "tool_calls": [],
+                    "usage": {},
+                }
+
+        # Streamed text that accompanied a tool call was internal reasoning.
+        if emitting and tool_calls:
+            _emit_event(event_cb, "agent:token", {"reset": True})
+            streamed_answer[0] = False
+
+        result = {"content": content, "tool_calls": tool_calls, "usage": call_usage}
+        _track(result)
+        return result
+
+    def _reflect_answer(draft: str) -> str:
+        """One extra LLM pass that critiques and improves the draft answer."""
+        task = str(sub_task.get("task", ""))
         result = llm_chat_safe(
-            msgs,
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a meticulous reviewer. Critique the draft answer for "
+                        "correctness, completeness and clarity, then output an improved "
+                        "final answer. Do not mention the critique or this instruction — "
+                        "output only the improved answer."
+                    ),
+                },
+                {"role": "user", "content": f"TASK:\n{task}\n\nDRAFT ANSWER:\n{draft}"},
+            ],
             worker_model,
             ollama_url,
-            tools=tools,
-            error_prefix=f"[Agent {agent_id} error",
+            error_prefix=f"[Agent {agent_id} reflection error",
             temperature=temperature,
             num_ctx=MOE_NUM_CTX,
         )
         _track(result)
-        return result
+        refined = (result.get("content") or "").strip()
+        if "FINAL_ANSWER:" in refined:
+            refined = parse_agent_output(refined)
+        return refined
+
+    def _finalize(answer: str) -> str:
+        """Optionally self-critique, then emit the final answer exactly once."""
+        if reflect:
+            _emit_event(event_cb, "agent:thought", {"text": "Reflecting on the answer…"})
+            refined = _reflect_answer(answer)
+            if refined and not refined.startswith("[Agent "):
+                answer = refined
+            if streamed_answer[0]:
+                _emit_event(event_cb, "agent:token", {"reset": True})
+            _emit_tokens(event_cb, answer)
+            streamed_answer[0] = True
+        elif not streamed_answer[0]:
+            _emit_tokens(event_cb, answer)
+        _finish_usage()
+        return answer
 
     def _finish_usage() -> None:
         if usage_cb is not None:
@@ -366,7 +526,7 @@ Be concise and effective."""
     full_log: list[str] = []
     recent_tool_calls: list[str] = []
     for iteration in range(max_tool_iterations):
-        result = _call(native_tools)
+        result = _call(native_tools, stream_mode="detect" if token_stream else None)
         response = result["content"]
         _emit_event(
             event_cb, "agent:thought", {"text": (response or "")[:2000], "iteration": iteration}
@@ -401,7 +561,7 @@ Be concise and effective."""
                     }
                 )
                 recent_tool_calls.append(_tool_signature(tool_name, native_args))
-            working_notes = _compact_context(live, working_notes, MOE_CONTEXT_BUDGET_TOKENS)
+            working_notes = _compact_context(live, working_notes, ctx_budget)
             if _is_looping(recent_tool_calls):
                 _emit_event(
                     event_cb,
@@ -447,7 +607,7 @@ Be concise and effective."""
             live.append({"role": "assistant", "content": response})
             live.append({"role": "user", "content": tool_msg})
             recent_tool_calls.append(_tool_signature(tool_name, tool_args))
-            working_notes = _compact_context(live, working_notes, MOE_CONTEXT_BUDGET_TOKENS)
+            working_notes = _compact_context(live, working_notes, ctx_budget)
             if _is_looping(recent_tool_calls):
                 _emit_event(
                     event_cb,
@@ -462,8 +622,7 @@ Be concise and effective."""
         if "FINAL_ANSWER:" in response:
             final_answer = parse_agent_output(response)
             full_log.append(f"[Agent {agent_id}] Final answer ({len(final_answer)} chars)")
-            _finish_usage()
-            return final_answer
+            return _finalize(final_answer)
 
         live.append({"role": "assistant", "content": response})
         live.append(
@@ -488,7 +647,7 @@ Be concise and effective."""
             "iteration": max_tool_iterations,
         },
     )
-    result = _call(None, extra_user=WRAP_UP_PROMPT)
+    result = _call(None, extra_user=WRAP_UP_PROMPT, stream_mode="always" if token_stream else None)
     response = result["content"] or ""
     _emit_event(
         event_cb,
@@ -496,11 +655,9 @@ Be concise and effective."""
         {"text": response[:2000], "iteration": max_tool_iterations},
     )
     final_answer = parse_agent_output(response)
+    if final_answer and ("FINAL_ANSWER:" in response or not final_answer.startswith("[Agent ")):
+        return _finalize(final_answer)
     _finish_usage()
-    if final_answer and "FINAL_ANSWER:" in response:
-        return final_answer
-    if final_answer and not final_answer.startswith("[Agent "):
-        return final_answer
     return "[Agent timed out - max iterations reached]"
 
 

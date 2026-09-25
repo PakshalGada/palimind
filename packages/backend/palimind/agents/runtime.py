@@ -2,18 +2,25 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 import time
 import uuid
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
+from palimind.agents import activity, approvals
 from palimind.agents.catalog import AgentDefinition
 from palimind.agents.chat import append_chat
-from palimind.agents.memory import append_memory, read_memory
+from palimind.agents.memory import append_memory, recall_memory
+from palimind.agents.skills import skill_instructions, skill_tools
 from palimind.llm.mixture_of_expert.agents import run_agent
 from palimind.llm.mixture_of_expert.tools import set_tool_context
-from palimind.settings import AGENT_RUN_HISTORY_LIMIT
+from palimind.settings import (
+    AGENT_AUTO_MEMORY_EXTRACT,
+    AGENT_MEMORY_RECALL_LIMIT,
+    AGENT_RUN_HISTORY_LIMIT,
+)
 
 # ── RunningAgents registry ────────────────────────────────────────────────
 
@@ -130,6 +137,8 @@ def record_run(
     output: str,
     status: str,
     duration: float,
+    usage: dict | None = None,
+    trace: list[dict] | None = None,
 ) -> None:
     path = _runs_dir() / f"{agent_id}.json"
     try:
@@ -138,20 +147,31 @@ def record_run(
             data = json.loads(path.read_text("utf-8"))
             if not isinstance(data, list):
                 data = []
-        data.append(
-            {
-                "run_id": run_id,
-                "timestamp": time.time(),
-                "input": input[:2000],
-                "output": output[:100_000],
-                "status": status,
-                "duration": round(duration, 2),
+        entry: dict = {
+            "run_id": run_id,
+            "timestamp": time.time(),
+            "input": input[:2000],
+            "output": output[:100_000],
+            "status": status,
+            "duration": round(duration, 2),
+        }
+        if usage:
+            entry["usage"] = {
+                "prompt_tokens": int(usage.get("prompt_tokens", 0)),
+                "completion_tokens": int(usage.get("completion_tokens", 0)),
             }
-        )
+        if trace:
+            entry["trace"] = trace[-_RUN_TRACE_LIMIT:]
+        data.append(entry)
         data = data[-AGENT_RUN_HISTORY_LIMIT:]
         path.write_text(json.dumps(data, indent=2), "utf-8")
     except Exception as e:
         print(f"[agents] failed to record run for {agent_id}: {e}")
+
+
+# Cap the stored reasoning trace per run so a long agent loop cannot bloat the
+# run-history file.
+_RUN_TRACE_LIMIT = 400
 
 
 def get_run_history(agent_id: str, limit: int = 50) -> list[dict]:
@@ -168,6 +188,14 @@ def get_run_history(agent_id: str, limit: int = 50) -> list[dict]:
 def get_last_run(agent_id: str) -> dict | None:
     history = get_run_history(agent_id, limit=1)
     return history[-1] if history else None
+
+
+def get_run(agent_id: str, run_id: str) -> dict | None:
+    """Fetch a single run record (including its reasoning trace)."""
+    for record in get_run_history(agent_id, limit=10**6):
+        if str(record.get("run_id")) == str(run_id):
+            return record
+    return None
 
 
 # ── human-in-the-loop bridge ──────────────────────────────────────────────
@@ -204,8 +232,17 @@ def _make_approval_provider(
                         "reasoning": pending.get("reasoning"),
                     },
                 )
+            approvals.add(
+                ra.agent_id,
+                ra.run_id,
+                str(pending.get("tool", "")),
+                pending.get("args"),
+                float(pending.get("confidence", 0.0) or 0.0),
+                str(pending.get("reasoning", "")),
+            )
             await ra.approval_event.wait()
             result = ra.approval_result or {"approved": False}
+            approvals.remove(ra.agent_id)
             ra.pending = None
             return result
 
@@ -213,6 +250,53 @@ def _make_approval_provider(
         return fut.result()
 
     return provider
+
+
+# ── automatic memory extraction ───────────────────────────────────────────
+
+_FACT_EXTRACT_PROMPT = (
+    "Extract at most 3 durable facts about the user or the task from the "
+    "exchange below. Each must be a short, standalone statement (a stable "
+    "preference, constraint, or fact). Return one per line starting with '- '. "
+    "If there is nothing durable worth remembering, return 'NONE'."
+)
+
+
+def _extract_facts(
+    definition: AgentDefinition,
+    input_text: str,
+    output_text: str,
+    model: str,
+    ollama_url: str,
+) -> None:
+    """Background pass that turns a run into a few durable memory facts."""
+    try:
+        from palimind.llm.mixture_of_expert.llm import llm_chat_safe
+
+        result = llm_chat_safe(
+            [
+                {
+                    "role": "user",
+                    "content": (
+                        f"{_FACT_EXTRACT_PROMPT}\n\nUSER:\n{input_text[:1500]}"
+                        f"\n\nASSISTANT:\n{output_text[:2000]}"
+                    ),
+                }
+            ],
+            model,
+            ollama_url,
+            temperature=0.1,
+            num_predict=200,
+            error_prefix="[memory extract",
+        )
+        content = result.get("content", "") or ""
+        for line in content.splitlines():
+            text = line.strip().lstrip("-*• ").strip()
+            if not text or text.upper() == "NONE" or text.startswith("["):
+                continue
+            append_memory(definition.id, "fact", text[:500])
+    except Exception as e:  # noqa: BLE001 - extraction is best-effort
+        print(f"[agents] fact extraction failed: {e}")
 
 
 # ── entry point ───────────────────────────────────────────────────────────
@@ -354,8 +438,28 @@ async def run_with_definition(
     ra = await register_running(definition.id, run_id)
     loop = asyncio.get_running_loop()
     append_chat(definition.id, "user", input)
+    activity.start(definition.id, definition.name, run_id, session_id)
+
+    # Reasoning trace for the run-history detail view. Token frames are
+    # excluded (they are just the answer streamed in chunks).
+    trace: list[dict] = []
+    trace_lock = threading.Lock()
+    usage_holder: dict = {}
+
+    _live_kinds = {
+        "agent:thought": "thought",
+        "agent:tool_call": "tool",
+        "agent:tool_result": "result",
+    }
 
     def thread_emit(event_type: str, payload: dict) -> None:
+        if event_type != "agent:token":
+            with trace_lock:
+                trace.append({"type": event_type, **payload})
+        kind = _live_kinds.get(event_type)
+        if kind is not None:
+            label = payload.get("text") or payload.get("tool") or ""
+            activity.step(definition.id, str(label), kind)
         if emit is None:
             return
         try:
@@ -363,6 +467,9 @@ async def run_with_definition(
             fut.result(timeout=30)
         except Exception as e:
             print(f"[agents] emit failed: {e}")
+
+    def _usage_cb(u: dict) -> None:
+        usage_holder.update(u)
 
     async def emit_completed(output: str, status: str) -> None:
         if emit is not None:
@@ -392,25 +499,30 @@ async def run_with_definition(
 
     memory_block = ""
     if definition.memory_scope != "none":
-        mem = read_memory(definition.id)
+        # Pre-run recall: surface the memory entries most relevant to this
+        # input rather than just the most recent ones.
+        mem = recall_memory(definition.id, input, k=AGENT_MEMORY_RECALL_LIMIT)
         if mem:
-            lines = [
-                f"- [{e.get('type', 'fact')}] {str(e.get('content', ''))[:400]}" for e in mem[-20:]
-            ]
+            lines = [f"- [{e.get('type', 'fact')}] {str(e.get('content', ''))[:400]}" for e in mem]
             memory_block = "[AGENT MEMORY]\n" + "\n".join(lines) + "\n"
 
     custom_prompt = definition.system_prompt or ""
     if memory_block:
         custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + memory_block
+    skill_prompt = skill_instructions(definition.skills)
+    if skill_prompt:
+        custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + skill_prompt
     context_block = _workspace_context_block(working_root)
     if context_block:
         custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + context_block
 
+    # Attached skills can extend the agent's tool allowlist.
+    effective_tools = list(dict.fromkeys([*definition.tools, *skill_tools(definition.skills)]))
     sub_task: dict[str, Any] = {
         "agent_id": _stable_agent_int(definition.id),
         "label": definition.name,
         "task": input,
-        "tools": list(definition.tools),
+        "tools": effective_tools,
         "context": "",
     }
 
@@ -430,10 +542,14 @@ async def run_with_definition(
             event_cb=thread_emit,
             approval_provider=approval_provider,
             session_id=session_id,
+            token_stream=True,
+            reflect=bool(getattr(definition, "self_critique", False)),
+            usage_cb=_usage_cb,
         )
     except asyncio.CancelledError:
         status = "cancelled"
         output = "[Agent run cancelled]"
+        activity.finish(definition.id, status, output)
         await emit_completed(output, status)
         raise
     except Exception as e:
@@ -442,6 +558,7 @@ async def run_with_definition(
         await emit_completed(output, status)
     finally:
         await unregister_running(definition.id)
+        approvals.remove(definition.id)
 
     if fallback_note and status == "success":
         output = f"**Note:** {fallback_note}\n\n{output}"
@@ -450,8 +567,20 @@ async def run_with_definition(
         await emit_completed(output, status)
 
     duration = time.time() - start
-    record_run(definition.id, run_id, input, output, status, duration)
+    with trace_lock:
+        trace_snapshot = list(trace)
+    record_run(
+        definition.id,
+        run_id,
+        input,
+        output,
+        status,
+        duration,
+        usage=usage_holder,
+        trace=trace_snapshot,
+    )
     append_chat(definition.id, "agent", output)
+    activity.finish(definition.id, status, output)
 
     if definition.memory_scope != "none":
         try:
@@ -462,5 +591,12 @@ async def run_with_definition(
             )
         except Exception as e:
             print(f"[agents] memory append failed: {e}")
+        if status == "success" and AGENT_AUTO_MEMORY_EXTRACT:
+            # Fire-and-forget so extraction never delays the run's completion.
+            asyncio.create_task(
+                asyncio.to_thread(
+                    _extract_facts, definition, input, output, light_model, ollama_url
+                )
+            )
 
     return output

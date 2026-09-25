@@ -72,6 +72,33 @@ ALLOWED_PATHS: list[str] = _env_list("PALIMIND_ALLOWED_PATHS", [])
 TOOL_DEBUG_LOG: bool = _env_bool("PALIMIND_TOOL_DEBUG_LOG", True)
 TOOL_AUDIT_LOG: bool = _env_bool("PALIMIND_TOOL_AUDIT_LOG", True)
 
+# Default wall-clock ceiling (seconds) for a single live tool call. Individual
+# tools may override this via their manifest; kept generous because some
+# built-ins (web search / page fetch) legitimately take a while.
+TOOL_TIMEOUT_S: int = _env_int("PALIMIND_TOOL_TIMEOUT", 120)
+
+# ── browser tools ─────────────────────────────────────────────────────────
+
+# Domains the browser may visit. When ALLOWED is non-empty the browser is
+# restricted to those (and their subdomains); BLOCKED always wins. Empty
+# lists mean "allow any public host".
+BROWSER_ALLOWED_DOMAINS: list[str] = _env_list("PALIMIND_BROWSER_ALLOWED_DOMAINS", [])
+BROWSER_BLOCKED_DOMAINS: list[str] = _env_list("PALIMIND_BROWSER_BLOCKED_DOMAINS", [])
+# Run the headless browser; set false for a visible window (debugging).
+BROWSER_HEADLESS: bool = _env_bool("PALIMIND_BROWSER_HEADLESS", True)
+# Navigation timeout for browser_open / click / type.
+BROWSER_TIMEOUT_MS: int = _env_int("PALIMIND_BROWSER_TIMEOUT_MS", 30000)
+
+# ── research / knowledge tools ────────────────────────────────────────────
+# All research tools work without keys against public endpoints. Optional keys
+# simply raise rate limits / add auth where supported.
+GITHUB_TOKEN: str = _env_str("PALIMIND_GITHUB_TOKEN", "") or ""
+SEMANTIC_SCHOLAR_API_KEY: str = _env_str("PALIMIND_SEMANTIC_SCHOLAR_API_KEY", "") or ""
+# SEC EDGAR requires a descriptive User-Agent with a contact address.
+SEC_CONTACT: str = (
+    _env_str("PALIMIND_SEC_CONTACT", "palimind@example.com") or "palimind@example.com"
+)
+
 # Poll interval (seconds) for the scheduled-agent scheduler tick.
 AGENT_SCHEDULER_TICK: int = _env_int("PALIMIND_AGENT_SCHEDULER_TICK", 15)
 
@@ -80,6 +107,13 @@ AGENT_RUN_HISTORY_LIMIT: int = _env_int("PALIMIND_AGENT_RUN_HISTORY_LIMIT", 200)
 
 # How many conversation messages to keep per agent chat log.
 AGENT_CHAT_LIMIT: int = _env_int("PALIMIND_AGENT_CHAT_LIMIT", 300)
+
+# How many relevant memory entries to inject before a run (lexical recall).
+AGENT_MEMORY_RECALL_LIMIT: int = _env_int("PALIMIND_AGENT_MEMORY_RECALL_LIMIT", 8)
+
+# Extract durable facts from a successful run into agent memory (one extra
+# light-model call, run in the background).
+AGENT_AUTO_MEMORY_EXTRACT: bool = _env_bool("PALIMIND_AGENT_AUTO_MEMORY_EXTRACT", True)
 
 # ── Mixture-of-Experts tuning ─────────────────────────────────────────────
 

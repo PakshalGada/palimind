@@ -95,7 +95,20 @@ def llm_chat(
     message = data.get("message", {}) or {}
     content = message.get("content", "") or ""
 
-    tool_calls: list[dict[str, Any]] = []
+    tool_calls = _normalize_tool_calls(message)
+
+    usage: dict[str, int] = {}
+    if data.get("prompt_eval_count") is not None:
+        usage["prompt_tokens"] = int(data["prompt_eval_count"])
+    if data.get("eval_count") is not None:
+        usage["completion_tokens"] = int(data["eval_count"])
+
+    return {"content": content, "tool_calls": tool_calls, "usage": usage}
+
+
+def _normalize_tool_calls(message: dict[str, Any]) -> list[dict[str, Any]]:
+    """Normalize Ollama `message.tool_calls` into {name, arguments} dicts."""
+    calls: list[dict[str, Any]] = []
     for tc in message.get("tool_calls", []) or []:
         fn = tc.get("function", {}) or {}
         name = fn.get("name", "")
@@ -107,15 +120,96 @@ def llm_chat(
                 args = json.loads(args)
             except json.JSONDecodeError:
                 args = {"_raw": args}
-        tool_calls.append({"name": name, "arguments": args or {}})
+        calls.append({"name": name, "arguments": args or {}})
+    return calls
 
+
+def llm_chat_stream(
+    messages: list[dict[str, str]],
+    model: str,
+    ollama_url: str,
+    *,
+    tools: list[dict] | None = None,
+    format: str | None = None,
+    temperature: float | None = None,
+    read_timeout: float = 300.0,
+    num_predict: int | None = None,
+    num_ctx: int | None = None,
+    transport: Any | None = None,
+):
+    """Stream Ollama /api/chat, yielding incremental events.
+
+    Yields dicts:
+        {"type": "token", "text": str}          # content delta
+        {"type": "tool_calls", "tool_calls": [...], "content": str}
+        {"type": "usage", "usage": {...}, "content": str}
+        {"type": "done"}
+
+    Raises :class:`LLMError` on connection/HTTP/decode failures. Callers that
+    need retries should catch ``LLMError`` before any token is consumed.
+    """
+    import httpx
+
+    url = f"{ollama_url.rstrip('/')}/api/chat"
+    payload: dict[str, Any] = {"model": model, "messages": messages, "stream": True}
+    if tools:
+        payload["tools"] = tools
+    if format:
+        payload["format"] = format
+    options: dict[str, Any] = {}
+    if temperature is not None:
+        options["temperature"] = temperature
+    if num_predict is not None:
+        options["num_predict"] = num_predict
+    if num_ctx is not None:
+        options["num_ctx"] = num_ctx
+    if options:
+        payload["options"] = options
+
+    content_parts: list[str] = []
+    tool_calls: list[dict[str, Any]] = []
     usage: dict[str, int] = {}
-    if data.get("prompt_eval_count") is not None:
-        usage["prompt_tokens"] = int(data["prompt_eval_count"])
-    if data.get("eval_count") is not None:
-        usage["completion_tokens"] = int(data["eval_count"])
 
-    return {"content": content, "tool_calls": tool_calls, "usage": usage}
+    try:
+        with httpx.Client(
+            timeout=httpx.Timeout(connect=10.0, read=read_timeout, write=10.0, pool=10.0),
+            transport=transport,
+        ) as client:
+            with client.stream("POST", url, json=payload) as resp:
+                if resp.status_code in (429, 500, 502, 503, 504):
+                    raise LLMError(
+                        f"LLM HTTP {resp.status_code}: {resp.text[:200]}", transient=True
+                    )
+                resp.raise_for_status()
+                for line in resp.iter_lines():
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    message = data.get("message", {}) or {}
+                    delta = message.get("content") or ""
+                    if delta:
+                        content_parts.append(delta)
+                        yield {"type": "token", "text": delta}
+                    if message.get("tool_calls"):
+                        tool_calls.extend(_normalize_tool_calls(message))
+                    if data.get("prompt_eval_count") is not None:
+                        usage["prompt_tokens"] = int(data["prompt_eval_count"])
+                    if data.get("eval_count") is not None:
+                        usage["completion_tokens"] = int(data["eval_count"])
+                    if data.get("done"):
+                        break
+    except httpx.TimeoutException as e:
+        raise LLMError(f"LLM timed out: {e}", transient=True) from e
+    except httpx.HTTPError as e:
+        raise LLMError(f"LLM HTTP error: {e}", transient=True) from e
+
+    content = "".join(content_parts)
+    yield {"type": "tool_calls", "tool_calls": tool_calls, "content": content}
+    yield {"type": "usage", "usage": usage, "content": content}
+    yield {"type": "done"}
 
 
 def llm_chat_safe(

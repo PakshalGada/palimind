@@ -1,4 +1,4 @@
-import type { AgentChatMessage, AgentDefinition, AgentListItem, DirItem, GraphData, HardwareData, MemoryEntry, ModelItem, Recommendation, RunRecord, ToolMeta, TreeNode } from './types';
+import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, Approval, DirItem, GraphData, HardwareData, MemoryEntry, ModelItem, RecentRun, Recommendation, RunRecord, SkillMeta, ToolMeta, TreeNode } from './types';
 
 const BASE = '/api';
 
@@ -87,6 +87,14 @@ export const api = {
       patch<AgentListItem & { error?: string }>(`/agents/${agentId}`, changes),
     remove: (agentId: string) => del<{ error?: string; status?: string }>(`/agents/${agentId}`),
     tools: () => get<{ tools: Record<string, ToolMeta> }>('/agents/tools'),
+    skills: () => get<{ skills: SkillMeta[] }>('/agents/skills'),
+    activity: () => get<AgentActivitySnapshot>('/agents/activity'),
+    approvals: () => get<{ approvals: Approval[] }>('/agents/approvals'),
+    recentRuns: (limit = 30) => get<{ runs: RecentRun[] }>(`/agents/runs/recent?limit=${limit}`),
+    recallPreview: (agentId: string, query: string, k = 8) =>
+      post<{ entries: MemoryEntry[] }>(`/agents/${agentId}/recall-preview`, { query, k }),
+    run: (agentId: string, runId: string) =>
+      get<RunRecord & { error?: string }>(`/agents/${agentId}/runs/${encodeURIComponent(runId)}`),
     validateCron: (schedule: string) => post<{ valid: boolean; error?: string | null }>('/agents/validate-cron', { schedule }),
     memory: (agentId: string, page = 1, perPage = 20) =>
       get<{ entries: MemoryEntry[]; total: number; page: number; per_page: number }>(

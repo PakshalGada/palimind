@@ -20,13 +20,98 @@ def test_plugin_tools_registered() -> None:
     from palimind.llm.mixture_of_expert.tools import _register_plugin_tools
 
     _register_plugin_tools()
-    for name in ("run_shell", "csv_query", "sqlite_query", "query_graph"):
-        assert name in TOOL_REGISTRY
+    # Every folder-based tool must be reachable by agents, including the ones
+    # that were previously orphaned (browse_url / arxiv / rss / mqtt).
+    for name in (
+        "run_shell",
+        "csv_query",
+        "sqlite_query",
+        "query_graph",
+        "browse_url",
+        "arxiv_search",
+        "fetch_rss",
+        "mqtt",
+    ):
+        assert name in TOOL_REGISTRY, f"{name} was not registered"
         assert "meta" in TOOL_REGISTRY[name]
+        assert isinstance(TOOL_REGISTRY[name].get("timeout_s"), int)
     assert TOOL_REGISTRY["run_shell"]["meta"]["tier"] == 2
     assert TOOL_REGISTRY["run_shell"]["meta"]["requires_approval"] is True
+    assert TOOL_REGISTRY["browse_url"]["meta"]["tier"] == 2
+    assert TOOL_REGISTRY["mqtt"]["meta"]["tier"] == 3
+    assert TOOL_REGISTRY["arxiv_search"]["meta"]["tier"] == 1
     assert TOOL_REGISTRY["grep_files"]["meta"]["tier"] == 1
     assert TOOL_REGISTRY["search_replace"]["meta"]["tier"] == 2
+
+
+def test_execution_context_roundtrip() -> None:
+    from palimind.llm.mixture_of_expert.tools import (
+        _get_execution_context,
+        set_execution_context,
+    )
+
+    assert _get_execution_context().get("browse_screenshot") is False
+    set_execution_context(browse_screenshot=True)
+    try:
+        assert _get_execution_context()["browse_screenshot"] is True
+    finally:
+        set_execution_context(browse_screenshot=False)
+
+
+def test_call_tool_reports_bad_arguments() -> None:
+    from palimind.llm.mixture_of_expert.tools import call_tool
+
+    out = call_tool("grep_files", nope=1)  # missing required 'pattern'
+    assert "argument error" in out
+
+
+def test_delegate_is_registered_as_safe_tool() -> None:
+    from palimind.llm.mixture_of_expert.tools import _register_plugin_tools
+
+    _register_plugin_tools()
+    assert "delegate" in TOOL_REGISTRY
+    assert TOOL_REGISTRY["delegate"]["meta"]["tier"] == 1
+    assert TOOL_REGISTRY["delegate"]["meta"]["requires_approval"] is False
+
+
+def test_delegate_depth_guard(tmp_path: Path) -> None:
+    from palimind.llm.mixture_of_expert import tools as t
+
+    t.set_tool_context(tmp_path, "http://ollama:11434", "m")
+    with t._context_lock:
+        t._tool_context["delegate_depth"] = 1
+    try:
+        out = t.delegate("do something")
+        assert "depth limit" in out
+    finally:
+        t.set_tool_context(None)
+
+
+def test_delegate_requires_task(tmp_path: Path) -> None:
+    from palimind.llm.mixture_of_expert import tools as t
+
+    t.set_tool_context(tmp_path, "http://ollama:11434", "m")
+    try:
+        assert "task is required" in t.delegate("   ")
+    finally:
+        t.set_tool_context(None)
+
+
+def test_call_tool_enforces_sandbox_timeout() -> None:
+    from palimind.llm.mixture_of_expert.tools import TOOL_REGISTRY, call_tool
+
+    TOOL_REGISTRY["_sleepy_probe"] = {
+        "fn": lambda: __import__("time").sleep(5),
+        "description": "test probe",
+        "parameters": {},
+        "meta": {"tier": 1, "requires_approval": False},
+        "timeout_s": 1,
+    }
+    try:
+        out = call_tool("_sleepy_probe")
+        assert "timed out" in out
+    finally:
+        TOOL_REGISTRY.pop("_sleepy_probe", None)
 
 
 def test_write_and_search_replace_sandboxed(tmp_path: Path) -> None:

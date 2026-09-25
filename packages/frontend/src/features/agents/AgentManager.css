@@ -1,0 +1,28 @@
+/* Agent settings popup (centered modal). */
+
+.am-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.am-panel {
+  width: min(760px, 94vw);
+  max-height: 90vh;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  overflow: hidden;
+}
+.am-panel .ax-inspector {
+  flex: 1;
+  min-height: 0;
+  border-left: none;
+  border-radius: 0;
+}

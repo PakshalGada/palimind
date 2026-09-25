@@ -1215,6 +1215,34 @@ select {
     padding: 3px 4px;
     gap: 8px;
 }
+.sidebar-header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+.agent-sidebar-tab .session-tab-name {
+    flex: 1;
+    min-width: 0;
+}
+.agent-sidebar-tab .agent-menu-btn {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    opacity: 0.5;
+    transition: opacity 0.12s ease, color 0.12s ease;
+}
+.agent-sidebar-tab:hover .agent-menu-btn,
+.agent-sidebar-tab.active .agent-menu-btn {
+    opacity: 1;
+}
+.agent-sidebar-tab .agent-menu-btn:hover {
+    color: var(--text-main);
+}
+.agent-list-section {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
 .sidebar-agents-content {
     display: flex;
     flex-direction: column;

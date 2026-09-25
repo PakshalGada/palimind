@@ -12,12 +12,20 @@ import httpx
 
 from palimind.llm.mixture_of_expert import orchestrator
 from palimind.llm.mixture_of_expert.agents import (
+    _TOKEN_CHUNK_CHARS,
     _budget_for_sub_task,
     _chat_messages,
     _compact_context,
+    _emit_tokens,
     _estimated_tokens,
 )
-from palimind.llm.mixture_of_expert.llm import LLMError, llm_chat, llm_chat_safe
+from palimind.llm.mixture_of_expert.llm import (
+    LLMError,
+    _normalize_tool_calls,
+    llm_chat,
+    llm_chat_safe,
+    llm_chat_stream,
+)
 from palimind.llm.mixture_of_expert.planner import (
     build_agent_prompt,
     build_verify_prompt,
@@ -74,6 +82,25 @@ def test_budget_for_sub_task() -> None:
     assert _budget_for_sub_task({"tools": ["web_search", "fetch_url"]}, 12) == 10
     assert _budget_for_sub_task({"tools": ["web_search", "run_python"]}, 12) == 12
     assert _budget_for_sub_task({"tools": ["run_python"]}, 6) == 6
+
+
+# ── streaming contract ────────────────────────────────────────────────────
+
+
+def test_emit_tokens_chunks_final_answer() -> None:
+    events: list[tuple[str, dict]] = []
+    text = "x" * (_TOKEN_CHUNK_CHARS + 5)
+    _emit_tokens(lambda etype, payload: events.append((etype, payload)), text)
+    assert len(events) == 2
+    assert all(etype == "agent:token" for etype, _ in events)
+    assert "".join(payload["text"] for _, payload in events) == text
+
+
+def test_emit_tokens_noops_without_callback_or_text() -> None:
+    _emit_tokens(None, "hello")
+    events: list[tuple[str, dict]] = []
+    _emit_tokens(lambda etype, payload: events.append((etype, payload)), "")
+    assert events == []
 
 
 # ── verification helpers ──────────────────────────────────────────────────
@@ -291,3 +318,76 @@ def test_llm_chat_safe_no_retry_on_permanent_error() -> None:
 def test_llm_error_transient_flag() -> None:
     assert LLMError("timeout", transient=True).transient is True
     assert LLMError("bad json", transient=False).transient is False
+
+
+# ── streaming client ──────────────────────────────────────────────────────
+
+
+def _stream_transport(chunks: list[dict]) -> httpx.MockTransport:
+    body = ("\n".join(json.dumps(c) for c in chunks) + "\n").encode()
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=body)
+
+    return httpx.MockTransport(handler)
+
+
+def test_llm_chat_stream_yields_tokens_and_usage() -> None:
+    transport = _stream_transport(
+        [
+            {"message": {"content": "He"}, "done": False},
+            {"message": {"content": "llo"}, "done": False},
+            {
+                "message": {"content": ""},
+                "done": True,
+                "prompt_eval_count": 3,
+                "eval_count": 2,
+            },
+        ]
+    )
+    events = list(
+        llm_chat_stream(
+            [{"role": "user", "content": "hi"}],
+            "m",
+            "http://ollama:11434",
+            transport=transport,
+        )
+    )
+    assert [e["text"] for e in events if e["type"] == "token"] == ["He", "llo"]
+    usage = next(e["usage"] for e in events if e["type"] == "usage")
+    assert usage == {"prompt_tokens": 3, "completion_tokens": 2}
+    assert events[-1]["type"] == "done"
+
+
+def test_llm_chat_stream_reports_tool_calls() -> None:
+    transport = _stream_transport(
+        [
+            {
+                "message": {
+                    "content": "",
+                    "tool_calls": [
+                        {"function": {"name": "web_search", "arguments": {"query": "x"}}}
+                    ],
+                },
+                "done": False,
+            },
+            {"message": {"content": ""}, "done": True},
+        ]
+    )
+    events = list(
+        llm_chat_stream(
+            [{"role": "user", "content": "hi"}],
+            "m",
+            "http://ollama:11434",
+            transport=transport,
+        )
+    )
+    calls = next(e["tool_calls"] for e in events if e["type"] == "tool_calls")
+    assert calls == [{"name": "web_search", "arguments": {"query": "x"}}]
+
+
+def test_normalize_tool_calls_parses_string_arguments() -> None:
+    calls = _normalize_tool_calls(
+        {"tool_calls": [{"function": {"name": "t", "arguments": '{"a": 1}'}}]}
+    )
+    assert calls == [{"name": "t", "arguments": {"a": 1}}]

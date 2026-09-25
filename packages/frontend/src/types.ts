@@ -86,7 +86,7 @@ export interface AgentDefinition {
   memory_scope: 'none' | 'session' | 'field';
   memory_file: string;
   visibility: 'field' | 'global';
-  run_mode: 'on_demand' | 'scheduled' | 'watcher';
+  run_mode: 'on_demand' | 'scheduled' | 'watcher' | 'webhook';
   schedule: string | null;
   watcher_pattern: string | null;
   max_iterations: number;
@@ -94,8 +94,64 @@ export interface AgentDefinition {
   write_access: boolean;
   shell_access: boolean;
   enabled: boolean;
+  self_critique: boolean;
+  skills: string[];
+  webhook_token: string;
   context_fields?: string[];
   color_seed?: string;
+}
+
+export interface SkillMeta {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  tools: string[];
+  instructions: string;
+  builtin: boolean;
+}
+
+export interface AgentActivity {
+  agent_id: string;
+  name: string;
+  run_id: string;
+  source: string;
+  step: string;
+  status: string;
+  started_at: number;
+  updated_at: number;
+}
+
+export interface AgentActivityEvent {
+  type: 'start' | 'step' | 'finish';
+  kind?: string;
+  agent_id: string;
+  name: string;
+  run_id?: string;
+  source?: string;
+  status?: string;
+  text: string;
+  ts: number;
+}
+
+export interface AgentActivitySnapshot {
+  running: AgentActivity[];
+  recent: AgentActivityEvent[];
+}
+
+export interface Approval {
+  agent_id: string;
+  run_id: string;
+  tool: string;
+  args: unknown;
+  confidence: number;
+  reasoning: string;
+  created_at: number;
+}
+
+export interface RecentRun extends RunRecord {
+  agent_id: string;
+  agent_name: string;
 }
 
 export interface AgentChatMessage {
@@ -123,6 +179,8 @@ export interface RunRecord {
   output: string;
   status: string;
   duration: number;
+  usage?: { prompt_tokens: number; completion_tokens: number };
+  trace?: AgentReasoningEvent[];
 }
 
 export interface ToolMeta {
@@ -132,3 +190,24 @@ export interface ToolMeta {
   requires_approval: boolean;
   parameters?: Record<string, string>;
 }
+
+/**
+ * Frozen SSE contract for an agent run (POST /api/agents/{id}/run and the
+ * global chat @agent path). `agent:token` frames stream the final answer in
+ * chunks; `agent:completed` carries the full output once the run ends.
+ */
+export type AgentReasoningEvent =
+  | { type: 'agent:thought'; text: string; iteration?: number }
+  | { type: 'agent:tool_call'; tool: string; args?: unknown }
+  | { type: 'agent:tool_result'; tool: string; result?: string }
+  | { type: 'agent:token'; text?: string; reset?: boolean; stream?: boolean }
+  | {
+      type: 'agent:waiting_for_human';
+      tool: string;
+      args?: unknown;
+      confidence?: number;
+      threshold?: number;
+      reasoning?: string;
+    }
+  | { type: 'agent:completed'; output: string; status?: string }
+  | { type: 'error'; text: string };
