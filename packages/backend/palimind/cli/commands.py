@@ -281,18 +281,22 @@ def ui(
             raise typer.Exit(1)
         print_success("Frontend ready")
 
-        opencode_bin = shutil.which("opencode")
-        if opencode_bin is None:
-            print_warning("OpenCode not found on PATH — skipping auth step")
-        else:
-            from palimind.opencode.auth import get_key
+        # Credentials are configured once in the app's Settings and reused from
+        # then on — never collected from the terminal. Local Ollama models work
+        # without an OpenCode key, so this is advisory only.
+        from palimind.opencode.auth import get_key
 
-            if get_key() is None:
-                print_warning("OpenCode not authenticated — opening auth login...")
-                subprocess.run([opencode_bin, "auth", "login"])
-                print_success("OpenCode authenticated")
-            else:
-                print_success("OpenCode already authenticated")
+        try:
+            authenticated = get_key() is not None
+        except (OSError, ValueError):
+            authenticated = False
+        if authenticated:
+            print_success("OpenCode already authenticated")
+        else:
+            print_warning(
+                "OpenCode API key not set — add it in Settings to use cloud "
+                "models (local models work without it)."
+            )
 
         if not port_up(11434):
             ollama_bin = shutil.which("ollama")

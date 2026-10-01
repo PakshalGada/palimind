@@ -10,6 +10,7 @@ into a per-test temp directory via monkeypatch.setenv, so the real
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import stat
@@ -205,6 +206,200 @@ class TestKeyValidation:
         with pytest.raises(ValueError, match="non-empty"):
             set_key("   \t\n  ")
         assert not auth_path().exists()
+
+
+class TestProbeRejectsNonCredentials:
+    """The Settings save path must not persist prose as an API key.
+
+    Regression: a pasted riddle (>=10 chars, so it passed the old length-only
+    check) was written to auth.json, and every later model call failed with
+    401. GET /models returns 200 even for a bogus token, so validation has to
+    use a real completion call.
+
+    Offline: httpx.AsyncClient is stubbed, so these assert the validation
+    *logic* (which endpoint is used, how failures are worded, that the key is
+    never echoed) rather than OpenCode's live behaviour.
+    """
+
+    @staticmethod
+    def _patch_client(monkeypatch, status: int, body: dict | None = None):
+        import palimind.api_server as api_server
+
+        captured: dict = {}
+
+        class _Resp:
+            def __init__(self) -> None:
+                self.status_code = status
+                self.reason_phrase = "Unauthorized"
+
+            def json(self):
+                if body is None:
+                    raise ValueError("not json")
+                return body
+
+        class _Client:
+            def __init__(self, *a, **kw) -> None:
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def post(self, url, json=None, headers=None):
+                captured["url"] = url
+                captured["auth"] = (headers or {}).get("Authorization")
+                return _Resp()
+
+        monkeypatch.setattr(api_server.httpx, "AsyncClient", _Client)
+        return captured
+
+    def test_probe_uses_chat_completions_not_models(self, monkeypatch):
+        """Regression: GET /models returns 200 for a bogus key, so it cannot
+        be the validation call."""
+        from palimind.api_server import _probe_opencode_key
+
+        captured = self._patch_client(monkeypatch, 200, {"choices": []})
+        ok, _ = asyncio.run(_probe_opencode_key("whatever-key-value"))
+        assert ok is True
+        assert captured["url"].endswith("/chat/completions")
+
+    def test_probe_rejects_prose_with_401(self, monkeypatch):
+        from palimind.api_server import _probe_opencode_key
+
+        self._patch_client(monkeypatch, 401, {"error": {"message": "Invalid API key."}})
+        ok, reason = asyncio.run(_probe_opencode_key("I have no front door, only a back"))
+        assert ok is False
+        assert "401" in reason
+
+    def test_probe_never_echoes_the_key(self, monkeypatch):
+        from palimind.api_server import _probe_opencode_key
+
+        secret = "sk-not-a-real-key-abcdef123456"
+        self._patch_client(monkeypatch, 401, {"error": {"message": "Invalid API key."}})
+        ok, reason = asyncio.run(_probe_opencode_key(secret))
+        assert ok is False
+        assert secret not in reason
+
+    def test_probe_sends_bearer_header(self, monkeypatch):
+        from palimind.api_server import _probe_opencode_key
+
+        captured = self._patch_client(monkeypatch, 200, {"choices": []})
+        asyncio.run(_probe_opencode_key("sk-abc123456789"))
+        assert captured["auth"] == "Bearer sk-abc123456789"
+
+    def test_probe_reports_network_failure_distinctly(self, monkeypatch):
+        """A transport error must not be reported as 'invalid key'."""
+        import palimind.api_server as api_server
+
+        class _Boom:
+            def __init__(self, *a, **kw) -> None:
+                pass
+
+            async def __aenter__(self):
+                raise OSError("network down")
+
+            async def __aexit__(self, *exc):
+                return False
+
+        monkeypatch.setattr(api_server.httpx, "AsyncClient", _Boom)
+        ok, reason = asyncio.run(api_server._probe_opencode_key("sk-abc123456789"))
+        assert ok is False
+        assert "reach" in reason.lower()
+
+
+class TestOpenCodeV2Fallback:
+    """Reads fall back to OpenCode v2's SQLite credential store.
+
+    OpenCode v2 stopped writing ``auth.json`` and now keeps credentials in the
+    ``credential`` table of ``opencode.db``. Palimind must still pick those up
+    (read-only) so a CLI-configured key is not requested again.
+    """
+
+    @staticmethod
+    def _write_v2_db(rows: list[tuple[str, str, int, int]]) -> None:
+        import sqlite3
+
+        db = auth_path().parent / "opencode.db"
+        db.parent.mkdir(parents=True, exist_ok=True)
+        con = sqlite3.connect(db)
+        con.execute(
+            "CREATE TABLE credential ("
+            "integration_id TEXT, value TEXT, active INTEGER, time_updated INTEGER)"
+        )
+        con.executemany(
+            "INSERT INTO credential "
+            "(integration_id, value, active, time_updated) VALUES (?, ?, ?, ?)",
+            rows,
+        )
+        con.commit()
+        con.close()
+
+    def test_reads_active_api_key_from_v2_db(self):
+        self._write_v2_db(
+            [("opencode-go", json.dumps({"type": "key", "key": "v2-api-key-1234"}), 1, 1)]
+        )
+        assert get_key() == "v2-api-key-1234"
+
+    def test_auth_json_entry_takes_precedence(self):
+        set_key("pali-key-9999")
+        self._write_v2_db(
+            [("opencode-go", json.dumps({"type": "key", "key": "v2-api-key-1234"}), 1, 1)]
+        )
+        assert get_key() == "pali-key-9999"
+
+    def test_reads_oauth_access_token(self):
+        self._write_v2_db(
+            [("opencode", json.dumps({"type": "oauth", "access": "oauth-token-xyz"}), 1, 1)]
+        )
+        assert get_key() == "oauth-token-xyz"
+
+    def test_prefers_active_go_key_over_console(self):
+        self._write_v2_db(
+            [
+                ("opencode", json.dumps({"access": "console-token"}), 1, 99),
+                ("opencode-go", json.dumps({"key": "go-key"}), 1, 1),
+            ]
+        )
+        assert get_key() == "go-key"
+
+    def test_active_row_wins_over_newer_inactive(self):
+        self._write_v2_db(
+            [
+                ("opencode-go", json.dumps({"key": "inactive-key"}), 0, 99),
+                ("opencode-go", json.dumps({"key": "active-key"}), 1, 1),
+            ]
+        )
+        assert get_key() == "active-key"
+
+    def test_broken_db_degrades_to_none(self):
+        db = auth_path().parent / "opencode.db"
+        db.parent.mkdir(parents=True, exist_ok=True)
+        db.write_text("not a database", encoding="utf-8")
+        assert get_key() is None
+
+    def test_unrecognized_value_degrades_to_none(self):
+        self._write_v2_db([("opencode-go", json.dumps({"type": "key"}), 1, 1)])
+        assert get_key() is None
+
+    def test_opencode_db_override_is_honored(self, tmp_path, monkeypatch):
+        db = tmp_path / "custom.db"
+        import sqlite3
+
+        con = sqlite3.connect(db)
+        con.execute(
+            "CREATE TABLE credential ("
+            "integration_id TEXT, value TEXT, active INTEGER, time_updated INTEGER)"
+        )
+        con.execute(
+            "INSERT INTO credential VALUES (?, ?, ?, ?)",
+            ("opencode-go", json.dumps({"key": "override-key"}), 1, 1),
+        )
+        con.commit()
+        con.close()
+        monkeypatch.setenv("OPENCODE_DB", str(db))
+        assert get_key() == "override-key"
 
 
 class TestUnreadableExistingFile:

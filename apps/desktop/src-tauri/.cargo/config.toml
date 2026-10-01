@@ -1,2 +1,10 @@
 [env]
 LIBCLANG_PATH = "/usr/lib/llvm21/lib"
+# WebKitGTK 4.1 is installed in a sudo-less local prefix, but its helper
+# processes (WebKitNetworkProcess/WebKitWebProcess/WebKitGPUProcess) are
+# spawned from a path baked in at build time:
+#   /usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/
+# which does not exist on this box (only the 4.0 packages are installed).
+# The shim rewrites those spawns to ~/.local/tauri-libs/prefix/...; it is a
+# no-op for every other path. Keep it in sync with ~/.local/bin/palimind-desktop.
+LD_PRELOAD = "/home/pakshal/.local/tauri-libs/webkit-path-shim.so"

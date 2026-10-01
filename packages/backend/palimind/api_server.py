@@ -1077,7 +1077,13 @@ async def chat_stream(
         files_filter = [f.strip() for f in files.split(",") if f.strip()]
 
     if chat_mode == "document":
-        from palimind.opencode.router import resolve_model_url
+        from palimind.opencode.router import resolve_model
+
+        resolved_model, resolved_url, model_note = resolve_model(
+            chat_model, ollama_url, fallback_model=chat_model
+        )
+        if model_note:
+            print(f"[chat] {model_note}")
 
         return await document_mode_stream(
             q,
@@ -1085,8 +1091,8 @@ async def chat_stream(
             history_to_send,
             mid_term_summary,
             files_filter,
-            resolve_model_url(chat_model, ollama_url),
-            chat_model,
+            resolved_url,
+            resolved_model,
             root,
             web_search,
             long_term_episodes=long_term_episodes,
@@ -1099,12 +1105,19 @@ async def chat_stream(
         else config.get("moe_sub_mode", "default")
     )
     if chat_mode == "llm" and moe_sub_mode == "moe":
-        from palimind.opencode.router import resolve_model_url
+        from palimind.opencode.router import resolve_model
 
         orchestrator_model = config.get("moe_orchestrator_model", "") or chat_model
         worker_model = config.get("moe_worker_model", "") or chat_model
-        orch_url = resolve_model_url(orchestrator_model, ollama_url)
-        work_url = resolve_model_url(worker_model, ollama_url)
+        orchestrator_model, orch_url, orch_note = resolve_model(
+            orchestrator_model, ollama_url, fallback_model=chat_model
+        )
+        worker_model, work_url, work_note = resolve_model(
+            worker_model, ollama_url, fallback_model=chat_model
+        )
+        for note in (orch_note, work_note):
+            if note:
+                print(f"[chat] {note}")
         return await moe_mode_stream(
             q,
             active_sess_id,
@@ -1122,7 +1135,13 @@ async def chat_stream(
             long_term_episodes=long_term_episodes,
         )
 
-    from palimind.opencode.router import resolve_model_url
+    from palimind.opencode.router import resolve_model
+
+    resolved_model, resolved_url, model_note = resolve_model(
+        chat_model, ollama_url, fallback_model=chat_model
+    )
+    if model_note:
+        print(f"[chat] {model_note}")
 
     return await llm_mode_stream(
         q,
@@ -1130,8 +1149,8 @@ async def chat_stream(
         history_to_send,
         mid_term_summary,
         files_filter,
-        resolve_model_url(chat_model, ollama_url),
-        chat_model,
+        resolved_url,
+        resolved_model,
         root,
         web_search,
         long_term_episodes=long_term_episodes,
@@ -1726,6 +1745,51 @@ _OPENCODE_BASE_URL = _os.environ.get("OPENCODE_BASE_URL", "https://opencode.ai/z
     "/"
 )
 
+# Model used to verify a pasted key. OpenCode Zen's GET /models returns 200 even
+# for a bogus token, so it cannot be used to validate anything — a minimal
+# chat completion is the only call that actually exercises auth.
+_OPENCODE_KEY_PROBE_MODEL = _os.environ.get("OPENCODE_KEY_PROBE_MODEL", "space-bunny-free")
+
+
+async def _probe_opencode_key(key: str) -> tuple[bool, str]:
+    """Verify *key* against OpenCode Zen with a 1-token completion.
+
+    Returns ``(ok, reason)`` where ``reason`` is a short, user-facing
+    explanation. Distinguishes an upstream 401 ("rejected") from transport
+    problems ("could not reach") so the UI does not claim a key is invalid
+    when the real problem is the network.
+    """
+    from palimind.opencode.session import SESSION_HEADER, opencode_session_id
+
+    headers = {
+        "Authorization": f"Bearer {key}",
+        SESSION_HEADER: opencode_session_id(),
+    }
+    payload = {
+        "model": _OPENCODE_KEY_PROBE_MODEL,
+        "messages": [{"role": "user", "content": "ping"}],
+        "max_tokens": 1,
+    }
+    timeout = httpx.Timeout(connect=15.0, read=30.0, write=15.0, pool=15.0)
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(
+                f"{_OPENCODE_BASE_URL}/chat/completions", json=payload, headers=headers
+            )
+    except Exception:
+        return False, "Could not reach OpenCode — check your network connection."
+    if resp.status_code == 401:
+        return False, "OpenCode rejected this key (401 Unauthorized)."
+    if resp.status_code >= 400:
+        detail = ""
+        try:
+            detail = (resp.json().get("error") or {}).get("message", "")
+        except Exception:
+            pass
+        suffix = f": {detail}" if detail else ""
+        return False, f"OpenCode returned HTTP {resp.status_code}{suffix}"
+    return True, ""
+
 
 @app.get("/api/settings/opencode-key")
 async def get_opencode_key():
@@ -1755,25 +1819,29 @@ async def save_opencode_key(req: Request):
     key = str(data.get("key") or "").strip()
     if len(key) < 10:
         return {"error": "Invalid API key: must be at least 10 characters"}
+    # Reject obvious non-credentials early. Keys are opaque tokens, but real
+    # ones never contain whitespace or sentence punctuation; catching this here
+    # avoids a pointless round-trip and gives a clearer message than a 401.
+    if any(c.isspace() for c in key):
+        return {"error": "That does not look like an API key — it contains spaces."}
 
-    headers = {"Authorization": f"Bearer {key}"}
-    from palimind.opencode.session import SESSION_HEADER, opencode_session_id
-
-    headers[SESSION_HEADER] = opencode_session_id()
-    timeout = httpx.Timeout(connect=15.0, read=15.0, write=15.0, pool=15.0)
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.get(f"{_OPENCODE_BASE_URL}/models", headers=headers)
-        valid = resp.status_code == 200
-    except Exception:
-        valid = False
-    if not valid:
-        return {"error": "Invalid API key or network error"}
+    ok, reason = await _probe_opencode_key(key)
+    if not ok:
+        return {"error": reason}
 
     try:
         set_key(key)
-    except ValueError as e:
-        return {"error": str(e)}
+    except (ValueError, OSError) as e:
+        return {"error": f"Key is valid but could not be saved: {e}"}
+
+    # Drop any model list cached while the key was missing/invalid so the new
+    # key takes effect on the very next request.
+    try:
+        from palimind.opencode.router import reset_cache
+
+        reset_cache()
+    except Exception:
+        pass
     return {"status": "success"}
 
 
@@ -1784,8 +1852,14 @@ async def delete_opencode_key():
 
     try:
         remove_key()
-    except ValueError as e:
+    except (ValueError, OSError) as e:
         return {"error": str(e)}
+    try:
+        from palimind.opencode.router import reset_cache
+
+        reset_cache()
+    except Exception:
+        pass
     return {"status": "success"}
 
 

@@ -58,6 +58,7 @@ export interface ModelItem {
   family?: string;
   parameter_size?: string;
   size_gb?: number;
+  provider?: string;
 }
 
 export interface Recommendation {

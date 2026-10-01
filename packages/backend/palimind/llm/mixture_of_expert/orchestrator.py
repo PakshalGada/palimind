@@ -282,6 +282,18 @@ async def run_moe_pipeline(
             light_model = cfg.get("light_model", "") or cfg.get("chat_model", "")
         except Exception:
             light_model = ""
+    # The light model backs query routing and document/entity extraction. Resolve
+    # it to something installed so a stale config value can't 404 those helpers
+    # (the main plan/agent/synthesis models are resolved by the API server).
+    light_url = worker_url or ollama_url
+    if light_model:
+        from palimind.opencode.router import resolve_model
+
+        light_model, light_url, light_note = resolve_model(
+            light_model, worker_url or ollama_url, fallback_model=worker_model
+        )
+        if light_note:
+            print(f"[moe] {light_note}")
     set_tool_context(root, worker_url or ollama_url, worker_model, light_model)
 
     # ── usage telemetry / stage timings ──────────────────────────────────
@@ -306,7 +318,7 @@ async def run_moe_pipeline(
             route_query,
             user_query,
             light_model or orchestrator_model,  # classification → cheap model
-            ollama_url,
+            light_url if light_model else ollama_url,
             lambda u: _capture("route", {"usage": u}),
         )
     timings["route"] = time.monotonic() - t

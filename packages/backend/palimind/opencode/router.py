@@ -22,6 +22,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -34,6 +35,12 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _models_cache: list[dict] | None = None
 _cache_lock = threading.Lock()
 _proxy_started = False
+
+# Cache of `/api/tags` model ids per base URL, so the availability check that
+# backs :func:`resolve_model` does not add an HTTP round-trip to every chat
+# request. The model set changes only when something is pulled/removed.
+_ollama_ids_cache: dict[str, tuple[float, set[str]]] = {}
+_OLLAMA_IDS_TTL = 30.0
 
 
 def _proxy_alive() -> bool:
@@ -172,6 +179,7 @@ def reset_cache() -> None:
     global _models_cache
     with _cache_lock:
         _models_cache = None
+        _ollama_ids_cache.clear()
 
 
 def resolve_model_url(model_id: str, default_ollama_url: str) -> str:
@@ -185,6 +193,53 @@ def resolve_model_url(model_id: str, default_ollama_url: str) -> str:
     return default_ollama_url
 
 
+def resolve_model(
+    model_id: str,
+    default_ollama_url: str,
+    *,
+    fallback_model: str = "",
+) -> tuple[str, str, str]:
+    """Resolve *model_id* to a served model and its backend URL.
+
+    Returns ``(model_id, base_url, note)``. OpenCode ids route to the proxy.
+    When *model_id* is not served by the configured Ollama instance, fall back
+    to *fallback_model* (typically the field's ``chat_model``) or the first
+    installed model, and describe the switch in *note*. If availability cannot
+    be determined the requested model is returned unchanged (empty note), so
+    behavior is identical to :func:`resolve_model_url` when the check fails.
+    """
+    requested = (model_id or "").strip()
+    fallback = (fallback_model or "").strip()
+    if not requested:
+        requested = fallback or "llama3"
+
+    if requested in opencode_model_ids():
+        return requested, PROXY_URL, ""
+
+    try:
+        local_ids = fetch_ollama_model_ids(default_ollama_url)
+    except Exception as e:  # availability check is best-effort
+        print(f"[opencode] model availability check failed: {e}")
+        return requested, default_ollama_url, ""
+
+    if not local_ids or requested in local_ids:
+        return requested, default_ollama_url, ""
+
+    if fallback and fallback != requested and fallback in local_ids:
+        return (
+            fallback,
+            default_ollama_url,
+            f"Model '{requested}' is not installed; using field default '{fallback}'.",
+        )
+
+    first = sorted(local_ids)[0]
+    return (
+        first,
+        default_ollama_url,
+        f"Model '{requested}' is not installed; using '{first}' instead.",
+    )
+
+
 def fetch_ollama_model_ids(ollama_url: str, timeout: int = 8) -> set[str]:
     """Return the model ids served by an Ollama-compatible endpoint.
 
@@ -193,6 +248,11 @@ def fetch_ollama_model_ids(ollama_url: str, timeout: int = 8) -> set[str]:
     or unreachable.
     """
     base = (ollama_url or "http://localhost:11434").rstrip("/")
+    now = time.monotonic()
+    cached = _ollama_ids_cache.get(base)
+    if cached is not None and now - cached[0] < _OLLAMA_IDS_TTL:
+        return set(cached[1])
+
     candidates = [base]
     if "localhost" not in base and "127.0.0.1" not in base:
         candidates.append("http://localhost:11434")
@@ -208,6 +268,7 @@ def fetch_ollama_model_ids(ollama_url: str, timeout: int = 8) -> set[str]:
                 ids.add(mid)
         if ids:
             break
+    _ollama_ids_cache[base] = (now, set(ids))
     return ids
 
 

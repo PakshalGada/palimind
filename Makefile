@@ -5,6 +5,13 @@ BACKEND_DIR := packages/backend
 FRONTEND_DIR := packages/frontend
 DESKTOP_DIR := apps/desktop
 
+# Prefer the repo-local venv python (`./.venv/bin/python`) when present so
+# `make dev` works without manual activation; fall back to `python` on PATH.
+PY_BIN := python
+ifneq ($(wildcard .venv/bin/python),)
+PY_BIN := $(CURDIR)/.venv/bin/python
+endif
+
 .DEFAULT_GOAL := help
 
 .PHONY: help dev build test lint fmt typecheck icons check-imports backend-test frontend-test frontend-build clean
@@ -16,7 +23,7 @@ frontend-build: ## Build the frontend bundle
 	npm run build --prefix $(FRONTEND_DIR)
 
 dev: frontend-build ## Run the desktop app in dev mode (backend must be installed: pip install -e packages/backend)
-	cd $(BACKEND_DIR) && python -m palimind.cli.main ui
+	cd $(BACKEND_DIR) && $(PY_BIN) -m palimind.cli.main ui
 
 backend: ## Start only the FastAPI backend on :8000
 	cd $(BACKEND_DIR) && python -m palimind.api_server

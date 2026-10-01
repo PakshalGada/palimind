@@ -20,6 +20,30 @@ class LLMError(Exception):
         self.transient = transient
 
 
+def _http_error_message(status: int, body: str, model: str) -> str:
+    """Build a clear, non-transient error message for an HTTP 4xx response.
+
+    Ollama reports a missing model as HTTP 404 with a JSON ``error`` body
+    (``"model 'x' not found, try pulling it first"``). Surface that detail and
+    an actionable hint instead of the bare ``Client error '404 Not Found'``
+    string that ``raise_for_status()`` would otherwise produce.
+    """
+    detail = (body or "").strip()
+    try:
+        parsed = json.loads(detail)
+        if isinstance(parsed, dict):
+            detail = str(parsed.get("error") or parsed.get("detail") or detail)
+    except json.JSONDecodeError:
+        pass
+    detail = detail[:200]
+    if status == 404:
+        message = f"LLM HTTP 404: model '{model}' is not available at this endpoint"
+        if detail:
+            message += f" ({detail})"
+        return message + ". Pull/install the model or select one that is available."
+    return f"LLM HTTP {status}: {detail}" if detail else f"LLM HTTP {status}"
+
+
 def llm_chat(
     messages: list[dict[str, str]],
     model: str,
@@ -83,6 +107,10 @@ def llm_chat(
             resp = client.post(url, json=payload)
             if resp.status_code in (429, 500, 502, 503, 504):
                 raise LLMError(f"LLM HTTP {resp.status_code}: {resp.text[:200]}", transient=True)
+            if resp.status_code >= 400:
+                # 4xx responses (e.g. a missing model) are permanent: retrying
+                # will not help, so surface the body immediately.
+                raise LLMError(_http_error_message(resp.status_code, resp.text, model))
             resp.raise_for_status()
             data = resp.json()
     except httpx.TimeoutException as e:
@@ -177,9 +205,13 @@ def llm_chat_stream(
         ) as client:
             with client.stream("POST", url, json=payload) as resp:
                 if resp.status_code in (429, 500, 502, 503, 504):
+                    resp.read()
                     raise LLMError(
                         f"LLM HTTP {resp.status_code}: {resp.text[:200]}", transient=True
                     )
+                if resp.status_code >= 400:
+                    resp.read()
+                    raise LLMError(_http_error_message(resp.status_code, resp.text, model))
                 resp.raise_for_status()
                 for line in resp.iter_lines():
                     if not line:

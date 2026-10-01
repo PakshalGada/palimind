@@ -320,6 +320,48 @@ def test_llm_error_transient_flag() -> None:
     assert LLMError("bad json", transient=False).transient is False
 
 
+def test_llm_chat_404_reports_missing_model() -> None:
+    """A missing model (Ollama 404) must be clear and permanent, not retried."""
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(
+            404,
+            json={"error": "model 'deepseek-v4-flash' not found, try pulling it first"},
+        )
+
+    result = llm_chat_safe(
+        [{"role": "user", "content": "hi"}],
+        "deepseek-v4-flash",
+        "http://localhost:11434",
+        retries=3,
+        transport=httpx.MockTransport(handler),
+    )
+    assert len(calls) == 1  # 404 is permanent — no retries
+    assert "deepseek-v4-flash" in result["content"]
+    assert "404" in result["content"]
+
+
+def test_llm_chat_raises_non_transient_on_404() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"error": "model 'ghost' not found"})
+
+    transport = httpx.MockTransport(handler)
+    try:
+        llm_chat(
+            [{"role": "user", "content": "hi"}],
+            "ghost",
+            "http://localhost:11434",
+            transport=transport,
+        )
+    except LLMError as e:
+        assert e.transient is False
+        assert "ghost" in str(e)
+    else:  # pragma: no cover - defensive
+        raise AssertionError("expected LLMError")
+
+
 # ── streaming client ──────────────────────────────────────────────────────
 
 

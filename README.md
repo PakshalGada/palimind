@@ -60,7 +60,12 @@ Agents maintain their own memory, run history, and chat logs. Tool calls are aud
 
 ### OpenCode Integration
 
-PaliMind shares the OpenCode global credential store (`~/.local/share/opencode/auth.json`) so a key configured once is available to both the OpenCode CLI and PaliMind's provider proxy. The desktop launcher checks for authentication and opens an OpenCode login flow if needed.
+PaliMind stores an OpenCode API key entered once in **Settings** (owner-only
+permissions, never logged) and reuses it for its provider proxy. Keys already
+configured with the OpenCode CLI are detected automatically — OpenCode v2 keeps
+them in its local SQLite database, which PaliMind reads read-only. The launcher
+never prompts for credentials in the terminal; without a key, local Ollama
+models continue to work.
 
 ---
 

@@ -90,6 +90,31 @@ def _auth_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {key}"}
 
 
+def _upstream_error_msg(response: httpx.Response) -> str:
+    """Extract a short, safe error message from an upstream error response.
+
+    Falls back to the status text when the body is not the expected JSON shape
+    (or not JSON at all). Never echoes request headers, so the API key cannot
+    leak into a user-visible error string.
+    """
+    try:
+        body = response.json()
+    except Exception:
+        return response.reason_phrase or "no detail"
+    if isinstance(body, dict):
+        err = body.get("error")
+        if isinstance(err, dict):
+            msg = err.get("message")
+            if isinstance(msg, str) and msg:
+                return msg
+        if isinstance(err, str) and err:
+            return err
+        msg = body.get("message") or body.get("detail")
+        if isinstance(msg, str) and msg:
+            return msg
+    return response.reason_phrase or "no detail"
+
+
 def _upstream_headers(client_headers: dict | None = None) -> dict[str, str]:
     """Headers for upstream OpenCode Go requests.
 
@@ -277,6 +302,17 @@ async def api_chat(req: ChatRequest, request: Request):
                     json=payload,
                     headers=_upstream_headers(request.headers),
                 ) as response:
+                    # Checked before entering the stream loop: once streaming has
+                    # started we can no longer change the HTTP status code.
+                    if response.status_code in (401, 403, 429):
+                        await response.aread()
+                        raise HTTPException(
+                            status_code=response.status_code,
+                            detail=(
+                                "OpenCode rejected the request "
+                                f"({response.status_code}): {_upstream_error_msg(response)}"
+                            ),
+                        )
                     response.raise_for_status()
                     async for line in response.aiter_lines():
                         line = line.strip()
@@ -427,6 +463,16 @@ async def api_generate(req: GenerateRequest, request: Request):
             )
             resp.raise_for_status()
             data = resp.json()
+    except httpx.HTTPStatusError as e:
+        # Pass 401/403/429 through unchanged: a bad key or a rate limit is an
+        # actionable client error, and flattening it into 502 hides the cause.
+        sc = e.response.status_code
+        if sc in (401, 403, 429):
+            raise HTTPException(
+                status_code=sc,
+                detail=f"OpenCode rejected the request ({sc}): {_upstream_error_msg(e.response)}",
+            ) from e
+        raise HTTPException(status_code=502, detail=f"Upstream error: {e}") from e
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Upstream error: {e}") from e
 

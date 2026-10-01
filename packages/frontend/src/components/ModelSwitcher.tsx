@@ -362,6 +362,11 @@ export default function ModelSwitcher() {
                   >
                     {m.model_id === currentModel && <span className="model-active-dot" />}
                     <span className="model-list-item-name">{m.display_name || m.model_id}</span>
+                    {m.provider && (
+                      <span className={`model-provider-badge model-provider-${m.provider}`}>
+                        {m.provider === 'opencode' ? 'OpenCode' : 'Ollama'}
+                      </span>
+                    )}
                     <span className="model-list-item-meta">{m.parameter_size || ''} {m.size_gb ? m.size_gb + 'GB' : ''}</span>
                   </div>
                 ))}
