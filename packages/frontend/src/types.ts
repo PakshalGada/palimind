@@ -69,7 +69,7 @@ export interface Recommendation {
 }
 
 export type ChatMode = 'document' | 'llm';
-export type LlmSubMode = 'default' | 'moe';
+export type LlmSubMode = 'default' | 'moe' | 'deep_research';
 export type Theme = 'dark' | 'light';
 
 export type AppView = 'chat' | 'fields' | 'agents';

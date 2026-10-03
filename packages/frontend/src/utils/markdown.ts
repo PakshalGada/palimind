@@ -44,7 +44,7 @@ export function formatMarkdown(text: string): string {
       'msubsup', 'msup', 'munder', 'munderover', 'none', 'semantics',
       'annotation', 'annotation-xml',
     ],
-    ADD_ATTR: ['class', 'style', 'aria-hidden', 'mathvariant', 'encoding', 'display', 'xmlns', 'open'],
+    ADD_ATTR: ['class', 'aria-hidden', 'mathvariant', 'encoding', 'display', 'xmlns', 'open'],
   });
 
 

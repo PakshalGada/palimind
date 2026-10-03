@@ -124,8 +124,39 @@ def _dedupe_results(results: list[dict], limit: int) -> list[dict]:
     return ranked[:limit]
 
 
+def _is_safe_url(url: str) -> bool:
+    """Block requests to internal/private IP addresses to prevent SSRF."""
+    import ipaddress
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        # Resolve hostname to IP and check if it's private
+        import socket
+        try:
+            ip = ipaddress.ip_address(hostname)
+        except ValueError:
+            # It's a hostname, resolve it
+            try:
+                ip_str = socket.gethostbyname(hostname)
+                ip = ipaddress.ip_address(ip_str)
+            except (socket.gaierror, ValueError):
+                return False
+        # Block private, loopback, reserved, and link-local addresses
+        if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
+            return False
+        return True
+    except Exception:
+        return False
+
+
 def _fetch_page_content(url: str) -> str:
     """Fetch a page with scrapling and extract readable text; never raises."""
+    if not _is_safe_url(url):
+        return ""
     try:
         from scrapling import Fetcher
 

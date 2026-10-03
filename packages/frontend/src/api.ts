@@ -67,7 +67,7 @@ export const api = {
     treeSub: (path: string) => get<{ children?: TreeNode[]; error?: string }>(`/files/tree/sub?path=${encodeURIComponent(path)}`),
   },
   config: {
-    get: (scope = 'field') => get<{ chat_model?: string; moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string; persona_name?: string; persona_system_prompt?: string }>(`/config?scope=${scope}`),
+    get: (scope = 'field') => get<{ chat_model?: string; moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string; deep_research_model?: string; persona_name?: string; persona_system_prompt?: string }>(`/config?scope=${scope}`),
     setModel: (modelId: string, scope = 'field') => patch<{ error?: string }>(`/config/model?scope=${scope}`, { model_id: modelId }),
     setMoe: (data: { moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string }, scope = 'field') => patch<{ error?: string }>(`/config/moe?scope=${scope}`, data),
     setPersona: (data: { persona_name?: string; persona_system_prompt?: string }) =>

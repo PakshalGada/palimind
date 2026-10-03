@@ -52,6 +52,32 @@ def _stamp() -> str:
     return time.strftime("%Y%m%d_%H%M%S")
 
 
+def _is_safe_url(url: str) -> bool:
+    """Block requests to internal/private IP addresses to prevent SSRF."""
+    import ipaddress
+    import socket
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        try:
+            ip = ipaddress.ip_address(hostname)
+        except ValueError:
+            try:
+                ip_str = socket.gethostbyname(hostname)
+                ip = ipaddress.ip_address(ip_str)
+            except (socket.gaierror, ValueError):
+                return False
+        if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
+            return False
+        return True
+    except Exception:
+        return False
+
+
 def browse_url(url: str, max_chars: int = 8000, screenshot: bool = False) -> str:
     """Playwright-based headless browser fetch of a URL. Returns page text
     content, title and optionally a screenshot path."""
@@ -63,6 +89,8 @@ def browse_url(url: str, max_chars: int = 8000, screenshot: bool = False) -> str
         )
     if not str(url).startswith(("http://", "https://")):
         return "Error: url must be an http(s) URL"
+    if not _is_safe_url(str(url)):
+        return "Error: access to internal/private network addresses is blocked"
 
     from palimind.llm.mixture_of_expert.tools import set_execution_context
 

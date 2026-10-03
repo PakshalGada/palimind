@@ -145,5 +145,25 @@ MOE_VERIFY: bool = _env_bool("PALIMIND_MOE_VERIFY", True)
 # Bounded retries for transient LLM failures (timeout / HTTP 5xx / 429).
 LLM_RETRIES: int = _env_int("PALIMIND_LLM_RETRIES", 2)
 
+# ── Deep Research tuning ───────────────────────────────────────────────────
+
+# Number of research sub-topics the orchestrator creates for deep research.
+DR_NUM_SUBTOPICS: int = _env_int("PALIMIND_DR_NUM_SUBTOPICS", 5)
+
+# Max tool iterations per research agent (higher than MoE for thorough research).
+DR_MAX_AGENT_ITERATIONS: int = _env_int("PALIMIND_DR_MAX_AGENT_ITERATIONS", 15)
+
+# Context window for deep research LLM calls.
+DR_NUM_CTX: int = _env_int("PALIMIND_DR_NUM_CTX", 8192)
+
+# Max parallel research agents.
+DR_MAX_CONCURRENCY: int = _env_int("PALIMIND_DR_MAX_CONCURRENCY", 3)
+
+# Run the post-synthesis verification pass for deep research.
+DR_VERIFY: bool = _env_bool("PALIMIND_DR_VERIFY", True)
+
+# Max web search results per research agent.
+DR_MAX_SEARCH_RESULTS: int = _env_int("PALIMIND_DR_MAX_SEARCH_RESULTS", 8)
+
 # Bind address for the API server (loopback-only by default).
 SERVER_HOST: str = "127.0.0.1"

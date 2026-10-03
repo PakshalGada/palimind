@@ -300,12 +300,12 @@ export default function InputArea() {
   }, [moePopupOpen, models.length, fetchModels]);
 
   const handleSubModeChange = useCallback(
-    async (mode: "default" | "moe") => {
+    async (mode: "default" | "moe" | "deep_research") => {
       setLlmSubMode(mode);
       try {
         await api.config.setMoe({ moe_sub_mode: mode }, scope);
       } catch (e) {
-        console.error("Failed to save MoE sub mode:", e);
+        console.error("Failed to save sub mode:", e);
       }
     },
     [setLlmSubMode, scope],
@@ -412,6 +412,9 @@ export default function InputArea() {
     } else if (llmSubMode === "moe") {
       actMode = "moe";
       actTitle = "Mixture of Experts";
+    } else if (llmSubMode === "deep_research") {
+      actMode = "deep_research";
+      actTitle = "Deep Research";
     }
     setActivity({
       mode: actMode,
@@ -521,14 +524,14 @@ export default function InputArea() {
     };
     const reasonKind = (text: string): string => {
       const t = text.toLowerCase();
-      if (t.includes("document mode") || t.includes("llm mode")) return "mode";
+      if (t.includes("document mode") || t.includes("llm mode") || t.includes("deep research mode")) return "mode";
       if (t.includes("routing")) return "route";
       if (t.includes("briefing")) return "briefing";
-      if (t.includes("planning") || t.includes("plan")) return "plan";
+      if (t.includes("planning") || t.includes("plan") || t.includes("research plan")) return "plan";
       if (t.includes("graph")) return "graph";
-      if (t.includes("search")) return "search";
+      if (t.includes("search") || t.includes("research agent")) return "search";
       if (t.includes("passage") || t.includes("source")) return "docs";
-      if (t.includes("synthesi")) return "synthesis";
+      if (t.includes("synthesi") || t.includes("research report")) return "synthesis";
       if (t.includes("verif")) return "verify";
       if (t.includes("generat")) return "answer";
       return "info";
@@ -1085,6 +1088,7 @@ export default function InputArea() {
   };
 
   const isMoeActive = chatMode === "llm" && llmSubMode === "moe";
+  const isDeepResearchActive = chatMode === "llm" && llmSubMode === "deep_research";
 
   return (
     <div className="input-area">
@@ -1215,7 +1219,7 @@ export default function InputArea() {
                 onClick={() => setMoePopupOpen(!moePopupOpen)}
               >
                 <span className="moe-btn-label">
-                  {isMoeActive ? "Mixture of Experts" : "Default"}
+                  {isMoeActive ? "Mixture of Experts" : isDeepResearchActive ? "Deep Research" : "Default"}
                 </span>
                 <svg
                   className="moe-btn-chevron"
@@ -1287,6 +1291,38 @@ export default function InputArea() {
                       </span>
                     </div>
                     {llmSubMode === "moe" && (
+                      <svg
+                        className="moe-popup-check"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </div>
+
+                  <div
+                    className="moe-popup-option"
+                    onClick={() => {
+                      handleSubModeChange("deep_research");
+                      setMoePopupOpen(false);
+                    }}
+                  >
+                    <div className="moe-popup-option-info">
+                      <span className="moe-popup-option-name">
+                        Deep Research
+                      </span>
+                      <span className="moe-popup-option-desc">
+                        Multi-agent research pipeline with synthesis
+                      </span>
+                    </div>
+                    {llmSubMode === "deep_research" && (
                       <svg
                         className="moe-popup-check"
                         width="14"

@@ -325,3 +325,162 @@ async def moe_mode_stream(
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     return StreamingResponse(moe_stream(), media_type="text/event-stream")
+
+
+_DEEP_RESEARCH_SYSTEM_PROMPT = """You are a deep research assistant. Your response is synthesized from
+multiple research agents that investigate different aspects of the topic. Provide comprehensive,
+well-structured reports with clear citations and sources."""
+
+
+async def deep_research_mode_stream(
+    q: str,
+    active_sess_id: str | None,
+    history_to_send: list[dict] | None,
+    mid_term_summary: str | None,
+    files_filter: list[str] | None,
+    ollama_url: str,
+    chat_model: str,
+    active_field: Path,
+    web_search: str,
+    orchestrator_model: str | None = None,
+    worker_model: str | None = None,
+    orchestrator_url: str | None = None,
+    worker_url: str | None = None,
+    long_term_episodes: list[dict] | None = None,
+) -> StreamingResponse:
+    """DEEP RESEARCH MODE: Plans research sub-topics, dispatches parallel research
+    agents with web access, then synthesizes a comprehensive research report."""
+
+    async def deep_research_stream():
+        from palimind.llm.deep_research import run_deep_research_pipeline
+
+        if active_sess_id:
+            await asyncio.to_thread(
+                append_message_to_session,
+                active_field,
+                active_sess_id,
+                "user",
+                q,
+            )
+
+        orch_model = orchestrator_model or chat_model
+        work_model = worker_model or chat_model
+        orch_url = orchestrator_url or ollama_url
+        work_url = worker_url or ollama_url
+
+        yield (
+            f"data: {json.dumps({'type': 'reasoning', 'text': 'Deep Research Mode — planning research...'})}\n\n"
+        )
+
+        progress_queue: asyncio.Queue = asyncio.Queue()
+
+        async def on_progress(event: dict):
+            await progress_queue.put(event)
+
+        pipeline_task = asyncio.create_task(
+            run_deep_research_pipeline(
+                user_query=q,
+                ollama_url=orch_url,
+                orchestrator_model=orch_model,
+                worker_model=work_model,
+                num_subtopics=5,
+                on_progress=on_progress,
+                short_term=history_to_send,
+                mid_term_summary=mid_term_summary,
+                long_term_episodes=long_term_episodes,
+                root=active_field,
+                worker_url=work_url,
+            )
+        )
+
+        full_text = ""
+        try:
+            while True:
+                if pipeline_task.done():
+                    while not progress_queue.empty():
+                        event = await progress_queue.get()
+                        for sse in _progress_event_to_sse(event):
+                            yield sse
+                    break
+                try:
+                    event = await asyncio.wait_for(progress_queue.get(), timeout=0.15)
+                    for sse in _progress_event_to_sse(event):
+                        yield sse
+                except TimeoutError:
+                    continue
+
+            result = pipeline_task.result()
+            if "error" in result:
+                err_text = result["error"]
+                yield f"data: {json.dumps({'type': 'error', 'text': err_text})}\n\n"
+                full_text = f"**Error:** {err_text}"
+            else:
+                plan = result.get("plan", [])
+                outputs = result.get("outputs", [])
+                synthesis = result.get("synthesis", "")
+
+                if synthesis:
+                    full_text += synthesis
+                    yield f"data: {json.dumps({'type': 'token', 'text': synthesis})}\n\n"
+
+                process_block = '\n\n<details class="moe-process-details">\n<summary class="moe-process-summary">View Research Process</summary>\n<div class="moe-process-content">\n'
+                if plan:
+                    process_block += "#### Research Plan\n\n"
+                    for item in plan:
+                        title = item.get("title") or f"Sub-topic {item.get('subtopic_id', '?')}"
+                        rq = item.get("research_question", "")
+                        process_block += f"- **{title}:** {rq}\n"
+                    process_block += "\n"
+
+                if outputs:
+                    process_block += "#### Research Agent Outputs\n\n"
+                    for ro in outputs:
+                        title = ro.get("title") or f"Research {ro.get('subtopic_id', '?')}"
+                        out_content = ro.get("output", "No output").strip()
+                        process_block += f"**{title}:**\n{out_content}\n\n"
+
+                usage = result.get("usage") or {}
+                if usage:
+                    prompt_tokens = sum(int(v.get("prompt_tokens", 0)) for v in usage.values())
+                    completion_tokens = sum(
+                        int(v.get("completion_tokens", 0)) for v in usage.values()
+                    )
+                    if prompt_tokens or completion_tokens:
+                        process_block += (
+                            f"\n**Tokens:** {prompt_tokens + completion_tokens} total "
+                            f"({prompt_tokens} in / {completion_tokens} out)\n"
+                        )
+
+                timings = result.get("timings") or {}
+                if timings.get("total"):
+                    stage_parts = []
+                    for stage in ("plan", "briefing", "agents", "synthesis", "verify"):
+                        if stage in timings:
+                            stage_parts.append(f"{stage} {timings[stage]:.0f}s")
+                    stage_str = f" ({', '.join(stage_parts)})" if stage_parts else ""
+                    process_block += f"\n**Time:** {timings['total']:.0f}s{stage_str}\n"
+
+                process_block += "</div>\n</details>\n"
+                full_text += process_block
+                yield f"data: {json.dumps({'type': 'token', 'text': process_block})}\n\n"
+        except Exception as e:
+            err_msg = f"Deep research pipeline error: {str(e)}"
+            if not full_text:
+                full_text = f"**Error:** {err_msg}"
+            yield f"data: {json.dumps({'type': 'error', 'text': err_msg})}\n\n"
+        finally:
+            if active_sess_id and full_text:
+                await asyncio.to_thread(
+                    append_message_to_session,
+                    active_field,
+                    active_sess_id,
+                    "system",
+                    full_text,
+                )
+                asyncio.create_task(
+                    background_update_memory(active_field, active_sess_id, q, full_text)
+                )
+
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return StreamingResponse(deep_research_stream(), media_type="text/event-stream")

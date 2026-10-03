@@ -52,8 +52,8 @@ async def create_agent(req: Request):
         defn = AgentDefinition.from_dict(body)
         saved = get_registry().create(defn)
         return _agent_item(saved)
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        return {"error": "Failed to create agent"}
 
 
 @router.patch("/{agent_id}")
@@ -62,8 +62,8 @@ async def update_agent(agent_id: str, req: Request):
     try:
         saved = get_registry().update(agent_id, changes)
         return _agent_item(saved)
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        return {"error": "Failed to update agent"}
 
 
 @router.delete("/{agent_id}")
@@ -72,8 +72,8 @@ async def delete_agent(agent_id: str):
         cancel_agent(agent_id)
         get_registry().delete(agent_id)
         return {"status": "success"}
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        return {"error": "Failed to delete agent"}
 
 
 @router.get("/tools")

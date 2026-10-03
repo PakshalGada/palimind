@@ -15,7 +15,7 @@ export interface AgentState {
   steps: string[];
 }
 
-export type ActivityMode = 'llm' | 'document' | 'moe' | 'agent';
+export type ActivityMode = 'llm' | 'document' | 'moe' | 'deep_research' | 'agent';
 export type ActivityStatus = 'pending' | 'active' | 'done' | 'error';
 
 export interface ActivityStep {

@@ -57,7 +57,8 @@ DEFAULTS = {
     "light_model": "",  # smaller/faster model for graph building & entity extraction; falls back to chat_model
     "moe_orchestrator_model": "",
     "moe_worker_model": "",
-    "moe_sub_mode": "default",  # "default" or "moe"
+    "moe_sub_mode": "default",  # "default", "moe", or "deep_research"
+    "deep_research_model": "",  # model for deep research orchestrator (falls back to chat_model)
     "stt_whisper_model": "base.en",  # faster-whisper model for mic dictation
     "persona_name": "",
     "persona_system_prompt": "",

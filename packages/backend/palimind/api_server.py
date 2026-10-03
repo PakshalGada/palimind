@@ -71,7 +71,7 @@ from palimind.api import (
 from palimind.audio.stt import transcribe_wav_bytes
 from palimind.audio.tts import text_to_speech_bytes
 from palimind.document.stream import document_mode_stream
-from palimind.llm.stream import llm_mode_stream, moe_mode_stream
+from palimind.llm.stream import deep_research_mode_stream, llm_mode_stream, moe_mode_stream
 from palimind.memory.session_store import (
     add_new_session,
     delete_session,
@@ -83,7 +83,7 @@ app = FastAPI(title="Palimind V2 API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://127.0.0.1:8000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -166,6 +166,9 @@ state.load()
 
 def _agent_chat_root(agent_id: str) -> Path:
     """Per-agent private store (sessions, config) under the agents folder."""
+    import re
+    if not re.match(r"^[\w-]{1,64}$", agent_id):
+        raise ValueError(f"Invalid agent_id: {agent_id!r}")
     return Path.home() / ".palimind" / "agents" / agent_id
 
 
@@ -324,7 +327,7 @@ async def background_index_field(path: Path):
         state.is_indexing = False
         state.indexing_status = ""
         await broadcast_event(
-            {"type": "indexing_error", "message": f"Failed to index [{path.name}]: {str(e)}"}
+            {"type": "indexing_error", "message": f"Failed to index [{path.name}]"}
         )
 
 
@@ -466,8 +469,10 @@ def _add_capture_to_field(root: Path, text: str) -> dict:
     return {"status": "success", "capture_id": capture_id}
 
 
-def build_file_tree(root: Path) -> list[dict]:
-    def walk(path: Path) -> list[dict]:
+def build_file_tree(root: Path, _max_depth: int = 10) -> list[dict]:
+    def walk(path: Path, depth: int = 0) -> list[dict]:
+        if depth >= _max_depth:
+            return [{"name": "...", "path": "", "type": "truncated"}]
         items = []
         try:
             for entry in sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
@@ -487,7 +492,7 @@ def build_file_tree(root: Path) -> list[dict]:
 
                 rel_path = str(entry.relative_to(root))
                 if entry.is_dir():
-                    children = walk(entry)
+                    children = walk(entry, depth + 1)
                     items.append(
                         {
                             "name": entry.name,
@@ -613,11 +618,8 @@ async def select_field(req: Request):
             return result
         captured_text = ""
         return {"status": "success", "message": "Captured text saved to field"}
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        return {"error": f"Failed to save capture: {str(e)}"}
+    except Exception:
+        return {"error": "Failed to save capture"}
 
 
 @app.post("/api/capture/file")
@@ -643,8 +645,8 @@ async def capture_file(req: Request):
         if "error" in result:
             return result
         return {"status": "success", "capture_id": result.get("capture_id")}
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        return {"error": "Failed to index field"}
 
 
 @app.get("/api/fields")
@@ -710,6 +712,18 @@ async def list_fs(path: str | None = None):
     if not target_path.is_dir():
         target_path = target_path.parent
 
+    # Prevent listing sensitive system directories
+    _SENSITIVE_PATHS = {
+        Path("/etc").resolve(),
+        Path("/sys").resolve(),
+        Path("/proc").resolve(),
+        Path("/dev").resolve(),
+        Path("/boot").resolve(),
+        Path("/root").resolve(),
+    }
+    if target_path in _SENSITIVE_PATHS:
+        return {"error": "Access to this directory is restricted"}
+
     current_path = str(target_path)
     parent_path = str(target_path.parent) if target_path.parent != target_path else None
 
@@ -726,8 +740,8 @@ async def list_fs(path: str | None = None):
                     "type": "directory" if entry.is_dir() else "file",
                 }
             )
-    except Exception as e:
-        return {"error": f"Failed to list directory: {str(e)}"}
+    except Exception:
+        return {"error": "Failed to list directory"}
 
     return {"current_path": current_path, "parent_path": parent_path, "items": items}
 
@@ -828,8 +842,8 @@ async def api_update():
             "indexed_files": result.indexed_files,
             "deleted_files": result.deleted_files,
         }
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        return {"error": "Failed to update index"}
 
 
 # -- Endpoints --
@@ -913,7 +927,11 @@ async def get_files_tree():
 
 
 def list_directory_shallow(root: Path, subpath: str) -> list[dict]:
-    target = root / subpath if subpath else root
+    root_resolved = root.resolve()
+    target = (root / subpath).resolve() if subpath else root_resolved
+    # Path traversal protection: ensure target is inside root
+    if root_resolved != target and root_resolved not in target.parents:
+        return []
     items = []
     try:
         for entry in sorted(target.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
@@ -1052,7 +1070,7 @@ async def chat_stream(
         if (llm_sub_mode is not None and llm_sub_mode != "")
         else config.get("moe_sub_mode", "default")
     )
-    long_term_limit = 0 if (chat_mode == "llm" and moe_sub_mode != "moe") else 3
+    long_term_limit = 0 if (chat_mode == "llm" and moe_sub_mode == "default") else 3
 
     from palimind.memory.hierarchical import get_hierarchical_memory
 
@@ -1132,6 +1150,32 @@ async def chat_stream(
             worker_model=worker_model,
             orchestrator_url=orch_url,
             worker_url=work_url,
+            long_term_episodes=long_term_episodes,
+        )
+
+    if chat_mode == "llm" and moe_sub_mode == "deep_research":
+        from palimind.opencode.router import resolve_model
+
+        dr_model = config.get("deep_research_model", "") or chat_model
+        dr_model, dr_url, dr_note = resolve_model(
+            dr_model, ollama_url, fallback_model=chat_model
+        )
+        if dr_note:
+            print(f"[chat] {dr_note}")
+        return await deep_research_mode_stream(
+            q,
+            active_sess_id,
+            history_to_send,
+            mid_term_summary,
+            files_filter,
+            ollama_url,
+            chat_model,
+            root,
+            web_search,
+            orchestrator_model=dr_model,
+            worker_model=dr_model,
+            orchestrator_url=dr_url,
+            worker_url=dr_url,
             long_term_episodes=long_term_episodes,
         )
 
@@ -1277,7 +1321,7 @@ async def voice_transcribe(request: Request):
         text = await asyncio.to_thread(transcribe_wav_bytes, wav_bytes)
         return {"text": text}
     except Exception as e:
-        return {"error": f"Transcription failed: {str(e)}"}
+        return {"error": "Transcription failed"}
 
 
 @app.post("/api/voice/synthesize")
@@ -1295,7 +1339,7 @@ async def voice_synthesize(request: Request):
 
         return Response(content=wav_bytes, media_type="audio/wav")
     except Exception as e:
-        return Response(status_code=500, content=f"Synthesis error: {str(e)}")
+        return Response(status_code=500, content="Synthesis error")
 
 
 @app.get("/api/setup/status")
@@ -1389,9 +1433,9 @@ async def get_models():
             "ollama_url": ollama_url,
             "status": "ok" if models else "empty",
         }
-    except Exception as e:
+    except Exception:
         return {
-            "error": str(e),
+            "error": "Failed to fetch models",
             "models": [],
             "current_model": current_model,
             "status": "offline",
@@ -1458,8 +1502,8 @@ async def pull_model(model: str):
                             payload["error"] = obj["error"]
                         yield f"data: {json.dumps(payload)}\n\n"
             yield f"data: {json.dumps({'done': True})}\n\n"
-        except Exception as e:  # noqa: BLE001 - surface as an SSE error frame
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        except Exception:  # noqa: BLE001 - surface as an SSE error frame
+            yield f"data: {json.dumps({'error': 'Model pull failed'})}\n\n"
 
     return StreamingResponse(gen(), media_type="text/event-stream")
 
@@ -1478,8 +1522,8 @@ async def update_model(req: Request, scope: str = "field"):
         agent_id = scope.split(":", 1)[1].strip()
         try:
             get_registry().update(agent_id, {"model": model_id})
-        except Exception as e:
-            return {"error": str(e)}
+        except Exception:
+            return {"error": "Failed to update agent model"}
         return {"status": "success", "model": model_id}
 
     from palimind.config import config_path, load_config, palimind_dir
@@ -1551,11 +1595,8 @@ async def get_document_graph():
             "indexed_files": len(graph.file_nodes),
             "needs_rebuild": needs_rebuild,
         }
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        return {"error": str(e), "nodes": [], "edges": []}
+    except Exception:
+        return {"error": "Failed to get document graph", "nodes": [], "edges": []}
 
 
 @app.post("/api/document/graph/rebuild")
@@ -1576,11 +1617,8 @@ async def rebuild_document_graph():
             "edge_count": len(graph.edges),
             "indexed_files": len(graph.file_nodes),
         }
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        return {"error": str(e)}
+    except Exception:
+        return {"error": "Failed to rebuild document graph"}
 
 
 @app.get("/api/config")
@@ -1715,8 +1753,8 @@ async def moe_hardware_check():
             "gpu_vram_mb": gpu_vram,
             "system_ram_mb": sys_ram,
         }
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        return {"error": "Failed to check MoE hardware"}
 
 
 @app.get("/api/browser/screenshot")
@@ -1803,8 +1841,8 @@ async def get_opencode_key():
 
     try:
         key = get_key()
-    except (OSError, ValueError) as e:
-        return {"configured": False, "masked": None, "error": str(e)}
+    except (OSError, ValueError):
+        return {"configured": False, "masked": None, "error": "Failed to read API key"}
     if not key:
         return {"configured": False, "masked": None}
     return {"configured": True, "masked": masked_preview(key)}
@@ -1852,8 +1890,8 @@ async def delete_opencode_key():
 
     try:
         remove_key()
-    except (ValueError, OSError) as e:
-        return {"error": str(e)}
+    except (ValueError, OSError):
+        return {"error": "Failed to remove API key"}
     try:
         from palimind.opencode.router import reset_cache
 
@@ -1932,8 +1970,8 @@ async def update_voice_settings(req: Request):
             global_data = json.loads(GLOBAL_CONFIG_PATH.read_text("utf-8"))
         global_data["stt_whisper_model"] = model
         GLOBAL_CONFIG_PATH.write_text(json.dumps(global_data, indent=2), "utf-8")
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        return {"error": "Failed to update voice settings"}
     return {"status": "success", "stt_whisper_model": model}
 
 
@@ -1948,8 +1986,8 @@ async def get_hardware():
 
         profile = await asyncio.to_thread(detect_hardware)
         return profile.to_dict()
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        return {"error": "Failed to get recommendations"}
 
 
 @app.get("/api/cookbook/recommendations")
@@ -1963,8 +2001,8 @@ async def get_recommendations(top: int = 20):
         profile = await asyncio.to_thread(detect_hardware)
         ranked = rank_models(profile, MODEL_CATALOG, top=top)
         return {"recommendations": ranked, "hardware": profile.to_dict()}
-    except Exception as e:
-        return {"error": str(e), "recommendations": []}
+    except Exception:
+        return {"error": "Failed to get recommendations", "recommendations": []}
 
 
 def run_server(port: int = 8000, host: str | None = None):
