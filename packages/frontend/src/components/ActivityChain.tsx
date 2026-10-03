@@ -10,7 +10,6 @@ import {
   GitMerge,
   Globe,
   Info,
-  Loader2,
   MessageSquare,
   Network,
   Search,
@@ -23,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useApp, type ActivityStep } from '../AppContext';
 import AgentAvatar from './AgentAvatar';
+import Thinking, { type ThinkingVariant } from './Thinking';
 import './ActivityChain.css';
 
 const MODE_ICON: Record<string, LucideIcon> = {
@@ -30,6 +30,15 @@ const MODE_ICON: Record<string, LucideIcon> = {
   document: FileText,
   moe: Network,
   agent: Bot,
+};
+
+/** Same motion language, a different mark per mode. */
+const MODE_THINKING: Record<string, ThinkingVariant> = {
+  llm: 'orbit',
+  document: 'trace',
+  moe: 'bars',
+  deep_research: 'mesh',
+  agent: 'ripple',
 };
 
 const STEP_ICON: Record<string, LucideIcon> = {
@@ -53,6 +62,65 @@ const STEP_ICON: Record<string, LucideIcon> = {
   error: AlertTriangle,
 };
 
+const THOUGHT_MESSAGES: Record<string, string[]> = {
+  thinking: [
+    'Analyzing your request',
+    'Understanding context',
+    'Identifying patterns',
+    'Reasoning through the problem',
+  ],
+  tool: [
+    'Exploring options',
+    'Gathering information',
+    'Processing data',
+    'Evaluating results',
+  ],
+  success: ['Finalizing', 'Almost there'],
+  error: ['Encountered an issue', 'Adjusting approach'],
+};
+
+const GENERIC_TEXTS = new Set(['Thinking...', 'working…', '']);
+
+function ThoughtStream({ thinkingText, state }: { thinkingText: string; state: string }) {
+  const [displayText, setDisplayText] = useState(thinkingText || 'working…');
+  const [visible, setVisible] = useState(true);
+
+  const isGeneric = !thinkingText || GENERIC_TEXTS.has(thinkingText);
+
+  useEffect(() => {
+    if (!isGeneric) {
+      setVisible(false);
+      const t1 = setTimeout(() => {
+        setDisplayText(thinkingText);
+        setVisible(true);
+      }, 180);
+      return () => clearTimeout(t1);
+    }
+
+    const messages = THOUGHT_MESSAGES[state] || THOUGHT_MESSAGES.thinking;
+    let index = 0;
+
+    const showNext = () => {
+      setVisible(false);
+      setTimeout(() => {
+        index = (index + 1) % messages.length;
+        setDisplayText(messages[index]);
+        setVisible(true);
+      }, 200);
+    };
+
+    setDisplayText(messages[0]);
+    setVisible(true);
+
+    const interval = setInterval(showNext, 2800);
+    return () => clearInterval(interval);
+  }, [isGeneric, state]);
+
+  return (
+    <span className={`ac-thought${visible ? ' ac-thought--visible' : ''}`}>{displayText}</span>
+  );
+}
+
 export default function ActivityChain() {
   const { activity, thinkingText } = useApp();
   const [collapsed, setCollapsed] = useState(false);
@@ -66,6 +134,15 @@ export default function ActivityChain() {
   if (!activity) return null;
 
   const ModeIcon = MODE_ICON[activity.mode] ?? Info;
+  const variant = MODE_THINKING[activity.mode] ?? 'orbit';
+
+  const pulseState = activity.steps.some((s) => s.status === 'error')
+    ? 'error'
+    : activity.steps.some((s) => s.status === 'active' && s.kind === 'tool')
+      ? 'tool'
+      : activity.steps.length > 0 && activity.steps.every((s) => s.status === 'done')
+        ? 'success'
+        : 'thinking';
 
   return (
     <div className="ac-card">
@@ -81,8 +158,8 @@ export default function ActivityChain() {
         </div>
         <div className="ac-header-right">
           <span className="ac-status">
-            <Loader2 size={12} className="ac-spin" />
-            {thinkingText || 'working…'}
+            <Thinking variant={variant} size={16} />
+            <ThoughtStream thinkingText={thinkingText} state={pulseState} />
           </span>
           <button
             type="button"
@@ -116,7 +193,7 @@ function StepNode({ step, isLast }: { step: ActivityStep; isLast: boolean }) {
     <div className={`ac-step ac-step--${step.status}`}>
       <span className={`ac-node ac-node--${step.status}`}>
         {step.status === 'active' ? (
-          <Loader2 size={12} className="ac-spin" />
+          <Thinking variant="beacon" size={11} />
         ) : step.status === 'done' ? (
           <Check size={12} />
         ) : step.status === 'error' ? (

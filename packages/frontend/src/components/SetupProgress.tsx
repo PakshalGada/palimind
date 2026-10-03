@@ -1,4 +1,5 @@
 import { useApp } from '../AppContext';
+import Thinking from './Thinking';
 
 /**
  * Global banner for first-run model downloads / loads. The packaged backend
@@ -15,7 +16,7 @@ export default function SetupProgress() {
       {setupTasks.map((task) => (
         <div key={task.key} className="setup-task">
           <div className="progress-bar-label">
-            <span className="pulse-dot" />
+            <Thinking variant="beacon" size={12} />
             {task.label}
             {task.message ? ` — ${task.message}` : ''}
           </div>

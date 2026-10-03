@@ -392,10 +392,10 @@ export default function InputArea() {
       });
     }
 
-    setThinkingText("Thinking...");
+    setThinkingText("Analyzing your request...");
     setAgentStates([]);
     setAgentLoading(null);
-    const thinkingBaseRef = { current: "Thinking..." };
+    const thinkingBaseRef = { current: "Analyzing your request" };
 
     // ── unified activity chain (same shell for every mode) ────────────
     const agentInfo = selectedAgentId

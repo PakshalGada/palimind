@@ -168,7 +168,7 @@ export default function KnowledgeGraph() {
 
   const loadGraph = async () => {
     if (!containerRef.current) return;
-    containerRef.current.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;height:100%;color:var(--text-muted)"><div class="loading-spinner-container size-lg"><svg class="loading-spinner-svg" width="32" height="32" viewBox="0 0 24 24" fill="none"><circle class="loading-spinner-track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5"/><path class="loading-spinner-head" d="M12 2C6.47715 2 2 6.47715 2 12C2 14.7364 3.09743 17.2166 4.87858 19.034" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></div><span>Loading Knowledge Graph...</span></div>';
+    containerRef.current.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;height:100%;color:var(--text-muted)"><span class="tk tk--trace" style="width:32px;height:32px"><svg viewBox="0 0 24 24" class="tk-svg"><circle cx="12" cy="12" r="9" class="tk-track" pathLength="100"/><circle cx="12" cy="12" r="9" class="tk-arc" pathLength="100"/></svg></span><span>Loading Knowledge Graph...</span></div>';
 
     try {
       const res: GraphData & { error?: string; needs_rebuild?: boolean } = await api.graph.get();

@@ -64,10 +64,10 @@
   border: 1px solid transparent;
 }
 .ui-chip--muted { color: var(--text-muted); }
-.ui-chip--success { color: #34d399; background: rgba(52, 211, 153, 0.12); }
-.ui-chip--warn { color: #fbbf24; background: rgba(251, 191, 36, 0.12); }
+.ui-chip--success { color: var(--text-main); background: var(--accent-bg); }
+.ui-chip--warn { color: var(--text-secondary); background: var(--accent-bg); }
 .ui-chip--danger { color: var(--danger-strong); background: var(--danger-soft); }
-.ui-chip--accent { color: var(--text-main); background: rgba(139, 92, 246, 0.16); }
+.ui-chip--accent { color: var(--text-main); background: var(--accent-bg); }
 
 .ui-badge {
   display: inline-flex;
@@ -82,10 +82,10 @@
   background: var(--accent-bg);
   color: var(--text-secondary);
 }
-.ui-badge--success { color: #34d399; background: rgba(52, 211, 153, 0.12); }
-.ui-badge--warn { color: #fbbf24; background: rgba(251, 191, 36, 0.12); }
+.ui-badge--success { color: var(--text-main); background: var(--accent-bg); }
+.ui-badge--warn { color: var(--text-secondary); background: var(--accent-bg); }
 .ui-badge--danger { color: var(--danger-strong); background: var(--danger-soft); }
-.ui-badge--accent { color: #a78bfa; background: rgba(139, 92, 246, 0.14); }
+.ui-badge--accent { color: var(--text-main); background: var(--accent-bg); }
 
 /* ── form fields ─────────────────────────────────────────────────────── */
 .ui-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }

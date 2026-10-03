@@ -35,7 +35,7 @@
   gap: 6px;
   font-size: 0.7rem;
   color: var(--text-muted);
-  max-width: 150px;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -139,5 +139,16 @@
   gap: 8px;
 }
 
-.ac-spin { animation: ac-spin 0.9s linear infinite; }
-@keyframes ac-spin { to { transform: rotate(360deg); } }
+/* ── Thought stream ─────────────────────────────────────────────── */
+.ac-thought {
+  display: inline-block;
+  opacity: 1;
+  transition: opacity 0.18s ease !important;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ac-thought:not(.ac-thought--visible) {
+  opacity: 0;
+}

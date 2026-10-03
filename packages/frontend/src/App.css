@@ -134,9 +134,9 @@
     --border-color: #27272a;
     --border-subtle: #1f1f23;
     --sidebar-bg: #000000;
-    --danger: #ef4444;
-    --danger-strong: #f87171;
-    --danger-soft: rgba(239, 68, 68, 0.18);
+    --danger: #a1a1aa;
+    --danger-strong: #f4f4f5;
+    --danger-soft: rgba(255, 255, 255, 0.12);
     --accent-bg: rgba(255, 255, 255, 0.08);
     --primary-color: #ffffff;
     --primary-hover: #e4e4e7;
@@ -188,9 +188,9 @@
     --border-color: #e4e4e7;
     --border-subtle: #f4f4f5;
     --sidebar-bg: #ffffff;
-    --danger: #dc2626;
-    --danger-strong: #ef4444;
-    --danger-soft: rgba(220, 38, 38, 0.12);
+    --danger: #52525b;
+    --danger-strong: #09090b;
+    --danger-soft: rgba(9, 9, 11, 0.08);
     --accent-bg: rgba(9, 9, 11, 0.06);
     --primary-color: #09090b;
     --primary-hover: #27272a;
@@ -1055,17 +1055,17 @@ select {
 @keyframes pulse {
     0% {
         transform: scale(1);
-        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+        box-shadow: 0 0 0 0 var(--focus-ring);
         border-radius: 50%;
     }
     70% {
         transform: scale(1.1);
-        box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+        box-shadow: 0 0 0 6px transparent;
         border-radius: 50%;
     }
     100% {
         transform: scale(1);
-        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+        box-shadow: 0 0 0 0 transparent;
         border-radius: 50%;
     }
 }
@@ -1718,7 +1718,7 @@ select {
 .rec-done {
     margin-top: 6px;
     font-size: 0.72rem;
-    color: #34d399;
+    color: var(--text-main);
 }
 .rec-error {
     margin-top: 6px;
@@ -1760,7 +1760,7 @@ select {
     height: 100%;
     background: var(--primary-color);
     border-radius: 2px;
-    animation: progress-slide 1.5s infinite ease-in-out;
+    animation: progress-slide 1.5s infinite ease-in-out !important;
     position: absolute;
     top: 0;
     left: 0;
@@ -3234,14 +3234,14 @@ input:checked + .toggle-slider .llm-mode {
     color: var(--text-main);
 }
 .confirm-actions .action-btn.danger-btn {
-    background: rgba(248, 113, 113, 0.12);
-    border-color: rgba(248, 113, 113, 0.35);
+    background: var(--danger-soft);
+    border-color: var(--danger);
     color: var(--danger-strong);
 }
 .confirm-actions .action-btn.danger-btn:hover {
     background: var(--danger);
     border-color: var(--danger);
-    color: #ffffff;
+    color: var(--bg-color);
 }
 
 .sidebar-nav {
@@ -3539,7 +3539,7 @@ input:checked + .toggle-slider .llm-mode {
     font-weight: 500;
     letter-spacing: 0.2px;
     color: var(--text-muted);
-    animation: pulse-text 1.8s ease-in-out infinite alternate;
+    animation: pulse-text 1.8s ease-in-out infinite alternate !important;
 }
 
 .pulse-dot {
@@ -3549,7 +3549,7 @@ input:checked + .toggle-slider .llm-mode {
     border-radius: 50%;
     background: var(--primary-color);
     margin-right: 6px;
-    animation: pulse-glow 1.5s infinite ease-in-out;
+    animation: pulse-glow 1.5s infinite ease-in-out !important;
 }
 
 @keyframes spin-loader {
@@ -3911,12 +3911,12 @@ input:checked + .toggle-slider .llm-mode {
   height: 7px;
   border-radius: 50%;
   background: var(--wa-online);
-  box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.18);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .agent-chat-status.working .agent-chat-status-dot {
   background: var(--text-muted);
   box-shadow: none;
-  animation: wa-status-pulse 1.2s ease-in-out infinite;
+  animation: wa-status-pulse 1.2s ease-in-out infinite !important;
 }
 @keyframes wa-status-pulse {
   0%, 100% { opacity: 1; }
@@ -4069,7 +4069,7 @@ input:checked + .toggle-slider .llm-mode {
   font-size: 0.78rem;
   font-style: italic;
   color: var(--text-muted);
-  animation: agent-dot-bounce 1.2s ease-in-out infinite;
+  animation: agent-dot-bounce 1.2s ease-in-out infinite !important;
 }
 @keyframes agent-dot-bounce {
   0%,
@@ -4534,11 +4534,11 @@ input:checked + .toggle-slider .llm-mode {
 }
 .danger-btn {
   color: var(--danger-strong) !important;
-  border-color: rgba(248, 113, 113, 0.35) !important;
+  border-color: var(--danger) !important;
   background: transparent !important;
 }
 .danger-btn:hover {
-  border-color: rgba(248, 113, 113, 0.7) !important;
+  border-color: var(--danger-strong) !important;
 }
 
 /* model picker */
@@ -4741,7 +4741,7 @@ input:checked + .toggle-slider .llm-mode {
 }
 .mem-type.mem-error {
   color: var(--danger-strong);
-  border-color: rgba(248, 113, 113, 0.35);
+  border-color: var(--danger);
 }
 .mem-time {
   margin-left: auto;
@@ -4839,7 +4839,7 @@ input:checked + .toggle-slider .llm-mode {
 }
 .cfg-chip.chip-off {
   color: var(--danger-strong);
-  border-color: rgba(248, 113, 113, 0.35);
+  border-color: var(--danger);
 }
 
 /* form typography */
@@ -5096,10 +5096,10 @@ input:checked + .toggle-slider .llm-mode {
   border-color: var(--text-muted);
 }
 .cron-raw-input.invalid {
-  border-color: #e5534b;
+  border-color: var(--danger);
 }
 .cron-raw-input.valid {
-  border-color: #2ea043;
+  border-color: var(--text-secondary);
 }
 .cron-validating {
   position: absolute;
@@ -5144,7 +5144,7 @@ input:checked + .toggle-slider .llm-mode {
 .cron-validation-error {
   width: 100%;
   font-size: 0.72rem;
-  color: #e5534b;
+  color: var(--danger-strong);
 }
 
 
@@ -5490,7 +5490,7 @@ input:checked + .toggle-slider .llm-mode {
   height: 7px;
   border-radius: 50%;
   background: var(--text-main);
-  animation: wa-status-pulse 1.6s ease-in-out infinite;
+  animation: wa-status-pulse 1.6s ease-in-out infinite !important;
 }
 .agent-footer-hint {
   font-size: var(--text-meta);
@@ -5661,9 +5661,9 @@ input:checked + .toggle-slider .llm-mode {
     opacity: 0.5;
 }
 .settings-nav-status.on {
-    background: #4ade80;
+    background: var(--text-main);
     opacity: 1;
-    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.15);
+    box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 /* Right content pane */
@@ -5797,8 +5797,8 @@ input:checked + .toggle-slider .llm-mode {
     background: var(--text-muted);
 }
 .settings-dot.on {
-    background: #4ade80;
-    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.15);
+    background: var(--text-main);
+    box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .settings-status-text {
     font-size: 0.84rem;
