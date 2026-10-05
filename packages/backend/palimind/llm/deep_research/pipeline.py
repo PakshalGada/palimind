@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -16,10 +15,8 @@ from palimind.settings import (
     DR_MAX_CONCURRENCY,
     DR_MAX_SEARCH_RESULTS,
     DR_NUM_CTX,
-    DR_NUM_SUBTOPICS,
     DR_VERIFY,
 )
-
 
 # ── prompt builders ────────────────────────────────────────────────────────
 

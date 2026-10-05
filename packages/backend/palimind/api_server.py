@@ -331,7 +331,7 @@ async def background_index_field(path: Path):
             {"type": "indexing_complete", "message": f"[{path.name}] indexed successfully!"}
         )
         await broadcast_event({"type": "sync", "message": f"[{path.name}] Context Updated"})
-    except Exception as e:
+    except Exception:
         state.is_indexing = False
         state.indexing_status = ""
         await broadcast_event(
@@ -1448,7 +1448,7 @@ async def voice_transcribe(request: Request):
     try:
         text = await asyncio.to_thread(transcribe_wav_bytes, wav_bytes)
         return {"text": text}
-    except Exception as e:
+    except Exception:
         return {"error": "Transcription failed"}
 
 
@@ -1466,7 +1466,7 @@ async def voice_synthesize(request: Request):
             return Response(status_code=500, content="TTS synthesis failed")
 
         return Response(content=wav_bytes, media_type="audio/wav")
-    except Exception as e:
+    except Exception:
         return Response(status_code=500, content="Synthesis error")
 
 
