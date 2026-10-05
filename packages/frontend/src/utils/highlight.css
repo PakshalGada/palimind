@@ -1,0 +1,88 @@
+/* Syntax highlighting theme (VS Code Dark+ / Light+ inspired).
+   Token colours are applied to the classes emitted by highlight.js. */
+
+.hljs {
+  color: var(--hljs-fg);
+  background: transparent;
+}
+.hljs-comment,
+.hljs-quote {
+  color: var(--hljs-comment);
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-doctag,
+.hljs-name {
+  color: var(--hljs-keyword);
+}
+.hljs-built_in,
+.hljs-title.class_,
+.hljs-type {
+  color: var(--hljs-type);
+}
+.hljs-string,
+.hljs-title,
+.hljs-section,
+.hljs-attribute,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-addition,
+.hljs-regexp {
+  color: var(--hljs-string);
+}
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-variable,
+.hljs-meta {
+  color: var(--hljs-number);
+}
+.hljs-title.function_,
+.hljs-function .hljs-title,
+.hljs-selector-id,
+.hljs-selector-class {
+  color: var(--hljs-function);
+}
+.hljs-attr,
+.hljs-property,
+.hljs-params,
+.hljs-selector-attr {
+  color: var(--hljs-attr);
+}
+.hljs-tag {
+  color: var(--hljs-tag);
+}
+.hljs-deletion {
+  color: var(--hljs-deletion);
+}
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 600; }
+.hljs-link { text-decoration: underline; }
+
+:root {
+  --hljs-fg: #d4d4d4;
+  --hljs-comment: #6a9955;
+  --hljs-keyword: #569cd6;
+  --hljs-type: #4ec9b0;
+  --hljs-string: #ce9178;
+  --hljs-number: #b5cea8;
+  --hljs-function: #dcdcaa;
+  --hljs-attr: #9cdcfe;
+  --hljs-tag: #569cd6;
+  --hljs-deletion: #f14c4c;
+}
+
+.light-mode {
+  --hljs-fg: #24292e;
+  --hljs-comment: #6a737d;
+  --hljs-keyword: #d73a49;
+  --hljs-type: #22863a;
+  --hljs-string: #032f62;
+  --hljs-number: #005cc5;
+  --hljs-function: #6f42c1;
+  --hljs-attr: #005cc5;
+  --hljs-tag: #22863a;
+  --hljs-deletion: #b31d28;
+}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../AppContext';
 import { api } from '../api';
+import { useCommandHandler } from '../commands/useCommand';
 import type { ModelItem, Recommendation, HardwareData } from '../types';
 import LoadingSpinner from './LoadingSpinner';
 
@@ -180,6 +181,16 @@ export default function ModelSwitcher() {
     setIsOpen(false);
     setHighlightIdx(-1);
   }, []);
+
+  // Expose the picker to the command palette / keyboard shortcuts, and allow
+  // other surfaces to request it via a custom event.
+  useCommandHandler('chat.switch-model', open);
+
+  useEffect(() => {
+    const handler = () => open();
+    window.addEventListener('palimind:open-model-switcher', handler);
+    return () => window.removeEventListener('palimind:open-model-switcher', handler);
+  }, [open]);
 
   useEffect(() => {
     if (isOpen) {

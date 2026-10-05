@@ -1,0 +1,102 @@
+/* Message-level hover actions (1.5) */
+
+.message-wrapper {
+  position: relative;
+}
+
+.msg-actions {
+  position: absolute;
+  top: -12px;
+  right: 4px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.18));
+  opacity: 0;
+  transform: translateY(2px);
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.message:hover .msg-actions,
+.msg-actions:focus-within {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.msg-actions-copy { position: relative; display: inline-flex; }
+
+.msg-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 26px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.msg-action-btn:hover { background: var(--accent-bg); color: var(--text-main); }
+.msg-action-btn.is-active { color: var(--primary-color, var(--text-main)); }
+.msg-action-danger:hover { color: var(--danger-strong); }
+.msg-action-caret { opacity: 0.7; }
+
+.msg-actions-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-lg);
+}
+.msg-actions-menu button {
+  display: block;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.msg-actions-menu button:hover { background: var(--accent-bg); color: var(--text-main); }
+
+/* Inline edit form for user messages */
+.message-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.message-edit textarea {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--input-bg);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.message-edit textarea:focus { outline: none; border-color: var(--focus-ring); }
+.message-edit-actions { display: flex; gap: 8px; }

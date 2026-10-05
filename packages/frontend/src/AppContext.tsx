@@ -1,6 +1,8 @@
-import { createContext, useContext, useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import { api } from './api';
 import type { AppView, ChatMode, LlmSubMode, SetupTask, Theme } from './types';
+import type { ShortcutOverrides } from './utils/shortcuts';
+import { loadShortcutOverrides, saveShortcutOverrides } from './utils/shortcuts';
 
 interface Toast {
   id: number;
@@ -62,6 +64,13 @@ interface AppState {
   agentLoading: { seed: string; name: string } | null;
   activity: ActivityState | null;
   setupTasks: SetupTask[];
+  sidebarCollapsed: boolean;
+  commandPaletteOpen: boolean;
+  shortcutsModalOpen: boolean;
+  artifactPanelOpen: boolean;
+  canvasOpen: boolean;
+  canvasEnabled: boolean;
+  shortcutOverrides: ShortcutOverrides;
 }
 
 interface AppContextType extends AppState {
@@ -95,6 +104,16 @@ interface AppContextType extends AppState {
   refreshFileTree: () => Promise<void>;
   abortController: AbortController | null;
   setAbortController: (c: AbortController | null) => void;
+  setSidebarCollapsed: (v: boolean) => void;
+  toggleSidebar: () => void;
+  setCommandPaletteOpen: (v: boolean) => void;
+  setShortcutsModalOpen: (v: boolean) => void;
+  setArtifactPanelOpen: (v: boolean) => void;
+  setCanvasOpen: (v: boolean) => void;
+  setCanvasEnabled: (v: boolean) => void;
+  setShortcutOverride: (commandId: string, combo: string | null) => void;
+  resetShortcut: (commandId: string) => void;
+  resetAllShortcuts: () => void;
 }
 
 export const AppContext = createContext<AppContextType | null>(null);
@@ -126,8 +145,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activity, setActivity] = useState<ActivityState | null>(null);
   const [setupTasks, setSetupTasks] = useState<SetupTask[]>([]);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
+  const [artifactPanelOpen, setArtifactPanelOpen] = useState(false);
+  const [canvasOpen, setCanvasOpen] = useState(false);
+  const [canvasEnabled, setCanvasEnabledState] = useState<boolean>(
+    () => localStorage.getItem('palimind:canvas-enabled') !== 'false',
+  );
+  const [shortcutOverrides, setShortcutOverridesState] = useState<ShortcutOverrides>(() => loadShortcutOverrides());
 
   const toastId = useRef(0);
+
+  const toggleSidebar = useCallback(() => setSidebarCollapsed((v) => !v), []);
+
+  const setCanvasEnabled = useCallback((value: boolean) => {
+    setCanvasEnabledState(value);
+    try {
+      localStorage.setItem('palimind:canvas-enabled', value ? 'true' : 'false');
+    } catch {
+      // ignore
+    }
+    if (!value) setCanvasOpen(false);
+  }, []);
+
+  const setShortcutOverride = useCallback((commandId: string, combo: string | null) => {
+    setShortcutOverridesState((prev) => {
+      const next = { ...prev };
+      if (combo) next[commandId] = combo;
+      else delete next[commandId];
+      saveShortcutOverrides(next);
+      return next;
+    });
+  }, []);
+
+  const resetShortcut = useCallback((commandId: string) => {
+    setShortcutOverridesState((prev) => {
+      if (!(commandId in prev)) return prev;
+      const next = { ...prev };
+      delete next[commandId];
+      saveShortcutOverrides(next);
+      return next;
+    });
+  }, []);
+
+  const resetAllShortcuts = useCallback(() => {
+    saveShortcutOverrides({});
+    setShortcutOverridesState({});
+  }, []);
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
@@ -259,38 +324,55 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Memoize the context value to prevent unnecessary re-renders of all consumers
+  const contextValue = useMemo(() => ({
+    activeView, setActiveView,
+    activeField, setActiveField,
+    activeSessionId, setActiveSessionId,
+    sessions, setSessions,
+    selectedFiles, toggleSelectedFile, clearSelectedFiles,
+    chatMode, setChatMode,
+    isGenerating, setIsGenerating,
+    theme, setTheme,
+    currentModel, setCurrentModel,
+    llmSubMode, setLlmSubMode,
+    orchestratorModel, setOrchestratorModel,
+    workerModel, setWorkerModel,
+    isIndexing, setIsIndexing,
+    indexingStatus, setIndexingStatus,
+    toasts, addToast,
+    attachedFiles, setAttachedFiles,
+    isRecording, setIsRecording,
+    isTranscribing, setIsTranscribing,
+    isSpeaking, setIsSpeaking,
+    thinkingText, setThinkingText,
+    agentStates, setAgentStates,
+    selectedAgentId, setSelectedAgentId,
+    agentLoading, setAgentLoading,
+    activity, setActivity,
+    setupTasks,
+    refreshFields, refreshSessions, refreshFileTree,
+    abortController, setAbortController,
+    sidebarCollapsed, setSidebarCollapsed, toggleSidebar,
+    commandPaletteOpen, setCommandPaletteOpen,
+    shortcutsModalOpen, setShortcutsModalOpen,
+    artifactPanelOpen, setArtifactPanelOpen,
+    canvasOpen, setCanvasOpen, canvasEnabled, setCanvasEnabled,
+    shortcutOverrides, setShortcutOverride, resetShortcut, resetAllShortcuts,
+  }), [
+    activeView, activeField, activeSessionId, sessions, selectedFiles,
+    chatMode, isGenerating, theme, currentModel, llmSubMode,
+    orchestratorModel, workerModel, isIndexing, indexingStatus,
+    toasts, attachedFiles, isRecording, isTranscribing, isSpeaking,
+    thinkingText, agentStates, selectedAgentId, agentLoading,
+    activity, setupTasks, abortController,
+    sidebarCollapsed, commandPaletteOpen, shortcutsModalOpen,
+    artifactPanelOpen, canvasOpen, canvasEnabled, shortcutOverrides,
+    toggleSidebar, setShortcutOverride, resetShortcut, resetAllShortcuts,
+  ]);
+
   return (
-    <AppContext.Provider
-      value={{
-        activeView, setActiveView,
-        activeField, setActiveField,
-        activeSessionId, setActiveSessionId,
-        sessions, setSessions,
-        selectedFiles, toggleSelectedFile, clearSelectedFiles,
-        chatMode, setChatMode,
-        isGenerating, setIsGenerating,
-        theme, setTheme,
-        currentModel, setCurrentModel,
-        llmSubMode, setLlmSubMode,
-        orchestratorModel, setOrchestratorModel,
-        workerModel, setWorkerModel,
-        isIndexing, setIsIndexing,
-        indexingStatus, setIndexingStatus,
-        toasts, addToast,
-        attachedFiles, setAttachedFiles,
-        isRecording, setIsRecording,
-        isTranscribing, setIsTranscribing,
-        isSpeaking, setIsSpeaking,
-        thinkingText, setThinkingText,
-        agentStates, setAgentStates,
-        selectedAgentId, setSelectedAgentId,
-        agentLoading, setAgentLoading,
-        activity, setActivity,
-        setupTasks,
-        refreshFields, refreshSessions, refreshFileTree,
-        abortController, setAbortController,
-      }}
-    >
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

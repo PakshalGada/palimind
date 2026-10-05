@@ -75,8 +75,16 @@ from palimind.llm.stream import deep_research_mode_stream, llm_mode_stream, moe_
 from palimind.memory.session_store import (
     add_new_session,
     delete_session,
+    delete_session_message,
     load_sessions,
     set_active_session_id,
+    truncate_session_messages,
+)
+from palimind.storage.canvas_store import (
+    delete_canvas,
+    list_canvases,
+    load_canvas,
+    save_canvas,
 )
 
 app = FastAPI(title="Palimind V2 API")
@@ -895,6 +903,126 @@ async def remove_session(req: Request, scope: str = "field"):
         return {"error": "session_id is required"}
     sessions_data = await asyncio.to_thread(delete_session, root, session_id)
     return sessions_data
+
+
+@app.post("/api/sessions/truncate")
+async def truncate_session(req: Request, scope: str = "field"):
+    """Keep only the first ``keep_count`` messages (for regenerate/edit)."""
+    root = _chat_root(scope)
+    if root is None:
+        return {"error": "No active knowledge base"}
+    data = await req.json()
+    session_id = data.get("session_id")
+    if not session_id:
+        return {"error": "session_id is required"}
+    try:
+        keep_count = int(data.get("keep_count", 0))
+    except (TypeError, ValueError):
+        return {"error": "keep_count must be an integer"}
+    sessions_data = await asyncio.to_thread(truncate_session_messages, root, session_id, keep_count)
+    return sessions_data
+
+
+@app.post("/api/sessions/delete_message")
+async def delete_message(req: Request, scope: str = "field"):
+    """Delete a single message by index from a session."""
+    root = _chat_root(scope)
+    if root is None:
+        return {"error": "No active knowledge base"}
+    data = await req.json()
+    session_id = data.get("session_id")
+    if not session_id:
+        return {"error": "session_id is required"}
+    try:
+        index = int(data.get("index", -1))
+    except (TypeError, ValueError):
+        return {"error": "index must be an integer"}
+    sessions_data = await asyncio.to_thread(delete_session_message, root, session_id, index)
+    return sessions_data
+
+
+@app.get("/api/canvas")
+async def get_canvases():
+    """List saved canvas documents (most recently updated first)."""
+    return {"canvases": await asyncio.to_thread(list_canvases)}
+
+
+@app.get("/api/canvas/generate")
+async def canvas_generate(q: str):
+    """Stream a canvas document from the LLM without persisting a chat turn.
+
+    Registered before ``/api/canvas/{canvas_id}`` so the literal path wins.
+    """
+    config = _global_chat_config()
+    ollama_url = config.get("ollama_base_url", "http://localhost:11434")
+    chat_model = config.get("chat_model", "llama3")
+    from palimind.opencode.router import resolve_model
+
+    resolved_model, resolved_url, model_note = resolve_model(
+        chat_model, ollama_url, fallback_model=chat_model
+    )
+    if model_note:
+        print(f"[canvas] {model_note}")
+
+    system_prompt = (
+        "You are a writing assistant embedded in a Markdown document editor. "
+        "Return only the requested document content in Markdown, with no preamble, "
+        "explanation, or surrounding code fence."
+    )
+
+    async def stream():
+        from palimind.generative.responder import generate_response_stream
+
+        try:
+            for token in generate_response_stream(
+                query=q,
+                context="",
+                image_paths=[],
+                ollama_url=resolved_url,
+                chat_model=resolved_model,
+                system_prompt=system_prompt,
+                history=[],
+                is_chat_only=True,
+                num_ctx=config.get("num_ctx"),
+            ):
+                yield f"data: {json.dumps({'type': 'token', 'text': token})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'text': str(e)})}\n\n"
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
+
+
+@app.get("/api/canvas/{canvas_id}")
+async def get_canvas(canvas_id: str):
+    record = await asyncio.to_thread(load_canvas, canvas_id)
+    if record is None:
+        return {"error": "Canvas not found"}
+    return record
+
+
+@app.put("/api/canvas/{canvas_id}")
+async def put_canvas(canvas_id: str, req: Request):
+    try:
+        data = await req.json()
+    except Exception:
+        return {"error": "Invalid JSON body"}
+    title = str(data.get("title", "Untitled"))
+    content = str(data.get("content", ""))
+    try:
+        record = await asyncio.to_thread(save_canvas, canvas_id, title, content)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    return record
+
+
+@app.delete("/api/canvas/{canvas_id}")
+async def remove_canvas(canvas_id: str):
+    try:
+        removed = await asyncio.to_thread(delete_canvas, canvas_id)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    return {"status": "success" if removed else "not_found"}
 
 
 @app.get("/api/events")

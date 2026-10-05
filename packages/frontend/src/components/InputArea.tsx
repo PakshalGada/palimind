@@ -8,6 +8,7 @@ import ActivityChain from "./ActivityChain";
 import MicWave from "./MicWave";
 import { useApp } from "../AppContext";
 import type { ActivityMode, AgentState } from "../AppContext";
+import { useCommandHandlers } from "../commands/useCommand";
 import { formatMarkdown } from "../utils/markdown";
 import { exportWAV } from "../utils/audio";
 import { api } from "../api";
@@ -34,6 +35,7 @@ export default function InputArea() {
     isGenerating,
     setIsGenerating,
     activeSessionId,
+    sessions,
     attachedFiles,
     setAttachedFiles,
     currentModel,
@@ -66,6 +68,23 @@ export default function InputArea() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+  // When set, the next handleSend() uses this text instead of the composer
+  // value. Used by the "regenerate" command to replay a previous message.
+  const sendOverrideRef = useRef<string | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Clean up EventSource and interval on unmount to prevent memory leaks.
+  useEffect(() => {
+    return () => {
+      eventSourceRef.current?.close();
+      eventSourceRef.current = null;
+      if (timerIntervalRef.current !== null) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+    };
+  }, []);
   const [moePopupOpen, setMoePopupOpen] = useState(false);
   const moeBtnRef = useRef<HTMLButtonElement>(null);
   const moePopupRef = useRef<HTMLDivElement>(null);
@@ -336,7 +355,9 @@ export default function InputArea() {
 
   const handleSend = useCallback(async () => {
     if (isGenerating) return;
-    const text = value.trim();
+    const override = sendOverrideRef.current;
+    sendOverrideRef.current = null;
+    const text = (override ?? value).trim();
     if (!text && attachedFiles.length === 0) return;
 
     // Index dropped attachments as captures so document-mode RAG can find them.
@@ -386,10 +407,14 @@ export default function InputArea() {
     setChainSlot(chainSlotEl);
     const scrollArea = document.getElementById("messages-scroll-area");
     if (scrollArea) {
-      scrollArea.scrollTo({
-        top: userMsgDiv.offsetTop - 16,
-        behavior: "smooth",
-      });
+      // Only auto-scroll if user is already near the bottom
+      const distanceFromBottom = scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight;
+      if (distanceFromBottom < 80) {
+        scrollArea.scrollTo({
+          top: userMsgDiv.offsetTop - 16,
+          behavior: "auto",
+        });
+      }
     }
 
     setThinkingText("Analyzing your request...");
@@ -558,7 +583,8 @@ export default function InputArea() {
     const timerInterval = setInterval(() => {
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
       setThinkingText(`${thinkingBaseRef.current} ${elapsed}s`);
-    }, 200);
+    }, 500);
+    timerIntervalRef.current = timerInterval;
 
     const mode = isChatView ? "llm" : chatMode;
     const sub_mode = mode === "llm" ? llmSubMode : "";
@@ -569,10 +595,13 @@ export default function InputArea() {
         : "");
 
     const eventSource = new EventSource(url);
+    eventSourceRef.current = eventSource;
 
     abortCtrl.signal.addEventListener("abort", () => {
       eventSource.close();
+      eventSourceRef.current = null;
       clearInterval(timerInterval);
+      timerIntervalRef.current = null;
       setThinkingText("");
       setAgentStates([]);
       setAgentLoading(null);
@@ -900,7 +929,12 @@ export default function InputArea() {
         card.appendChild(row);
         messagesContainer.appendChild(card);
         const approvalScroll = document.getElementById("messages-scroll-area");
-        if (approvalScroll) approvalScroll.scrollTop = approvalScroll.scrollHeight;
+        if (approvalScroll) {
+          const distanceFromBottom = approvalScroll.scrollHeight - approvalScroll.scrollTop - approvalScroll.clientHeight;
+          if (distanceFromBottom < 80) {
+            approvalScroll.scrollTop = approvalScroll.scrollHeight;
+          }
+        }
       } else if (data.type === "agent:token") {
         if (!answerStarted) {
           completeActive();
@@ -968,6 +1002,7 @@ export default function InputArea() {
         contentDiv.innerHTML = formatMarkdown(fullText);
       } else if (data.type === "error") {
         clearInterval(timerInterval);
+        timerIntervalRef.current = null;
         setThinkingText("");
         setAgentStates([]);
         setAgentLoading(null);
@@ -987,18 +1022,21 @@ export default function InputArea() {
         fullText += `\n**Error:** ${data.text}`;
         contentDiv.innerHTML = formatMarkdown(fullText);
         eventSource.close();
+        eventSourceRef.current = null;
         setIsGenerating(false);
         refreshSessions().then(() => {
           if (messagesContainer) messagesContainer.innerHTML = "";
         });
       } else if (data.type === "done") {
         clearInterval(timerInterval);
+        timerIntervalRef.current = null;
         setThinkingText("");
         setAgentStates([]);
         setAgentLoading(null);
         setActivity(null);
         setChainSlot(null);
         eventSource.close();
+        eventSourceRef.current = null;
         setIsGenerating(false);
         refreshSessions().then(() => {
           if (messagesContainer) messagesContainer.innerHTML = "";
@@ -1008,12 +1046,14 @@ export default function InputArea() {
 
     eventSource.onerror = () => {
       clearInterval(timerInterval);
+      timerIntervalRef.current = null;
       setThinkingText("");
       setAgentStates([]);
       setAgentLoading(null);
       setActivity(null);
       setChainSlot(null);
       eventSource.close();
+      eventSourceRef.current = null;
       setIsGenerating(false);
       refreshSessions().then(() => {
         if (messagesContainer) messagesContainer.innerHTML = "";
@@ -1037,6 +1077,78 @@ export default function InputArea() {
     selectedAgentId,
     setActivity,
   ]);
+
+  const findLastMessage = useCallback(
+    (role: "user" | "system") => {
+      const sess =
+        sessions.find((s) => s.id === activeSessionId) ??
+        (sessions.length > 0 ? sessions[sessions.length - 1] : undefined);
+      if (!sess?.messages) return undefined;
+      for (let i = sess.messages.length - 1; i >= 0; i--) {
+        if (sess.messages[i].role === role) return sess.messages[i];
+      }
+      return undefined;
+    },
+    [sessions, activeSessionId],
+  );
+
+  useCommandHandlers({
+    "chat.stop": () => {
+      const ctrl =
+        abortRef.current ??
+        (window as unknown as { __abortController?: AbortController }).__abortController ??
+        null;
+      if (!ctrl) {
+        addToast("Nothing is generating.");
+        return;
+      }
+      ctrl.abort();
+    },
+    "chat.copy-last": () => {
+      const last = findLastMessage("system");
+      if (!last?.content) {
+        addToast("No response to copy yet.");
+        return;
+      }
+      navigator.clipboard
+        .writeText(last.content)
+        .then(() => addToast("Copied response to clipboard"))
+        .catch(() => addToast("Could not access the clipboard"));
+    },
+    "chat.regenerate": () => {
+      if (isGenerating) {
+        addToast("A response is already generating.");
+        return;
+      }
+      const last = findLastMessage("user");
+      if (!last?.content) {
+        addToast("No message to regenerate.");
+        return;
+      }
+      sendOverrideRef.current = last.content;
+      void handleSend();
+    },
+    "chat.attach": () => {
+      textareaRef.current?.focus();
+      addToast("Drop files onto the composer to attach them.");
+    },
+  });
+
+  // Allow ChatArea's message actions to regenerate / edit-and-resend a
+  // specific message by replaying its text through the normal send path.
+  const handleSendRef = useRef(handleSend);
+  handleSendRef.current = handleSend;
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const content = (e as CustomEvent).detail?.content as string | undefined;
+      if (typeof content !== 'string' || !content.trim()) return;
+      sendOverrideRef.current = content;
+      void handleSendRef.current();
+    };
+    window.addEventListener('palimind:regenerate-message', handler);
+    return () => window.removeEventListener('palimind:regenerate-message', handler);
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (mention && mentionMatches.length > 0) {

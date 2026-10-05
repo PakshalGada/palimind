@@ -9,8 +9,14 @@ import DirectoryPicker from './components/DirectoryPicker';
 import KnowledgeGraph from './components/KnowledgeGraph';
 import ToastContainer from './components/ToastContainer';
 import SetupProgress from './components/SetupProgress';
+import ShortcutsModal from './components/ShortcutsModal';
+import CommandPalette from './components/CommandPalette';
+import ArtifactPanel from './components/ArtifactPanel';
+import CanvasPanel from './components/CanvasPanel';
 import AgentManager from './features/agents/AgentManager';
 import AgentHeader from './features/agents/AgentHeader';
+import { useCommandHandlers } from './commands/useCommand';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 export default function App() {
   const {
@@ -20,7 +26,61 @@ export default function App() {
     setCurrentModel, setLlmSubMode, setOrchestratorModel, setWorkerModel,
     setIsIndexing, setIndexingStatus, addToast,
     isRecording, isTranscribing, isSpeaking,
+    setActiveView, setChatMode, theme, setTheme,
+    chatMode,
+    setCommandPaletteOpen, setShortcutsModalOpen,
+    toggleSidebar, setArtifactPanelOpen, setCanvasOpen,
+    artifactPanelOpen, canvasOpen, canvasEnabled,
+    shortcutOverrides, commandPaletteOpen,
+    sidebarCollapsed,
   } = useApp();
+
+  useKeyboardShortcuts({ overrides: shortcutOverrides, disabled: commandPaletteOpen });
+
+  // App-level commands: navigation, view toggles and global modals.
+  useCommandHandlers({
+    'general.palette': () => setCommandPaletteOpen(true),
+    'general.shortcuts': () => setShortcutsModalOpen(true),
+    'general.settings': () => {
+      const modal = document.getElementById('settings-modal');
+      if (modal) modal.style.display = 'flex';
+    },
+    'view.toggle-sidebar': toggleSidebar,
+    'view.toggle-theme': () => setTheme(theme === 'dark' ? 'light' : 'dark'),
+    'view.toggle-artifacts': () => {
+      const next = !artifactPanelOpen;
+      setArtifactPanelOpen(next);
+      if (next) setCanvasOpen(false);
+    },
+    'view.toggle-canvas': () => {
+      if (!canvasEnabled) {
+        addToast('Canvas is disabled in Settings.');
+        return;
+      }
+      const next = !canvasOpen;
+      setCanvasOpen(next);
+      if (next) setArtifactPanelOpen(false);
+    },
+    'nav.chat': () => {
+      setActiveView('chat');
+      setChatMode('llm');
+    },
+    'nav.knowledge': () => {
+      setActiveView('fields');
+      setChatMode('document');
+    },
+    'nav.agents': () => setActiveView('agents'),
+    'nav.graph': () => {
+      const modal = document.getElementById('graph-modal');
+      if (modal) modal.style.display = 'flex';
+      window.dispatchEvent(new CustomEvent('palimind:open-graph'));
+    },
+    'nav.search': () => setCommandPaletteOpen(true),
+    'chat.toggle-mode': () => setChatMode(chatMode === 'llm' ? 'document' : 'llm'),
+    'agents.new': () => {
+      window.dispatchEvent(new CustomEvent('palimind:new-agent'));
+    },
+  });
 
   // The Agents area reuses the global chat surface but is backed by the
   // selected agent's own scope (separate sessions, model and settings). With
@@ -92,6 +152,7 @@ export default function App() {
     isRecording ? 'recording' : '',
     isTranscribing ? 'transcribing' : '',
     isSpeaking ? 'speaking' : '',
+    sidebarCollapsed ? 'sidebar-collapsed' : '',
   ].filter(Boolean).join(' ');
 
   return (
@@ -112,10 +173,14 @@ export default function App() {
       ) : (
         <WelcomeScreen />
       )}
+      <ArtifactPanel />
+      <CanvasPanel />
       <AgentManager />
       <SettingsModal />
       <DirectoryPicker />
       <KnowledgeGraph />
+      <ShortcutsModal />
+      <CommandPalette />
       <ToastContainer />
     </div>
   );

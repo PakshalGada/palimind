@@ -37,14 +37,16 @@ export default function Inspector({
   onSaved,
   onDeleted,
   onClose,
+  initialTab = 'definition',
 }: {
   agent: AgentListItem;
   onSaved: () => void;
   onDeleted: () => void;
   onClose: () => void;
+  initialTab?: InspectorTab;
 }) {
   const confirm = useConfirm();
-  const [tab, setTab] = useState<InspectorTab>('definition');
+  const [tab, setTab] = useState<InspectorTab>(initialTab);
   const [draft, setDraft] = useState<Partial<AgentDefinition>>(agent);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -75,8 +77,8 @@ export default function Inspector({
     setDirty(false);
     setMessage('');
     setError('');
-    setTab('definition');
-  }, [agent]);
+    setTab(initialTab);
+  }, [agent, initialTab]);
 
   const loadMemory = useCallback(
     async (page: number) => {

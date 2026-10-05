@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
+import { useCommandHandler } from '../../commands/useCommand';
 import type { AgentListItem } from '../../types';
+import type { InspectorTab } from './types';
 import AgentWizard from './AgentWizard';
 import Inspector from './Inspector';
 import './agents.css';
@@ -13,9 +15,10 @@ import './AgentManager.css';
  * sidebar's "New Agent" / "Info" actions still have somewhere to go.
  */
 export default function AgentManager() {
-  const { setSelectedAgentId } = useApp();
+  const { setSelectedAgentId, selectedAgentId, addToast } = useApp();
   const [creating, setCreating] = useState(false);
   const [configId, setConfigId] = useState<string | null>(null);
+  const [configTab, setConfigTab] = useState<InspectorTab>('definition');
   const [agents, setAgents] = useState<AgentListItem[]>([]);
 
   const refresh = useCallback(async () => {
@@ -35,9 +38,11 @@ export default function AgentManager() {
     const onChanged = () => void refresh();
     const onNew = () => setCreating(true);
     const onConfig = (e: Event) => {
-      const agentId = (e as CustomEvent).detail?.agentId as string | undefined;
+      const detail = (e as CustomEvent).detail as { agentId?: string; tab?: InspectorTab } | undefined;
+      const agentId = detail?.agentId;
       if (agentId) {
         setConfigId(agentId);
+        setConfigTab(detail?.tab ?? 'definition');
         void refresh();
       }
     };
@@ -50,6 +55,16 @@ export default function AgentManager() {
       window.removeEventListener('palimind:open-agent-config', onConfig);
     };
   }, [refresh]);
+
+  useCommandHandler('agents.manage-memory', () => {
+    if (!selectedAgentId) {
+      addToast('Select an agent to manage its memory.');
+      return;
+    }
+    setConfigId(selectedAgentId);
+    setConfigTab('memory');
+    void refresh();
+  });
 
   const configAgent = configId ? agents.find((a) => a.id === configId) || null : null;
 
@@ -70,6 +85,7 @@ export default function AgentManager() {
           <div className="am-panel" onMouseDown={(e) => e.stopPropagation()}>
             <Inspector
               agent={configAgent}
+              initialTab={configTab}
               onSaved={() => {
                 void refresh();
                 window.dispatchEvent(new CustomEvent('palimind:agents-changed'));

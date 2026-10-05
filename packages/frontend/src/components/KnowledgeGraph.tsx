@@ -87,6 +87,13 @@ export default function KnowledgeGraph() {
   const render = () => {
     if (!containerRef.current) return;
     const container = containerRef.current;
+
+    // Destroy previous network instance to prevent memory leaks
+    if (networkRef.current) {
+      networkRef.current.destroy();
+      networkRef.current = null;
+    }
+
     container.innerHTML = '';
     if (searchFiltered.nodes.length === 0) {
       container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted)">No matching nodes.</div>';

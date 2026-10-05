@@ -246,6 +246,36 @@ def append_message_to_session(
     save_sessions(root, data)
 
 
+def truncate_session_messages(root: Path, session_id: str, keep_count: int) -> dict:
+    """Keep only the first ``keep_count`` messages of a session.
+
+    Used by the UI to regenerate a reply or edit an earlier user message:
+    truncating before the target message lets the normal chat endpoint append
+    a fresh turn from that point on.
+    """
+    data = load_sessions(root)
+    for sess in data["sessions"]:
+        if sess["id"] == session_id:
+            messages = sess.get("messages", [])
+            sess["messages"] = messages[: max(0, keep_count)]
+            break
+    save_sessions(root, data)
+    return data
+
+
+def delete_session_message(root: Path, session_id: str, index: int) -> dict:
+    """Delete a single message by index from a session."""
+    data = load_sessions(root)
+    for sess in data["sessions"]:
+        if sess["id"] == session_id:
+            messages = sess.get("messages", [])
+            if 0 <= index < len(messages):
+                del messages[index]
+            break
+    save_sessions(root, data)
+    return data
+
+
 async def background_update_memory(
     root: Path, session_id: str, new_user_msg: str, new_bot_msg: str
 ):

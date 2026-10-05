@@ -5,6 +5,7 @@ import FileTreeView from "./FileTreeView";
 import ContextMenu from "./ContextMenu";
 import AgentAvatar from "./AgentAvatar";
 import { useConfirm } from "./ConfirmDialog";
+import { useCommandHandlers } from "../commands/useCommand";
 import type { AgentListItem } from "../types";
 
 const FIELD_TITLE_KEY = "palimind:field-display-titles";
@@ -77,6 +78,7 @@ export default function Sidebar() {
     selectedAgentId,
     setSelectedAgentId,
     setChatMode,
+    setCommandPaletteOpen,
   } = useApp();
 
   const chatScope = () =>
@@ -136,6 +138,16 @@ export default function Sidebar() {
     window.addEventListener("palimind:agents-changed", onChanged);
     return () => window.removeEventListener("palimind:agents-changed", onChanged);
   }, [activeView, fetchAgents]);
+
+  // The command palette can request the workspace file tree for the active
+  // knowledge base.
+  useEffect(() => {
+    const handler = () => {
+      if (activeField) setTreeField(activeField);
+    };
+    window.addEventListener("palimind:open-file-tree", handler);
+    return () => window.removeEventListener("palimind:open-file-tree", handler);
+  }, [activeField]);
 
   const handleSetActive = async (path: string) => {
     try {
@@ -219,6 +231,23 @@ export default function Sidebar() {
     if (modal) modal.style.display = "flex";
     window.dispatchEvent(new CustomEvent("palimind:open-graph"));
   };
+
+  useCommandHandlers({
+    "chat.new": () => {
+      if (!chatScope()) {
+        addToast("Select an agent to start a session.");
+        return;
+      }
+      void handleNewSession();
+    },
+    "nav.sync": () => {
+      if (!activeField) {
+        addToast("Select a knowledge base to sync.");
+        return;
+      }
+      void handleSync();
+    },
+  });
 
   const showFieldMenu = (e: React.MouseEvent, path: string) => {
     e.preventDefault();
@@ -372,6 +401,21 @@ export default function Sidebar() {
           </svg>
         </button>
       </div>
+
+      <button
+        type="button"
+        className="sidebar-search-btn"
+        onClick={() => setCommandPaletteOpen(true)}
+        title="Search or run a command (Ctrl+K)"
+        aria-label="Open command palette"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <span className="sidebar-search-label">Search or run…</span>
+        <kbd className="sidebar-search-kbd">Ctrl K</kbd>
+      </button>
 
       <nav className="sidebar-nav" aria-label="Workspace mode">
         <button

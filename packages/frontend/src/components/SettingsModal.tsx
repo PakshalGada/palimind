@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useApp } from '../AppContext';
 import { api } from '../api';
+import { Toggle } from '../ui/primitives';
 import type { Theme } from '../types';
 
 type SectionKey = 'appearance' | 'opencode' | 'voice' | 'persona';
@@ -73,7 +74,7 @@ function Feedback({ message, isError }: { message: string; isError: boolean }) {
 }
 
 export default function SettingsModal() {
-  const { theme, setTheme } = useApp();
+  const { theme, setTheme, canvasEnabled, setCanvasEnabled } = useApp();
   const [section, setSection] = useState<SectionKey>('appearance');
   const [personaName, setPersonaName] = useState('');
   const [personaPrompt, setPersonaPrompt] = useState('');
@@ -317,6 +318,15 @@ export default function SettingsModal() {
                     </button>
                   ))}
                 </div>
+              </div>
+              <div className="settings-card">
+                <div className="settings-card-title">Canvas</div>
+                <Toggle
+                  checked={canvasEnabled}
+                  onChange={setCanvasEnabled}
+                  title="Enable Canvas"
+                  description="Side-by-side document editor for AI output. When off, the Canvas shortcut and the “Open in Canvas” message action are hidden."
+                />
               </div>
             </div>
 

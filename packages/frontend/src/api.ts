@@ -43,6 +43,15 @@ async function patch<T>(path: string, body: unknown): Promise<T> {
   return parse<T>(res, `PATCH ${path}`);
 }
 
+async function put<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return parse<T>(res, `PUT ${path}`);
+}
+
 async function del<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { method: 'DELETE' });
   return parse<T>(res, `DELETE ${path}`);
@@ -60,6 +69,8 @@ export const api = {
     new: (name: string, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/new?scope=${scope}`, { name }),
     setActive: (sessionId: string, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/set_active?scope=${scope}`, { session_id: sessionId }),
     remove: (sessionId: string, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/remove?scope=${scope}`, { session_id: sessionId }),
+    truncate: (sessionId: string, keepCount: number, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/truncate?scope=${scope}`, { session_id: sessionId, keep_count: keepCount }),
+    deleteMessage: (sessionId: string, index: number, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/delete_message?scope=${scope}`, { session_id: sessionId, index }),
   },
   sync: () => post<{ status: string; indexed_files?: number; deleted_files?: number; error?: string }>('/update'),
   files: {
@@ -171,6 +182,13 @@ export const api = {
   },
   fs: {
     list: (path?: string) => get<{ current_path: string; parent_path?: string; items: DirItem[]; error?: string }>(`/fs/list${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+  },
+  canvas: {
+    list: () => get<{ canvases: { id: string; title: string; updated_at: number; created_at: number }[] }>('/canvas'),
+    get: (canvasId: string) => get<{ id: string; title: string; content: string; created_at?: number; updated_at?: number; error?: string }>(`/canvas/${encodeURIComponent(canvasId)}`),
+    save: (canvasId: string, title: string, content: string) =>
+      put<{ id: string; title: string; content: string; updated_at: number; error?: string }>(`/canvas/${encodeURIComponent(canvasId)}`, { title, content }),
+    remove: (canvasId: string) => del<{ status?: string; error?: string }>(`/canvas/${encodeURIComponent(canvasId)}`),
   },
   voice: {
     synthesize: (text: string, voice = 'af_bella') =>
