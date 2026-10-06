@@ -19,8 +19,7 @@ DEFAULTS = {
     "turbovec_bit_width": 4,  # 2 or 4 — compression vs accuracy trade-off
     "summarise": True,  # Generate per-file summaries at index time
     "summary_max_chars": 8000,  # Characters fed to the summariser (truncated)
-    "extract_financials": True,  # Extract financial facts at index time (financial docs)
-    "extract_timeline": True,  # Extract timeline events at index time
+    "index_workers": 4,  # Files processed concurrently during indexing
     "retrieval_limit": 10,  # Number of chunks returned per retrieval call
     "context_token_budget": 8000,  # Maximum tokens assembled into LLM context
     "num_ctx": 16384,  # Ollama context window; must cover context_token_budget + prompt overhead

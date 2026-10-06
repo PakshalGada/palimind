@@ -154,6 +154,8 @@ async def document_mode_stream(
         )
 
         full_text = ""
+        final_text = ""
+        citation_payload: dict | None = None
         reasoning_parts: list[str] = []
 
         def on_reasoning(chunk: str) -> None:
@@ -183,18 +185,51 @@ async def document_mode_stream(
             if not full_text:
                 full_text = f"**Error:** {err_msg}"
             yield (f"data: {json.dumps({'type': 'error', 'text': err_msg})}\n\n")
+        else:
+            # ── Citation pass (3.3) ─────────────────────────────────────
+            try:
+                from palimind.generative.citation import (
+                    Source,
+                    finalize_citations,
+                    sources_from_text_refs,
+                )
+
+                citation_sources = sources_from_text_refs(text_refs)
+                if not citation_sources and sources:
+                    citation_sources = [
+                        Source(
+                            marker=i + 1,
+                            title=str(s).split("/")[-1],
+                            kind="document",
+                            file=str(s),
+                        )
+                        for i, s in enumerate(sources)
+                    ]
+                if citation_sources and full_text.strip():
+                    result = finalize_citations(full_text, citation_sources)
+                    final_text = result.text
+                    citation_payload = result.to_dict()
+                    yield (f"data: {json.dumps({'type': 'citation_map', **citation_payload})}\n\n")
+                    if final_text != full_text:
+                        yield (
+                            f"data: {json.dumps({'type': 'answer_final', 'text': final_text})}\n\n"
+                        )
+            except Exception as e:
+                print(f"Citation attachment failed: {e}")
         finally:
-            if active_sess_id and full_text:
+            persisted = final_text or full_text
+            if active_sess_id and persisted:
                 await asyncio.to_thread(
                     append_message_to_session,
                     active_field,
                     active_sess_id,
                     "system",
-                    full_text,
+                    persisted,
                     sources=sources if sources else None,
+                    citations=citation_payload,
                 )
                 asyncio.create_task(
-                    background_update_memory(active_field, active_sess_id, q, full_text)
+                    background_update_memory(active_field, active_sess_id, q, persisted)
                 )
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"

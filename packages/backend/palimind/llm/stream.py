@@ -165,6 +165,13 @@ def _progress_event_to_sse(event: dict) -> list[str]:
         return [f"data: {json.dumps({'type': 'reasoning', 'text': event.get('text', '')})}\n\n"]
     elif etype == "verifying":
         return [f"data: {json.dumps({'type': 'reasoning', 'text': event.get('text', '')})}\n\n"]
+    elif etype == "plan_review":
+        return [f"data: {json.dumps({'type': 'reasoning', 'text': event.get('text', '')})}\n\n"]
+    elif etype == "cancelled":
+        return [f"data: {json.dumps({'type': 'reasoning', 'text': event.get('text', '')})}\n\n"]
+    elif etype in ("research_plan", "citation_map"):
+        # Pass structured events through untouched.
+        return [f"data: {json.dumps(event)}\n\n"]
     return []
 
 
@@ -377,6 +384,32 @@ async def deep_research_mode_stream(
         async def on_progress(event: dict):
             await progress_queue.put(event)
 
+        # ── interactive plan review (3.1) ────────────────────────────────
+        from palimind.research.plan_registry import (
+            discard_plan,
+            get_pending_plan,
+            register_plan,
+        )
+        from palimind.settings import DR_PLAN_REVIEW_TIMEOUT
+
+        plan_event = asyncio.Event()
+
+        async def on_plan(plan: list[dict]):
+            pending = register_plan(q, plan, plan_event)
+            await on_progress(
+                {"type": "research_plan", "plan_id": pending.plan_id, "plan": plan}
+            )
+            try:
+                await asyncio.wait_for(plan_event.wait(), timeout=DR_PLAN_REVIEW_TIMEOUT)
+            except TimeoutError:
+                discard_plan(pending.plan_id)
+                return plan
+            current = get_pending_plan(pending.plan_id)
+            discard_plan(pending.plan_id)
+            if current is None or current.cancelled:
+                return None
+            return current.edited_plan or plan
+
         pipeline_task = asyncio.create_task(
             run_deep_research_pipeline(
                 user_query=q,
@@ -390,10 +423,12 @@ async def deep_research_mode_stream(
                 long_term_episodes=long_term_episodes,
                 root=active_field,
                 worker_url=work_url,
+                on_plan=on_plan,
             )
         )
 
         full_text = ""
+        citation_payload: dict | None = None
         try:
             while True:
                 if pipeline_task.done():
@@ -414,10 +449,14 @@ async def deep_research_mode_stream(
                 err_text = result["error"]
                 yield f"data: {json.dumps({'type': 'error', 'text': err_text})}\n\n"
                 full_text = f"**Error:** {err_text}"
+            elif result.get("cancelled"):
+                full_text = "_Research cancelled._"
+                yield f"data: {json.dumps({'type': 'token', 'text': full_text})}\n\n"
             else:
                 plan = result.get("plan", [])
                 outputs = result.get("outputs", [])
                 synthesis = result.get("synthesis", "")
+                citation_payload = result.get("citations")
 
                 if synthesis:
                     full_text += synthesis
@@ -476,6 +515,7 @@ async def deep_research_mode_stream(
                     active_sess_id,
                     "system",
                     full_text,
+                    citations=citation_payload,
                 )
                 asyncio.create_task(
                     background_update_memory(active_field, active_sess_id, q, full_text)

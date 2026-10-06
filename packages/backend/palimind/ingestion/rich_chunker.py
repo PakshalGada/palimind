@@ -91,14 +91,19 @@ _NUMERIC_TABLE = re.compile(
 # Year extractor from filenames
 _YEAR_IN_FILENAME = re.compile(r"(20\d{2})")
 
-# Document type heuristics
+# Document type heuristics (general-purpose, not domain-specific)
 _DOCTYPE_PATTERNS = [
-    (re.compile(r"10-?k\b", re.IGNORECASE), "10-K"),
-    (re.compile(r"10-?q\b", re.IGNORECASE), "10-Q"),
-    (re.compile(r"8-?k\b", re.IGNORECASE), "8-K"),
-    (re.compile(r"annual\s+report", re.IGNORECASE), "annual_report"),
-    (re.compile(r"earnings\s+(call|transcript)", re.IGNORECASE), "earnings_call"),
-    (re.compile(r"proxy\s+(statement|report)", re.IGNORECASE), "proxy"),
+    (re.compile(r"annual\s+report", re.IGNORECASE), "report"),
+    (re.compile(r"quarterly\s+report", re.IGNORECASE), "report"),
+    (re.compile(r"financial\s+(statement|report)", re.IGNORECASE), "report"),
+    (re.compile(r"invoice", re.IGNORECASE), "invoice"),
+    (re.compile(r"contract|agreement", re.IGNORECASE), "contract"),
+    (re.compile(r"presentation|slides?", re.IGNORECASE), "presentation"),
+    (re.compile(r"memo|memorandum", re.IGNORECASE), "memo"),
+    (re.compile(r"letter", re.IGNORECASE), "letter"),
+    (re.compile(r"manual|handbook|guide", re.IGNORECASE), "manual"),
+    (re.compile(r"research|paper|whitepaper", re.IGNORECASE), "paper"),
+    (re.compile(r"transcript", re.IGNORECASE), "transcript"),
 ]
 
 
@@ -326,19 +331,10 @@ def rich_chunk_document(
     """
     Hierarchical chunker: split by section → detect tables → character-chunk text.
 
-    For 10-K / financial filings, uses larger chunks (3000 chars, 500 overlap)
-    to preserve complete subsections.
-
     Returns a list of :class:`RichChunk` objects with full metadata attached.
     """
     chunks: list[RichChunk] = []
     chunk_index = 0
-
-    # Use larger chunks for financial documents
-    is_financial = doc_meta.doc_type in ("10-K", "10-Q", "annual_report")
-    if is_financial:
-        chunk_size = max(chunk_size, 3000)
-        chunk_overlap = max(chunk_overlap, 500)
 
     section_tuples = _split_by_sections(text)
 

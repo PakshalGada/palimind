@@ -1,0 +1,136 @@
+.ag {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ag-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ag-controls__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.ag-hint {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.ag-graph {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--panel-bg);
+}
+
+.ag-root {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-color) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-color) 45%, transparent);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.ag-empty {
+  margin-top: 12px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.ag-nodes {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.ag-node {
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--bg-color);
+  transition: border-color 0.2s ease;
+}
+
+.ag-node--working {
+  border-left-color: var(--accent-color);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-color) 35%, transparent);
+}
+
+.ag-node--complete {
+  border-left-color: #3fb950;
+}
+
+.ag-node--failed {
+  border-left-color: #f85149;
+}
+
+.ag-node__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ag-node__label {
+  font-weight: 600;
+  font-size: 0.84rem;
+}
+
+.ag-node__task {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ag-node__steps {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ag-node__step {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ag-synthesis {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.ag-synthesis__head {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.ag-synthesis__body {
+  margin: 0;
+  padding: 12px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}

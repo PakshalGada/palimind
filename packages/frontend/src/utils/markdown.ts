@@ -43,14 +43,14 @@ export function formatMarkdown(text: string): string {
 
   htmlResult = DOMPurify.sanitize(htmlResult, {
     ADD_TAGS: [
-      'details', 'summary', 'div', 'span',
+      'details', 'summary', 'div', 'span', 'sup',
       'math', 'mi', 'mo', 'mn', 'ms', 'mspace', 'mtext', 'menclose',
       'merror', 'mpadded', 'mphantom', 'mroot', 'mrow', 'msqrt',
       'mstyle', 'mmultiscripts', 'mover', 'mprescripts', 'msub',
       'msubsup', 'msup', 'munder', 'munderover', 'none', 'semantics',
       'annotation', 'annotation-xml',
     ],
-    ADD_ATTR: ['class', 'aria-hidden', 'mathvariant', 'encoding', 'display', 'xmlns', 'open'],
+    ADD_ATTR: ['class', 'aria-hidden', 'mathvariant', 'encoding', 'display', 'xmlns', 'open', 'data-citation', 'title'],
   });
 
   // Store in cache, evict oldest if too large

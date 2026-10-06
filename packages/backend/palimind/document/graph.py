@@ -329,6 +329,9 @@ def _light_llm_chat(prompt: str, ollama_url: str, model: str) -> str:
                 "model": model,
                 "messages": [{"role": "user", "content": prompt}],
                 "stream": False,
+                # No hidden reasoning for entity extraction — it only wastes time.
+                "think": False,
+                "keep_alive": "30m",
                 "options": {"temperature": 0.1, "num_predict": 2048},
             },
             timeout=120.0,

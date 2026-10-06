@@ -1,4 +1,4 @@
-import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, Approval, DirItem, GraphData, HardwareData, MemoryEntry, ModelItem, RecentRun, Recommendation, RunRecord, SetupTask, SkillMeta, ToolMeta, TreeNode } from './types';
+import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, Approval, BackgroundTask, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, MarketplaceSkill, MemoryEntry, ModelItem, PlanTemplate, RecentRun, Recommendation, ResearchFinding, ResearchProject, ResearchProjectSummary, RunRecord, SetupTask, SkillCommand, SkillMeta, SocialSignal, ToolMeta, TreeNode, VerificationReport } from './types';
 
 const BASE = '/api';
 
@@ -65,7 +65,7 @@ export const api = {
     remove: (path: string) => post<{ status?: string }>('/fields/remove', { path }),
   },
   sessions: {
-    list: (scope = 'field') => get<{ sessions: { id: string; name: string; messages: { role: string; content: string; sources?: string[] }[] }[]; active_session_id: string | null; error?: string }>(`/sessions?scope=${scope}`),
+    list: (scope = 'field') => get<{ sessions: { id: string; name: string; messages: { role: string; content: string; sources?: string[]; citations?: import('./types').CitationPayload }[] }[]; active_session_id: string | null; error?: string }>(`/sessions?scope=${scope}`),
     new: (name: string, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/new?scope=${scope}`, { name }),
     setActive: (sessionId: string, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/set_active?scope=${scope}`, { session_id: sessionId }),
     remove: (sessionId: string, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/remove?scope=${scope}`, { session_id: sessionId }),
@@ -78,8 +78,9 @@ export const api = {
     treeSub: (path: string) => get<{ children?: TreeNode[]; error?: string }>(`/files/tree/sub?path=${encodeURIComponent(path)}`),
   },
   config: {
-    get: (scope = 'field') => get<{ chat_model?: string; moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string; deep_research_model?: string; persona_name?: string; persona_system_prompt?: string }>(`/config?scope=${scope}`),
+    get: (scope = 'field') => get<{ chat_model?: string; embed_model?: string; moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string; deep_research_model?: string; persona_name?: string; persona_system_prompt?: string }>(`/config?scope=${scope}`),
     setModel: (modelId: string, scope = 'field') => patch<{ error?: string }>(`/config/model?scope=${scope}`, { model_id: modelId }),
+    setEmbedModel: (modelId: string, scope = 'field') => patch<{ error?: string }>(`/config/embed-model?scope=${scope}`, { embed_model: modelId }),
     setMoe: (data: { moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string }, scope = 'field') => patch<{ error?: string }>(`/config/moe?scope=${scope}`, data),
     setPersona: (data: { persona_name?: string; persona_system_prompt?: string }) =>
       patch<{ error?: string; status?: string }>('/config/persona', data),
@@ -129,6 +130,126 @@ export const api = {
     cancel: (agentId: string) => post<{ error?: string; status?: string }>(`/agents/${agentId}/cancel`),
     approve: (agentId: string, approved: boolean, correction = '') =>
       post<{ error?: string; status?: string }>(`/agents/${agentId}/approve`, { approved, correction }),
+    effortLevels: () => get<{ levels: EffortLevel[] }>('/agents/effort-levels'),
+    classifyEffort: (task: string, model = '') =>
+      post<{ level: string; score: number; indicator: string; reasoning?: string; source: string }>(
+        '/agents/classify-effort',
+        { task, model },
+      ),
+    verificationChecklists: () =>
+      get<{ checklists: Record<string, string[]> }>('/agents/verification/checklists'),
+    verify: (task: string, output: string, model = '', taskType?: string) =>
+      post<{ report: VerificationReport }>('/agents/verify', {
+        task,
+        output,
+        model,
+        task_type: taskType,
+      }),
+    skillsAdmin: {
+      validate: (skill: Partial<SkillMeta>) =>
+        post<{ valid: boolean; error?: string | null }>('/agents/skills/validate', { skill }),
+      install: (skill: Partial<SkillMeta>, overwrite = false) =>
+        post<{ status?: string; skill?: SkillMeta; error?: string }>('/agents/skills/install', {
+          skill,
+          overwrite,
+        }),
+      uninstall: (id: string) =>
+        post<{ status?: string }>('/agents/skills/uninstall', { id }),
+      export: (id: string) =>
+        get<{ skill?: SkillMeta; error?: string }>(`/agents/skills/export?id=${encodeURIComponent(id)}`),
+      marketplace: () => get<{ skills: MarketplaceSkill[] }>('/agents/skills/marketplace'),
+      marketplaceInstall: (id: string, overwrite = false) =>
+        post<{ status?: string; skill?: SkillMeta; error?: string }>(
+          '/agents/skills/marketplace/install',
+          { id, overwrite },
+        ),
+      commands: () => get<{ commands: SkillCommand[] }>('/agents/skills/commands'),
+      resolve: (text: string) =>
+        post<{ resolved: boolean; command?: string; skill?: SkillMeta; input?: string }>(
+          '/agents/skills/resolve',
+          { text },
+        ),
+    },
+    plans: {
+      templates: () => get<{ templates: PlanTemplate[] }>('/agents/plan-templates'),
+      create: (task: string, opts: { template?: string; agent_id?: string; model?: string } = {}) =>
+        post<{ plan: AgentPlan }>('/agents/plan', { task, ...opts }),
+      list: (limit = 50) => get<{ plans: AgentPlan[] }>(`/agents/plans?limit=${limit}`),
+      get: (planId: string) => get<AgentPlan & { error?: string }>(`/agents/plans/${planId}`),
+      update: (planId: string, changes: { steps?: unknown[]; status?: string; notes?: string }) =>
+        patch<AgentPlan & { error?: string }>(`/agents/plans/${planId}`, changes),
+      remove: (planId: string) => del<{ status?: string }>(`/agents/plans/${planId}`),
+      approve: (planId: string, approved: boolean, steps?: unknown[]) =>
+        post<{ status?: string }>(`/agents/plans/${planId}/approve`, { approved, steps }),
+      execute: (planId: string, autoApprove = true) =>
+        post<{ plan?: AgentPlan; error?: string }>(`/agents/plans/${planId}/execute`, {
+          auto_approve: autoApprove,
+        }),
+    },
+    goals: {
+      list: () => get<{ goals: Goal[] }>('/agents/goals'),
+      create: (data: { name: string; objective?: string; success_criteria?: string; agent_id?: string }) =>
+        post<{ goal?: Goal; error?: string }>('/agents/goals', data),
+      get: (goalId: string) => get<Goal & { error?: string }>(`/agents/goals/${goalId}`),
+      update: (goalId: string, changes: Partial<Goal>) =>
+        patch<Goal & { error?: string }>(`/agents/goals/${goalId}`, changes),
+      remove: (goalId: string) => del<{ status?: string }>(`/agents/goals/${goalId}`),
+      setProgress: (goalId: string, progress: number, note = '') =>
+        post<Goal & { error?: string }>(`/agents/goals/${goalId}/progress`, { progress, note }),
+    },
+    tasks: {
+      list: (goalId?: string) =>
+        get<{ tasks: BackgroundTask[] }>(`/agents/tasks${goalId ? `?goal_id=${encodeURIComponent(goalId)}` : ''}`),
+      create: (data: {
+        agent_id: string;
+        prompt?: string;
+        command?: string;
+        goal_id?: string;
+        interval_seconds?: number;
+      }) => post<{ task?: BackgroundTask; error?: string }>('/agents/tasks', data),
+      cancel: (taskId: string) =>
+        post<{ task?: BackgroundTask; error?: string }>(`/agents/tasks/${taskId}/cancel`),
+      remove: (taskId: string) => del<{ status?: string }>(`/agents/tasks/${taskId}`),
+    },
+    notifications: {
+      list: (unreadOnly = false) =>
+        get<{ notifications: GoalNotification[] }>(`/agents/notifications?unread_only=${unreadOnly}`),
+      markRead: (ids?: string[]) =>
+        post<{ status?: string; updated: number }>('/agents/notifications/read', { ids }),
+      clear: () => del<{ status?: string }>('/agents/notifications'),
+    },
+    orchestrateStream: async (
+      agentId: string,
+      task: string,
+      onEvent: (ev: { type: string; [k: string]: unknown }) => void,
+      opts: { mode?: string; num_agents?: number; session_id?: string } = {},
+    ): Promise<void> => {
+      const res = await fetch(`${BASE}/agents/${agentId}/orchestrate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task, ...opts }),
+      });
+      if (!res.ok || !res.body) throw new Error(`orchestrate failed: ${res.status}`);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buffer.indexOf('\n\n')) !== -1) {
+          const frame = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+          for (const line of frame.split('\n')) {
+            if (!line.startsWith('data:')) continue;
+            try {
+              onEvent(JSON.parse(line.slice(5).trim()));
+            } catch {}
+          }
+        }
+      }
+    },
     runStream: async (
       agentId: string,
       input: string,
@@ -189,6 +310,28 @@ export const api = {
     save: (canvasId: string, title: string, content: string) =>
       put<{ id: string; title: string; content: string; updated_at: number; error?: string }>(`/canvas/${encodeURIComponent(canvasId)}`, { title, content }),
     remove: (canvasId: string) => del<{ status?: string; error?: string }>(`/canvas/${encodeURIComponent(canvasId)}`),
+  },
+  research: {
+    approve: (planId: string, plan: unknown[]) =>
+      post<{ status?: string; error?: string }>('/research/approve', { plan_id: planId, plan }),
+    cancel: (planId: string) =>
+      post<{ status?: string; error?: string }>('/research/cancel', { plan_id: planId }),
+    social: (q: string, maxResults = 8) =>
+      get<SocialSignal>(`/research/x?q=${encodeURIComponent(q)}&max_results=${maxResults}`),
+    projects: {
+      list: () => get<{ projects: ResearchProjectSummary[] }>('/research/projects'),
+      create: (title: string, query = '') => post<ResearchProject>('/research/projects', { title, query }),
+      get: (id: string) => get<ResearchProject & { error?: string }>(`/research/projects/${encodeURIComponent(id)}`),
+      update: (id: string, changes: { title?: string; query?: string; notes?: string }) =>
+        put<ResearchProject & { error?: string }>(`/research/projects/${encodeURIComponent(id)}`, changes),
+      remove: (id: string) => del<{ status?: string; error?: string }>(`/research/projects/${encodeURIComponent(id)}`),
+      addFinding: (id: string, title: string, content: string) =>
+        post<{ finding?: ResearchFinding; error?: string }>(`/research/projects/${encodeURIComponent(id)}/findings`, { title, content }),
+      addSources: (id: string, sources: unknown[]) =>
+        post<ResearchProject & { error?: string }>(`/research/projects/${encodeURIComponent(id)}/sources`, { sources }),
+      addReport: (id: string, query: string, report: string) =>
+        post<ResearchProject & { error?: string }>(`/research/projects/${encodeURIComponent(id)}/reports`, { query, report }),
+    },
   },
   voice: {
     synthesize: (text: string, voice = 'af_bella') =>

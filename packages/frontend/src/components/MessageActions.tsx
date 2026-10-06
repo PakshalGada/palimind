@@ -4,6 +4,7 @@ import {
   ChevronDown,
   Copy,
   FileText,
+  FlaskConical,
   Pencil,
   RefreshCw,
   Share2,
@@ -24,6 +25,8 @@ export interface MessageActionsProps {
   onEdit?: () => void;
   /** Send this message's content to the Canvas panel. */
   onOpenCanvas?: () => void;
+  /** Save this message into a research project. */
+  onSaveResearch?: () => void;
   onDelete: () => void;
   onShare: () => void;
   onToggleBookmark: () => void;
@@ -54,6 +57,7 @@ export default function MessageActions({
   onRegenerate,
   onEdit,
   onOpenCanvas,
+  onSaveResearch,
   onDelete,
   onShare,
   onToggleBookmark,
@@ -155,6 +159,18 @@ export default function MessageActions({
           onClick={onOpenCanvas}
         >
           <FileText size={14} />
+        </button>
+      )}
+
+      {!isUser && onSaveResearch && (
+        <button
+          type="button"
+          className="msg-action-btn"
+          title="Save to Research"
+          aria-label="Save message to a research project"
+          onClick={onSaveResearch}
+        >
+          <FlaskConical size={14} />
         </button>
       )}
 

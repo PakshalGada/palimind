@@ -1,0 +1,84 @@
+/* Deep Research plan review modal (3.1) */
+
+.research-plan-hint {
+  margin: 0 0 14px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.research-plan-list { display: flex; flex-direction: column; gap: 10px; }
+.research-plan-item {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  background: var(--panel-bg-2);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.research-plan-item-head { display: flex; align-items: center; gap: 8px; }
+.research-plan-grip { color: var(--text-muted); flex: 0 0 auto; }
+.research-plan-index {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--accent-bg);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.research-plan-title-input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+.research-plan-question,
+.research-plan-queries {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+.research-plan-queries { font-family: var(--font-mono); font-size: 0.72rem; }
+.research-plan-title-input:focus,
+.research-plan-question:focus,
+.research-plan-queries:focus {
+  outline: none;
+  border-color: var(--focus-ring);
+}
+.research-plan-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  cursor: pointer;
+  width: 100%;
+  justify-content: center;
+}
+.research-plan-add:hover { color: var(--text-main); border-color: var(--text-muted); }
+.research-plan-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; }

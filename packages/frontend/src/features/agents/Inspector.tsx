@@ -332,6 +332,71 @@ export default function Inspector({
                   />
                 </Field>
               )}
+              <Field
+                label="Reasoning effort"
+                hint="Auto adapts effort to task complexity; pin a level to override."
+              >
+                <Select
+                  value={draft.reasoning_effort || 'auto'}
+                  onChange={(e) =>
+                    patch({ reasoning_effort: e.target.value as AgentDefinition['reasoning_effort'] })
+                  }
+                >
+                  <option value="off">Off — use configured steps</option>
+                  <option value="auto">Auto — adaptive</option>
+                  <option value="minimal">Minimal</option>
+                  <option value="standard">Standard</option>
+                  <option value="high">High</option>
+                  <option value="max">Max</option>
+                </Select>
+              </Field>
+              <Field
+                label="Planning mode"
+                hint="Review generates a plan and waits for your approval before executing."
+              >
+                <SegmentedControl<AgentDefinition['planning_mode']>
+                  value={(draft.planning_mode || 'off') as AgentDefinition['planning_mode']}
+                  onChange={(v) => patch({ planning_mode: v })}
+                  options={[
+                    { value: 'off', label: 'Off' },
+                    { value: 'review', label: 'Review' },
+                    { value: 'auto', label: 'Auto' },
+                  ]}
+                />
+              </Field>
+              <Field
+                label="Orchestration"
+                hint="Fan-out spawns parallel sub-agents; arena runs N candidates and picks the best."
+              >
+                <Select
+                  value={draft.orchestration || 'off'}
+                  onChange={(e) =>
+                    patch({ orchestration: e.target.value as AgentDefinition['orchestration'] })
+                  }
+                >
+                  <option value="off">Off — single agent</option>
+                  <option value="fan_out">Fan-out — parallel + synthesis</option>
+                  <option value="arena">Arena — tournament</option>
+                </Select>
+              </Field>
+              {draft.orchestration && draft.orchestration !== 'off' && (
+                <Field label="Parallel agents" hint="Maximum 8.">
+                  <TextInput
+                    type="number"
+                    min={1}
+                    max={8}
+                    value={draft.orchestration_agents ?? 0}
+                    onChange={(e) =>
+                      patch({
+                        orchestration_agents: Math.max(
+                          0,
+                          Math.min(8, parseInt(e.target.value) || 0),
+                        ),
+                      })
+                    }
+                  />
+                </Field>
+              )}
             </section>
 
             <section className="ax-form__section">
@@ -431,6 +496,34 @@ export default function Inspector({
                 checked={!!draft.self_critique}
                 onChange={(v) => patch({ self_critique: v })}
               />
+              {draft.self_critique && (
+                <Field
+                  label="Verification threshold"
+                  hint="0 uses the global default. Low-confidence results are retried, then flagged for review."
+                >
+                  <TextInput
+                    type="number"
+                    step="0.05"
+                    min="0"
+                    max="1"
+                    value={draft.verify_confidence_threshold ?? 0}
+                    onChange={(e) =>
+                      patch({ verify_confidence_threshold: parseFloat(e.target.value) || 0 })
+                    }
+                  />
+                </Field>
+              )}
+              <Field
+                label="Success criteria"
+                hint="What a correct result must satisfy — used by verification and goal tracking."
+              >
+                <TextArea
+                  rows={2}
+                  value={draft.success_criteria || ''}
+                  placeholder="e.g. all tests pass and the docs are updated"
+                  onChange={(e) => patch({ success_criteria: e.target.value })}
+                />
+              </Field>
             </section>
 
             <div className="ax-tools__bar">

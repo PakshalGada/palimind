@@ -56,6 +56,15 @@ Available tools include:
 
 Agents maintain their own memory, run history, and chat logs. Tool calls are audited and debug-traced by default.
 
+Phase 4 adds an intelligence & automation layer:
+
+- **Adaptive reasoning** — per-agent effort levels (`minimal`…`max`) chosen by a complexity classifier, with auto-escalation when an agent gets stuck.
+- **Multi-agent orchestration** — fan-out parallel agents with a shared blackboard, conflict resolution, synthesis, and an arena/tournament mode (max 8 agents).
+- **Skills as slash commands** — reusable behaviour bundles in `~/.palimind/skills/` (JSON/YAML), invocable as `/commit`, `/review`, …, with composition and a bundled marketplace.
+- **Planning mode** — plan-then-execute with user review/editing, plan templates, a flowchart view, and rollback of file mutations.
+- **Goals & background tasks** — objectives with success criteria, `/loop 5m …` scheduling, a monitoring dashboard and completion notifications (50 tasks / 7 days).
+- **Structured self-critique** — per-task-type verification checklists, confidence scoring, bounded auto-retry and human review of low-confidence results.
+
 ![PalIAgents - Agents](assets/agents.png)
 
 ### OpenCode Integration
@@ -244,6 +253,26 @@ Mixture-of-Experts tuning (all optional):
 | `PALIMIND_MOE_MAX_AGENT_ITERATIONS` | `12` | Hard ceiling on tool iterations per agent |
 | `PALIMIND_MOE_VERIFY` | `true` | Post-synthesis critique + one refinement pass |
 | `PALIMIND_LLM_RETRIES` | `2` | Bounded retries for transient LLM failures |
+
+Phase 4 (agent intelligence & automation) tuning (all optional):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PALIMIND_ADAPTIVE_REASONING` | `true` | Dynamic reasoning-effort allocation |
+| `PALIMIND_ADAPTIVE_ESCALATE_ON_STUCK` | `true` | Escalate effort when an agent gets stuck |
+| `PALIMIND_REASONING_CLASSIFIER_MODEL` | (light model) | Model for the complexity classifier |
+| `PALIMIND_ORCHESTRATOR_MAX_AGENTS` | `8` | Max fan-out agents per orchestration |
+| `PALIMIND_ORCHESTRATOR_MAX_CONCURRENCY` | `0` | Max parallel orchestrated agents (`0` = auto) |
+| `PALIMIND_ORCHESTRATOR_CONFLICT_RESOLUTION` | `true` | Resolve agent disagreements before synthesis |
+| `PALIMIND_SKILLS_ENABLE_MARKETPLACE` | `true` | Allow installing skills from the bundled catalog |
+| `PALIMIND_SKILL_MAX_INSTRUCTIONS` | `20000` | Max instruction length for a validated skill |
+| `PALIMIND_PLANNING_MODE` | `off` | Default planning mode (`off`/`review`/`auto`) |
+| `PALIMIND_PLAN_MAX_STEPS` | `30` | Hard ceiling on generated plan steps |
+| `PALIMIND_GOALS_MAX_TASKS` | `50` | Max live background tasks |
+| `PALIMIND_GOALS_MAX_DURATION_DAYS` | `7` | Max lifetime of a background task/loop |
+| `PALIMIND_GOALS_TICK` | `15` | Background-task runner poll interval (s) |
+| `PALIMIND_SELF_CRITIQUE_THRESHOLD` | `0.6` | Min confidence before a result is accepted |
+| `PALIMIND_SELF_CRITIQUE_MAX_RETRIES` | `1` | Automatic retries on low confidence |
 
 ---
 

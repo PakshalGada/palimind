@@ -27,6 +27,10 @@ def init_db(root: Path) -> None:
             cur.execute("DROP TABLE IF EXISTS chunks")
             cur.execute("DROP TABLE IF EXISTS files")
 
+        # Drop removed tables from older index versions
+        cur.execute("DROP TABLE IF EXISTS financial_facts")
+        cur.execute("DROP TABLE IF EXISTS timeline_events")
+
         # ── files ─────────────────────────────────────────────────────────────
         cur.execute("""
             CREATE TABLE IF NOT EXISTS files (
@@ -136,43 +140,6 @@ def init_db(root: Path) -> None:
         cur.execute("""
             CREATE INDEX IF NOT EXISTS idx_entity_mentions
             ON entity_mentions(entity_text, entity_type)
-        """)
-
-        # ── financial_facts ───────────────────────────────────────────────────
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS financial_facts (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                file_id     INTEGER NOT NULL,
-                chunk_id    INTEGER,
-                metric_name TEXT NOT NULL,
-                value       REAL,
-                unit        TEXT DEFAULT 'USD',
-                period      TEXT DEFAULT '',
-                doc_year    INTEGER,
-                FOREIGN KEY(file_id) REFERENCES files(id) ON DELETE CASCADE
-            )
-        """)
-        cur.execute("""
-            CREATE INDEX IF NOT EXISTS idx_financial_facts_metric
-            ON financial_facts(metric_name, doc_year)
-        """)
-
-        # ── timeline_events ───────────────────────────────────────────────────
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS timeline_events (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                file_id     INTEGER NOT NULL,
-                chunk_id    INTEGER,
-                event_date  TEXT DEFAULT '',
-                event_year  INTEGER,
-                event_text  TEXT NOT NULL,
-                event_type  TEXT DEFAULT 'general',
-                FOREIGN KEY(file_id) REFERENCES files(id) ON DELETE CASCADE
-            )
-        """)
-        cur.execute("""
-            CREATE INDEX IF NOT EXISTS idx_timeline_events_date
-            ON timeline_events(event_date, event_year)
         """)
 
         conn.commit()
@@ -679,151 +646,4 @@ def get_candidate_chunk_ids(
     return {row[0] for row in cur.fetchall()}
 
 
-# ── financial_facts ────────────────────────────────────────────────────────────
 
-
-def insert_financial_facts(
-    conn: sqlite3.Connection,
-    file_id: int,
-    facts: list[dict],
-) -> None:
-    """Insert financial facts for a file. Each dict has keys: metric_name, value, unit, period, doc_year, chunk_id."""
-    conn.execute("DELETE FROM financial_facts WHERE file_id = ?", (file_id,))
-    for fact in facts:
-        conn.execute(
-            """INSERT INTO financial_facts
-               (file_id, chunk_id, metric_name, value, unit, period, doc_year)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (
-                file_id,
-                fact.get("chunk_id"),
-                fact["metric_name"],
-                fact.get("value"),
-                fact.get("unit", "USD"),
-                fact.get("period", ""),
-                fact.get("doc_year"),
-            ),
-        )
-
-
-def query_financial_facts(
-    conn: sqlite3.Connection,
-    *,
-    metric_names: list[str] | None = None,
-    doc_year_min: int | None = None,
-    doc_year_max: int | None = None,
-    limit: int = 50,
-) -> list[dict]:
-    conditions = []
-    params: list = []
-
-    if metric_names:
-        placeholders = ",".join("?" * len(metric_names))
-        conditions.append(f"ff.metric_name IN ({placeholders})")
-        params.extend(metric_names)
-    if doc_year_min is not None:
-        conditions.append("ff.doc_year >= ?")
-        params.append(doc_year_min)
-    if doc_year_max is not None:
-        conditions.append("ff.doc_year <= ?")
-        params.append(doc_year_max)
-
-    where_clause = " AND ".join(conditions) if conditions else "1=1"
-    params.append(limit)
-
-    cur = conn.execute(
-        f"""
-        SELECT ff.metric_name, ff.value, ff.unit, ff.period, ff.doc_year, f.path
-        FROM financial_facts ff
-        JOIN files f ON ff.file_id = f.id
-        WHERE {where_clause}
-        ORDER BY ff.doc_year, ff.metric_name
-        LIMIT ?
-        """,
-        params,
-    )
-    return [
-        {
-            "metric_name": row[0],
-            "value": row[1],
-            "unit": row[2],
-            "period": row[3],
-            "doc_year": row[4],
-            "file_path": row[5],
-        }
-        for row in cur.fetchall()
-    ]
-
-
-# ── timeline_events ────────────────────────────────────────────────────────────
-
-
-def insert_timeline_events(
-    conn: sqlite3.Connection,
-    file_id: int,
-    events: list[dict],
-) -> None:
-    """Insert timeline events for a file."""
-    conn.execute("DELETE FROM timeline_events WHERE file_id = ?", (file_id,))
-    for event in events:
-        conn.execute(
-            """INSERT INTO timeline_events
-               (file_id, chunk_id, event_date, event_year, event_text, event_type)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (
-                file_id,
-                event.get("chunk_id"),
-                event.get("event_date", ""),
-                event.get("event_year"),
-                event["event_text"],
-                event.get("event_type", "general"),
-            ),
-        )
-
-
-def query_timeline_events(
-    conn: sqlite3.Connection,
-    *,
-    year_min: int | None = None,
-    year_max: int | None = None,
-    event_types: list[str] | None = None,
-    limit: int = 100,
-) -> list[dict]:
-    conditions = []
-    params: list = []
-
-    if year_min is not None:
-        conditions.append("te.event_year >= ?")
-        params.append(year_min)
-    if year_max is not None:
-        conditions.append("te.event_year <= ?")
-        params.append(year_max)
-    if event_types:
-        placeholders = ",".join("?" * len(event_types))
-        conditions.append(f"te.event_type IN ({placeholders})")
-        params.extend(event_types)
-
-    where_clause = " AND ".join(conditions) if conditions else "1=1"
-    params.append(limit)
-
-    cur = conn.execute(
-        f"""
-        SELECT te.event_date, te.event_year, te.event_text, te.event_type, f.path
-        FROM timeline_events te
-        JOIN files f ON te.file_id = f.id
-        WHERE {where_clause}
-        ORDER BY te.event_date, te.event_year
-        LIMIT ?
-        """,
-        params,
-    )
-    return [
-        {
-            "event_date": row[0],
-            "event_year": row[1],
-            "event_text": row[2],
-            "event_type": row[3],
-            "file_path": row[4],
-        }
-        for row in cur.fetchall()
-    ]

@@ -731,7 +731,14 @@ export default function InputArea() {
     eventSource.onmessage = async (event) => {
       const data = JSON.parse(event.data);
 
-      if (data.type === "sources") {
+      if (data.type === "research_plan") {
+        // Deep research paused for plan review (3.1).
+        window.dispatchEvent(
+          new CustomEvent("palimind:research-plan", {
+            detail: { plan_id: data.plan_id, plan: data.plan, query: text },
+          }),
+        );
+      } else if (data.type === "sources") {
         if (data.sources?.length) {
           fullText = `*Sources: ${data.sources.join(", ")}*\n\n`;
           contentDiv = document.createElement("div");
@@ -842,6 +849,25 @@ export default function InputArea() {
           String(data.tool || "tool"),
           data.args != null ? JSON.stringify(data.args) : "",
         );
+      } else if (data.type === "agent:effort") {
+        const level = String(data.level || "");
+        if (level) {
+          addStep("effort", "Reasoning effort", `${level} ${data.indicator || ""}`.trim());
+        }
+      } else if (data.type === "agent:plan") {
+        window.dispatchEvent(new CustomEvent("palimind:plan-pending", { detail: data }));
+        addStep("plan", "Plan", `${(data.steps as unknown[])?.length || 0} steps`);
+      } else if (data.type === "agent:verification") {
+        const rep = (data.report || {}) as { confidence?: number; passed?: boolean };
+        addStep(
+          "verification",
+          "Verification",
+          `${rep.passed ? "passed" : "needs attention"} · ${Math.round((rep.confidence || 0) * 100)}%`,
+        );
+      } else if (data.type === "agent:needs_review") {
+        addStep("review", "Human review suggested", "Low-confidence result");
+      } else if (String(data.type || "").startsWith("orchestrator:")) {
+        window.dispatchEvent(new CustomEvent("palimind:orchestrator-event", { detail: data }));
       } else if (data.type === "agent:completed") {
         if (!answerStarted) {
           completeActive();
@@ -968,6 +994,12 @@ export default function InputArea() {
           }
           fullText += data.text;
           contentDiv.innerHTML = formatMarkdown(fullText);
+        }
+      } else if (data.type === "answer_final") {
+        // Backend post-processed the answer (e.g. attached inline citations).
+        if (typeof data.text === "string" && data.text) {
+          fullText = data.text;
+          if (contentDiv) contentDiv.innerHTML = formatMarkdown(fullText);
         }
       } else if (data.type === "token") {
         if (!answerStarted) {
@@ -1148,6 +1180,18 @@ export default function InputArea() {
     };
     window.addEventListener('palimind:regenerate-message', handler);
     return () => window.removeEventListener('palimind:regenerate-message', handler);
+  }, []);
+
+  // Research projects can pre-fill the composer to continue prior work.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const text = (e as CustomEvent).detail?.text as string | undefined;
+      if (typeof text !== 'string') return;
+      setValue(text);
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    };
+    window.addEventListener('palimind:prefill-composer', handler);
+    return () => window.removeEventListener('palimind:prefill-composer', handler);
   }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

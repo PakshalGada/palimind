@@ -3,8 +3,9 @@ import { useApp } from '../AppContext';
 import { api } from '../api';
 import { Toggle } from '../ui/primitives';
 import type { Theme } from '../types';
+import SettingsSelect from './SettingsSelect';
 
-type SectionKey = 'appearance' | 'opencode' | 'voice' | 'persona';
+type SectionKey = 'appearance' | 'opencode' | 'models';
 
 interface SectionDef {
   key: SectionKey;
@@ -34,22 +35,12 @@ const SECTIONS: SectionDef[] = [
     ),
   },
   {
-    key: 'voice',
-    label: 'Voice',
+    key: 'models',
+    label: 'Models',
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="9" y="2.5" width="6" height="11" rx="3" />
-        <path d="M5 11a7 7 0 0 0 14 0M12 18v3.5" />
-      </svg>
-    ),
-  },
-  {
-    key: 'persona',
-    label: 'Persona',
-    icon: (
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="8" r="3.5" />
-        <path d="M4.5 20.5a7.5 7.5 0 0 1 15 0" />
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
       </svg>
     ),
   },
@@ -76,10 +67,6 @@ function Feedback({ message, isError }: { message: string; isError: boolean }) {
 export default function SettingsModal() {
   const { theme, setTheme, canvasEnabled, setCanvasEnabled } = useApp();
   const [section, setSection] = useState<SectionKey>('appearance');
-  const [personaName, setPersonaName] = useState('');
-  const [personaPrompt, setPersonaPrompt] = useState('');
-  const [personaStatus, setPersonaStatus] = useState('');
-  const [personaError, setPersonaError] = useState(false);
   const [ocKeyConfigured, setOcKeyConfigured] = useState(false);
   const [ocKeyMasked, setOcKeyMasked] = useState<string | null>(null);
   const [ocKeyInput, setOcKeyInput] = useState('');
@@ -94,12 +81,12 @@ export default function SettingsModal() {
   const [sttMsg, setSttMsg] = useState('');
   const [sttError, setSttError] = useState(false);
   const [sttBusy, setSttBusy] = useState(false);
+  const [embedModel, setEmbedModel] = useState('nomic-embed-text');
+  const [embedModelMsg, setEmbedModelMsg] = useState('');
+  const [embedModelError, setEmbedModelError] = useState(false);
+  const [embedModelBusy, setEmbedModelBusy] = useState(false);
 
   useEffect(() => {
-    api.config.get().then((cfg) => {
-      if (cfg.persona_name) setPersonaName(cfg.persona_name);
-      if (cfg.persona_system_prompt) setPersonaPrompt(cfg.persona_system_prompt);
-    }).catch(() => {});
     api.settings.opencodeKey.status().then((s) => {
       setOcKeyConfigured(s.configured);
       setOcKeyMasked(s.masked ?? null);
@@ -107,6 +94,9 @@ export default function SettingsModal() {
     api.settings.voice.status().then((v) => {
       setSttModel(v.stt_whisper_model || 'base.en');
       setSttOptions(v.options || []);
+    }).catch(() => {});
+    api.config.get().then((cfg) => {
+      if (cfg.embed_model) setEmbedModel(cfg.embed_model);
     }).catch(() => {});
   }, []);
 
@@ -133,28 +123,7 @@ export default function SettingsModal() {
     setSection(key);
     setOcKeyMsg('');
     setSttMsg('');
-    setPersonaStatus('');
-  };
-
-  const savePersona = async () => {
-    setPersonaStatus('Saving…');
-    setPersonaError(false);
-    try {
-      const res = await api.config.setPersona({
-        persona_name: personaName,
-        persona_system_prompt: personaPrompt,
-      });
-      if (res.error) {
-        setPersonaStatus(res.error);
-        setPersonaError(true);
-      } else {
-        setPersonaStatus('Saved');
-        setTimeout(() => setPersonaStatus(''), 2500);
-      }
-    } catch (e) {
-      setPersonaStatus(e instanceof Error ? e.message : String(e));
-      setPersonaError(true);
-    }
+    setEmbedModelMsg('');
   };
 
   const saveSttModel = async () => {
@@ -175,6 +144,26 @@ export default function SettingsModal() {
       setSttError(true);
     }
     setSttBusy(false);
+  };
+
+  const saveEmbedModel = async () => {
+    setEmbedModelBusy(true);
+    setEmbedModelMsg('');
+    setEmbedModelError(false);
+    try {
+      const res = await api.config.setEmbedModel(embedModel);
+      if (res.error) {
+        setEmbedModelMsg(res.error);
+        setEmbedModelError(true);
+      } else {
+        setEmbedModelMsg('Saved — reindex to apply');
+        setTimeout(() => setEmbedModelMsg(''), 3000);
+      }
+    } catch (e) {
+      setEmbedModelMsg(e instanceof Error ? e.message : String(e));
+      setEmbedModelError(true);
+    }
+    setEmbedModelBusy(false);
   };
 
   const refreshOcKeyStatus = () => {
@@ -325,7 +314,7 @@ export default function SettingsModal() {
                   checked={canvasEnabled}
                   onChange={setCanvasEnabled}
                   title="Enable Canvas"
-                  description="Side-by-side document editor for AI output. When off, the Canvas shortcut and the “Open in Canvas” message action are hidden."
+                  description="Side-by-side document editor for AI output. When off, the Canvas shortcut and the \u201COpen in Canvas\u201D message action are hidden."
                 />
               </div>
             </div>
@@ -417,33 +406,34 @@ export default function SettingsModal() {
 
             <div
               className="settings-section"
-              id="settings-panel-voice"
+              id="settings-panel-models"
               role="tabpanel"
-              aria-labelledby="settings-tab-voice"
-              hidden={section !== 'voice'}
+              aria-labelledby="settings-tab-models"
+              hidden={section !== 'models'}
             >
-              <SectionHeader title="Voice">
-                Pick the local Whisper model used for microphone input. The first use
-                downloads it; English-only &ldquo;.en&rdquo; models are faster on CPU.
+              <SectionHeader title="Default Models">
+                Configure the local models used for speech-to-text and folder indexing.
+                All models run locally via Ollama.
               </SectionHeader>
 
               <div className="settings-card">
                 <div className="settings-card-title">Speech-to-text</div>
                 <div className="settings-field">
-                  <label htmlFor="stt-model">Model</label>
-                  <select
+                  <label htmlFor="stt-model">Whisper model</label>
+                  <SettingsSelect
                     id="stt-model"
-                    className="settings-input"
                     value={sttModel}
-                    onChange={(e) => setSttModel(e.target.value)}
-                  >
-                    {sttOptions.length === 0 && <option value={sttModel}>{sttModel}</option>}
-                    {sttOptions.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.label} · ~{o.size_mb} MB — {o.note}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setSttModel}
+                    options={
+                      sttOptions.length === 0
+                        ? [{ value: sttModel, label: sttModel }]
+                        : sttOptions.map((o) => ({
+                            value: o.id,
+                            label: o.label,
+                            description: `~${o.size_mb} MB — ${o.note}`,
+                          }))
+                    }
+                  />
                 </div>
                 <div className="settings-actions-row">
                   <button className="action-btn primary" onClick={saveSttModel} disabled={sttBusy}>
@@ -452,50 +442,35 @@ export default function SettingsModal() {
                   <Feedback message={sttMsg} isError={sttError} />
                 </div>
               </div>
-            </div>
-
-            <div
-              className="settings-section"
-              id="settings-panel-persona"
-              role="tabpanel"
-              aria-labelledby="settings-tab-persona"
-              hidden={section !== 'persona'}
-            >
-              <SectionHeader title="Persona">
-                Customize how the assistant responds in this knowledge base. Leave both
-                fields empty to use the default behavior.
-              </SectionHeader>
 
               <div className="settings-card">
-                <div className="settings-card-title">Assistant</div>
+                <div className="settings-card-title">Embedding model</div>
                 <div className="settings-field">
-                  <label htmlFor="persona-name">Persona name</label>
-                  <input
-                    id="persona-name"
-                    className="settings-input"
-                    placeholder="Optional, e.g. Research Analyst"
-                    value={personaName}
-                    onChange={(e) => setPersonaName(e.target.value)}
-                  />
-                </div>
-                <div className="settings-field">
-                  <label htmlFor="persona-prompt">System prompt</label>
-                  <textarea
-                    id="persona-prompt"
-                    className="settings-textarea"
-                    rows={5}
-                    placeholder="You are a concise research assistant. Always answer with bullet points…"
-                    value={personaPrompt}
-                    onChange={(e) => setPersonaPrompt(e.target.value)}
+                  <label htmlFor="embed-model">Indexing model</label>
+                  <SettingsSelect
+                    id="embed-model"
+                    value={embedModel}
+                    onChange={setEmbedModel}
+                    options={[
+                      { value: 'nomic-embed-text', label: 'Nomic Embed Text', description: '137M params, 768-dim' },
+                      { value: 'nomic-embed-text-v1.5', label: 'Nomic Embed Text v1.5', description: '137M params, 768-dim (better quality)' },
+                      { value: 'BAAI/bge-base-en-v1.5', label: 'BGE Base English v1.5', description: '109M params, 768-dim' },
+                      { value: 'BAAI/bge-small-en-v1.5', label: 'BGE Small English v1.5', description: '33M params, 384-dim (lightweight)' },
+                    ]}
                   />
                 </div>
                 <div className="settings-actions-row">
-                  <button className="action-btn primary" onClick={savePersona}>
-                    Save persona
+                  <button className="action-btn primary" onClick={saveEmbedModel} disabled={embedModelBusy}>
+                    {embedModelBusy ? 'Saving…' : 'Save'}
                   </button>
-                  <Feedback message={personaStatus} isError={personaError} />
+                  <Feedback message={embedModelMsg} isError={embedModelError} />
                 </div>
               </div>
+
+              <p className="settings-hint-inline">
+                Pull a model first with <code>ollama pull &lt;model&gt;</code> if it is not installed.
+                After changing the embedding model, re-index your folders to apply.
+              </p>
             </div>
           </div>
         </div>

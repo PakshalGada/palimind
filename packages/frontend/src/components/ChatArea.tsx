@@ -1,16 +1,18 @@
 import { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useApp } from '../AppContext';
 import { api } from '../api';
-import { formatMarkdown } from '../utils/markdown';
 import { useBookmarks } from '../hooks/useBookmarks';
 import IndexingProgress from './IndexingProgress';
 import InputArea from './InputArea';
 import MessageActions from './MessageActions';
+import MessageContent from './MessageContent';
+import type { CitationPayload } from '../types';
 
 interface ChatMessage {
   role: string;
   content: string;
   sources?: string[];
+  citations?: CitationPayload;
 }
 
 export default function ChatArea() {
@@ -158,6 +160,12 @@ export default function ChatArea() {
     [canvasEnabled, addToast, setArtifactPanelOpen, setCanvasOpen],
   );
 
+  const handleSaveResearch = useCallback((content: string, sources: unknown[]) => {
+    window.dispatchEvent(
+      new CustomEvent('palimind:save-research', { detail: { content, sources } }),
+    );
+  }, []);
+
   // Track whether the user is pinned to the bottom of the conversation.
   // We only auto-scroll when they're already near the bottom so that
   // scrolling up to read earlier messages isn't interrupted by background
@@ -204,6 +212,7 @@ export default function ChatArea() {
               onDelete={handleDelete}
               onShare={handleShare}
               onOpenCanvas={handleOpenCanvas}
+              onSaveResearch={handleSaveResearch}
               onToggleBookmark={() => toggleBookmark(msg)}
             />
           ))}
@@ -229,6 +238,7 @@ interface MessageComponentProps {
   onDelete: (index: number) => void;
   onShare: () => void;
   onOpenCanvas: (content: string) => void;
+  onSaveResearch: (content: string, sources: unknown[]) => void;
   onToggleBookmark: () => void;
 }
 
@@ -241,6 +251,7 @@ function MessageComponent({
   onDelete,
   onShare,
   onOpenCanvas,
+  onSaveResearch,
   onToggleBookmark,
 }: MessageComponentProps) {
   const isUser = msg.role === 'user';
@@ -250,12 +261,6 @@ function MessageComponent({
   useEffect(() => {
     setDraft(msg.content);
   }, [msg.content]);
-
-  let contentText = '';
-  if (msg.sources && msg.sources.length > 0) {
-    contentText += `*Sources: ${msg.sources.join(', ')}*\n\n`;
-  }
-  contentText += msg.content;
 
   if (editing) {
     const save = () => {
@@ -312,14 +317,12 @@ function MessageComponent({
           onRegenerate={!isUser ? () => onRegenerate(index) : undefined}
           onEdit={isUser ? () => setEditing(true) : undefined}
           onOpenCanvas={!isUser ? () => onOpenCanvas(msg.content) : undefined}
+          onSaveResearch={!isUser ? () => onSaveResearch(msg.content, msg.citations?.sources ?? []) : undefined}
           onDelete={() => onDelete(index)}
           onShare={onShare}
           onToggleBookmark={onToggleBookmark}
         />
-        <div
-          className="message-content"
-          dangerouslySetInnerHTML={{ __html: formatMarkdown(contentText) }}
-        />
+        <MessageContent content={msg.content} citations={msg.citations} sources={msg.sources} />
       </div>
     </div>
   );

@@ -20,6 +20,9 @@ from palimind.settings import (
     AGENT_AUTO_MEMORY_EXTRACT,
     AGENT_MEMORY_RECALL_LIMIT,
     AGENT_RUN_HISTORY_LIMIT,
+    PLAN_REVIEW_TIMEOUT,
+    REASONING_CLASSIFIER_MODEL,
+    SELF_CRITIQUE_MAX_RETRIES,
 )
 
 # ── RunningAgents registry ────────────────────────────────────────────────
@@ -139,6 +142,8 @@ def record_run(
     duration: float,
     usage: dict | None = None,
     trace: list[dict] | None = None,
+    verification: dict | None = None,
+    effort: dict | None = None,
 ) -> None:
     path = _runs_dir() / f"{agent_id}.json"
     try:
@@ -162,6 +167,10 @@ def record_run(
             }
         if trace:
             entry["trace"] = trace[-_RUN_TRACE_LIMIT:]
+        if verification:
+            entry["verification"] = verification
+        if effort:
+            entry["effort"] = effort
         data.append(entry)
         data = data[-AGENT_RUN_HISTORY_LIMIT:]
         path.write_text(json.dumps(data, indent=2), "utf-8")
@@ -411,6 +420,105 @@ def _workspace_context_block(working_root: Path | None) -> str:
     return "[WORKSPACE CONTEXT]\n" + "\n".join(lines).rstrip() + "\n"
 
 
+def _plan_prompt_block(custom_prompt: str, plan: dict[str, Any]) -> str:
+    """Inject an approved plan into the agent's system prompt."""
+    steps = plan.get("steps", [])
+    if not steps:
+        return custom_prompt
+    lines: list[str] = []
+    for i, step in enumerate(steps):
+        title = step.get("title") or f"Step {i + 1}"
+        description = step.get("description", "")
+        line = f"{i + 1}. {title}"
+        if description:
+            line += f" — {description}"
+        if step.get("tool"):
+            line += f" (tool: {step['tool']})"
+        lines.append(line)
+    block = (
+        "[PLAN]\n"
+        "Follow this approved plan step by step. Adapt if reality differs, but "
+        "cover every step before finishing:\n" + "\n".join(lines) + "\n"
+    )
+    return (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + block
+
+
+async def _verify_and_maybe_retry(
+    *,
+    definition: AgentDefinition,
+    input_text: str,
+    output: str,
+    model: str,
+    ollama_url: str,
+    light_model: str,
+    custom_prompt: str,
+    sub_task: dict[str, Any],
+    effective_iterations: int,
+    approval_provider: Any,
+    session_id: str,
+    emit: Any,
+    thread_emit: Any,
+    usage_cb: Any,
+) -> tuple[str, dict[str, Any]]:
+    """Run structured verification, retrying a bounded number of times.
+
+    Returns ``(final_output, report)``. Emits ``agent:verification`` after each
+    attempt and ``agent:needs_review`` when the result should reach a human.
+    """
+    from palimind.agents import self_critique as sc
+
+    verify_model = light_model or model
+    threshold = definition.verify_confidence_threshold or None
+
+    async def _run_verification(text: str) -> dict[str, Any]:
+        return await asyncio.to_thread(
+            sc.verify_output,
+            input_text,
+            text,
+            verify_model,
+            ollama_url,
+            definition=definition,
+            success_criteria=definition.success_criteria,
+        )
+
+    report = await _run_verification(output)
+    if emit is not None:
+        await emit("agent:verification", {"report": report, "attempt": 0})
+
+    retries = 0
+    while sc.needs_retry(report, threshold) and retries < SELF_CRITIQUE_MAX_RETRIES:
+        retries += 1
+        retry_task = {**sub_task, "task": sc.build_retry_prompt(input_text, output, report)}
+        try:
+            output = await asyncio.to_thread(
+                run_agent,
+                sub_task["agent_id"],
+                retry_task,
+                model,
+                ollama_url,
+                effective_iterations,
+                None,
+                definition=definition,
+                extra_system_prompt=custom_prompt,
+                event_cb=thread_emit,
+                approval_provider=approval_provider,
+                session_id=session_id,
+                token_stream=True,
+                reflect=False,
+                usage_cb=usage_cb,
+            )
+        except Exception as e:  # noqa: BLE001 - a failed retry keeps the draft
+            print(f"[agents] verification retry failed: {e}")
+            break
+        report = await _run_verification(output)
+        if emit is not None:
+            await emit("agent:verification", {"report": report, "attempt": retries})
+
+    if sc.needs_human_review(report, threshold) and emit is not None:
+        await emit("agent:needs_review", {"report": report})
+    return output, report
+
+
 async def run_with_definition(
     definition: AgentDefinition,
     input: str,
@@ -497,6 +605,44 @@ async def run_with_definition(
         extra_roots=[],
     )
 
+    # ── Phase 4.1: adaptive reasoning effort ─────────────────────────────
+    from dataclasses import replace
+
+    from palimind.agents import adaptive_reasoning as ar
+
+    effort_info: dict[str, Any] = {}
+    effective_iterations = definition.max_iterations
+    effective_context = definition.context_budget
+    if definition.reasoning_effort and definition.reasoning_effort != "off":
+        classifier_model = REASONING_CLASSIFIER_MODEL or light_model or model
+        effort_info = await asyncio.to_thread(
+            ar.resolve_effort,
+            input,
+            definition.reasoning_effort,
+            classifier_model,
+            ollama_url,
+        )
+        applied = ar.apply_effort(
+            effort_info["level"],
+            max_iterations=definition.max_iterations,
+            context_budget=definition.context_budget,
+        )
+        effective_iterations = applied["iterations"]
+        effective_context = applied["context_budget"]
+        if emit is not None:
+            await emit(
+                "agent:effort",
+                {
+                    "level": effort_info["level"],
+                    "indicator": ar.effort_indicator(effort_info["level"]),
+                    "source": effort_info.get("source", ""),
+                    "score": effort_info.get("score"),
+                    "reasoning": effort_info.get("reasoning", ""),
+                    "max_iterations": effective_iterations,
+                },
+            )
+    run_definition = replace(definition, context_budget=effective_context)
+
     memory_block = ""
     if definition.memory_scope != "none":
         # Pre-run recall: surface the memory entries most relevant to this
@@ -526,36 +672,129 @@ async def run_with_definition(
         "context": "",
     }
 
+    # ── Phase 4.4: planning mode ─────────────────────────────────────────
+    from palimind.agents import planner as planner_mod
+
+    plan: dict[str, Any] | None = None
+    plan_rejected = False
+    if definition.planning_mode in ("review", "auto"):
+        try:
+            plan = await asyncio.to_thread(
+                planner_mod.generate_plan,
+                input,
+                light_model or model,
+                ollama_url,
+                agent_id=definition.id,
+                available_tools=effective_tools,
+                success_criteria=definition.success_criteria,
+            )
+        except Exception as e:  # noqa: BLE001 - planning is best-effort
+            print(f"[agents] plan generation failed: {e}")
+            plan = None
+        if plan is not None:
+            planner_mod.save_plan(plan)
+            if emit is not None:
+                await emit(
+                    "agent:plan",
+                    {
+                        "plan_id": plan["id"],
+                        "mode": definition.planning_mode,
+                        "status": "pending",
+                        "steps": plan.get("steps", []),
+                    },
+                )
+            if definition.planning_mode == "review" and emit is not None:
+                decision = await planner_mod.wait_for_plan_review(plan["id"], PLAN_REVIEW_TIMEOUT)
+                if not decision.get("approved") and not decision.get("timeout"):
+                    plan_rejected = True
+                else:
+                    refreshed = planner_mod.get_plan(plan["id"])
+                    if refreshed:
+                        plan = refreshed
+            if not plan_rejected:
+                custom_prompt = _plan_prompt_block(custom_prompt, plan)
+
     start = time.time()
     status = "success"
+    output = ""
+    verification_holder: dict[str, Any] = {}
+    orchestration_result: dict[str, Any] | None = None
     try:
-        output = await asyncio.to_thread(
-            run_agent,
-            sub_task["agent_id"],
-            sub_task,
-            model,
-            ollama_url,
-            definition.max_iterations,
-            None,
-            definition=definition,
-            extra_system_prompt=custom_prompt,
-            event_cb=thread_emit,
-            approval_provider=approval_provider,
-            session_id=session_id,
-            token_stream=True,
-            reflect=bool(getattr(definition, "self_critique", False)),
-            usage_cb=_usage_cb,
-        )
-    except asyncio.CancelledError:
-        status = "cancelled"
-        output = "[Agent run cancelled]"
-        activity.finish(definition.id, status, output)
-        await emit_completed(output, status)
-        raise
-    except Exception as e:
-        status = "error"
-        output = f"[Agent run error] {e}"
-        await emit_completed(output, status)
+        if plan_rejected:
+            status = "rejected"
+            output = "[Plan rejected by user]"
+        else:
+            try:
+                if definition.orchestration in ("fan_out", "arena"):
+                    from palimind.agents import orchestrator as orch_mod
+
+                    async def orch_emit(etype: str, payload: dict) -> None:
+                        with trace_lock:
+                            trace.append({"type": etype, **payload})
+                        if emit is not None:
+                            await emit(etype, payload)
+
+                    orchestration_result = await orch_mod.orchestrate(
+                        input,
+                        model=model,
+                        ollama_url=ollama_url,
+                        light_model=light_model,
+                        definition=run_definition,
+                        working_root=working_root,
+                        num_agents=definition.orchestration_agents or None,
+                        mode=definition.orchestration,
+                        emit=orch_emit,
+                        approval_provider=approval_provider,
+                    )
+                    output = orchestration_result.get("output", "")
+                else:
+                    output = await asyncio.to_thread(
+                        run_agent,
+                        sub_task["agent_id"],
+                        sub_task,
+                        model,
+                        ollama_url,
+                        effective_iterations,
+                        None,
+                        definition=run_definition,
+                        extra_system_prompt=custom_prompt,
+                        event_cb=thread_emit,
+                        approval_provider=approval_provider,
+                        session_id=session_id,
+                        token_stream=True,
+                        reflect=False,
+                        usage_cb=_usage_cb,
+                    )
+            except asyncio.CancelledError:
+                status = "cancelled"
+                output = "[Agent run cancelled]"
+                activity.finish(definition.id, status, output)
+                await emit_completed(output, status)
+                raise
+            except Exception as e:
+                status = "error"
+                output = f"[Agent run error] {e}"
+                await emit_completed(output, status)
+
+            # ── Phase 4.6: structured self-critique / verification ───────
+            if status == "success" and output and definition.self_critique:
+                output, report = await _verify_and_maybe_retry(
+                    definition=run_definition,
+                    input_text=input,
+                    output=output,
+                    model=model,
+                    ollama_url=ollama_url,
+                    light_model=light_model,
+                    custom_prompt=custom_prompt,
+                    sub_task=sub_task,
+                    effective_iterations=effective_iterations,
+                    approval_provider=approval_provider,
+                    session_id=session_id,
+                    emit=emit,
+                    thread_emit=thread_emit,
+                    usage_cb=_usage_cb,
+                )
+                verification_holder = report
     finally:
         await unregister_running(definition.id)
         approvals.remove(definition.id)
@@ -578,6 +817,8 @@ async def run_with_definition(
         duration,
         usage=usage_holder,
         trace=trace_snapshot,
+        verification=verification_holder or None,
+        effort=effort_info or None,
     )
     append_chat(definition.id, "agent", output)
     activity.finish(definition.id, status, output)

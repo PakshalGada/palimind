@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from palimind.config import load_config, palimind_dir, write_default_config
@@ -37,8 +39,6 @@ from palimind.storage.db import (
     get_connection,
     init_db,
     insert_chunks,
-    insert_financial_facts,
-    insert_timeline_events,
     upsert_file,
     upsert_file_summary,
 )
@@ -180,149 +180,6 @@ def _extract_video_chunks(file_path: Path, root: Path, config: dict) -> list[Ric
 
 
 # ---------------------------------------------------------------------------
-# Financial fact & timeline extraction (best-effort via LLM)
-# ---------------------------------------------------------------------------
-
-
-def _extract_financial_facts_from_text(
-    text: str,
-    doc_year: int | None,
-    ollama_url: str,
-    chat_model: str,
-) -> list[dict]:
-    """
-    Ask the LLM to extract key financial metrics as structured JSON.
-    Returns a list of fact dicts or empty list on any failure.
-    """
-    import json
-
-    import httpx
-
-    if not text or not text.strip():
-        return []
-
-    excerpt = text[:6000]
-    prompt = f"""Extract financial metrics from the following text.
-Return ONLY a JSON array, no explanation. Each item should have:
-{{"metric_name": str, "value": float_or_null, "unit": str, "period": str}}
-
-Common metrics: revenue, gross_margin, net_income, operating_income, eps, cash_flow, total_assets, total_debt
-
-Text:
-{excerpt}
-
-JSON array:"""
-
-    try:
-        resp = httpx.post(
-            f"{ollama_url.rstrip('/')}/api/chat",
-            json={
-                "model": chat_model,
-                "messages": [{"role": "user", "content": prompt}],
-                "stream": False,
-                "options": {"temperature": 0.0},
-            },
-            timeout=60.0,
-        )
-        resp.raise_for_status()
-        content = resp.json().get("message", {}).get("content", "")
-
-        # Extract JSON array from response
-        m = __import__("re").search(r"\[.*\]", content, __import__("re").DOTALL)
-        if not m:
-            return []
-
-        facts = json.loads(m.group(0))
-        if not isinstance(facts, list):
-            return []
-
-        result = []
-        for fact in facts:
-            if not isinstance(fact, dict) or "metric_name" not in fact:
-                continue
-            result.append(
-                {
-                    "metric_name": str(fact.get("metric_name", "")).lower().replace(" ", "_"),
-                    "value": float(fact["value"]) if fact.get("value") is not None else None,
-                    "unit": str(fact.get("unit", "USD")),
-                    "period": str(fact.get("period", "")),
-                    "doc_year": doc_year,
-                }
-            )
-        return result
-    except Exception:
-        return []
-
-
-def _extract_timeline_events_from_text(
-    text: str,
-    doc_year: int | None,
-    ollama_url: str,
-    chat_model: str,
-) -> list[dict]:
-    """
-    Ask the LLM to extract dated events as structured JSON.
-    Returns a list of event dicts or empty list on any failure.
-    """
-    import json
-
-    import httpx
-
-    if not text or not text.strip():
-        return []
-
-    excerpt = text[:6000]
-    prompt = f"""Extract dated events or announcements from the following text.
-Return ONLY a JSON array, no explanation. Each item should have:
-{{"event_date": "YYYY-MM-DD or YYYY", "event_year": int_or_null, "event_text": str, "event_type": str}}
-
-event_type options: product_launch, regulatory, financial, leadership, strategic, legal, general
-
-Text:
-{excerpt}
-
-JSON array:"""
-
-    try:
-        resp = httpx.post(
-            f"{ollama_url.rstrip('/')}/api/chat",
-            json={
-                "model": chat_model,
-                "messages": [{"role": "user", "content": prompt}],
-                "stream": False,
-                "options": {"temperature": 0.0},
-            },
-            timeout=60.0,
-        )
-        resp.raise_for_status()
-        content = resp.json().get("message", {}).get("content", "")
-
-        m = __import__("re").search(r"\[.*\]", content, __import__("re").DOTALL)
-        if not m:
-            return []
-
-        events = json.loads(m.group(0))
-        if not isinstance(events, list):
-            return []
-
-        result = []
-        for event in events:
-            if not isinstance(event, dict) or "event_text" not in event:
-                continue
-            result.append(
-                {
-                    "event_date": str(event.get("event_date", "")),
-                    "event_year": int(event["event_year"]) if event.get("event_year") else doc_year,
-                    "event_text": str(event["event_text"]),
-                    "event_type": str(event.get("event_type", "general")),
-                }
-            )
-        return result
-    except Exception:
-        return []
-
-
-# ---------------------------------------------------------------------------
 # Main index update
 # ---------------------------------------------------------------------------
 
@@ -354,7 +211,7 @@ def _update_index_locked(
             on_progress(phase, current=current, total=total, message=message)
 
     report("crawl", message="Scanning directory...")
-    new_or_modified, unchanged, deleted = crawl_directory(root)
+    new_or_modified, unchanged, deleted, crawled_hashes = crawl_directory(root)
     report(
         "crawl",
         message=(
@@ -378,53 +235,80 @@ def _update_index_locked(
                     report("delete", current=i, total=len(deleted), message=rel_path)
 
             # ---- indexing ----
-            for i, fpath in enumerate(new_or_modified, start=1):
-                rel_path = str(fpath.relative_to(root))
-                report("index", current=i, total=len(new_or_modified), message=rel_path)
+            # Files are processed concurrently: the per-file work (parse + embed +
+            # summarise) is I/O-bound HTTP to Ollama, so a thread pool overlaps it
+            # across files. All DB + vector-store writes stay on the main thread
+            # (sequential → safe for the shared SQLite connection and VectorStore).
+            max_workers = config.get("index_workers", 4)
+            report_lock = threading.Lock()
 
-                md5 = compute_md5(fpath)
+            def process_file(
+                fpath: Path, rel_path: str, idx: int, total: int, md5: str
+            ) -> dict:
+                """Parse + embed + summarise one file. Returns data for the DB write."""
+                out: dict = {
+                    "rel_path": rel_path,
+                    "md5": "",
+                    "error": None,
+                    "no_chunks": False,
+                    "first": None,
+                    "db_chunks": [],
+                    "valid_infos": [],
+                    "summary": "",
+                }
+
+                # Reuse the hash computed during crawl; fall back to hashing here
+                # only if it was somehow missing.
                 if not md5:
-                    file_errors.append(FileIndexError(rel_path, "Could not compute file hash"))
-                    continue
-
-                vstore.delete_file(rel_path)
+                    md5 = compute_md5(fpath)
+                if not md5:
+                    out["error"] = "Could not compute file hash"
+                    return out
+                out["md5"] = md5
 
                 try:
                     rich_chunks = extract_chunks(fpath, root, config)
                 except (ParseError, CaptionError, OCRError) as e:
-                    file_errors.append(FileIndexError(rel_path, str(e)))
-                    continue
+                    out["error"] = str(e)
+                    return out
 
                 if not rich_chunks:
-                    # Upsert file record even if no chunks (so crawl knows it's indexed)
-                    upsert_file(conn, rel_path, md5, time.time())
-                    continue
+                    out["no_chunks"] = True
+                    return out
 
-                # Extract metadata from the first rich chunk (they all share doc meta)
-                first = rich_chunks[0]
-                file_id = upsert_file(
-                    conn,
-                    rel_path,
-                    md5,
-                    time.time(),
-                    doc_year=first.doc_year,
-                    doc_type=first.doc_type,
-                    entity_name=first.entity_name,
-                )
-
+                out["first"] = rich_chunks[0]
                 texts = [c.content for c in rich_chunks]
-                try:
-                    embeddings = generate_embeddings_batch(
-                        texts, config["ollama_base_url"], config["embed_model"], root=root
-                    )
-                except EmbeddingError as e:
-                    file_errors.append(FileIndexError(rel_path, str(e)))
-                    continue
 
-                # Build DB chunk rows with full metadata
+                # Embeddings and summary are independent LLM calls — run concurrently.
+                with ThreadPoolExecutor(max_workers=2) as inner:
+                    emb_future = inner.submit(
+                        generate_embeddings_batch,
+                        texts,
+                        config["ollama_base_url"],
+                        config["embed_model"],
+                        root=root,
+                    )
+                    sum_future = None
+                    if config.get("summarise", True):
+                        with report_lock:
+                            report("summarise", current=idx, total=total, message=rel_path)
+                        sum_future = inner.submit(
+                            summarise_file,
+                            "\n\n".join(texts),
+                            config["ollama_base_url"],
+                            config["chat_model"],
+                            max_chars=config.get("summary_max_chars", 8000),
+                        )
+                    try:
+                        embeddings = emb_future.result()
+                    except EmbeddingError as e:
+                        out["error"] = str(e)
+                        return out
+                    out["summary"] = sum_future.result() if sum_future else ""
+
                 db_chunks = []
                 valid_infos: list[tuple[int, RichChunk, list[float]]] = []
-                for idx, (chunk, emb) in enumerate(zip(rich_chunks, embeddings, strict=False)):
+                for ci, (chunk, emb) in enumerate(zip(rich_chunks, embeddings, strict=False)):
                     if not emb:
                         continue
                     db_chunks.append(
@@ -442,92 +326,82 @@ def _update_index_locked(
                             chunk.media_end_ts,
                         )
                     )
-                    valid_infos.append((idx, chunk, emb))
+                    valid_infos.append((ci, chunk, emb))
 
-                if valid_infos:
-                    chunk_db_ids = insert_chunks(conn, file_id, db_chunks)
+                out["db_chunks"] = db_chunks
+                out["valid_infos"] = valid_infos
+                return out
 
-                    vector_data = [
-                        {
-                            "vector": emb,
-                            "chunk_db_id": chunk_db_ids[j],
-                            "file_path": rel_path,
-                            "chunk_index": chunk.chunk_index,
-                            "chunk_type": chunk.chunk_type,
-                            "content": chunk.content,
-                            "section_title": chunk.section_title,
-                            "subsection": chunk.subsection,
-                            "main_section": chunk.main_section,
-                            "parent_section": chunk.parent_section,
-                            "doc_year": chunk.doc_year,
-                            "fiscal_year": chunk.fiscal_year or chunk.doc_year,
-                            "doc_type": chunk.doc_type,
-                            "entity_name": chunk.entity_name,
-                            "media_start_ts": chunk.media_start_ts,
-                            "media_end_ts": chunk.media_end_ts,
-                        }
-                        for j, (_, chunk, emb) in enumerate(valid_infos)
-                    ]
-                    vstore.insert(vector_data)
-                    chunks_indexed += len(vector_data)
-                    indexed_files += 1
+            with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                future_to_path: dict = {}
+                for i, fpath in enumerate(new_or_modified, start=1):
+                    rel_path = str(fpath.relative_to(root))
+                    report("index", current=i, total=len(new_or_modified), message=rel_path)
+                    vstore.delete_file(rel_path)
+                    fut = pool.submit(
+                        process_file,
+                        fpath,
+                        rel_path,
+                        i,
+                        len(new_or_modified),
+                        crawled_hashes.get(rel_path, ""),
+                    )
+                    future_to_path[fut] = rel_path
 
-                    # ── File summary ────────────────────────────────────────
-                    if config.get("summarise", True):
-                        report(
-                            "summarise",
-                            current=i,
-                            total=len(new_or_modified),
-                            message=rel_path,
-                        )
-                        full_text = "\n\n".join(texts)
-                        summary = summarise_file(
-                            full_text,
-                            config["ollama_base_url"],
-                            config["chat_model"],
-                            max_chars=config.get("summary_max_chars", 8000),
-                        )
-                        if summary:
-                            upsert_file_summary(conn, rel_path, summary)
+                for fut in as_completed(future_to_path):
+                    res = fut.result()
+                    rel_path = res["rel_path"]
 
-                    # ── Financial fact extraction (financial docs only) ─────
-                    doc_type = first.doc_type
-                    if doc_type in ("10-K", "10-Q", "annual_report") and config.get(
-                        "extract_financials", True
-                    ):
-                        report(
-                            "extract_financials",
-                            current=i,
-                            total=len(new_or_modified),
-                            message=rel_path,
-                        )
-                        full_text = "\n\n".join(texts[:20])  # first 20 chunks
-                        facts = _extract_financial_facts_from_text(
-                            full_text,
-                            first.doc_year,
-                            config["ollama_base_url"],
-                            config["chat_model"],
-                        )
-                        if facts:
-                            insert_financial_facts(conn, file_id, facts)
+                    if res["error"]:
+                        file_errors.append(FileIndexError(rel_path, res["error"]))
+                        continue
 
-                    # ── Timeline event extraction ─────────────────────────
-                    if config.get("extract_timeline", True):
-                        report(
-                            "extract_timeline",
-                            current=i,
-                            total=len(new_or_modified),
-                            message=rel_path,
-                        )
-                        full_text = "\n\n".join(texts[:15])
-                        events = _extract_timeline_events_from_text(
-                            full_text,
-                            first.doc_year,
-                            config["ollama_base_url"],
-                            config["chat_model"],
-                        )
-                        if events:
-                            insert_timeline_events(conn, file_id, events)
+                    if res["no_chunks"]:
+                        # Upsert file record even if no chunks (so crawl knows it's indexed)
+                        upsert_file(conn, rel_path, res["md5"], time.time())
+                        continue
+
+                    first = res["first"]
+                    file_id = upsert_file(
+                        conn,
+                        rel_path,
+                        res["md5"],
+                        time.time(),
+                        doc_year=first.doc_year,
+                        doc_type=first.doc_type,
+                        entity_name=first.entity_name,
+                    )
+
+                    if res["valid_infos"]:
+                        chunk_db_ids = insert_chunks(conn, file_id, res["db_chunks"])
+
+                        vector_data = [
+                            {
+                                "vector": emb,
+                                "chunk_db_id": chunk_db_ids[j],
+                                "file_path": rel_path,
+                                "chunk_index": chunk.chunk_index,
+                                "chunk_type": chunk.chunk_type,
+                                "content": chunk.content,
+                                "section_title": chunk.section_title,
+                                "subsection": chunk.subsection,
+                                "main_section": chunk.main_section,
+                                "parent_section": chunk.parent_section,
+                                "doc_year": chunk.doc_year,
+                                "fiscal_year": chunk.fiscal_year or chunk.doc_year,
+                                "doc_type": chunk.doc_type,
+                                "entity_name": chunk.entity_name,
+                                "media_start_ts": chunk.media_start_ts,
+                                "media_end_ts": chunk.media_end_ts,
+                            }
+                            for j, (_, chunk, emb) in enumerate(res["valid_infos"])
+                        ]
+                        vstore.insert(vector_data)
+                        chunks_indexed += len(vector_data)
+                        indexed_files += 1
+
+                    if res["summary"]:
+                        upsert_file_summary(conn, rel_path, res["summary"])
 
             # Single commit for the whole batch.
             conn.commit()

@@ -1,0 +1,57 @@
+/* Save to research project modal (3.5) */
+
+.save-research-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+.save-research-field input {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+}
+.save-research-field input:focus { outline: none; border-color: var(--focus-ring); }
+.save-research-projects { display: flex; flex-wrap: wrap; gap: 6px; }
+.save-research-project {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--panel-bg-2);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+.save-research-project:hover { color: var(--text-main); }
+.save-research-project.is-active {
+  border-color: var(--primary-color, var(--text-muted));
+  background: var(--accent-bg);
+  color: var(--text-main);
+}
+.save-research-preview {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  padding: 10px 12px;
+  background: var(--panel-bg-2);
+}
+.save-research-note { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 6px; }
+.save-research-excerpt {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-height: 160px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+.save-research-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; width: 100%; }

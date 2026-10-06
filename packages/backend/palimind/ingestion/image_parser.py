@@ -18,6 +18,8 @@ def caption_image(file_path: Path, ollama_url: str, vision_model: str) -> str:
             ),
             "images": [image_data],
             "stream": False,
+            "think": False,
+            "keep_alive": "30m",
         }
         url = f"{ollama_url.rstrip('/')}/api/generate"
         response = httpx.post(url, json=payload, timeout=60.0)

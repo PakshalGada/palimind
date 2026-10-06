@@ -163,6 +163,32 @@ export const COMMANDS: CommandDef[] = [
     keywords: ['find', 'query', 'lookup'],
     defaultShortcut: 'Mod+Shift+F',
   },
+  {
+    id: 'research.projects',
+    title: 'Research Projects',
+    category: 'Navigation',
+    icon: 'brain',
+    description: 'Persistent research workspaces with notes, findings and sources',
+    keywords: ['projects', 'findings', 'sources', 'library', 'timeline'],
+    defaultShortcut: 'Mod+Shift+P',
+  },
+  {
+    id: 'research.compare',
+    title: 'Compare Models',
+    category: 'Navigation',
+    icon: 'layers',
+    description: 'Run the same research question across multiple models side by side',
+    keywords: ['comparison', 'consensus', 'contradictions', 'models', 'multi-model'],
+    defaultShortcut: 'Mod+Shift+K',
+  },
+  {
+    id: 'research.social',
+    title: 'X / Twitter Signals',
+    category: 'Navigation',
+    icon: 'network',
+    description: 'Real-time social sentiment, trends and cited posts',
+    keywords: ['twitter', 'social', 'sentiment', 'trends', 'x'],
+  },
 
   // ── View ────────────────────────────────────────────────────────────
   {
@@ -218,6 +244,40 @@ export const COMMANDS: CommandDef[] = [
     description: 'Open the selected agent’s memory inspector',
     keywords: ['recall', 'forget', 'context'],
     defaultShortcut: 'Mod+Shift+M',
+  },
+  {
+    id: 'agents.orchestrate',
+    title: 'Multi-Agent Orchestration',
+    category: 'Agents',
+    icon: 'network',
+    description: 'Fan out parallel agents and synthesise their results',
+    keywords: ['parallel', 'fan-out', 'arena', 'swarm', 'synthesise'],
+    defaultShortcut: 'Mod+Shift+O',
+  },
+  {
+    id: 'agents.skills',
+    title: 'Skill Manager',
+    category: 'Agents',
+    icon: 'blocks',
+    description: 'Browse, create, install and share agent skills',
+    keywords: ['slash', 'commands', 'marketplace', 'plugin'],
+    defaultShortcut: 'Mod+Shift+I',
+  },
+  {
+    id: 'agents.plans',
+    title: 'Plan Review',
+    category: 'Agents',
+    icon: 'layers',
+    description: 'Generate and approve a plan before the agent executes it',
+    keywords: ['plan', 'approve', 'steps', 'rollback'],
+  },
+  {
+    id: 'agents.tasks',
+    title: 'Goals & Background Tasks',
+    category: 'Agents',
+    icon: 'bot',
+    description: 'Monitor goals, scheduled runs and completion alerts',
+    keywords: ['goals', 'loop', 'schedule', 'background', 'notifications'],
   },
 
   // ── General ─────────────────────────────────────────────────────────

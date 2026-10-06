@@ -5776,8 +5776,7 @@ input:checked + .toggle-slider .llm-mode {
     color: var(--text-secondary);
 }
 #settings-modal .settings-input,
-#settings-modal .settings-textarea,
-#settings-modal .settings-select {
+#settings-modal .settings-textarea {
     width: 100%;
     margin-bottom: 0;
     padding: 10px 12px;
@@ -5790,11 +5789,86 @@ input:checked + .toggle-slider .llm-mode {
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 #settings-modal .settings-input:focus,
-#settings-modal .settings-textarea:focus,
-#settings-modal .settings-select:focus {
+#settings-modal .settings-textarea:focus {
     outline: none;
     border-color: var(--text-muted);
     box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* Custom themed select dropdown */
+.settings-select-wrap {
+    position: relative;
+    width: 100%;
+}
+.settings-select-trigger {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    text-align: left;
+}
+.settings-select-trigger:hover {
+    border-color: var(--text-muted);
+}
+.settings-select-trigger:focus {
+    outline: none;
+    border-color: var(--text-muted);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.settings-select-value {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.settings-select-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    max-height: 240px;
+    overflow-y: auto;
+    background: var(--panel-bg-2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+}
+.settings-select-option {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    padding: 10px 12px;
+    background: transparent;
+    border: none;
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.85rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+.settings-select-option:hover {
+    background: var(--bg-hover);
+}
+.settings-select-option.selected {
+    background: var(--accent-soft);
+}
+.settings-select-option-label {
+    font-weight: 500;
+}
+.settings-select-option-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
 }
 #settings-modal .settings-textarea {
     resize: vertical;

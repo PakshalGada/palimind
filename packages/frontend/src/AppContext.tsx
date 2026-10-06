@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import { api } from './api';
-import type { AppView, ChatMode, LlmSubMode, SetupTask, Theme } from './types';
+import type { AppView, ChatMode, CitationPayload, LlmSubMode, SetupTask, Theme } from './types';
 import type { ShortcutOverrides } from './utils/shortcuts';
 import { loadShortcutOverrides, saveShortcutOverrides } from './utils/shortcuts';
 
@@ -42,7 +42,7 @@ interface AppState {
   activeView: AppView;
   activeField: string | null;
   activeSessionId: string | null;
-  sessions: { id: string; name: string; messages: { role: string; content: string; sources?: string[] }[] }[];
+  sessions: { id: string; name: string; messages: { role: string; content: string; sources?: string[]; citations?: CitationPayload }[] }[];
   selectedFiles: Set<string>;
   chatMode: ChatMode;
   isGenerating: boolean;

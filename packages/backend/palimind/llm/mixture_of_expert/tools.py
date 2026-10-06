@@ -13,6 +13,7 @@ _tool_context: dict[str, Any] = {
     "ollama_url": "",
     "chat_model": "",
     "light_model": "",
+    "source_collector": None,
 }
 _context_lock = threading.Lock()
 
@@ -23,6 +24,7 @@ def set_tool_context(
     chat_model: str = "",
     light_model: str = "",
     extra_roots: list[Path] | None = None,
+    source_collector: list[dict] | None = None,
 ) -> None:
     with _context_lock:
         _tool_context.update(
@@ -32,6 +34,9 @@ def set_tool_context(
                 "ollama_url": ollama_url,
                 "chat_model": chat_model,
                 "light_model": light_model,
+                # Optional sink for web sources discovered by tools, used by
+                # deep research to build a citation-rich bibliography.
+                "source_collector": source_collector,
                 # A fresh top-level run starts at depth 0; the delegate tool
                 # increments this so sub-agents cannot recurse unbounded.
                 "delegate_depth": 0,
@@ -173,17 +178,67 @@ def _run_reindex(root: Path) -> None:
 # ── web tools ─────────────────────────────────────────────────────────────
 
 
+def _source_collector() -> list[dict] | None:
+    return _get_context().get("source_collector")
+
+
+def _record_web_sources(search_text: str) -> None:
+    sink = _source_collector()
+    if sink is None:
+        return
+    try:
+        from palimind.generative.citation import parse_web_sources
+
+        for source in parse_web_sources(search_text):
+            sink.append(
+                {
+                    "url": source.url,
+                    "title": source.title,
+                    "snippet": source.snippet,
+                    "content": source.content,
+                }
+            )
+    except Exception:
+        pass
+
+
 def web_search(query: str, max_results: int = 4) -> str:
     from palimind.core.web_search import perform_web_search
 
-    return perform_web_search(query, max_results=max_results)
+    result = perform_web_search(query, max_results=max_results)
+    _record_web_sources(result)
+    return result
 
 
 def fetch_url(url: str, max_chars: int = 4000) -> str:
     """Fetch a specific URL and return its extracted readable content."""
     from palimind.core.web_search import fetch_url_content
 
-    return fetch_url_content(url, max_chars=max_chars)
+    content = fetch_url_content(url, max_chars=max_chars)
+    sink = _source_collector()
+    if sink is not None:
+        sink.append({"url": url, "title": url, "snippet": "", "content": content[:2000]})
+    return content
+
+
+def x_search(query: str, max_results: int = 8) -> str:
+    """Search X/Twitter for real-time social sentiment and trends."""
+    from palimind.agents.tools.x_search import format_x_report
+    from palimind.agents.tools.x_search import x_search as _x_search
+
+    result = _x_search(query, max_results=max_results)
+    sink = _source_collector()
+    if sink is not None:
+        for post in result.get("posts", []):
+            sink.append(
+                {
+                    "url": post.get("url", ""),
+                    "title": f"@{post.get('author') or 'x'}",
+                    "snippet": (post.get("text") or "")[:400],
+                    "content": "",
+                }
+            )
+    return format_x_report(result)
 
 
 # ── workspace knowledge tools ─────────────────────────────────────────────
@@ -572,6 +627,18 @@ TOOL_REGISTRY: dict[str, dict] = {
         "parameters": {
             "url": "The full URL to fetch (http/https)",
             "max_chars": "Optional: maximum characters to return (default 4000)",
+        },
+        "meta": _meta(1, False),
+    },
+    "x_search": {
+        "fn": x_search,
+        "description": (
+            "Search X/Twitter for real-time social sentiment, trends and posts. "
+            "Returns overall sentiment, trending hashtags/tickers and cited posts."
+        ),
+        "parameters": {
+            "query": "The topic or query to search on X/Twitter",
+            "max_results": "Optional: maximum number of posts (default 8)",
         },
         "meta": _meta(1, False),
     },

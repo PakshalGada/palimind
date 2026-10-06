@@ -165,5 +165,83 @@ DR_VERIFY: bool = _env_bool("PALIMIND_DR_VERIFY", True)
 # Max web search results per research agent.
 DR_MAX_SEARCH_RESULTS: int = _env_int("PALIMIND_DR_MAX_SEARCH_RESULTS", 8)
 
+# Hard cap on the search-read-synthesize steps a single research agent may take.
+DR_MAX_STEPS: int = _env_int("PALIMIND_DR_MAX_STEPS", 10)
+
+# Seconds to wait for the user to review/approve the research plan before the
+# pipeline proceeds with the generated plan automatically.
+DR_PLAN_REVIEW_TIMEOUT: int = _env_int("PALIMIND_DR_PLAN_REVIEW_TIMEOUT", 600)
+
+# ── Phase 4.1: adaptive reasoning ─────────────────────────────────────────
+
+# Master switch for dynamic reasoning-effort allocation. When disabled every
+# run uses the agent's own max_iterations / context_budget unchanged.
+ADAPTIVE_REASONING: bool = _env_bool("PALIMIND_ADAPTIVE_REASONING", True)
+
+# Optional model used for the complexity classifier. Empty = light model.
+REASONING_CLASSIFIER_MODEL: str = _env_str("PALIMIND_REASONING_CLASSIFIER_MODEL", "") or ""
+
+# Auto-escalate the effort level when an agent gets stuck (repeat tool loops,
+# empty answers, tool errors).
+ADAPTIVE_ESCALATE_ON_STUCK: bool = _env_bool("PALIMIND_ADAPTIVE_ESCALATE_ON_STUCK", True)
+
+# ── Phase 4.2: multi-agent orchestration ──────────────────────────────────
+
+# Hard ceiling on fan-out agents spawned for one orchestrated task.
+ORCHESTRATOR_MAX_AGENTS: int = _env_int("PALIMIND_ORCHESTRATOR_MAX_AGENTS", 8)
+
+# Max parallel orchestrated agents. 0 = auto (reuse the MoE heuristic).
+ORCHESTRATOR_MAX_CONCURRENCY: int = _env_int("PALIMIND_ORCHESTRATOR_MAX_CONCURRENCY", 0)
+
+# Default number of agents an orchestrated run spawns (clamped to the max).
+ORCHESTRATOR_DEFAULT_AGENTS: int = _env_int("PALIMIND_ORCHESTRATOR_DEFAULT_AGENTS", 4)
+
+# Run the conflict-resolution pass over disagreeing agents before synthesis.
+ORCHESTRATOR_CONFLICT_RESOLUTION: bool = _env_bool(
+    "PALIMIND_ORCHESTRATOR_CONFLICT_RESOLUTION", True
+)
+
+# Arena mode default: run N candidates on the same task and pick the winner.
+ORCHESTRATOR_ARENA: bool = _env_bool("PALIMIND_ORCHESTRATOR_ARENA", False)
+
+# ── Phase 4.3: agent skills ───────────────────────────────────────────────
+
+# Allow installing skills from the bundled marketplace catalog.
+SKILLS_ENABLE_MARKETPLACE: bool = _env_bool("PALIMIND_SKILLS_ENABLE_MARKETPLACE", True)
+
+# Maximum length (chars) of a skill's instruction block (validation guard).
+SKILL_MAX_INSTRUCTIONS: int = _env_int("PALIMIND_SKILL_MAX_INSTRUCTIONS", 20_000)
+
+# ── Phase 4.4: agent planning mode ────────────────────────────────────────
+
+# Default planning mode for new agents: "off" | "review" | "auto".
+PLANNING_MODE_DEFAULT: str = _env_str("PALIMIND_PLANNING_MODE", "off") or "off"
+
+# Hard ceiling on generated plan steps.
+PLAN_MAX_STEPS: int = _env_int("PALIMIND_PLAN_MAX_STEPS", 30)
+
+# Seconds to wait for the user to approve a plan in "review" mode.
+PLAN_REVIEW_TIMEOUT: int = _env_int("PALIMIND_PLAN_REVIEW_TIMEOUT", 900)
+
+# ── Phase 4.5: goals & background tasks ───────────────────────────────────
+
+# Maximum number of live background tasks across all goals.
+GOALS_MAX_TASKS: int = _env_int("PALIMIND_GOALS_MAX_TASKS", 50)
+
+# Maximum lifetime (days) of a background task/loop.
+GOALS_MAX_DURATION_DAYS: int = _env_int("PALIMIND_GOALS_MAX_DURATION_DAYS", 7)
+
+# Poll interval (seconds) for the background-task runner.
+GOALS_TICK: int = _env_int("PALIMIND_GOALS_TICK", 15)
+
+# ── Phase 4.6: self-critique & verification ───────────────────────────────
+
+# Minimum confidence (0..1) for a verified answer to be accepted without a
+# retry / human review.
+SELF_CRITIQUE_CONFIDENCE_THRESHOLD: float = _env_float("PALIMIND_SELF_CRITIQUE_THRESHOLD", 0.6)
+
+# Bounded automatic retries when verification confidence is below threshold.
+SELF_CRITIQUE_MAX_RETRIES: int = _env_int("PALIMIND_SELF_CRITIQUE_MAX_RETRIES", 1)
+
 # Bind address for the API server (loopback-only by default).
 SERVER_HOST: str = "127.0.0.1"

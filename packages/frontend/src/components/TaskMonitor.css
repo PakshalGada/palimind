@@ -1,0 +1,135 @@
+.tm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tm-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.tm-create {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 10px;
+  align-items: end;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--panel-bg);
+}
+
+.tm-create > :nth-child(3) {
+  grid-column: span 2;
+}
+
+.tm-goal,
+.tm-task {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--bg-color);
+}
+
+.tm-goal__head,
+.tm-task__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tm-goal__name {
+  font-weight: 600;
+  font-size: 0.86rem;
+}
+
+.tm-goal__actions,
+.tm-task__actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+.tm-goal__obj {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.tm-progress {
+  margin-top: 8px;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-secondary) 20%, transparent);
+  overflow: hidden;
+}
+
+.tm-progress__bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent-color);
+  transition: width 0.3s ease;
+}
+
+.tm-goal__meta,
+.tm-task__meta {
+  margin-top: 6px;
+  display: flex;
+  gap: 10px;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.tm-task__prompt {
+  margin-top: 6px;
+  font-size: 0.82rem;
+}
+
+.tm-task__output {
+  margin: 8px 0 0;
+  padding: 8px;
+  max-height: 140px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+  background: var(--panel-bg);
+  border-radius: 6px;
+}
+
+.tm-notif__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tm-notif {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: var(--bg-color);
+}
+
+.tm-notif.is-unread {
+  border-left: 3px solid var(--accent-color);
+}
+
+.tm-notif__text {
+  flex: 1;
+  font-size: 0.82rem;
+}
+
+.tm-notif__time {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}

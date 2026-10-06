@@ -14,6 +14,7 @@ from palimind.settings import (
     DR_MAX_AGENT_ITERATIONS,
     DR_MAX_CONCURRENCY,
     DR_MAX_SEARCH_RESULTS,
+    DR_MAX_STEPS,
     DR_NUM_CTX,
     DR_VERIFY,
 )
@@ -297,9 +298,11 @@ async def run_deep_research_pipeline(
     long_term_episodes: list[dict] | None = None,
     root: Path | None = None,
     worker_url: str | None = None,
+    on_plan: Callable[[list[dict]], Awaitable[list[dict] | None]] | None = None,
 ) -> dict[str, Any]:
-    """Deep Research pipeline: plans sub-topics, dispatches parallel research
-    agents with web access, then synthesizes a comprehensive research report."""
+    """Deep Research pipeline: plans sub-topics, optionally pauses for user
+    review, dispatches parallel research agents with web access, then
+    synthesizes a comprehensive, citation-rich research report."""
     from palimind.memory.hierarchical import format_hierarchical_memory_context
 
     memory_ctx = format_hierarchical_memory_context(mid_term_summary, long_term_episodes or [])
@@ -308,7 +311,10 @@ async def run_deep_research_pipeline(
         if on_progress:
             await on_progress(event)
 
-    # Expose workspace context to agent tools
+    # Expose workspace context to agent tools. `collected_sources` receives
+    # every web source the research agents discover so the final report can
+    # cite them.
+    collected_sources: list[dict] = []
     light_model = ""
     if root is not None:
         try:
@@ -327,7 +333,13 @@ async def run_deep_research_pipeline(
         )
         if light_note:
             print(f"[deep-research] {light_note}")
-    set_tool_context(root, worker_url or ollama_url, worker_model, light_model)
+    set_tool_context(
+        root,
+        worker_url or ollama_url,
+        worker_model,
+        light_model,
+        source_collector=collected_sources,
+    )
 
     # ── usage telemetry / stage timings ──────────────────────────────────
     usage: dict[str, dict] = {}
@@ -362,6 +374,29 @@ async def run_deep_research_pipeline(
 
     if not plan:
         plan = _default_research_plan(user_query, num_subtopics)
+
+    # ── Phase 1.5: optional user plan review (3.1) ───────────────────────
+    if on_plan is not None:
+        await emit(
+            {
+                "type": "plan_review",
+                "text": f"Research plan ready — {len(plan)} sub-topics. Waiting for your review…",
+            }
+        )
+        reviewed = await on_plan(plan)
+        if reviewed is None:
+            timings["total"] = time.monotonic() - t_start
+            await emit({"type": "cancelled", "text": "Research cancelled by user."})
+            return {
+                "cancelled": True,
+                "plan": plan,
+                "outputs": [],
+                "synthesis": "",
+                "usage": usage,
+                "timings": timings,
+                "citations": None,
+            }
+        plan = reviewed or plan
 
     await emit({"type": "planning", "text": f"Research plan created with {len(plan)} sub-topics. Dispatching research agents..."})
 
@@ -417,12 +452,12 @@ async def run_deep_research_pipeline(
                     "agent_id": subtopic_id,
                     "label": title,
                     "task": f"Research question: {research_question}\nSearch queries: {', '.join(search_queries)}",
-                    "tools": ["web_search", "fetch_url"],
+                    "tools": ["web_search", "fetch_url", "x_search"],
                     "context": user_query,
                 },
                 worker_model,
                 worker_url or ollama_url,
-                DR_MAX_AGENT_ITERATIONS,
+                min(DR_MAX_AGENT_ITERATIONS, DR_MAX_STEPS),
                 on_step_callback,
                 briefing=briefing,
                 usage_cb=agent_usage.update,
@@ -514,6 +549,24 @@ async def run_deep_research_pipeline(
                 synthesis = refined_result["content"]
 
     timings["total"] = time.monotonic() - t_start
+
+    # ── Phase 6: Structured citations + source scoring (3.3 / 3.1) ───────
+    citation_payload: dict | None = None
+    citation_sources: list = []
+    try:
+        from palimind.generative.citation import finalize_citations, parse_web_sources
+        from palimind.research import dedupe_sources, score_sources, sources_from_collected
+
+        raw_sources = sources_from_collected(collected_sources) + parse_web_sources(briefing)
+        citation_sources = score_sources(dedupe_sources(raw_sources))
+        if citation_sources and synthesis:
+            result = finalize_citations(synthesis, citation_sources)
+            synthesis = result.text
+            citation_payload = result.to_dict()
+            await emit({"type": "citation_map", **citation_payload})
+    except Exception as e:
+        print(f"[deep-research] citation pass failed: {e}")
+
     await emit({"type": "complete"})
     return {
         "plan": plan,
@@ -521,6 +574,8 @@ async def run_deep_research_pipeline(
         "synthesis": synthesis,
         "usage": usage,
         "timings": timings,
+        "citations": citation_payload,
+        "sources": [s.to_dict() for s in citation_sources] if citation_payload else [],
     }
 
 

@@ -13,6 +13,15 @@ import ShortcutsModal from './components/ShortcutsModal';
 import CommandPalette from './components/CommandPalette';
 import ArtifactPanel from './components/ArtifactPanel';
 import CanvasPanel from './components/CanvasPanel';
+import ResearchPlanModal from './components/ResearchPlanModal';
+import ResearchManager from './components/ResearchManager';
+import SaveToResearchModal from './components/SaveToResearchModal';
+import ComparisonView from './components/ComparisonView';
+import SocialSignals from './components/SocialSignals';
+import AgentGraph from './components/AgentGraph';
+import SkillManager from './components/SkillManager';
+import PlanReview from './components/PlanReview';
+import TaskMonitor from './components/TaskMonitor';
 import AgentManager from './features/agents/AgentManager';
 import AgentHeader from './features/agents/AgentHeader';
 import { useCommandHandlers } from './commands/useCommand';
@@ -76,9 +85,30 @@ export default function App() {
       window.dispatchEvent(new CustomEvent('palimind:open-graph'));
     },
     'nav.search': () => setCommandPaletteOpen(true),
+    'research.projects': () => {
+      window.dispatchEvent(new CustomEvent('palimind:open-research'));
+    },
+    'research.compare': () => {
+      window.dispatchEvent(new CustomEvent('palimind:open-compare'));
+    },
+    'research.social': () => {
+      window.dispatchEvent(new CustomEvent('palimind:open-social'));
+    },
     'chat.toggle-mode': () => setChatMode(chatMode === 'llm' ? 'document' : 'llm'),
     'agents.new': () => {
       window.dispatchEvent(new CustomEvent('palimind:new-agent'));
+    },
+    'agents.orchestrate': () => {
+      window.dispatchEvent(new CustomEvent('palimind:open-agent-graph'));
+    },
+    'agents.skills': () => {
+      window.dispatchEvent(new CustomEvent('palimind:open-skill-manager'));
+    },
+    'agents.plans': () => {
+      window.dispatchEvent(new CustomEvent('palimind:open-plan-review'));
+    },
+    'agents.tasks': () => {
+      window.dispatchEvent(new CustomEvent('palimind:open-task-monitor'));
     },
   });
 
@@ -181,6 +211,15 @@ export default function App() {
       <KnowledgeGraph />
       <ShortcutsModal />
       <CommandPalette />
+      <ResearchPlanModal />
+      <ResearchManager />
+      <SaveToResearchModal />
+      <ComparisonView />
+      <SocialSignals />
+      <AgentGraph />
+      <SkillManager />
+      <PlanReview />
+      <TaskMonitor />
       <ToastContainer />
     </div>
   );

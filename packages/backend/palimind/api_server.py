@@ -71,6 +71,7 @@ from palimind.api import (
 from palimind.audio.stt import transcribe_wav_bytes
 from palimind.audio.tts import text_to_speech_bytes
 from palimind.document.stream import document_mode_stream
+from palimind.llm.comparative_research import analyze_comparison, find_contradictions
 from palimind.llm.stream import deep_research_mode_stream, llm_mode_stream, moe_mode_stream
 from palimind.memory.session_store import (
     add_new_session,
@@ -79,6 +80,17 @@ from palimind.memory.session_store import (
     load_sessions,
     set_active_session_id,
     truncate_session_messages,
+)
+from palimind.research.plan_registry import resolve_plan
+from palimind.research.project_store import (
+    add_finding,
+    add_report,
+    add_sources,
+    create_project,
+    delete_project,
+    list_projects,
+    load_project,
+    update_project,
 )
 from palimind.storage.canvas_store import (
     delete_canvas,
@@ -175,6 +187,7 @@ state.load()
 def _agent_chat_root(agent_id: str) -> Path:
     """Per-agent private store (sessions, config) under the agents folder."""
     import re
+
     if not re.match(r"^[\w-]{1,64}$", agent_id):
         raise ValueError(f"Invalid agent_id: {agent_id!r}")
     return Path.home() / ".palimind" / "agents" / agent_id
@@ -523,6 +536,7 @@ async def startup_event():
     state.loop = asyncio.get_running_loop()
 
     from palimind.agents.catalog import migrate_field_agents, migrate_field_chats
+    from palimind.agents.goals import start_runner
     from palimind.agents.registry import set_registry_field
     from palimind.agents.scheduler import start_scheduler
 
@@ -534,6 +548,7 @@ async def startup_event():
 
     set_registry_field(state.active_field)
     start_scheduler(state.loop)
+    start_runner()
 
     if state.active_field:
         update_watcher(state.active_field)
@@ -541,9 +556,11 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    from palimind.agents.goals import stop_runner
     from palimind.agents.scheduler import stop_scheduler
 
     stop_scheduler()
+    stop_runner()
     if state.watcher:
         try:
             state.watcher.stop()
@@ -1025,6 +1042,205 @@ async def remove_canvas(canvas_id: str):
     return {"status": "success" if removed else "not_found"}
 
 
+# ── Research plan review (3.1) ─────────────────────────────────────────────
+
+
+@app.post("/api/research/approve")
+async def approve_research_plan(req: Request):
+    """Approve (and optionally edit) a paused deep-research plan."""
+    try:
+        data = await req.json()
+    except Exception:
+        return {"error": "Invalid JSON body"}
+    plan_id = data.get("plan_id")
+    if not plan_id:
+        return {"error": "plan_id is required"}
+    plan = data.get("plan")
+    if plan is not None and not isinstance(plan, list):
+        return {"error": "plan must be a list"}
+    ok = resolve_plan(str(plan_id), plan=plan)
+    return {"status": "approved" if ok else "not_found"}
+
+
+@app.post("/api/research/cancel")
+async def cancel_research_plan(req: Request):
+    """Cancel a paused deep-research plan."""
+    try:
+        data = await req.json()
+    except Exception:
+        return {"error": "Invalid JSON body"}
+    plan_id = data.get("plan_id")
+    if not plan_id:
+        return {"error": "plan_id is required"}
+    ok = resolve_plan(str(plan_id), cancelled=True)
+    return {"status": "cancelled" if ok else "not_found"}
+
+
+# ── Research projects (3.5) ────────────────────────────────────────────────
+
+
+@app.get("/api/research/projects")
+async def get_research_projects():
+    return {"projects": await asyncio.to_thread(list_projects)}
+
+
+@app.post("/api/research/projects")
+async def create_research_project(req: Request):
+    try:
+        data = await req.json()
+    except Exception:
+        return {"error": "Invalid JSON body"}
+    title = str(data.get("title") or "Untitled Research")
+    query = str(data.get("query") or "")
+    return await asyncio.to_thread(create_project, title, query)
+
+
+@app.get("/api/research/projects/{project_id}")
+async def get_research_project(project_id: str):
+    project = await asyncio.to_thread(load_project, project_id)
+    if project is None:
+        return {"error": "Project not found"}
+    return project
+
+
+@app.put("/api/research/projects/{project_id}")
+async def put_research_project(project_id: str, req: Request):
+    try:
+        data = await req.json()
+    except Exception:
+        return {"error": "Invalid JSON body"}
+    project = await asyncio.to_thread(update_project, project_id, data)
+    if project is None:
+        return {"error": "Project not found"}
+    return project
+
+
+@app.delete("/api/research/projects/{project_id}")
+async def remove_research_project(project_id: str):
+    try:
+        removed = await asyncio.to_thread(delete_project, project_id)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    return {"status": "success" if removed else "not_found"}
+
+
+@app.post("/api/research/projects/{project_id}/findings")
+async def add_research_finding(project_id: str, req: Request):
+    try:
+        data = await req.json()
+    except Exception:
+        return {"error": "Invalid JSON body"}
+    finding = await asyncio.to_thread(
+        add_finding, project_id, str(data.get("title") or "Finding"), str(data.get("content") or "")
+    )
+    if finding is None:
+        return {"error": "Project not found"}
+    return {"finding": finding}
+
+
+@app.post("/api/research/projects/{project_id}/sources")
+async def add_research_sources(project_id: str, req: Request):
+    try:
+        data = await req.json()
+    except Exception:
+        return {"error": "Invalid JSON body"}
+    sources = data.get("sources")
+    if not isinstance(sources, list):
+        return {"error": "sources must be a list"}
+    project = await asyncio.to_thread(add_sources, project_id, sources)
+    if project is None:
+        return {"error": "Project not found"}
+    return project
+
+
+@app.post("/api/research/projects/{project_id}/reports")
+async def add_research_report(project_id: str, req: Request):
+    try:
+        data = await req.json()
+    except Exception:
+        return {"error": "Invalid JSON body"}
+    project = await asyncio.to_thread(
+        add_report, project_id, str(data.get("query") or ""), str(data.get("report") or "")
+    )
+    if project is None:
+        return {"error": "Project not found"}
+    return project
+
+
+# ── Multi-model comparison (3.4) ───────────────────────────────────────────
+
+
+@app.get("/api/research/compare")
+async def compare_research(q: str, models: str = "", scope: str = "chat"):
+    """Stream the same question to up to 3 models, then compare their answers."""
+    model_list = [m.strip() for m in models.split(",") if m.strip()][:3]
+    if not q.strip():
+        return {"error": "query is required"}
+    if len(model_list) < 2:
+        return {"error": "Select at least two models to compare"}
+
+    config = _global_chat_config()
+    ollama_url = config.get("ollama_base_url", "http://localhost:11434")
+    num_ctx = config.get("num_ctx")
+
+    async def stream():
+        from palimind.llm.mixture_of_expert.llm import llm_chat_safe
+
+        yield f"data: {json.dumps({'type': 'compare_start', 'models': model_list})}\n\n"
+
+        system_prompt = (
+            "You are a rigorous research assistant. Answer the question thoroughly and "
+            "factually in a few well-structured paragraphs. State uncertainties explicitly."
+        )
+
+        async def answer_with(model: str) -> tuple[str, str]:
+            try:
+                result = await asyncio.to_thread(
+                    llm_chat_safe,
+                    [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": q},
+                    ],
+                    model,
+                    ollama_url,
+                    read_timeout=300.0,
+                    num_ctx=num_ctx,
+                    error_prefix="[compare error",
+                )
+                return model, result.get("content", "") or ""
+            except Exception as e:
+                return model, f"**Error:** {e}"
+
+        answers: dict[str, str] = {}
+        results = await asyncio.gather(*(answer_with(m) for m in model_list))
+        for model, answer in results:
+            answers[model] = answer
+            yield (
+                f"data: {json.dumps({'type': 'compare_model', 'model': model, 'answer': answer})}\n\n"
+            )
+
+        analysis = analyze_comparison(answers)
+        if len(model_list) >= 2:
+            contradictions = await find_contradictions(
+                q, answers, model=model_list[0], ollama_url=ollama_url, num_ctx=num_ctx or 8192
+            )
+            analysis["contradictions"] = contradictions
+        yield f"data: {json.dumps({'type': 'compare_result', **analysis})}\n\n"
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
+
+
+@app.get("/api/research/x")
+async def x_social_research(q: str, max_results: int = 8):
+    """Real-time X/Twitter sentiment and trend signal for a topic."""
+    if not q.strip():
+        return {"error": "query is required"}
+    from palimind.agents.tools.x_search import x_search as _x_search
+
+    return await asyncio.to_thread(_x_search, q, max_results)
+
+
 @app.get("/api/events")
 async def events_stream():
     queue = asyncio.Queue()
@@ -1285,9 +1501,7 @@ async def chat_stream(
         from palimind.opencode.router import resolve_model
 
         dr_model = config.get("deep_research_model", "") or chat_model
-        dr_model, dr_url, dr_note = resolve_model(
-            dr_model, ollama_url, fallback_model=chat_model
-        )
+        dr_model, dr_url, dr_note = resolve_model(dr_model, ollama_url, fallback_model=chat_model)
         if dr_note:
             print(f"[chat] {dr_note}")
         return await deep_research_mode_stream(
@@ -1843,6 +2057,38 @@ async def update_moe_config(req: Request, scope: str = "field"):
             cfg["moe_worker_model"] = data["moe_worker_model"]
         if "moe_sub_mode" in data:
             cfg["moe_sub_mode"] = data["moe_sub_mode"]
+        p_dir = palimind_dir(state.active_field)
+        p_dir.mkdir(parents=True, exist_ok=True)
+        cp = config_path(state.active_field)
+        cp.write_text(json.dumps(cfg, indent=2), "utf-8")
+    return {"status": "success"}
+
+
+@app.patch("/api/config/embed-model")
+async def update_embed_model(req: Request, scope: str = "field"):
+    """Update the embedding model for the active field (or global chat scope)."""
+    data = await req.json()
+    model_id = str(data.get("embed_model", "")).strip()
+    if not model_id:
+        return {"error": "embed_model is required"}
+
+    if scope.startswith("agent:"):
+        return {"status": "success", "note": "Embed model does not apply to an agent"}
+    if scope == "chat":
+        global_data = {}
+        if GLOBAL_CONFIG_PATH.exists():
+            try:
+                global_data = json.loads(GLOBAL_CONFIG_PATH.read_text("utf-8"))
+            except Exception:
+                pass
+        global_data["embed_model"] = model_id
+        GLOBAL_CONFIG_PATH.write_text(json.dumps(global_data, indent=2), "utf-8")
+        return {"status": "success"}
+    from palimind.config import config_path, load_config, palimind_dir
+
+    if state.active_field:
+        cfg = load_config(state.active_field)
+        cfg["embed_model"] = model_id
         p_dir = palimind_dir(state.active_field)
         p_dir.mkdir(parents=True, exist_ok=True)
         cp = config_path(state.active_field)

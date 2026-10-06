@@ -20,8 +20,12 @@ def compute_md5(file_path: Path) -> str:
         return ""
 
 
-def crawl_directory(root: Path) -> tuple[list[Path], list[Path], list[str]]:
-    """Scan *root* and return (new_or_modified, unchanged, deleted_paths)."""
+def crawl_directory(root: Path) -> tuple[list[Path], list[Path], list[str], dict[str, str]]:
+    """Scan *root* and return (new_or_modified, unchanged, deleted_paths, hashes).
+
+    ``hashes`` maps relative path → md5 for every new/modified file, so the
+    indexer can reuse them instead of hashing the same bytes a second time.
+    """
     config = load_config(root)
     allowed_exts = set(
         config["extensions"]
@@ -51,6 +55,7 @@ def crawl_directory(root: Path) -> tuple[list[Path], list[Path], list[str]]:
     new_or_modified: list[Path] = []
     unchanged: list[Path] = []
     current_paths: set[str] = set()
+    hashes: dict[str, str] = {}
 
     for file_path in current_files:
         path_str = str(file_path.relative_to(root))
@@ -62,8 +67,9 @@ def crawl_directory(root: Path) -> tuple[list[Path], list[Path], list[str]]:
 
         if indexed_files.get(path_str) != current_hash:
             new_or_modified.append(file_path)
+            hashes[path_str] = current_hash
         else:
             unchanged.append(file_path)
 
     deleted_paths = [p for p in indexed_files if p not in current_paths]
-    return new_or_modified, unchanged, deleted_paths
+    return new_or_modified, unchanged, deleted_paths, hashes

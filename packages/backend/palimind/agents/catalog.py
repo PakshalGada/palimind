@@ -16,6 +16,10 @@ TIER_POLICIES = ("tier1", "tier1+2", "all")
 MEMORY_SCOPES = ("none", "session", "field")
 VISIBILITIES = ("field", "global")
 RUN_MODES = ("on_demand", "scheduled", "watcher", "webhook")
+# Phase 4.1 / 4.2 / 4.4 configuration.
+EFFORT_CHOICES = ("off", "auto", "minimal", "standard", "high", "max")
+PLANNING_CHOICES = ("off", "review", "auto")
+ORCHESTRATION_CHOICES = ("off", "fan_out", "arena")
 
 _NAME_RE = re.compile(r"^[\w-]{1,64}$")
 
@@ -53,6 +57,13 @@ class AgentDefinition:
     webhook_token: str = ""
     context_fields: list[str] = field(default_factory=list)
     color_seed: str = ""
+    # Phase 4 — adaptive reasoning, orchestration, planning & verification.
+    reasoning_effort: str = "auto"
+    planning_mode: str = "off"
+    orchestration: str = "off"
+    orchestration_agents: int = 0
+    verify_confidence_threshold: float = 0.0
+    success_criteria: str = ""
 
     @property
     def avatar_seed(self) -> str:
@@ -87,6 +98,12 @@ class AgentDefinition:
         context_fields: list[str] | None = None,
         field_root: Path | None = None,
         color_seed: str = "",
+        reasoning_effort: str = "auto",
+        planning_mode: str = "off",
+        orchestration: str = "off",
+        orchestration_agents: int = 0,
+        verify_confidence_threshold: float = 0.0,
+        success_criteria: str = "",
     ) -> AgentDefinition:
         created_at = _now_iso()
         defn = cls(
@@ -115,6 +132,12 @@ class AgentDefinition:
             webhook_token=webhook_token or secrets.token_urlsafe(24),
             context_fields=list(context_fields or []),
             color_seed=color_seed,
+            reasoning_effort=reasoning_effort,
+            planning_mode=planning_mode,
+            orchestration=orchestration,
+            orchestration_agents=orchestration_agents,
+            verify_confidence_threshold=verify_confidence_threshold,
+            success_criteria=success_criteria,
         )
         defn.set_memory_file(field_root)
         return defn
@@ -152,6 +175,12 @@ class AgentDefinition:
         cleaned.setdefault("webhook_token", "")
         cleaned.setdefault("context_fields", [])
         cleaned.setdefault("color_seed", "")
+        cleaned.setdefault("reasoning_effort", "auto")
+        cleaned.setdefault("planning_mode", "off")
+        cleaned.setdefault("orchestration", "off")
+        cleaned.setdefault("orchestration_agents", 0)
+        cleaned.setdefault("verify_confidence_threshold", 0.0)
+        cleaned.setdefault("success_criteria", "")
         if not cleaned.get("webhook_token"):
             cleaned["webhook_token"] = secrets.token_urlsafe(24)
         return cls(**cleaned)
@@ -185,6 +214,16 @@ def validate_definition(defn: AgentDefinition) -> str | None:
         return "run_mode 'watcher' requires a watcher_pattern glob"
     if not (0.0 <= defn.human_in_loop_threshold <= 1.0):
         return "human_in_loop_threshold must be in [0.0, 1.0]"
+    if defn.reasoning_effort not in EFFORT_CHOICES:
+        return f"reasoning_effort must be one of {EFFORT_CHOICES}"
+    if defn.planning_mode not in PLANNING_CHOICES:
+        return f"planning_mode must be one of {PLANNING_CHOICES}"
+    if defn.orchestration not in ORCHESTRATION_CHOICES:
+        return f"orchestration must be one of {ORCHESTRATION_CHOICES}"
+    if not (0 <= int(defn.orchestration_agents or 0) <= 8):
+        return "orchestration_agents must be between 0 and 8"
+    if not (0.0 <= float(defn.verify_confidence_threshold or 0.0) <= 1.0):
+        return "verify_confidence_threshold must be in [0.0, 1.0]"
     return None
 
 

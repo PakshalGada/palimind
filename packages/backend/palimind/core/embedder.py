@@ -121,7 +121,7 @@ def generate_embedding(
 
     # Generate via Ollama
     url = f"{ollama_url.rstrip('/')}/api/embed"
-    payload = {"model": embed_model, "input": text}
+    payload = {"model": embed_model, "input": text, "keep_alive": "30m"}
     try:
         response = httpx.post(url, json=payload, timeout=120.0)
         response.raise_for_status()
@@ -168,7 +168,7 @@ def generate_embeddings_batch(
 
     # Generate only uncached texts
     url = f"{ollama_url.rstrip('/')}/api/embed"
-    payload = {"model": embed_model, "input": uncached}
+    payload = {"model": embed_model, "input": uncached, "keep_alive": "30m"}
     try:
         response = httpx.post(url, json=payload, timeout=300.0)
         response.raise_for_status()

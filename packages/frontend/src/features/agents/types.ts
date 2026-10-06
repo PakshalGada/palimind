@@ -34,6 +34,12 @@ export const EMPTY_DEF: Partial<AgentDefinition> = {
   self_critique: false,
   skills: [],
   webhook_token: '',
+  reasoning_effort: 'auto',
+  planning_mode: 'off',
+  orchestration: 'off',
+  orchestration_agents: 0,
+  verify_confidence_threshold: 0.0,
+  success_criteria: '',
 };
 
 export function fmtTime(ts?: number | null): string {

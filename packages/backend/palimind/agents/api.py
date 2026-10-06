@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -99,6 +100,384 @@ async def agent_skills():
     from palimind.agents.skills import list_skills
 
     return {"skills": list_skills()}
+
+
+# ── Phase 4.1: adaptive reasoning ─────────────────────────────────────────
+
+
+@router.get("/effort-levels")
+async def effort_levels():
+    from palimind.agents.adaptive_reasoning import list_effort_levels
+
+    return {"levels": list_effort_levels()}
+
+
+@router.post("/classify-effort")
+async def classify_effort(req: Request):
+    from palimind.agents.adaptive_reasoning import classify_complexity, effort_indicator
+
+    body = await req.json()
+    task = str(body.get("task", ""))
+    model = str(body.get("model", "") or "")
+    ollama_url = str(body.get("ollama_url", "") or "")
+    result = classify_complexity(task, model, ollama_url)
+    result["indicator"] = effort_indicator(result["level"])
+    return result
+
+
+# ── Phase 4.3: skills (validate / install / commands / marketplace) ───────
+
+
+@router.post("/skills/validate")
+async def validate_skill_endpoint(req: Request):
+    from palimind.agents.skills import validate_skill
+
+    body = await req.json()
+    skill = body.get("skill", body)
+    error = validate_skill(skill)
+    return {"valid": error is None, "error": error}
+
+
+@router.post("/skills/install")
+async def install_skill_endpoint(req: Request):
+    from palimind.agents.skills import install_skill
+
+    body = await req.json()
+    skill = body.get("skill", body)
+    overwrite = bool(body.get("overwrite", False))
+    try:
+        installed = install_skill(
+            skill, source=str(body.get("source", "user")), overwrite=overwrite
+        )
+        return {"status": "success", "skill": installed}
+    except ValueError as e:
+        return {"error": str(e)}
+
+
+@router.post("/skills/uninstall")
+async def uninstall_skill_endpoint(req: Request):
+    from palimind.agents.skills import uninstall_skill
+
+    body = await req.json()
+    ok = uninstall_skill(str(body.get("id", "")))
+    return {"status": "success" if ok else "not_found"}
+
+
+@router.get("/skills/export")
+async def export_skill_endpoint(id: str):
+    from palimind.agents.skills import export_skill
+
+    skill = export_skill(id)
+    if skill is None:
+        return {"error": "skill not found"}
+    return {"skill": skill}
+
+
+@router.get("/skills/marketplace")
+async def marketplace_list():
+    from palimind.agents.skills import list_marketplace
+
+    return {"skills": list_marketplace()}
+
+
+@router.post("/skills/marketplace/install")
+async def marketplace_install(req: Request):
+    from palimind.agents.skills import install_from_marketplace
+
+    body = await req.json()
+    try:
+        installed = install_from_marketplace(
+            str(body.get("id", "")), overwrite=bool(body.get("overwrite", False))
+        )
+        return {"status": "success", "skill": installed}
+    except ValueError as e:
+        return {"error": str(e)}
+
+
+@router.get("/skills/commands")
+async def skill_commands_endpoint():
+    from palimind.agents.skills import skill_commands
+
+    return {"commands": skill_commands()}
+
+
+@router.post("/skills/resolve")
+async def resolve_skill_command(req: Request):
+    from palimind.agents.skills import resolve_command
+
+    body = await req.json()
+    resolved = resolve_command(str(body.get("text", "")))
+    if resolved is None:
+        return {"resolved": False}
+    return {"resolved": True, **resolved}
+
+
+# ── Phase 4.4: planning mode ──────────────────────────────────────────────
+
+
+@router.get("/plan-templates")
+async def plan_templates():
+    from palimind.agents.planner import list_templates
+
+    return {"templates": list_templates()}
+
+
+@router.post("/plan")
+async def create_plan(req: Request):
+    from palimind.agents.planner import build_plan_from_template, generate_plan, save_plan
+
+    body = await req.json()
+    task = str(body.get("task", "")).strip()
+    template = str(body.get("template", "") or "")
+    if template:
+        plan = build_plan_from_template(template, task)
+        save_plan(plan)
+        return {"plan": plan}
+    model = str(body.get("model", "") or "")
+    ollama_url = str(body.get("ollama_url", "") or "")
+    agent_id = str(body.get("agent_id", "") or "")
+    plan = generate_plan(task, model, ollama_url, agent_id=agent_id)
+    save_plan(plan)
+    return {"plan": plan}
+
+
+@router.get("/plans")
+async def list_plans_endpoint(limit: int = 50):
+    from palimind.agents.planner import list_plans
+
+    return {"plans": list_plans(limit=max(1, min(int(limit or 50), 200)))}
+
+
+@router.get("/plans/{plan_id}")
+async def get_plan_endpoint(plan_id: str):
+    from palimind.agents.planner import get_plan
+
+    plan = get_plan(plan_id)
+    return plan if plan is not None else {"error": "plan not found"}
+
+
+@router.patch("/plans/{plan_id}")
+async def update_plan_endpoint(plan_id: str, req: Request):
+    from palimind.agents.planner import update_plan
+
+    body = await req.json()
+    plan = update_plan(plan_id, body)
+    return plan if plan is not None else {"error": "plan not found"}
+
+
+@router.delete("/plans/{plan_id}")
+async def delete_plan_endpoint(plan_id: str):
+    from palimind.agents.planner import delete_plan
+
+    ok = delete_plan(plan_id)
+    return {"status": "success" if ok else "not_found"}
+
+
+@router.post("/plans/{plan_id}/approve")
+async def approve_plan_endpoint(plan_id: str, req: Request):
+    from palimind.agents.planner import resolve_plan_review
+
+    body = await req.json()
+    approved = bool(body.get("approved", False))
+    steps = body.get("steps")
+    ok = resolve_plan_review(plan_id, approved, steps if isinstance(steps, list) else None)
+    return {"status": "ok" if ok else "no_pending"}
+
+
+@router.post("/plans/{plan_id}/execute")
+async def execute_plan_endpoint(plan_id: str, req: Request):
+    from palimind.agents.planner import execute_plan, get_plan
+
+    plan = get_plan(plan_id)
+    if plan is None:
+        return {"error": "plan not found"}
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    from pathlib import Path as _Path
+
+    working_root = body.get("working_root")
+    result = await asyncio.to_thread(
+        execute_plan,
+        plan,
+        working_root=_Path(working_root) if working_root else get_registry().field_root,
+        auto_approve=bool(body.get("auto_approve", True)),
+        rollback_on_failure=bool(body.get("rollback_on_failure", True)),
+    )
+    return {"plan": result}
+
+
+# ── Phase 4.5: goals & background tasks ───────────────────────────────────
+
+
+@router.get("/goals")
+async def list_goals_endpoint():
+    from palimind.agents.goals import list_goals
+
+    return {"goals": list_goals()}
+
+
+@router.post("/goals")
+async def create_goal_endpoint(req: Request):
+    from palimind.agents.goals import create_goal
+
+    body = await req.json()
+    name = str(body.get("name", "")).strip()
+    if not name:
+        return {"error": "name is required"}
+    goal = create_goal(
+        name,
+        str(body.get("objective", "")),
+        success_criteria=str(body.get("success_criteria", "")),
+        agent_id=str(body.get("agent_id", "") or ""),
+        deadline=body.get("deadline"),
+    )
+    return {"goal": goal}
+
+
+@router.get("/goals/{goal_id}")
+async def get_goal_endpoint(goal_id: str):
+    from palimind.agents.goals import get_goal
+
+    goal = get_goal(goal_id)
+    return goal if goal is not None else {"error": "goal not found"}
+
+
+@router.patch("/goals/{goal_id}")
+async def update_goal_endpoint(goal_id: str, req: Request):
+    from palimind.agents.goals import update_goal
+
+    body = await req.json()
+    goal = update_goal(goal_id, body)
+    return goal if goal is not None else {"error": "goal not found"}
+
+
+@router.delete("/goals/{goal_id}")
+async def delete_goal_endpoint(goal_id: str):
+    from palimind.agents.goals import delete_goal
+
+    ok = delete_goal(goal_id)
+    return {"status": "success" if ok else "not_found"}
+
+
+@router.post("/goals/{goal_id}/progress")
+async def set_goal_progress(goal_id: str, req: Request):
+    from palimind.agents.goals import set_progress
+
+    body = await req.json()
+    try:
+        progress = float(body.get("progress", 0.0))
+    except (TypeError, ValueError):
+        return {"error": "progress must be a number"}
+    goal = set_progress(goal_id, progress, note=str(body.get("note", "")))
+    return goal if goal is not None else {"error": "goal not found"}
+
+
+@router.get("/tasks")
+async def list_tasks_endpoint(goal_id: str | None = None):
+    from palimind.agents.goals import list_tasks
+
+    return {"tasks": list_tasks(goal_id)}
+
+
+@router.post("/tasks")
+async def create_task_endpoint(req: Request):
+    from palimind.agents.goals import create_task, parse_loop_command
+
+    body = await req.json()
+    # Accept either a "/loop 5m …" command or explicit fields.
+    command = str(body.get("command", "") or "")
+    parsed = parse_loop_command(command) if command else None
+    if parsed is not None:
+        interval = parsed["interval_seconds"]
+        prompt = parsed["prompt"]
+        kind = "loop"
+    else:
+        interval = int(body.get("interval_seconds", 0) or 0)
+        prompt = str(body.get("prompt", "")).strip() or "Run your task."
+        kind = "loop" if interval > 0 else "once"
+    try:
+        task = create_task(
+            agent_id=str(body.get("agent_id", "") or ""),
+            prompt=prompt,
+            goal_id=str(body.get("goal_id", "") or ""),
+            kind=kind,
+            interval_seconds=interval,
+        )
+    except ValueError as e:
+        return {"error": str(e)}
+    return {"task": task}
+
+
+@router.delete("/tasks/{task_id}")
+async def delete_task_endpoint(task_id: str):
+    from palimind.agents.goals import delete_task
+
+    ok = delete_task(task_id)
+    return {"status": "success" if ok else "not_found"}
+
+
+@router.post("/tasks/{task_id}/cancel")
+async def cancel_task_endpoint(task_id: str):
+    from palimind.agents.goals import cancel_task
+
+    task = cancel_task(task_id)
+    return {"task": task} if task is not None else {"error": "task not found"}
+
+
+@router.get("/notifications")
+async def notifications_endpoint(unread_only: bool = False):
+    from palimind.agents.goals import list_notifications
+
+    return {"notifications": list_notifications(unread_only=unread_only)}
+
+
+@router.post("/notifications/read")
+async def mark_notifications_endpoint(req: Request):
+    from palimind.agents.goals import mark_notifications_read
+
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    ids = body.get("ids")
+    count = mark_notifications_read(ids if isinstance(ids, list) else None)
+    return {"status": "success", "updated": count}
+
+
+@router.delete("/notifications")
+async def clear_notifications_endpoint():
+    from palimind.agents.goals import clear_notifications
+
+    clear_notifications()
+    return {"status": "success"}
+
+
+# ── Phase 4.6: verification ───────────────────────────────────────────────
+
+
+@router.get("/verification/checklists")
+async def verification_checklists():
+    from palimind.agents.self_critique import TASK_TYPES, build_checklist
+
+    return {"checklists": {task_type: build_checklist(task_type) for task_type in TASK_TYPES}}
+
+
+@router.post("/verify")
+async def verify_endpoint(req: Request):
+    from palimind.agents.self_critique import verify_output
+
+    body = await req.json()
+    report = verify_output(
+        str(body.get("task", "")),
+        str(body.get("output", "")),
+        str(body.get("model", "") or ""),
+        str(body.get("ollama_url", "") or ""),
+        task_type=body.get("task_type"),
+        success_criteria=str(body.get("success_criteria", "")),
+    )
+    return {"report": report}
 
 
 @router.get("/activity")
@@ -235,6 +614,45 @@ async def run_agent(agent_id: str, req: Request):
 
         async for ev in stream_agent(defn, agent_input, session_id):
             yield f"data: {json.dumps(ev)}\n\n"
+        yield 'data: {"type": "done"}\n\n'
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@router.post("/{agent_id}/orchestrate")
+async def orchestrate_agent(agent_id: str, req: Request):
+    """Run an agent in multi-agent orchestration mode (fan-out or arena)."""
+    from dataclasses import replace
+
+    from palimind.agents.service import agent_sse, stream_agent
+
+    body = await req.json()
+    task = str(body.get("task") or body.get("input") or "").strip() or "Run your task."
+    mode = str(body.get("mode", "fan_out") or "fan_out")
+    if mode not in ("fan_out", "arena"):
+        mode = "fan_out"
+
+    defn = get_registry().get_by_id(agent_id)
+    if defn is None:
+
+        async def err_stream():
+            yield agent_sse("error", {"text": "Agent not found"})
+            yield agent_sse("done", {})
+
+        return StreamingResponse(err_stream(), media_type="text/event-stream")
+
+    try:
+        num_agents = int(body.get("num_agents") or defn.orchestration_agents or 0)
+    except (TypeError, ValueError):
+        num_agents = 0
+    run_defn = replace(defn, orchestration=mode, orchestration_agents=num_agents)
+    session_id = str(body.get("session_id", "") or "")
+
+    async def gen():
+        import json as _json
+
+        async for ev in stream_agent(run_defn, task, session_id):
+            yield f"data: {_json.dumps(ev)}\n\n"
         yield 'data: {"type": "done"}\n\n'
 
     return StreamingResponse(gen(), media_type="text/event-stream")

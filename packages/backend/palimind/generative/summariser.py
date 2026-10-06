@@ -53,6 +53,11 @@ def summarise_file(
             {"role": "user", "content": excerpt},
         ],
         "stream": False,
+        # Disable hidden chain-of-thought: these are short utility generations
+        # where reasoning tokens add 5-10s of latency and are discarded anyway.
+        "think": False,
+        # Keep the model resident so back-to-back indexing runs skip cold loads.
+        "keep_alive": "30m",
     }
 
     url = f"{ollama_url.rstrip('/')}/api/chat"
@@ -94,6 +99,8 @@ def summarise_conversation(
             {"role": "user", "content": user_content},
         ],
         "stream": False,
+        "think": False,
+        "keep_alive": "30m",
     }
 
     url = f"{ollama_url.rstrip('/')}/api/chat"

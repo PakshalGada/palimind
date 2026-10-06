@@ -223,6 +223,7 @@ def append_message_to_session(
     sources: list[str] = None,
     mode: str = "",
     mode_params: dict | None = None,
+    citations: list[dict] | dict | None = None,
 ):
     data = load_sessions(root)
     for sess in data["sessions"]:
@@ -241,6 +242,8 @@ def append_message_to_session(
                 msg["mode_params"] = mode_params
             if sources:
                 msg["sources"] = sources
+            if citations:
+                msg["citations"] = citations
             sess["messages"].append(msg)
             break
     save_sessions(root, data)

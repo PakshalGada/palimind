@@ -12,6 +12,138 @@ export interface Message {
   role: 'user' | 'system';
   content: string;
   sources?: string[];
+  citations?: CitationPayload;
+}
+
+export interface CitationSource {
+  marker: number;
+  title: string;
+  kind: 'web' | 'document' | 'media' | 'agent' | string;
+  url: string;
+  file: string;
+  section: string;
+  snippet: string;
+  content: string;
+  score: number;
+}
+
+export interface CitationLink {
+  marker: number;
+  source_id: string;
+  sentence: string;
+  score: number;
+}
+
+export interface CitationPayload {
+  text?: string;
+  citations: CitationLink[];
+  sources: CitationSource[];
+  bibliography: string;
+  accuracy: number;
+  coverage: number;
+  mean_score: number;
+  cited_markers: number[];
+}
+
+export interface ResearchSubTopic {
+  subtopic_id: number;
+  title: string;
+  research_question: string;
+  search_queries: string[];
+}
+
+export interface ResearchFinding {
+  id: string;
+  title: string;
+  content: string;
+  created_at: number;
+}
+
+export interface ResearchTimelineEntry {
+  at: number;
+  type: string;
+  text: string;
+}
+
+export interface ResearchReport {
+  id: string;
+  query: string;
+  report: string;
+  created_at: number;
+}
+
+export interface ResearchProject {
+  id: string;
+  title: string;
+  query: string;
+  created_at: number;
+  updated_at: number;
+  notes: string;
+  findings: ResearchFinding[];
+  sources: CitationSource[];
+  timeline: ResearchTimelineEntry[];
+  reports: ResearchReport[];
+}
+
+export interface ResearchProjectSummary {
+  id: string;
+  title: string;
+  query: string;
+  created_at: number;
+  updated_at: number;
+  source_count: number;
+  finding_count: number;
+}
+
+export interface ComparisonConsensus {
+  text: string;
+  models: string[];
+  support: number;
+}
+
+export interface ComparisonContradiction {
+  claim_a: string;
+  model_a: string;
+  claim_b: string;
+  model_b: string;
+  explanation: string;
+}
+
+export interface ComparisonResult {
+  models: string[];
+  consensus: ComparisonConsensus[];
+  unique: Record<string, string[]>;
+  claim_counts: Record<string, number>;
+  contradictions?: ComparisonContradiction[];
+}
+
+export interface SocialSentiment {
+  label: string;
+  score: number;
+  positive: number;
+  negative: number;
+  distribution?: Record<string, number>;
+}
+
+export interface SocialPost {
+  text: string;
+  snippet: string;
+  url: string;
+  author: string;
+  sentiment: SocialSentiment;
+}
+
+export interface SocialSignal {
+  query: string;
+  posts: SocialPost[];
+  sentiment: SocialSentiment;
+  trends: {
+    hashtags: [string, number][];
+    cashtags: [string, number][];
+    keywords: string[];
+  };
+  count: number;
+  error?: string;
 }
 
 export interface TreeNode {
@@ -100,6 +232,132 @@ export interface AgentDefinition {
   webhook_token: string;
   context_fields?: string[];
   color_seed?: string;
+  // Phase 4 — adaptive reasoning, orchestration, planning & verification.
+  reasoning_effort: ReasoningEffort;
+  planning_mode: PlanningMode;
+  orchestration: OrchestrationMode;
+  orchestration_agents: number;
+  verify_confidence_threshold: number;
+  success_criteria: string;
+}
+
+export type ReasoningEffort = 'off' | 'auto' | 'minimal' | 'standard' | 'high' | 'max';
+export type PlanningMode = 'off' | 'review' | 'auto';
+export type OrchestrationMode = 'off' | 'fan_out' | 'arena';
+
+export interface EffortLevel {
+  level: Exclude<ReasoningEffort, 'off' | 'auto'>;
+  label: string;
+  description: string;
+  iterations: number;
+  context: number;
+  tokens: number;
+  verify: boolean;
+  indicator: string;
+}
+
+export interface PlanStep {
+  id: number;
+  title: string;
+  description: string;
+  tool: string;
+  args: Record<string, unknown>;
+  status: string;
+  result: string;
+  approved: boolean;
+}
+
+export interface AgentPlan {
+  id: string;
+  agent_id: string;
+  task: string;
+  notes: string;
+  created_at: number;
+  updated_at: number;
+  status: string;
+  steps: PlanStep[];
+  error?: string;
+}
+
+export interface PlanTemplate {
+  id: string;
+  name: string;
+  description: string;
+  steps: Partial<PlanStep>[];
+}
+
+export interface Goal {
+  id: string;
+  name: string;
+  objective: string;
+  success_criteria: string;
+  agent_id: string;
+  status: 'active' | 'paused' | 'completed' | 'failed';
+  progress: number;
+  created_at: number;
+  updated_at: number;
+  deadline: number | null;
+  notes: { at: number; text: string }[];
+  task_ids: string[];
+}
+
+export interface BackgroundTask {
+  id: string;
+  goal_id: string;
+  agent_id: string;
+  prompt: string;
+  kind: 'once' | 'loop';
+  interval_seconds: number;
+  next_run: number;
+  created_at: number;
+  expires_at: number;
+  status: 'pending' | 'running' | 'done' | 'failed' | 'cancelled' | 'expired';
+  run_count: number;
+  last_run: number | null;
+  last_status: string;
+  last_output: string;
+}
+
+export interface GoalNotification {
+  id: string;
+  kind: string;
+  text: string;
+  meta: Record<string, unknown>;
+  created_at: number;
+  read: boolean;
+}
+
+export interface SkillCommand {
+  command: string;
+  skill_id: string;
+  name: string;
+  description: string;
+  category: string;
+}
+
+export interface MarketplaceSkill {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  command: string;
+  version: string;
+  author: string;
+  tools: string[];
+  instructions: string;
+  installed: boolean;
+}
+
+export interface VerificationReport {
+  task_type: string;
+  checklist: string[];
+  passed: boolean;
+  confidence: number;
+  checks: Record<string, string>;
+  issues: string[];
+  suggestions: string[];
+  reasoning: string;
+  source: string;
 }
 
 export interface SkillMeta {
@@ -110,6 +368,12 @@ export interface SkillMeta {
   tools: string[];
   instructions: string;
   builtin: boolean;
+  command?: string;
+  compose?: string[];
+  version?: string;
+  author?: string;
+  source?: string;
+  enabled?: boolean;
 }
 
 export interface AgentActivity {
@@ -190,6 +454,8 @@ export interface RunRecord {
   duration: number;
   usage?: { prompt_tokens: number; completion_tokens: number };
   trace?: AgentReasoningEvent[];
+  verification?: VerificationReport;
+  effort?: { level?: string; source?: string; score?: number | null; reasoning?: string };
 }
 
 export interface ToolMeta {
@@ -219,4 +485,27 @@ export type AgentReasoningEvent =
       reasoning?: string;
     }
   | { type: 'agent:completed'; output: string; status?: string }
+  | {
+      type: 'agent:effort';
+      level: string;
+      indicator?: string;
+      source?: string;
+      score?: number | null;
+      reasoning?: string;
+      max_iterations?: number;
+    }
+  | { type: 'agent:plan'; plan_id: string; mode: string; status: string; steps: PlanStep[] }
+  | { type: 'agent:verification'; report: VerificationReport; attempt?: number }
+  | { type: 'agent:needs_review'; report: VerificationReport }
+  | {
+      type: 'orchestrator:plan';
+      mode: string;
+      agents: { agent_id: number; label: string; task: string; tools?: string[] }[];
+    }
+  | { type: 'orchestrator:agent_start'; agent_id: number; label: string; task?: string }
+  | { type: 'orchestrator:agent_step'; agent_id: number; text: string }
+  | { type: 'orchestrator:blackboard'; agent_id: number; label: string; output: string }
+  | { type: 'orchestrator:agent_complete'; agent_id: number; label: string }
+  | { type: 'orchestrator:conflict'; conflicts: unknown[] }
+  | { type: 'orchestrator:complete'; output: string; conflicts?: number; mode?: string }
   | { type: 'error'; text: string };

@@ -253,6 +253,35 @@ export default function AgentWizard({
             checked={!!draft.self_critique}
             onChange={(v) => patch({ self_critique: v })}
           />
+          <Field
+            label="Reasoning effort"
+            hint="Auto adapts effort to task complexity; pin a level to override."
+          >
+            <Select
+              value={draft.reasoning_effort || 'auto'}
+              onChange={(e) =>
+                patch({ reasoning_effort: e.target.value as AgentDefinition['reasoning_effort'] })
+              }
+            >
+              <option value="off">Off — use configured steps</option>
+              <option value="auto">Auto — adaptive</option>
+              <option value="minimal">Minimal</option>
+              <option value="standard">Standard</option>
+              <option value="high">High</option>
+              <option value="max">Max</option>
+            </Select>
+          </Field>
+          <Field label="Planning mode">
+            <SegmentedControl<AgentDefinition['planning_mode']>
+              value={(draft.planning_mode || 'off') as AgentDefinition['planning_mode']}
+              onChange={(v) => patch({ planning_mode: v })}
+              options={[
+                { value: 'off', label: 'Off' },
+                { value: 'review', label: 'Review' },
+                { value: 'auto', label: 'Auto' },
+              ]}
+            />
+          </Field>
         </div>
       )}
 
