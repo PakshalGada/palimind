@@ -123,6 +123,65 @@
 }
 .ui-input::placeholder, .ui-textarea::placeholder { color: var(--text-muted); }
 
+/* ── picker (custom dropdown) ────────────────────────────────────────── */
+.ui-picker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px 0 11px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease;
+  text-align: left;
+}
+.ui-picker:hover { border-color: var(--text-muted); }
+.ui-picker:focus-visible { outline: none; border-color: var(--focus-ring); }
+.ui-picker.is-disabled { opacity: 0.5; cursor: not-allowed; }
+.ui-picker__value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-picker__value.is-placeholder { color: var(--text-muted); }
+.ui-picker__chevron { color: var(--text-muted); flex-shrink: 0; }
+
+.ui-picker-menu {
+  position: fixed;
+  /* Must sit above the modal overlay (z-index 9000) so pickers work inside
+     modals; the menu is portalled to <body>. */
+  z-index: 10000;
+  max-height: 288px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--panel-bg-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-menu);
+}
+.ui-picker-option {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: none;
+  background: none;
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.ui-picker-option:hover { background: var(--bg-hover); }
+.ui-picker-option.is-selected { background: var(--accent-bg); }
+.ui-picker-option__desc { font-size: var(--text-meta); color: var(--text-muted); }
+.ui-picker-empty { padding: 8px 10px; color: var(--text-muted); font-size: var(--text-meta); }
+
 /* ── toggle ──────────────────────────────────────────────────────────── */
 .ui-toggle {
   display: flex;

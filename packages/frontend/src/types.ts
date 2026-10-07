@@ -509,3 +509,124 @@ export type AgentReasoningEvent =
   | { type: 'orchestrator:conflict'; conflicts: unknown[] }
   | { type: 'orchestrator:complete'; output: string; conflicts?: number; mode?: string }
   | { type: 'error'; text: string };
+
+// ─── Phase 1: Workflow Builder Types ────────────────────────────────────────
+
+export type WorkflowNodeType =
+  | 'agent'
+  | 'tool'
+  | 'condition'
+  | 'loop'
+  | 'delay'
+  | 'webhook'
+  | 'cron'
+  | 'code'
+  | 'transform'
+  | 'output';
+
+export type WorkflowNodeStatus = 'idle' | 'pending' | 'running' | 'done' | 'error' | 'skipped';
+
+export interface WorkflowNode {
+  id: string;
+  type: WorkflowNodeType;
+  name: string;
+  description?: string;
+  config: Record<string, unknown>;
+  position: { x: number; y: number };
+  agent_id?: string;
+  status: WorkflowNodeStatus;
+  error?: string;
+}
+
+export interface WorkflowEdge {
+  id: string;
+  source: string;
+  target: string;
+  source_handle?: string;
+  target_handle?: string;
+  condition?: string;
+  label?: string;
+}
+
+export interface Workflow {
+  id: string;
+  name: string;
+  description: string;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  created_at: number;
+  updated_at: number;
+  status: 'draft' | 'active' | 'paused' | 'archived';
+  version: number;
+}
+
+export interface WorkflowExecution {
+  id: string;
+  workflow_id: string;
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  started_at: number;
+  completed_at?: number;
+  node_results: Record<string, { status: WorkflowNodeStatus; output?: unknown; error?: string; duration?: number }>;
+  logs: WorkflowLogEntry[];
+}
+
+export interface WorkflowLogEntry {
+  timestamp: number;
+  node_id?: string;
+  level: 'info' | 'warn' | 'error' | 'debug';
+  message: string;
+}
+
+export interface WorkflowTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+}
+
+// ─── Phase 1: Kanban Dashboard Types ────────────────────────────────────────
+
+export type KanbanStatus = 'todo' | 'in_progress' | 'pending_approval' | 'completed' | 'failed';
+export type KanbanPriority = 'low' | 'medium' | 'high' | 'critical';
+
+export interface KanbanTask {
+  id: string;
+  agent_id: string;
+  agent_name: string;
+  title: string;
+  description: string;
+  prompt: string;
+  status: KanbanStatus;
+  priority: KanbanPriority;
+  created_at: number;
+  started_at?: number;
+  completed_at?: number;
+  duration?: number;
+  parent_task_id?: string;
+  workflow_id?: string;
+  progress: number;
+  output?: string;
+  metadata: Record<string, unknown>;
+  tags: string[];
+  history?: KanbanTaskHistory[];
+}
+
+export interface KanbanTaskHistory {
+  id: string;
+  task_id: string;
+  from_status: KanbanStatus;
+  to_status: KanbanStatus;
+  timestamp: number;
+  actor: 'user' | 'agent' | 'system';
+}
+
+export interface KanbanColumn {
+  id: KanbanStatus;
+  title: string;
+  color: string;
+  limit?: number;
+}
+
+

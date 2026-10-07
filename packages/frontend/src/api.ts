@@ -350,4 +350,28 @@ export const api = {
         body: wavBlob,
       }).then(res => res.json() as Promise<{ text?: string; error?: string }>),
   },
+  workflows: {
+    list: () => get<{ workflows: import('./types').Workflow[] }>('/workflows'),
+    save: (workflow: import('./types').Workflow) =>
+      post<import('./types').Workflow & { error?: string }>('/workflows', workflow),
+    delete: (id: string) => del<{ status?: string }>(`/workflows/${encodeURIComponent(id)}`),
+    run: (id: string) =>
+      post<{ execution?: import('./types').WorkflowExecution; error?: string }>(
+        `/workflows/${encodeURIComponent(id)}/run`,
+      ),
+    runInline: (workflow: import('./types').Workflow) =>
+      post<{ execution?: import('./types').WorkflowExecution; error?: string }>('/workflows/run', workflow),
+  },
+  tasks: {
+    list: () => get<{ tasks: import('./types').KanbanTask[] }>('/tasks'),
+    create: (task: Partial<import('./types').KanbanTask>) =>
+      post<{ task?: import('./types').KanbanTask; error?: string }>('/tasks', task),
+    update: (id: string, changes: Partial<import('./types').KanbanTask>) =>
+      patch<{ task?: import('./types').KanbanTask; error?: string }>(`/tasks/${encodeURIComponent(id)}`, changes),
+    delete: (id: string) => del<{ status?: string }>(`/tasks/${encodeURIComponent(id)}`),
+    run: (id: string) =>
+      post<{ task?: import('./types').KanbanTask; output?: string; error?: string }>(
+        `/tasks/${encodeURIComponent(id)}/run`,
+      ),
+  },
 };

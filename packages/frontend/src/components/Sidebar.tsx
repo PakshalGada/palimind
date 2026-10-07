@@ -3,10 +3,7 @@ import { useApp } from "../AppContext";
 import { api } from "../api";
 import FileTreeView from "./FileTreeView";
 import ContextMenu from "./ContextMenu";
-import AgentAvatar from "./AgentAvatar";
-import { useConfirm } from "./ConfirmDialog";
 import { useCommandHandlers } from "../commands/useCommand";
-import type { AgentListItem } from "../types";
 
 const FIELD_TITLE_KEY = "palimind:field-display-titles";
 
@@ -76,7 +73,8 @@ export default function Sidebar() {
     setIndexingStatus,
     addToast,
     selectedAgentId,
-    setSelectedAgentId,
+    agentsView,
+    setAgentsView,
     setChatMode,
     setCommandPaletteOpen,
   } = useApp();
@@ -94,8 +92,6 @@ export default function Sidebar() {
   const [syncText, setSyncText] = useState("Sync Active Knowledge Base");
   const [treeField, setTreeField] = useState<string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
-  const [agents, setAgents] = useState<AgentListItem[]>([]);
-  const confirm = useConfirm();
 
   const fetchFields = useCallback(async () => {
     try {
@@ -111,33 +107,9 @@ export default function Sidebar() {
     }
   }, []);
 
-  const fetchAgents = useCallback(async () => {
-    try {
-      const data = await api.agents.list();
-      if (data.agents) {
-        setAgents(data.agents);
-        setSelectedAgentId(
-          selectedAgentId && data.agents.some((a: AgentListItem) => a.id === selectedAgentId)
-            ? selectedAgentId
-            : (data.agents[0]?.id ?? null),
-        );
-      }
-    } catch (e) {
-      console.error("fetchAgents error:", e);
-    }
-  }, [selectedAgentId]);
-
   useEffect(() => {
     fetchFields();
   }, []);
-
-  useEffect(() => {
-    if (activeView !== "agents") return;
-    fetchAgents();
-    const onChanged = () => fetchAgents();
-    window.addEventListener("palimind:agents-changed", onChanged);
-    return () => window.removeEventListener("palimind:agents-changed", onChanged);
-  }, [activeView, fetchAgents]);
 
   // The command palette can request the workspace file tree for the active
   // knowledge base.
@@ -279,52 +251,6 @@ export default function Sidebar() {
         {
           label: "Delete Session",
           action: () => handleDeleteSession(id),
-          isDanger: true,
-        },
-      ],
-    });
-  };
-
-  const openAgentConfig = (agent: AgentListItem) => {
-    setSelectedAgentId(agent.id);
-    window.dispatchEvent(
-      new CustomEvent("palimind:open-agent-config", {
-        detail: { agentId: agent.id },
-      }),
-    );
-  };
-
-  const deleteAgent = async (agent: AgentListItem) => {
-    const ok = await confirm(`Delete agent "${agent.name}"? This cannot be undone.`, {
-      title: "Delete Agent",
-      confirmLabel: "Delete",
-      danger: true,
-    });
-    if (!ok) return;
-    try {
-      await api.agents.remove(agent.id);
-      if (selectedAgentId === agent.id) setSelectedAgentId(null);
-      setAgents((prev) => prev.filter((a) => a.id !== agent.id));
-      window.dispatchEvent(new CustomEvent("palimind:agents-changed"));
-    } catch (e) {
-      console.error("delete agent failed:", e);
-    }
-  };
-
-  const showAgentMenu = (e: React.MouseEvent, agent: AgentListItem) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setCtxMenu({
-      x: e.clientX,
-      y: e.clientY,
-      items: [
-        {
-          label: "Info",
-          action: () => openAgentConfig(agent),
-        },
-        {
-          label: "Delete Agent",
-          action: () => deleteAgent(agent),
           isDanger: true,
         },
       ],
@@ -590,64 +516,40 @@ export default function Sidebar() {
 
       {activeView === "agents" && (
         <div className="sidebar-agents-content">
-          <div className="fields-header">
-            <h3>Agents</h3>
-            <span className="sidebar-header-actions">
-              <button
-                className="icon-btn"
-                data-tooltip="New Agent"
-                aria-label="Create new agent"
-                onClick={() =>
-                  window.dispatchEvent(new CustomEvent("palimind:new-agent"))
-                }
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              </button>
-            </span>
-          </div>
-          <div className="session-list agent-list-section">
-            {agents.map((a) => (
-              <div
-                key={a.id}
-                className={`session-tab agent-sidebar-tab${a.id === selectedAgentId ? " active" : ""}`}
-                onClick={() => setSelectedAgentId(a.id)}
-                onContextMenu={(e) => showAgentMenu(e, a)}
-              >
-                <AgentAvatar seed={a.color_seed || a.id + a.name} size={20} />
-                <span className="session-tab-name">{a.name}</span>
-                <button
-                  className="icon-btn agent-menu-btn"
-                  title="Options"
-                  aria-label={`Options for ${a.name}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    showAgentMenu(e, a);
-                  }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <circle cx="12" cy="5" r="1.6" />
-                    <circle cx="12" cy="12" r="1.6" />
-                    <circle cx="12" cy="19" r="1.6" />
-                  </svg>
-                </button>
-              </div>
-            ))}
-            {agents.length === 0 && (
-              <div className="agents-empty">No agents yet.</div>
-            )}
-          </div>
+          <nav className="sidebar-subnav sidebar-subnav--top" aria-label="Agents workspace">
+            <button
+              className={`sidebar-subnav-item${agentsView === "chat" ? " active" : ""}`}
+              onClick={() => setAgentsView("chat")}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              Chat
+            </button>
+            <button
+              className={`sidebar-subnav-item${agentsView === "workflows" ? " active" : ""}`}
+              onClick={() => setAgentsView("workflows")}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <path d="M10 6.5h4M10 17.5h4M6.5 10v4M17.5 10v4" />
+              </svg>
+              Workflows
+            </button>
+            <button
+              className={`sidebar-subnav-item${agentsView === "kanban" ? " active" : ""}`}
+              onClick={() => setAgentsView("kanban")}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="5" height="18" rx="1" />
+                <rect x="10" y="3" width="5" height="12" rx="1" />
+                <rect x="17" y="3" width="5" height="8" rx="1" />
+              </svg>
+              Tasks
+            </button>
+          </nav>
         </div>
       )}
 

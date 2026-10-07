@@ -55,12 +55,27 @@ export default function ModelPicker({
 
   return (
     <div className="ax-model-picker" ref={ref}>
-      <button type="button" className="ax-model-picker__btn" onClick={() => setOpen((o) => !o)}>
+      {/* A div (not a <button>) so nesting inside a <label>-based Field cannot
+          trigger label click-forwarding that toggles the menu twice. */}
+      <div
+        role="button"
+        tabIndex={0}
+        className="ax-model-picker__btn"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            setOpen((o) => !o);
+          }
+        }}
+      >
         <span className="ax-model-picker__label">{value || placeholder}</span>
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="6 9 12 15 18 9" />
         </svg>
-      </button>
+      </div>
       {open && (
         <div className="ax-model-picker__menu">
           <input

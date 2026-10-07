@@ -1,5 +1,7 @@
 import {
   useEffect,
+  useRef,
+  useState,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
@@ -105,6 +107,148 @@ export function Select({
     <select {...rest} className={`ui-select ${className}`.trim()}>
       {children}
     </select>
+  );
+}
+
+export interface PickerOption {
+  value: string;
+  label: ReactNode;
+  description?: ReactNode;
+}
+
+/**
+ * Custom dropdown that fully follows the design system, unlike a native
+ * `<select>` whose popup cannot be themed. The menu renders in a portal and is
+ * positioned against the trigger so it never clips inside panels or modals.
+ */
+export function Picker({
+  value,
+  options,
+  onChange,
+  placeholder = 'Select',
+  ariaLabel,
+  disabled,
+  className = '',
+}: {
+  value: string;
+  options: PickerOption[];
+  onChange: (value: string) => void;
+  placeholder?: string;
+  ariaLabel?: string;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState<{ left: number; top: number; width: number } | null>(null);
+  const btnRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (btnRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    const onClose = () => setOpen(false);
+    window.addEventListener('mousedown', onDoc);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onClose);
+    window.addEventListener('scroll', onClose, true);
+    return () => {
+      window.removeEventListener('mousedown', onDoc);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onClose);
+      window.removeEventListener('scroll', onClose, true);
+    };
+  }, [open]);
+
+  const toggle = () => {
+    if (disabled) return;
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setRect({ left: r.left, top: r.bottom + 4, width: r.width });
+    setOpen(true);
+  };
+
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <>
+      {/* A div (not a <button>) so nesting inside a <label>-based Field cannot
+          trigger label click-forwarding that would toggle twice / swallow the
+          click. Keyboard activation is handled explicitly. */}
+      <div
+        ref={btnRef}
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        className={`ui-picker${disabled ? ' is-disabled' : ''} ${className}`.trim()}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-disabled={disabled}
+        aria-label={ariaLabel}
+        onClick={toggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            toggle();
+          }
+        }}
+      >
+        <span className={`ui-picker__value${selected ? '' : ' is-placeholder'}`}>
+          {selected ? selected.label : placeholder}
+        </span>
+        <svg
+          className="ui-picker__chevron"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </div>
+      {open && rect
+        ? createPortal(
+            <div
+              ref={menuRef}
+              className="ui-picker-menu"
+              role="listbox"
+              style={{ left: rect.left, top: rect.top, minWidth: rect.width }}
+            >
+              {options.length === 0 && <div className="ui-picker-empty">No options</div>}
+              {options.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  role="option"
+                  aria-selected={o.value === value}
+                  className={`ui-picker-option${o.value === value ? ' is-selected' : ''}`}
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                >
+                  <span className="ui-picker-option__label">{o.label}</span>
+                  {o.description != null && <span className="ui-picker-option__desc">{o.description}</span>}
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }
 

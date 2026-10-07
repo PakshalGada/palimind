@@ -1,0 +1,89 @@
+/* ==========================================================================
+   Agent roster panel — shown as a dedicated column inside the Chat view.
+   Monochrome, token-driven.
+   ========================================================================== */
+
+.aw-agent-panel {
+  width: 228px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--panel-bg);
+  border-right: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.aw-agent-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.aw-agent-panel__head > span {
+  font-size: 0.68rem;
+  font-weight: 550;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.aw-agent-panel__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.aw-agent-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+  color: var(--text-secondary);
+}
+
+.aw-agent-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+}
+
+.aw-agent-item.active {
+  background: var(--bg-active);
+  color: var(--text-main);
+}
+
+.aw-agent-item__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aw-agent-item__menu {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.aw-agent-item:hover .aw-agent-item__menu {
+  opacity: 1;
+}
+
+.aw-agent-panel__empty {
+  padding: 16px 10px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}

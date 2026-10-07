@@ -3327,6 +3327,40 @@ input:checked + .toggle-slider .llm-mode {
     background: var(--bg-active);
     color: var(--text-main);
 }
+.sidebar-subnav {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 2px 8px 6px;
+    flex-shrink: 0;
+}
+.sidebar-subnav--top {
+    padding-top: 10px;
+}
+.sidebar-subnav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    background: transparent;
+    color: var(--text-muted);
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    transition: all 0.12s;
+}
+.sidebar-subnav-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-main);
+}
+.sidebar-subnav-item.active {
+    background: var(--bg-active);
+    color: var(--text-main);
+}
 .web-search-btn {
     width: 36px;
     height: 36px;

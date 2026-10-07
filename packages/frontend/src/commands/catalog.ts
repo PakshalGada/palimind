@@ -280,6 +280,23 @@ export const COMMANDS: CommandDef[] = [
     keywords: ['goals', 'loop', 'schedule', 'background', 'notifications'],
   },
 
+  {
+    id: 'workflows.builder',
+    title: 'Workflow Builder',
+    category: 'Agents',
+    icon: 'blocks',
+    description: 'Open the visual drag-and-drop workflow editor',
+    keywords: ['workflow', 'canvas', 'nodes', 'pipeline', 'automation'],
+  },
+  {
+    id: 'workflows.kanban',
+    title: 'Task Board',
+    category: 'Agents',
+    icon: 'layers',
+    description: 'Open the kanban task board for all agents',
+    keywords: ['kanban', 'tasks', 'board', 'todo', 'progress'],
+  },
+
   // ── General ─────────────────────────────────────────────────────────
   {
     id: 'general.palette',

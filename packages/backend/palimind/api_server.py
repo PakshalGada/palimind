@@ -2,6 +2,7 @@ import asyncio
 import json
 import os as _os
 import platform
+import re
 import subprocess
 import sys as _sys
 import time
@@ -92,6 +93,8 @@ from palimind.research.project_store import (
     load_project,
     update_project,
 )
+from palimind.storage import task_store as board_store
+from palimind.storage import workflow_store
 from palimind.storage.canvas_store import (
     delete_canvas,
     list_canvases,
@@ -1040,6 +1043,272 @@ async def remove_canvas(canvas_id: str):
     except ValueError as exc:
         return {"error": str(exc)}
     return {"status": "success" if removed else "not_found"}
+
+
+# ── Visual workflows (Phase 1) ─────────────────────────────────────────────
+
+
+def _resolve_template(text: str, results: dict[str, Any], primary_input: str) -> str:
+    """Substitute ``{{input}}`` and ``{{node_id.output}}`` placeholders."""
+
+    def replace(match: "re.Match[str]") -> str:
+        token = match.group(1).strip()
+        if token in ("input", "start"):
+            return primary_input
+        key = token[: -len(".output")].strip() if token.endswith(".output") else token
+        value = results.get(key)
+        if value is None:
+            value = primary_input
+        if isinstance(value, (dict, list)):
+            return json.dumps(value)
+        return str(value)
+
+    return re.sub(r"\{\{(.*?)\}\}", replace, text or "")
+
+
+def _topo_sort(nodes: list[dict], edges: list[dict]) -> list[dict]:
+    """Order nodes so every dependency runs before its dependents."""
+    node_ids = [n.get("id") for n in nodes]
+    incoming = {nid: 0 for nid in node_ids}
+    adjacency: dict[str, list[str]] = {nid: [] for nid in node_ids}
+    for edge in edges:
+        source, target = edge.get("source"), edge.get("target")
+        if source in adjacency and target in incoming:
+            adjacency[source].append(target)
+            incoming[target] += 1
+    queue = [nid for nid in node_ids if incoming[nid] == 0]
+    order: list[str] = []
+    while queue:
+        nid = queue.pop(0)
+        order.append(nid)
+        for nxt in adjacency[nid]:
+            incoming[nxt] -= 1
+            if incoming[nxt] == 0:
+                queue.append(nxt)
+    if len(order) != len(node_ids):
+        return list(nodes)  # cycle: fall back to declaration order
+    by_id = {n["id"]: n for n in nodes}
+    return [by_id[nid] for nid in order]
+
+
+async def _run_agent_and_record(agent_id: str, prompt: str, session_id: str) -> str:
+    """Run an agent and record the exchange in its own chat history."""
+    from palimind.agents.registry import get_registry
+    from palimind.agents.service import run_agent as run_agent_service
+    from palimind.memory.session_store import append_message_to_session
+
+    defn = await asyncio.to_thread(get_registry().get_by_id, agent_id)
+    if defn is None:
+        raise ValueError(f"Agent not found: {agent_id}")
+    _ensure_agent_sessions(agent_id)
+    root = _agent_chat_root(agent_id)
+    data = await asyncio.to_thread(load_sessions, root)
+    session_id_active = data.get("active_session_id")
+    meta = {"agent_name": defn.name}
+    if session_id_active:
+        await asyncio.to_thread(
+            append_message_to_session, root, session_id_active, "user", prompt, None, "agent", meta, None,
+        )
+    output = await run_agent_service(defn, prompt, session_id=session_id)
+    if session_id_active:
+        await asyncio.to_thread(
+            append_message_to_session, root, session_id_active, "system", output, None, "agent", meta, None,
+        )
+    return output
+
+
+async def _execute_workflow(record: dict) -> dict:
+    """Run a workflow's nodes in dependency order, returning an execution log."""
+    nodes = record.get("nodes") or []
+    edges = record.get("edges") or []
+    ordered = _topo_sort(nodes, edges)
+    results: dict[str, Any] = {}
+    node_results: dict[str, Any] = {}
+    logs: list[dict] = []
+    started = time.time()
+    primary_input = str(record.get("input") or "")
+    status = "completed"
+
+    for node in ordered:
+        nid = str(node.get("id"))
+        name = str(node.get("name") or nid)
+        ntype = node.get("type")
+        config = node.get("config") or {}
+        node_start = time.time()
+        logs.append({"timestamp": node_start, "node_id": nid, "level": "info", "message": f"Starting {name}"})
+        try:
+            prompt = _resolve_template(
+                str(config.get("prompt") or config.get("instruction") or ""), results, primary_input
+            )
+            if ntype == "agent":
+                agent_id = str(config.get("agent_id") or "")
+                if not agent_id:
+                    raise ValueError("No agent selected for this node")
+                output = await _run_agent_and_record(agent_id, prompt or name, f"_wf:{record.get('id')}:{nid}")
+            elif ntype == "delay":
+                seconds = min(10, max(0, int(config.get("seconds") or 0)))
+                await asyncio.sleep(seconds)
+                output = f"waited {seconds}s"
+            elif ntype == "transform":
+                try:
+                    output = json.loads(prompt)
+                except Exception:
+                    output = {"text": prompt}
+            elif ntype == "condition":
+                output = {"result": bool(prompt and prompt.strip().lower() not in ("false", "0", "no", ""))}
+            else:
+                output = prompt or name
+            results[nid] = output
+            duration = int((time.time() - node_start) * 1000)
+            node_results[nid] = {"status": "done", "output": output, "duration": duration}
+            logs.append({"timestamp": time.time(), "node_id": nid, "level": "info", "message": f"Completed {name} ({duration}ms)"})
+        except Exception as exc:
+            duration = int((time.time() - node_start) * 1000)
+            status = "failed"
+            node_results[nid] = {"status": "error", "error": str(exc), "duration": duration}
+            logs.append({"timestamp": time.time(), "node_id": nid, "level": "error", "message": f"Failed {name}: {exc}"})
+
+    return {
+        "id": f"exec_{uuid.uuid4().hex[:12]}",
+        "workflow_id": record.get("id"),
+        "status": status,
+        "started_at": started,
+        "completed_at": time.time(),
+        "node_results": node_results,
+        "logs": logs,
+    }
+
+
+@app.get("/api/workflows")
+async def get_workflows():
+    return {"workflows": await asyncio.to_thread(workflow_store.list_workflows)}
+
+
+@app.post("/api/workflows")
+async def save_workflow_endpoint(req: Request):
+    try:
+        data = await req.json()
+    except Exception:
+        return {"error": "Invalid JSON body"}
+    try:
+        record = await asyncio.to_thread(workflow_store.save_workflow, data)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    return record
+
+
+@app.delete("/api/workflows/{workflow_id}")
+async def delete_workflow_endpoint(workflow_id: str):
+    try:
+        removed = await asyncio.to_thread(workflow_store.delete_workflow, workflow_id)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    return {"status": "success" if removed else "not_found"}
+
+
+@app.post("/api/workflows/{workflow_id}/run")
+async def run_workflow_endpoint(workflow_id: str):
+    record = await asyncio.to_thread(workflow_store.load_workflow, workflow_id)
+    if record is None:
+        return {"error": "Workflow not found"}
+    execution = await _execute_workflow(record)
+    record["last_execution"] = execution
+    try:
+        await asyncio.to_thread(workflow_store.save_workflow, record)
+    except ValueError:
+        pass
+    return {"execution": execution}
+
+
+@app.post("/api/workflows/run")
+async def run_inline_workflow_endpoint(req: Request):
+    """Run a workflow definition without saving it first."""
+    try:
+        data = await req.json()
+    except Exception:
+        return {"error": "Invalid JSON body"}
+    execution = await _execute_workflow(data)
+    return {"execution": execution}
+
+
+# ── Task board (Phase 1) ───────────────────────────────────────────────────
+
+
+@app.get("/api/tasks")
+async def get_tasks():
+    return {"tasks": await asyncio.to_thread(board_store.list_tasks)}
+
+
+@app.post("/api/tasks")
+async def create_task_endpoint(req: Request):
+    try:
+        data = await req.json()
+    except Exception:
+        return {"error": "Invalid JSON body"}
+    task = await asyncio.to_thread(board_store.create_task, data)
+    return {"task": task}
+
+
+@app.patch("/api/tasks/{task_id}")
+async def update_task_endpoint(task_id: str, req: Request):
+    try:
+        changes = await req.json()
+    except Exception:
+        return {"error": "Invalid JSON body"}
+    task = await asyncio.to_thread(board_store.update_task, task_id, changes)
+    if task is None:
+        return {"error": "Task not found"}
+    return {"task": task}
+
+
+@app.delete("/api/tasks/{task_id}")
+async def delete_task_endpoint(task_id: str):
+    ok = await asyncio.to_thread(board_store.delete_task, task_id)
+    return {"status": "success" if ok else "not_found"}
+
+
+@app.post("/api/tasks/{task_id}/run")
+async def run_task_endpoint(task_id: str):
+    """Assign the task to its agent, run it, and store the result."""
+    task = await asyncio.to_thread(board_store.get_task, task_id)
+    if task is None:
+        return {"error": "Task not found"}
+    agent_id = str(task.get("agent_id") or "")
+    if not agent_id:
+        return {"error": "Task has no agent assigned"}
+    from palimind.agents.registry import get_registry
+
+    defn = await asyncio.to_thread(get_registry().get_by_id, agent_id)
+    if defn is None:
+        return {"error": "Assigned agent not found"}
+    prompt = str(task.get("prompt") or task.get("description") or task.get("title") or "Run your task.")
+    started = time.time()
+    await asyncio.to_thread(
+        board_store.update_task, task_id,
+        {"status": "in_progress", "started_at": started, "agent_name": defn.name, "_actor": "system"},
+    )
+    try:
+        output = await _run_agent_and_record(agent_id, prompt, f"_task:{task_id}")
+    except Exception as exc:
+        failed = await asyncio.to_thread(
+            board_store.update_task, task_id,
+            {"status": "failed", "output": str(exc), "completed_at": time.time(), "_actor": "system"},
+        )
+        return {"task": failed, "error": str(exc)}
+    completed = time.time()
+    updated = await asyncio.to_thread(
+        board_store.update_task, task_id,
+        {
+            "status": "completed",
+            "output": output,
+            "completed_at": completed,
+            "duration": int(completed - started),
+            "progress": 100,
+            "agent_name": defn.name,
+            "_actor": "system",
+        },
+    )
+    return {"task": updated, "output": output}
 
 
 # ── Research plan review (3.1) ─────────────────────────────────────────────

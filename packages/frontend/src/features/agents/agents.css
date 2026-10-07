@@ -379,7 +379,9 @@
 .ax-model-picker__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ax-model-picker__menu {
   position: absolute;
-  bottom: calc(100% + 8px);
+  /* Open downward: the picker is usually near the top of a modal body, which
+     has overflow-y:auto — opening upward would clip the menu out of view. */
+  top: calc(100% + 8px);
   left: 0;
   width: 300px;
   z-index: 40;

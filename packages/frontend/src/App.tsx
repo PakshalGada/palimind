@@ -23,7 +23,7 @@ import SkillManager from './components/SkillManager';
 import PlanReview from './components/PlanReview';
 import TaskMonitor from './components/TaskMonitor';
 import AgentManager from './features/agents/AgentManager';
-import AgentHeader from './features/agents/AgentHeader';
+import AgentsWorkspace from './features/agents/AgentsWorkspace';
 import { useCommandHandlers } from './commands/useCommand';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
@@ -35,7 +35,7 @@ export default function App() {
     setCurrentModel, setLlmSubMode, setOrchestratorModel, setWorkerModel,
     setIsIndexing, setIndexingStatus, addToast,
     isRecording, isTranscribing, isSpeaking,
-    setActiveView, setChatMode, theme, setTheme,
+    setActiveView, setAgentsView, setChatMode, theme, setTheme,
     chatMode,
     setCommandPaletteOpen, setShortcutsModalOpen,
     toggleSidebar, setArtifactPanelOpen, setCanvasOpen,
@@ -109,6 +109,14 @@ export default function App() {
     },
     'agents.tasks': () => {
       window.dispatchEvent(new CustomEvent('palimind:open-task-monitor'));
+    },
+    'workflows.builder': () => {
+      setActiveView('agents');
+      setAgentsView('workflows');
+    },
+    'workflows.kanban': () => {
+      setActiveView('agents');
+      setAgentsView('kanban');
     },
   });
 
@@ -190,14 +198,7 @@ export default function App() {
       <SetupProgress />
       <Sidebar />
       {activeView === "agents" ? (
-        <div className="agents-main">
-          <AgentHeader />
-          {selectedAgentId ? (
-            <ChatArea />
-          ) : (
-            <div className="agents-nosel">Select an agent to start chatting.</div>
-          )}
-        </div>
+        <AgentsWorkspace />
       ) : activeView === "chat" || activeField ? (
         <ChatArea />
       ) : (

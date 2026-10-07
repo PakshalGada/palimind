@@ -20,6 +20,9 @@ export interface AgentState {
 export type ActivityMode = 'llm' | 'document' | 'moe' | 'deep_research' | 'agent';
 export type ActivityStatus = 'pending' | 'active' | 'done' | 'error';
 
+/** Sub-views inside the Agents workspace. */
+export type AgentsView = 'chat' | 'workflows' | 'kanban';
+
 export interface ActivityStep {
   id: string;
   kind: string;
@@ -40,6 +43,7 @@ export interface ActivityState {
 
 interface AppState {
   activeView: AppView;
+  agentsView: AgentsView;
   activeField: string | null;
   activeSessionId: string | null;
   sessions: { id: string; name: string; messages: { role: string; content: string; sources?: string[]; citations?: CitationPayload }[] }[];
@@ -75,6 +79,7 @@ interface AppState {
 
 interface AppContextType extends AppState {
   setActiveView: (view: AppView) => void;
+  setAgentsView: (view: AgentsView) => void;
   setActiveField: (field: string | null) => void;
   setActiveSessionId: (id: string | null) => void;
   setSessions: (sessions: AppState['sessions']) => void;
@@ -120,6 +125,7 @@ export const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [activeView, setActiveView] = useState<AppView>('chat');
+  const [agentsView, setAgentsView] = useState<AgentsView>('chat');
   const [activeField, setActiveField] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<AppState['sessions']>([]);
@@ -327,6 +333,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Memoize the context value to prevent unnecessary re-renders of all consumers
   const contextValue = useMemo(() => ({
     activeView, setActiveView,
+    agentsView, setAgentsView,
     activeField, setActiveField,
     activeSessionId, setActiveSessionId,
     sessions, setSessions,
@@ -360,7 +367,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     canvasOpen, setCanvasOpen, canvasEnabled, setCanvasEnabled,
     shortcutOverrides, setShortcutOverride, resetShortcut, resetAllShortcuts,
   }), [
-    activeView, activeField, activeSessionId, sessions, selectedFiles,
+    activeView, agentsView, activeField, activeSessionId, sessions, selectedFiles,
     chatMode, isGenerating, theme, currentModel, llmSubMode,
     orchestratorModel, workerModel, isIndexing, indexingStatus,
     toasts, attachedFiles, isRecording, isTranscribing, isSpeaking,

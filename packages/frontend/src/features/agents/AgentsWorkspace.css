@@ -1,0 +1,51 @@
+/* ==========================================================================
+   Agents workspace body. The Chat / Workflows / Tasks switcher lives in the
+   left sidebar, so this file only styles the main content area.
+   ========================================================================== */
+
+.aw-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.aw-chat {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.aw-chat-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.aw-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.aw-empty p {
+  margin: 6px 0 0;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+.aw-empty span {
+  font-size: 0.8rem;
+}
