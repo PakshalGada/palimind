@@ -44,7 +44,7 @@ class DocumentEngine:
         config = load_config(root)
         self.ollama_url = ollama_url or config.get("ollama_base_url", "http://localhost:11434")
         self.chat_model = chat_model or config.get("chat_model", "gemma4:e2b")
-        self.embed_model = embed_model or config.get("embed_model", "nomic-embed-text")
+        self.embed_model = embed_model or config.get("embed_model", "bge-m3")
         self.light_model = light_model or config.get("light_model", "") or self.chat_model
         self.rerank_enabled = bool(config.get("rerank", True))
         self.rerank_model = config.get("rerank_model") or "BAAI/bge-reranker-base"

@@ -336,40 +336,84 @@ def rich_chunk_document(
     chunks: list[RichChunk] = []
     chunk_index = 0
 
+    # Adaptive chunking: different sizes for code vs prose vs tables
+    is_code = doc_meta.path and any(
+        doc_meta.path.endswith(ext) for ext in [".py", ".js", ".ts", ".go", ".rs", ".c", ".cpp", ".h"]
+    )
+    is_table_heavy = doc_meta.doc_type in ("report", "presentation")
+
+    # Adjust chunk size based on content type
+    adaptive_chunk_size = chunk_size
+    adaptive_overlap = chunk_overlap
+    if is_code:
+        adaptive_chunk_size = max(500, chunk_size // 3)  # Smaller chunks for code
+        adaptive_overlap = 50
+    elif is_table_heavy:
+        adaptive_chunk_size = max(800, chunk_size // 2)  # Medium chunks for tables
+        adaptive_overlap = 100
+
     section_tuples = _split_by_sections(text)
 
     for section_title, subsection, main_section, section_text in section_tuples:
         # Extract tables before character-chunking the prose
         table_texts, remaining_text = _extract_tables(section_text)
 
-        # Table chunks — preserve intact
+        # Table chunks — preserve intact (use smaller size for tables)
         for table_text in table_texts:
             if len(table_text.strip()) < 20:
                 continue
-            content = _prefix_section(table_text, main_section, section_title)
-            wc = len(content.split())
-            chunks.append(
-                RichChunk(
-                    content=content,
-                    chunk_type="table",
-                    chunk_index=chunk_index,
-                    section_title=section_title,
-                    subsection=subsection,
-                    main_section=main_section,
-                    parent_section=main_section if main_section else section_title,
-                    page_number=None,
-                    doc_year=doc_meta.doc_year,
-                    doc_type=doc_meta.doc_type,
-                    entity_name=doc_meta.entity_name,
-                    word_count=wc,
-                    token_estimate=_token_estimate(content),
-                    file_path=doc_meta.path,
+            # Further split large tables
+            if is_table_heavy and len(table_text) > adaptive_chunk_size:
+                table_chunks = _character_chunk(table_text, adaptive_chunk_size, adaptive_overlap)
+                for tc in table_chunks:
+                    if not tc.strip():
+                        continue
+                    content = _prefix_section(tc, main_section, section_title)
+                    wc = len(content.split())
+                    chunks.append(
+                        RichChunk(
+                            content=content,
+                            chunk_type="table",
+                            chunk_index=chunk_index,
+                            section_title=section_title,
+                            subsection=subsection,
+                            main_section=main_section,
+                            parent_section=main_section if main_section else section_title,
+                            page_number=None,
+                            doc_year=doc_meta.doc_year,
+                            doc_type=doc_meta.doc_type,
+                            entity_name=doc_meta.entity_name,
+                            word_count=wc,
+                            token_estimate=_token_estimate(content),
+                            file_path=doc_meta.path,
+                        )
+                    )
+                    chunk_index += 1
+            else:
+                content = _prefix_section(table_text, main_section, section_title)
+                wc = len(content.split())
+                chunks.append(
+                    RichChunk(
+                        content=content,
+                        chunk_type="table",
+                        chunk_index=chunk_index,
+                        section_title=section_title,
+                        subsection=subsection,
+                        main_section=main_section,
+                        parent_section=main_section if main_section else section_title,
+                        page_number=None,
+                        doc_year=doc_meta.doc_year,
+                        doc_type=doc_meta.doc_type,
+                        entity_name=doc_meta.entity_name,
+                        word_count=wc,
+                        token_estimate=_token_estimate(content),
+                        file_path=doc_meta.path,
+                    )
                 )
-            )
-            chunk_index += 1
+                chunk_index += 1
 
-        # Prose chunks within this section
-        text_chunks = _character_chunk(remaining_text, chunk_size, chunk_overlap)
+        # Prose chunks within this section (use adaptive size)
+        text_chunks = _character_chunk(remaining_text, adaptive_chunk_size, adaptive_overlap)
         for chunk_text in text_chunks:
             if not chunk_text.strip():
                 continue

@@ -453,7 +453,7 @@ export default function SettingsModal() {
                     onChange={setEmbedModel}
                     options={[
                       { value: 'nomic-embed-text', label: 'Nomic Embed Text', description: '137M params, 768-dim' },
-                      { value: 'nomic-embed-text-v1.5', label: 'Nomic Embed Text v1.5', description: '137M params, 768-dim (better quality)' },
+                      { value: 'nomic-embed-text:v1.5', label: 'Nomic Embed Text v1.5', description: '137M params, 768-dim (better quality)' },
                       { value: 'BAAI/bge-base-en-v1.5', label: 'BGE Base English v1.5', description: '109M params, 768-dim' },
                       { value: 'BAAI/bge-small-en-v1.5', label: 'BGE Small English v1.5', description: '33M params, 384-dim (lightweight)' },
                     ]}

@@ -33,6 +33,7 @@ def crawl_directory(root: Path) -> tuple[list[Path], list[Path], list[str], dict
         + config["image_extensions"]
         + config.get("video_extensions", [])
     )
+    ignore_dirs = {str(d).lower() for d in config.get("ignore_dirs", [])}
 
     conn = get_connection(root)
     try:
@@ -44,7 +45,11 @@ def crawl_directory(root: Path) -> tuple[list[Path], list[Path], list[str], dict
 
     current_files: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+        # Skip hidden directories and known noise (node_modules, venv, build…)
+        # so selecting a project folder doesn't hash/parse thousands of files.
+        dirnames[:] = [
+            d for d in dirnames if not d.startswith(".") and d.lower() not in ignore_dirs
+        ]
         for filename in filenames:
             if filename.startswith("."):
                 continue

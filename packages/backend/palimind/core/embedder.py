@@ -105,6 +105,18 @@ def flush_embed_cache(root: Path) -> None:
         _flush_mem_cache(root, entry)
 
 
+def prewarm_cache(root: Path) -> int:
+    """Pre-warm the in-memory embedding cache from disk.
+
+    Loads the persisted cache file into memory before any HTTP calls,
+    avoiding cache misses on the first run after a restart.
+
+    Returns the number of cached entries loaded.
+    """
+    entry = _get_mem_cache(root)
+    return len(entry["data"])
+
+
 def generate_embedding(
     text: str,
     ollama_url: str,

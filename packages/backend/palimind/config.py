@@ -10,16 +10,55 @@ DB_FILE = "index.db"
 
 # Default application settings
 DEFAULTS = {
-    "embed_model": "nomic-embed-text",
+    # NOTE: must be an Ollama model tag that is actually installed. HuggingFace
+    # repo ids (e.g. "BAAI/bge-m3") are NOT valid Ollama tags and cause every
+    # embed call to fail with "model not found". `bge-m3` is the 1024-dim
+    # multilingual model (strong accuracy); `nomic-embed-text` is the lighter
+    # 768-dim fallback.
+    "embed_model": "bge-m3",
+    "embed_dim": 1024,  # Vector dimension of embed_model (1024 bge-m3, 768 nomic)
     "chat_model": "gemma4:e2b",
     "vision_model": "llava",  # Ollama multimodal model used to caption images
-    "chunk_size": 3000,
-    "chunk_overlap": 500,
+    "chunk_size": 1500,
+    "chunk_overlap": 200,
     "video_chunk_chars": 800,  # transcript chunk size for videos (chars)
-    "turbovec_bit_width": 4,  # 2 or 4 — compression vs accuracy trade-off
-    "summarise": True,  # Generate per-file summaries at index time
+    "turbovec_bit_width": 4,  # 2 or 4 — compression vs accuracy trade-off (legacy, unused)
+    "vector_quantization": "none",  # "none" (float32), "sq8" (8-bit scalar), or "pq" (product quant)
+    "summarise": False,  # Generate per-file summaries at index time
     "summary_max_chars": 8000,  # Characters fed to the summariser (truncated)
-    "index_workers": 4,  # Files processed concurrently during indexing
+    "index_workers": 8,  # Files processed concurrently during indexing
+    "index_batch_size": 5,  # Files per streaming batch (commit after each batch)
+    # Knowledge-graph build runs AFTER indexing completes (non-blocking). Set
+    # false to skip the extra LLM entity-extraction pass entirely.
+    "build_graph": True,
+    # Hard cap on tokens generated per graph entity-extraction call. The LLM
+    # only needs a short JSON object; 2048 wasted wall-clock time.
+    "graph_num_predict": 512,
+    # Directories skipped by the crawler (matched by name at any depth).
+    "ignore_dirs": [
+        "node_modules",
+        "__pycache__",
+        "venv",
+        ".venv",
+        "env",
+        "dist",
+        "build",
+        "target",
+        "out",
+        "coverage",
+        "site-packages",
+        "vendor",
+        ".git",
+        ".palimind",
+        ".idea",
+        ".vscode",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".next",
+        ".cache",
+        ".tox",
+    ],
     "retrieval_limit": 10,  # Number of chunks returned per retrieval call
     "context_token_budget": 8000,  # Maximum tokens assembled into LLM context
     "num_ctx": 16384,  # Ollama context window; must cover context_token_budget + prompt overhead

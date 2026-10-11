@@ -329,30 +329,40 @@ async def background_index_field(path: Path):
 
         await asyncio.to_thread(update_index, path)
         update_watcher(path)
+    except Exception as e:
+        print(f"Failed to index [{path.name}]: {e!r}")
+        state.is_indexing = False
+        state.indexing_status = ""
+        await broadcast_event(
+            {"type": "indexing_error", "message": f"Failed to index [{path.name}]: {e}"}
+        )
+        return
 
-        try:
-            from palimind.config import load_config
+    # Indexing (crawl + parse + embed) is done — clear the UI state now. The
+    # knowledge-graph build is a separate, optional LLM pass and must NOT hold
+    # the "indexing" spinner: it was the main reason a 2-file folder felt slow.
+    state.is_indexing = False
+    state.indexing_status = ""
+    await broadcast_event(
+        {"type": "indexing_complete", "message": f"[{path.name}] indexed successfully!"}
+    )
+    await broadcast_event({"type": "sync", "message": f"[{path.name}] Context Updated"})
 
-            cfg = load_config(path)
+    try:
+        from palimind.config import load_config
+
+        cfg = load_config(path)
+        if cfg.get("build_graph", True):
             ollama_url = cfg.get("ollama_base_url", "http://localhost:11434")
+            light = cfg.get("light_model") or ""
             from palimind.document.graph import build_doc_graph_incremental
 
-            await asyncio.to_thread(build_doc_graph_incremental, path, ollama_url)
-        except Exception as e:
-            print(f"Background graph build failed: {e}")
-
-        state.is_indexing = False
-        state.indexing_status = ""
-        await broadcast_event(
-            {"type": "indexing_complete", "message": f"[{path.name}] indexed successfully!"}
-        )
-        await broadcast_event({"type": "sync", "message": f"[{path.name}] Context Updated"})
-    except Exception:
-        state.is_indexing = False
-        state.indexing_status = ""
-        await broadcast_event(
-            {"type": "indexing_error", "message": f"Failed to index [{path.name}]"}
-        )
+            await asyncio.to_thread(build_doc_graph_incremental, path, ollama_url, light)
+            await broadcast_event(
+                {"type": "graph_ready", "message": f"[{path.name}] knowledge graph ready"}
+            )
+    except Exception as e:
+        print(f"Background graph build failed: {e}")
 
 
 def handle_watcher_change(root: Path, changed_path: str = ""):
@@ -856,10 +866,15 @@ async def api_update():
                 from palimind.config import load_config
 
                 cfg = load_config(state.active_field)
+                if not cfg.get("build_graph", True):
+                    return
                 ollama_url = cfg.get("ollama_base_url", "http://localhost:11434")
+                light = cfg.get("light_model") or ""
                 from palimind.document.graph import build_doc_graph_incremental
 
-                await asyncio.to_thread(build_doc_graph_incremental, state.active_field, ollama_url)
+                await asyncio.to_thread(
+                    build_doc_graph_incremental, state.active_field, ollama_url, light
+                )
             except Exception as e:
                 print(f"Background graph build failed: {e}")
 
@@ -870,8 +885,9 @@ async def api_update():
             "indexed_files": result.indexed_files,
             "deleted_files": result.deleted_files,
         }
-    except Exception:
-        return {"error": "Failed to update index"}
+    except Exception as e:
+        print(f"Index update failed for {state.active_field}: {e!r}")
+        return {"error": f"Failed to update index: {e}"}
 
 
 # -- Endpoints --
@@ -1107,12 +1123,28 @@ async def _run_agent_and_record(agent_id: str, prompt: str, session_id: str) -> 
     meta = {"agent_name": defn.name}
     if session_id_active:
         await asyncio.to_thread(
-            append_message_to_session, root, session_id_active, "user", prompt, None, "agent", meta, None,
+            append_message_to_session,
+            root,
+            session_id_active,
+            "user",
+            prompt,
+            None,
+            "agent",
+            meta,
+            None,
         )
     output = await run_agent_service(defn, prompt, session_id=session_id)
     if session_id_active:
         await asyncio.to_thread(
-            append_message_to_session, root, session_id_active, "system", output, None, "agent", meta, None,
+            append_message_to_session,
+            root,
+            session_id_active,
+            "system",
+            output,
+            None,
+            "agent",
+            meta,
+            None,
         )
     return output
 
@@ -1135,7 +1167,14 @@ async def _execute_workflow(record: dict) -> dict:
         ntype = node.get("type")
         config = node.get("config") or {}
         node_start = time.time()
-        logs.append({"timestamp": node_start, "node_id": nid, "level": "info", "message": f"Starting {name}"})
+        logs.append(
+            {
+                "timestamp": node_start,
+                "node_id": nid,
+                "level": "info",
+                "message": f"Starting {name}",
+            }
+        )
         try:
             prompt = _resolve_template(
                 str(config.get("prompt") or config.get("instruction") or ""), results, primary_input
@@ -1144,7 +1183,9 @@ async def _execute_workflow(record: dict) -> dict:
                 agent_id = str(config.get("agent_id") or "")
                 if not agent_id:
                     raise ValueError("No agent selected for this node")
-                output = await _run_agent_and_record(agent_id, prompt or name, f"_wf:{record.get('id')}:{nid}")
+                output = await _run_agent_and_record(
+                    agent_id, prompt or name, f"_wf:{record.get('id')}:{nid}"
+                )
             elif ntype == "delay":
                 seconds = min(10, max(0, int(config.get("seconds") or 0)))
                 await asyncio.sleep(seconds)
@@ -1155,18 +1196,36 @@ async def _execute_workflow(record: dict) -> dict:
                 except Exception:
                     output = {"text": prompt}
             elif ntype == "condition":
-                output = {"result": bool(prompt and prompt.strip().lower() not in ("false", "0", "no", ""))}
+                output = {
+                    "result": bool(
+                        prompt and prompt.strip().lower() not in ("false", "0", "no", "")
+                    )
+                }
             else:
                 output = prompt or name
             results[nid] = output
             duration = int((time.time() - node_start) * 1000)
             node_results[nid] = {"status": "done", "output": output, "duration": duration}
-            logs.append({"timestamp": time.time(), "node_id": nid, "level": "info", "message": f"Completed {name} ({duration}ms)"})
+            logs.append(
+                {
+                    "timestamp": time.time(),
+                    "node_id": nid,
+                    "level": "info",
+                    "message": f"Completed {name} ({duration}ms)",
+                }
+            )
         except Exception as exc:
             duration = int((time.time() - node_start) * 1000)
             status = "failed"
             node_results[nid] = {"status": "error", "error": str(exc), "duration": duration}
-            logs.append({"timestamp": time.time(), "node_id": nid, "level": "error", "message": f"Failed {name}: {exc}"})
+            logs.append(
+                {
+                    "timestamp": time.time(),
+                    "node_id": nid,
+                    "level": "error",
+                    "message": f"Failed {name}: {exc}",
+                }
+            )
 
     return {
         "id": f"exec_{uuid.uuid4().hex[:12]}",
@@ -1281,23 +1340,38 @@ async def run_task_endpoint(task_id: str):
     defn = await asyncio.to_thread(get_registry().get_by_id, agent_id)
     if defn is None:
         return {"error": "Assigned agent not found"}
-    prompt = str(task.get("prompt") or task.get("description") or task.get("title") or "Run your task.")
+    prompt = str(
+        task.get("prompt") or task.get("description") or task.get("title") or "Run your task."
+    )
     started = time.time()
     await asyncio.to_thread(
-        board_store.update_task, task_id,
-        {"status": "in_progress", "started_at": started, "agent_name": defn.name, "_actor": "system"},
+        board_store.update_task,
+        task_id,
+        {
+            "status": "in_progress",
+            "started_at": started,
+            "agent_name": defn.name,
+            "_actor": "system",
+        },
     )
     try:
         output = await _run_agent_and_record(agent_id, prompt, f"_task:{task_id}")
     except Exception as exc:
         failed = await asyncio.to_thread(
-            board_store.update_task, task_id,
-            {"status": "failed", "output": str(exc), "completed_at": time.time(), "_actor": "system"},
+            board_store.update_task,
+            task_id,
+            {
+                "status": "failed",
+                "output": str(exc),
+                "completed_at": time.time(),
+                "_actor": "system",
+            },
         )
         return {"task": failed, "error": str(exc)}
     completed = time.time()
     updated = await asyncio.to_thread(
-        board_store.update_task, task_id,
+        board_store.update_task,
+        task_id,
         {
             "status": "completed",
             "output": output,
@@ -1653,7 +1727,7 @@ async def chat_stream(
 
     ollama_url = config.get("ollama_base_url", "http://localhost:11434")
     chat_model = config.get("chat_model", "llama3")
-    embed_model = config.get("embed_model", "nomic-embed-text")
+    embed_model = config.get("embed_model", "bge-m3")
     persona = persona_block(root) if not is_global_chat else ""
 
     # ── @agent mention routing ────────────────────────────────────────
@@ -2245,7 +2319,7 @@ async def get_config(scope: str = "field"):
         defn = get_registry().get_by_id(agent_id)
         return {
             "chat_model": (defn.model if defn and defn.model else base.get("chat_model", "llama3")),
-            "embed_model": base.get("embed_model", "nomic-embed-text"),
+            "embed_model": base.get("embed_model", "bge-m3"),
             "ollama_base_url": base.get("ollama_base_url", "http://localhost:11434"),
             "moe_orchestrator_model": "",
             "moe_worker_model": "",
@@ -2261,7 +2335,7 @@ async def get_config(scope: str = "field"):
         config = {}
     return {
         "chat_model": config.get("chat_model", "llama3"),
-        "embed_model": config.get("embed_model", "nomic-embed-text"),
+        "embed_model": config.get("embed_model", "bge-m3"),
         "ollama_base_url": config.get("ollama_base_url", "http://localhost:11434"),
         "moe_orchestrator_model": config.get("moe_orchestrator_model", ""),
         "moe_worker_model": config.get("moe_worker_model", ""),

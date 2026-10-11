@@ -10,6 +10,7 @@ import numpy as np
 from turbovec import IdMapIndex
 
 from palimind.config import palimind_dir
+from palimind.exceptions import VectorIndexError
 
 _DEFAULT_DIM = 768
 _BIT_WIDTH = 4
@@ -43,8 +44,24 @@ def _save_meta(root: Path, meta: dict[int, dict[str, Any]]) -> None:
 def _load_index(root: Path, dim: int = _DEFAULT_DIM) -> IdMapIndex:
     p = _index_path(root)
     if p.exists():
-        return IdMapIndex.load(str(p))
+        try:
+            return IdMapIndex.load(str(p))
+        except Exception as e:
+            raise VectorIndexError(f"Chat index at {p} could not be loaded: {e}") from e
     return IdMapIndex(dim=dim, bit_width=_BIT_WIDTH)
+
+
+def reset(root: Path) -> None:
+    """Delete the persisted chat index and sidecar metadata.
+
+    Chat episodes are not reconstructable from source, so recovery simply
+    starts a fresh index going forward.
+    """
+    for p in (_index_path(root), _meta_path(root)):
+        try:
+            p.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def _save_index(root: Path, index: IdMapIndex) -> None:
@@ -68,7 +85,13 @@ class ChatVectorStore:
 
     def _ensure_loaded(self, dim: int = _DEFAULT_DIM) -> None:
         if self._index is None:
-            self._index = _load_index(self.root, dim)
+            try:
+                self._index = _load_index(self.root, dim)
+            except VectorIndexError:
+                # Incompatible/corrupt index (e.g. older turbovec format) —
+                # discard it and start fresh so new memory can be written.
+                reset(self.root)
+                self._index = IdMapIndex(dim=dim, bit_width=_BIT_WIDTH)
             self._meta = _load_meta(self.root)
 
     def insert(self, data: list[dict]) -> None:
@@ -121,7 +144,10 @@ def search_chat_episodes(root: Path, query_vector: list[float], limit: int = 5) 
     if not meta:
         return []
 
-    index = _load_index(root)
+    try:
+        index = _load_index(root)
+    except VectorIndexError:
+        return []
     query = np.array(query_vector, dtype=np.float32).reshape(1, -1)
     k = min(limit, len(meta))
     _scores, ext_ids = index.search(query, k=k)

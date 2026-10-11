@@ -111,3 +111,48 @@ def summarise_conversation(
         return data.get("message", {}).get("content", "").strip()
     except (httpx.HTTPError, json.JSONDecodeError, KeyError):
         return previous_summary
+
+
+# ---------------------------------------------------------------------------
+# Async variant — httpx.AsyncClient for non-blocking Ollama calls
+# ---------------------------------------------------------------------------
+
+
+async def asummarise_file(
+    text: str,
+    ollama_url: str,
+    chat_model: str,
+    *,
+    max_chars: int = _MAX_CHARS,
+) -> str:
+    """Async version of :func:`summarise_file`.
+
+    Returns an empty string on empty input or model failure (never raises).
+    """
+    if not text or not text.strip():
+        return ""
+
+    excerpt = text[:max_chars]
+    if len(text) > max_chars:
+        excerpt += "\n[... truncated ...]"
+
+    payload = {
+        "model": chat_model,
+        "messages": [
+            {"role": "system", "content": _SYSTEM},
+            {"role": "user", "content": excerpt},
+        ],
+        "stream": False,
+        "think": False,
+        "keep_alive": "30m",
+    }
+
+    url = f"{ollama_url.rstrip('/')}/api/chat"
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(url, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("message", {}).get("content", "").strip()
+    except (httpx.HTTPError, json.JSONDecodeError, KeyError):
+        return ""

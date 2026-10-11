@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from palimind.config import load_config, palimind_dir, write_default_config
-from palimind.core.embedder import generate_embeddings_batch
+from palimind.core.embedder import generate_embeddings_batch, prewarm_cache
 from palimind.exceptions import (
     CaptionError,
     EmbeddingError,
@@ -42,7 +42,8 @@ from palimind.storage.db import (
     upsert_file,
     upsert_file_summary,
 )
-from palimind.storage.vector_store import VectorStore
+from palimind.storage.vector_store import VectorStore, index_load_error, write_stamp
+from palimind.storage.vector_store import reset as reset_vector_store
 
 
 def index_exists(root: Path) -> bool:
@@ -210,6 +211,23 @@ def _update_index_locked(
         if on_progress is not None:
             on_progress(phase, current=current, total=total, message=message)
 
+    # A persisted index written by an older/incompatible build cannot be
+    # decoded, and an index built with a different embedding model must not be
+    # mixed with new vectors. In either case discard it plus the cached file
+    # hashes so every file is re-embedded and the store is rebuilt from scratch.
+    index_error = index_load_error(root, expected_model=config.get("embed_model"))
+    if index_error:
+        report("crawl", message="Vector index incompatible — rebuilding from scratch...")
+        reset_vector_store(root)
+        reset_conn = get_connection(root)
+        try:
+            reset_conn.execute("DELETE FROM entity_mentions")
+            reset_conn.execute("DELETE FROM chunks")
+            reset_conn.execute("DELETE FROM files")
+            reset_conn.commit()
+        finally:
+            reset_conn.close()
+
     report("crawl", message="Scanning directory...")
     new_or_modified, unchanged, deleted, crawled_hashes = crawl_directory(root)
     report(
@@ -224,9 +242,10 @@ def _update_index_locked(
     file_errors: list[FileIndexError] = []
     chunks_indexed = 0
     indexed_files = 0
+    detected_dim: dict[str, int] = {}
 
     try:
-        with VectorStore(root) as vstore:
+        with VectorStore(root, quantization=config.get("vector_quantization", "none")) as vstore:
             # ---- deletions ----
             if deleted:
                 for i, rel_path in enumerate(deleted, start=1):
@@ -235,30 +254,35 @@ def _update_index_locked(
                     report("delete", current=i, total=len(deleted), message=rel_path)
 
             # ---- indexing ----
-            # Files are processed concurrently: the per-file work (parse + embed +
-            # summarise) is I/O-bound HTTP to Ollama, so a thread pool overlaps it
-            # across files. All DB + vector-store writes stay on the main thread
-            # (sequential → safe for the shared SQLite connection and VectorStore).
-            max_workers = config.get("index_workers", 4)
+            # Streaming approach: process files in batches, commit after each batch.
+            # This gives progressive results — if interrupted, partial results are saved.
+            #
+            # For each batch:
+            #   1. Parse files concurrently (I/O-bound: read + parse)
+            #   2. One batch embedding call for all chunks in the batch
+            #   3. Distribute embeddings, write to DB + vector store
+            #   4. Commit
+            #
+            # Large files (>20 chunks) get their text split into sections processed
+            # concurrently for faster chunking.
+            max_workers = config.get("index_workers", 8)
+            batch_size = config.get("index_batch_size", 5)
             report_lock = threading.Lock()
 
-            def process_file(
-                fpath: Path, rel_path: str, idx: int, total: int, md5: str
-            ) -> dict:
-                """Parse + embed + summarise one file. Returns data for the DB write."""
+            prewarm_cache(root)
+
+            def parse_file(fpath: Path, rel_path: str, idx: int, total: int, md5: str) -> dict:
+                """Parse one file (+ optional summary). Returns data for later phases."""
                 out: dict = {
                     "rel_path": rel_path,
                     "md5": "",
                     "error": None,
                     "no_chunks": False,
                     "first": None,
-                    "db_chunks": [],
-                    "valid_infos": [],
+                    "rich_chunks": [],
                     "summary": "",
                 }
 
-                # Reuse the hash computed during crawl; fall back to hashing here
-                # only if it was somehow missing.
                 if not md5:
                     md5 = compute_md5(fpath)
                 if not md5:
@@ -277,109 +301,121 @@ def _update_index_locked(
                     return out
 
                 out["first"] = rich_chunks[0]
-                texts = [c.content for c in rich_chunks]
+                out["rich_chunks"] = rich_chunks
 
-                # Embeddings and summary are independent LLM calls — run concurrently.
-                with ThreadPoolExecutor(max_workers=2) as inner:
-                    emb_future = inner.submit(
-                        generate_embeddings_batch,
-                        texts,
+                if config.get("summarise", False):
+                    with report_lock:
+                        report("summarise", current=idx, total=total, message=rel_path)
+                    texts = [c.content for c in rich_chunks]
+                    out["summary"] = summarise_file(
+                        "\n\n".join(texts),
                         config["ollama_base_url"],
-                        config["embed_model"],
-                        root=root,
+                        config["chat_model"],
+                        max_chars=config.get("summary_max_chars", 8000),
                     )
-                    sum_future = None
-                    if config.get("summarise", True):
-                        with report_lock:
-                            report("summarise", current=idx, total=total, message=rel_path)
-                        sum_future = inner.submit(
-                            summarise_file,
-                            "\n\n".join(texts),
-                            config["ollama_base_url"],
-                            config["chat_model"],
-                            max_chars=config.get("summary_max_chars", 8000),
-                        )
-                    try:
-                        embeddings = emb_future.result()
-                    except EmbeddingError as e:
-                        out["error"] = str(e)
-                        return out
-                    out["summary"] = sum_future.result() if sum_future else ""
 
-                db_chunks = []
-                valid_infos: list[tuple[int, RichChunk, list[float]]] = []
-                for ci, (chunk, emb) in enumerate(zip(rich_chunks, embeddings, strict=False)):
-                    if not emb:
-                        continue
-                    db_chunks.append(
-                        (
-                            chunk.chunk_index,
-                            chunk.chunk_type,
-                            chunk.content,
-                            chunk.section_title,
-                            chunk.subsection,
-                            chunk.parent_section,
-                            chunk.page_number,
-                            chunk.word_count,
-                            chunk.token_estimate,
-                            chunk.media_start_ts,
-                            chunk.media_end_ts,
-                        )
-                    )
-                    valid_infos.append((ci, chunk, emb))
-
-                out["db_chunks"] = db_chunks
-                out["valid_infos"] = valid_infos
                 return out
 
-            with ThreadPoolExecutor(max_workers=max_workers) as pool:
-                future_to_path: dict = {}
-                for i, fpath in enumerate(new_or_modified, start=1):
-                    rel_path = str(fpath.relative_to(root))
-                    report("index", current=i, total=len(new_or_modified), message=rel_path)
-                    vstore.delete_file(rel_path)
-                    fut = pool.submit(
-                        process_file,
-                        fpath,
-                        rel_path,
-                        i,
-                        len(new_or_modified),
-                        crawled_hashes.get(rel_path, ""),
+            def process_batch(batch: list[tuple[int, Path, str, str]]) -> None:
+                """Parse + embed + write one batch of files, then commit."""
+                nonlocal chunks_indexed, indexed_files
+                parse_results: list[dict] = []
+
+                # Parse batch concurrently
+                with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                    future_to_info: dict = {}
+                    for i, fpath, rel_path, md5 in batch:
+                        report("index", current=i, total=len(new_or_modified), message=rel_path)
+                        vstore.delete_file(rel_path)
+                        fut = pool.submit(parse_file, fpath, rel_path, i, len(new_or_modified), md5)
+                        future_to_info[fut] = rel_path
+
+                    for fut in as_completed(future_to_info):
+                        parse_results.append(fut.result())
+
+                # Collect all texts for batch embedding
+                all_texts: list[str] = []
+                file_spans: list[tuple[int, int, int]] = []  # (result_idx, start, end)
+                for i, result in enumerate(parse_results):
+                    if result["error"] or result["no_chunks"] or not result["rich_chunks"]:
+                        continue
+                    start = len(all_texts)
+                    all_texts.extend(c.content for c in result["rich_chunks"])
+                    file_spans.append((i, start, len(all_texts)))
+
+                # Batch embedding — one HTTP call for the entire batch
+                all_embeddings: list[list[float]] = []
+                if all_texts:
+                    report(
+                        "embed",
+                        message=f"Embedding {len(all_texts)} chunks from {len(file_spans)} files...",
                     )
-                    future_to_path[fut] = rel_path
+                    try:
+                        all_embeddings = generate_embeddings_batch(
+                            all_texts,
+                            config["ollama_base_url"],
+                            config["embed_model"],
+                            root=root,
+                        )
+                    except EmbeddingError as e:
+                        for result_idx, _, _ in file_spans:
+                            result = parse_results[result_idx]
+                            file_errors.append(FileIndexError(result["rel_path"], str(e)))
+                        all_embeddings = []
 
-                for fut in as_completed(future_to_path):
-                    res = fut.result()
-                    rel_path = res["rel_path"]
+                if all_embeddings and not detected_dim:
+                    detected_dim["dim"] = len(all_embeddings[0])
 
-                    if res["error"]:
-                        file_errors.append(FileIndexError(rel_path, res["error"]))
+                # Distribute embeddings and write to DB (main thread)
+                for result_idx, start, end in file_spans:
+                    result = parse_results[result_idx]
+                    if result["error"]:
                         continue
 
-                    if res["no_chunks"]:
-                        # Upsert file record even if no chunks (so crawl knows it's indexed)
-                        upsert_file(conn, rel_path, res["md5"], time.time())
-                        continue
+                    embeddings = all_embeddings[start:end]
+                    rich_chunks = result["rich_chunks"]
 
-                    first = res["first"]
+                    db_chunks = []
+                    valid_infos: list[tuple[int, RichChunk, list[float]]] = []
+                    for ci, (chunk, emb) in enumerate(zip(rich_chunks, embeddings, strict=False)):
+                        if not emb:
+                            continue
+                        db_chunks.append(
+                            (
+                                chunk.chunk_index,
+                                chunk.chunk_type,
+                                chunk.content,
+                                chunk.section_title,
+                                chunk.subsection,
+                                chunk.parent_section,
+                                chunk.page_number,
+                                chunk.word_count,
+                                chunk.token_estimate,
+                                chunk.media_start_ts,
+                                chunk.media_end_ts,
+                            )
+                        )
+                        valid_infos.append((ci, chunk, emb))
+
+                    first = result["first"]
                     file_id = upsert_file(
                         conn,
-                        rel_path,
-                        res["md5"],
+                        result["rel_path"],
+                        result["md5"],
                         time.time(),
                         doc_year=first.doc_year,
                         doc_type=first.doc_type,
                         entity_name=first.entity_name,
                     )
 
-                    if res["valid_infos"]:
-                        chunk_db_ids = insert_chunks(conn, file_id, res["db_chunks"])
+                    if valid_infos:
+                        chunk_db_ids = insert_chunks(conn, file_id, db_chunks)
 
                         vector_data = [
                             {
                                 "vector": emb,
                                 "chunk_db_id": chunk_db_ids[j],
-                                "file_path": rel_path,
+                                "file_path": result["rel_path"],
                                 "chunk_index": chunk.chunk_index,
                                 "chunk_type": chunk.chunk_type,
                                 "content": chunk.content,
@@ -394,17 +430,42 @@ def _update_index_locked(
                                 "media_start_ts": chunk.media_start_ts,
                                 "media_end_ts": chunk.media_end_ts,
                             }
-                            for j, (_, chunk, emb) in enumerate(res["valid_infos"])
+                            for j, (_, chunk, emb) in enumerate(valid_infos)
                         ]
                         vstore.insert(vector_data)
                         chunks_indexed += len(vector_data)
                         indexed_files += 1
 
-                    if res["summary"]:
-                        upsert_file_summary(conn, rel_path, res["summary"])
+                    if result["summary"]:
+                        upsert_file_summary(conn, result["rel_path"], result["summary"])
 
-            # Single commit for the whole batch.
-            conn.commit()
+                # Handle no-chunks and error results
+                for result in parse_results:
+                    if result["no_chunks"]:
+                        upsert_file(conn, result["rel_path"], result["md5"], time.time())
+                    elif result["error"]:
+                        file_errors.append(FileIndexError(result["rel_path"], result["error"]))
+
+                # Commit after each batch (streaming — progressive results)
+                conn.commit()
+
+            # Process files in streaming batches
+            batch: list[tuple[int, Path, str, str]] = []
+            for i, fpath in enumerate(new_or_modified, start=1):
+                rel_path = str(fpath.relative_to(root))
+                batch.append((i, fpath, rel_path, crawled_hashes.get(rel_path, "")))
+                if len(batch) >= batch_size:
+                    process_batch(batch)
+                    batch = []
+
+            # Process remaining files
+            if batch:
+                process_batch(batch)
+
+        # Record which embedding model produced this index so a later model
+        # switch triggers a clean rebuild instead of mixing incompatible vectors.
+        if detected_dim.get("dim"):
+            write_stamp(root, config["embed_model"], detected_dim["dim"])
     finally:
         conn.close()
 

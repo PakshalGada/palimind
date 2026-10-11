@@ -256,7 +256,7 @@ def document_search(query: str, limit: int = 6) -> str:
 
     config = load_config(root)
     ollama_url = ctx.get("ollama_url") or config.get("ollama_base_url", "http://localhost:11434")
-    embed_model = config.get("embed_model", "nomic-embed-text")
+    embed_model = config.get("embed_model", "bge-m3")
     light_model = (
         ctx.get("light_model") or config.get("light_model", "") or config.get("chat_model", "")
     )
@@ -309,7 +309,7 @@ def memory_search(query: str, limit: int = 3) -> str:
         ollama_url = ctx.get("ollama_url") or config.get(
             "ollama_base_url", "http://localhost:11434"
         )
-        embed_model = config.get("embed_model", "nomic-embed-text")
+        embed_model = config.get("embed_model", "bge-m3")
 
         embs = generate_embeddings_batch([query], ollama_url, embed_model)
         if not embs or not embs[0]:

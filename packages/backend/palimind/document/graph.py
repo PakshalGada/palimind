@@ -317,7 +317,7 @@ class DocGraph:
 # ── LLM entity extraction ──────────────────────────────────────────────
 
 
-def _light_llm_chat(prompt: str, ollama_url: str, model: str) -> str:
+def _light_llm_chat(prompt: str, ollama_url: str, model: str, num_predict: int = 512) -> str:
     """Call a smaller/cheaper LLM for light tasks like graph building."""
     import httpx
 
@@ -332,7 +332,9 @@ def _light_llm_chat(prompt: str, ollama_url: str, model: str) -> str:
                 # No hidden reasoning for entity extraction — it only wastes time.
                 "think": False,
                 "keep_alive": "30m",
-                "options": {"temperature": 0.1, "num_predict": 2048},
+                # Entity extraction only returns a short JSON object; a large
+                # token cap just makes tiny local models ramble and stall.
+                "options": {"temperature": 0.1, "num_predict": num_predict},
             },
             timeout=120.0,
         )
@@ -346,6 +348,7 @@ def _extract_entities_batched(
     file_excerpts: list[tuple[str, str]],
     ollama_url: str,
     light: str,
+    num_predict: int = 512,
 ) -> dict[str, list[str]]:
     """LLM entity extraction for ``(path, excerpt)`` pairs, in batches of 10.
 
@@ -366,7 +369,7 @@ def _extract_entities_batched(
             '{"FILE 1": ["Acme Corp", "John Doe"], "FILE 2": []}\n\n'
             f"{batch_text}"
         )
-        resp = _light_llm_chat(batch_prompt, ollama_url, light)
+        resp = _light_llm_chat(batch_prompt, ollama_url, light, num_predict=num_predict)
         if not resp:
             continue
         m = re.search(r"\{.*\}", resp, re.DOTALL)
@@ -431,7 +434,7 @@ def _add_file_nodes_and_sections(g: DocGraph, conn, f: dict) -> str:
 
 
 def _extract_entities_for_paths(
-    g: DocGraph, conn, paths: list[str], ollama_url: str, light: str
+    g: DocGraph, conn, paths: list[str], ollama_url: str, light: str, num_predict: int = 512
 ) -> None:
     """LLM-extract entities for *paths* (batched) and wire references edges."""
     excerpts: list[tuple[str, str]] = []
@@ -442,7 +445,7 @@ def _extract_entities_for_paths(
             excerpts.append((p, excerpt[:1000]))
     if not excerpts:
         return
-    extracted = _extract_entities_batched(excerpts, ollama_url, light)
+    extracted = _extract_entities_batched(excerpts, ollama_url, light, num_predict=num_predict)
     for p, entities in extracted.items():
         file_nid = g.file_nodes.get(p)
         if not file_nid:
@@ -532,7 +535,9 @@ def _build_doc_graph_locked(root: Path, ollama_url: str, light_model: str = "") 
         for f in files:
             _add_file_nodes_and_sections(g, conn, f)
             paths.append(f["path"])
-        _extract_entities_for_paths(g, conn, paths, ollama_url, light)
+        _extract_entities_for_paths(
+            g, conn, paths, ollama_url, light, num_predict=int(config.get("graph_num_predict", 512))
+        )
         _link_related_files(g)
         _write_entity_mentions(g, conn, paths)
         conn.commit()
@@ -549,6 +554,13 @@ def build_doc_graph_incremental(root: Path, ollama_url: str, light_model: str = 
     new/changed files. Falls back to a full build when no graph exists."""
     from palimind.storage.db import INDEX_WRITE_LOCK
 
+    # Decide the fallback *before* taking the lock: build_doc_graph() acquires
+    # the same non-reentrant lock, so calling it while holding the lock would
+    # deadlock forever — which is why first-time indexing appeared to hang.
+    existing = DocGraph.load(root)
+    if existing is None or len(existing.nodes) == 0:
+        return build_doc_graph(root, ollama_url, light_model)
+
     with INDEX_WRITE_LOCK:
         return _build_doc_graph_incremental_locked(root, ollama_url, light_model)
 
@@ -560,7 +572,11 @@ def _build_doc_graph_incremental_locked(
 
     existing = DocGraph.load(root)
     if existing is None or len(existing.nodes) == 0:
-        return build_doc_graph(root, ollama_url, light_model)
+        # We already hold INDEX_WRITE_LOCK (acquired by our caller), so call the
+        # lock-free variant. Calling the public build_doc_graph() here would try
+        # to re-acquire the same non-reentrant lock and deadlock forever — which
+        # is why first-time indexing appeared to hang.
+        return _build_doc_graph_locked(root, ollama_url, light_model)
 
     config = load_config(root)
     light = light_model or config.get("chat_model", "gemma4:e2b")
@@ -588,7 +604,14 @@ def _build_doc_graph_incremental_locked(
                 existing.remove_file(p)
             for p in changed:
                 _add_file_nodes_and_sections(existing, conn, current[p])
-            _extract_entities_for_paths(existing, conn, changed, ollama_url, light)
+            _extract_entities_for_paths(
+                existing,
+                conn,
+                changed,
+                ollama_url,
+                light,
+                num_predict=int(config.get("graph_num_predict", 512)),
+            )
             _link_related_files(existing)
             _write_entity_mentions(existing, conn, changed)
             conn.commit()

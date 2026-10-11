@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from collections import Counter
 from collections.abc import Iterable
 from pathlib import Path
@@ -29,6 +30,11 @@ from palimind.storage.vector_store import search as vector_search
 logger = logging.getLogger(__name__)
 
 _rewrite_cache: dict[str, list[str]] = {}
+_query_emb_cache: dict[str, list[float]] = {}
+_query_emb_cache_max = 512
+_semantic_result_cache: dict[str, dict] = {}
+_SEMANTIC_CACHE_MAX = 256
+_SEMANTIC_CACHE_TTL = 300  # 5 minutes
 
 
 def fmt_ts(seconds: float) -> str:
@@ -352,7 +358,7 @@ def hybrid_search(
 
         config = load_config(root)
         ollama_url = ollama_url or config.get("ollama_base_url", "http://localhost:11434")
-        embed_model = embed_model or config.get("embed_model", "nomic-embed-text")
+        embed_model = embed_model or config.get("embed_model", "bge-m3")
         if light_model == "":
             light_model = config.get("light_model", "") or config.get("chat_model", "")
         if rerank_model == "BAAI/bge-reranker-base":
@@ -364,6 +370,16 @@ def hybrid_search(
 
     executor = ThreadPoolExecutor(max_workers=6)
     try:
+        # Semantic cache: key includes embed_model so switching models doesn't
+        # serve results computed with the previous one.
+        cache_key = f"{query}:{limit}:{files_filter}:{embed_model}"
+        cached = _semantic_result_cache.get(cache_key)
+        if cached is not None:
+            cached_ts = cached.get("_ts", 0)
+            if time.time() - cached_ts < _SEMANTIC_CACHE_TTL:
+                return cached
+            else:
+                del _semantic_result_cache[cache_key]
         # ── Kick off LLM query rewrite in the background ────────────────
         rewrite_future = executor.submit(
             rewrite_queries,
@@ -397,14 +413,39 @@ def hybrid_search(
         # Pre-filter candidates when a file filter is active
         candidate_ids = _build_candidate_ids(root, files_filter or [])
 
-        # ── Batch-embed ALL base variants in a single Ollama call ───────
+        # NOTE: vector search intentionally runs over the *whole* index (true
+        # hybrid). Previously it was restricted to the BM25/FTS5 candidate set,
+        # which silently dropped semantically-relevant chunks that shared no
+        # keywords with the query. HNSW makes the full search cheap.
+
+        # ── Batch-embed ALL base variants with query embedding cache ────
         variant_vectors: dict[str, list[float]] = {}
         if index_ok and base_variants:
             try:
-                vecs = generate_embeddings_batch(base_variants, ollama_url, embed_model, root=root)
-                variant_vectors = {
-                    qv: vec for qv, vec in zip(base_variants, vecs, strict=False) if vec
-                }
+                # Check query embedding cache first
+                uncached_variants = []
+                for qv in base_variants:
+                    cached = _query_emb_cache.get(qv)
+                    if cached is not None:
+                        variant_vectors[qv] = cached
+                    else:
+                        uncached_variants.append(qv)
+
+                if uncached_variants:
+                    vecs = generate_embeddings_batch(
+                        uncached_variants, ollama_url, embed_model, root=root
+                    )
+                    for qv, vec in zip(uncached_variants, vecs, strict=False):
+                        if vec:
+                            variant_vectors[qv] = vec
+                            _query_emb_cache[qv] = vec
+
+                # Trim cache if too large
+                if len(_query_emb_cache) > _query_emb_cache_max:
+                    # Remove oldest 25% of entries
+                    keys = list(_query_emb_cache.keys())
+                    for k in keys[: len(keys) // 4]:
+                        _query_emb_cache.pop(k, None)
             except EmbeddingError as e:
                 errors.append(f"Embedding failed: {e}")
             except Exception as e:
@@ -570,7 +611,7 @@ def hybrid_search(
         has_media = any(r.get("media_start_ts") is not None for r in kept_results)
 
         deduped_errors = list(dict.fromkeys(errors))
-        return {
+        result = {
             "content": "\n\n".join(context_parts),
             "sources": sources,
             "results": kept_results,
@@ -578,6 +619,19 @@ def hybrid_search(
             "has_media": has_media,
             "errors": deduped_errors,
         }
+
+        # Semantic cache: store result for similar queries
+        _semantic_result_cache[cache_key] = {**result, "_ts": time.time()}
+        if len(_semantic_result_cache) > _SEMANTIC_CACHE_MAX:
+            # Remove oldest entries
+            sorted_keys = sorted(
+                _semantic_result_cache.keys(),
+                key=lambda k: _semantic_result_cache[k].get("_ts", 0),
+            )
+            for k in sorted_keys[: len(sorted_keys) // 4]:
+                _semantic_result_cache.pop(k, None)
+
+        return result
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
 

@@ -15,6 +15,14 @@ class IndexExistsError(PalimindError):
     """Raised when initializing an index that already exists."""
 
 
+class VectorIndexError(PalimindError):
+    """Raised when a persisted vector index cannot be decoded.
+
+    Typically an index written by an older, incompatible turbovec build.
+    The caller should discard it and rebuild from the source vectors.
+    """
+
+
 class EmbeddingError(PalimindError):
     """Raised when Ollama embedding generation fails."""
 

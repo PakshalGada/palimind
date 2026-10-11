@@ -45,7 +45,17 @@ def _get_cross_encoder(model_name: str):
             from sentence_transformers import CrossEncoder
 
             logger.info(f"Loading reranker model: {model_name}")
-            _model = CrossEncoder(model_name, device="cpu")
+            # Try ONNX Runtime first for 2-5x faster CPU inference
+            try:
+                _model = CrossEncoder(
+                    model_name,
+                    device="cpu",
+                    backend="onnx",
+                    model_kwargs={"export": True},
+                )
+            except Exception:
+                # Fallback to PyTorch CPU
+                _model = CrossEncoder(model_name, device="cpu")
             _model_name = model_name
         except Exception as e:
             logger.warning(f"Failed to load reranker model {model_name}: {e}")
