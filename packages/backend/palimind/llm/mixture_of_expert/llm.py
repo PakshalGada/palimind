@@ -13,6 +13,8 @@ import json
 import time
 from typing import Any
 
+from palimind.opencode.client import proxy_auth_headers
+
 
 class LLMError(Exception):
     def __init__(self, message: str, *, transient: bool = False) -> None:
@@ -103,6 +105,7 @@ def llm_chat(
         with httpx.Client(
             timeout=httpx.Timeout(connect=10.0, read=read_timeout, write=10.0, pool=10.0),
             transport=transport,
+            headers=proxy_auth_headers(url),
         ) as client:
             resp = client.post(url, json=payload)
             if resp.status_code in (429, 500, 502, 503, 504):
@@ -202,6 +205,7 @@ def llm_chat_stream(
         with httpx.Client(
             timeout=httpx.Timeout(connect=10.0, read=read_timeout, write=10.0, pool=10.0),
             transport=transport,
+            headers=proxy_auth_headers(url),
         ) as client:
             with client.stream("POST", url, json=payload) as resp:
                 if resp.status_code in (429, 500, 502, 503, 504):

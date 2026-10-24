@@ -19,12 +19,14 @@ from pathlib import Path
 from typing import Any
 
 from palimind.exceptions import EmbeddingError
+from palimind.opencode.client import proxy_auth_headers
 from palimind.storage.db import (
     fts_search,
     get_chunk_neighbors,
     get_connection,
     get_file_summary,
 )
+from palimind.storage.vector_store import index_compatibility_error
 from palimind.storage.vector_store import search as vector_search
 
 logger = logging.getLogger(__name__)
@@ -83,10 +85,13 @@ def select_diverse(
     Skips candidates that are near-duplicates of already selected chunks
     (rapidfuzz token_set_ratio) and dampens source flooding.
     """
+    fuzz: Any = None
     try:
-        from rapidfuzz import fuzz
+        from rapidfuzz import fuzz as _rapidfuzz
+
+        fuzz = _rapidfuzz
     except ImportError:
-        fuzz = None
+        pass
 
     selected: list[dict] = []
     selected_texts: list[str] = []
@@ -203,7 +208,7 @@ def rewrite_queries(
             "options": {"temperature": 0.2, "num_predict": 120},
         }
         with httpx.Client(timeout=httpx.Timeout(connect=5.0, read=30.0)) as client:
-            resp = client.post(url, json=payload)
+            resp = client.post(url, json=payload, headers=proxy_auth_headers(url))
             resp.raise_for_status()
             raw = resp.json().get("message", {}).get("content", "")
         parsed = json.loads(raw)
@@ -332,8 +337,8 @@ def hybrid_search(
     ollama_url: str = "",
     embed_model: str = "",
     light_model: str = "",
-    rerank_enabled: bool = True,
-    rerank_model: str = "BAAI/bge-reranker-base",
+    rerank_enabled: bool = False,
+    rerank_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
     query_rewrite_enabled: bool = True,
     context_token_budget: int | None = None,
     graph: Any | None = None,
@@ -351,6 +356,7 @@ def hybrid_search(
 
     sources: list[str] = []
     errors = errors if errors is not None else []
+    config: dict[str, Any] = {}
 
     # Resolve embedding model when not provided explicitly
     if not embed_model or not ollama_url:
@@ -361,7 +367,7 @@ def hybrid_search(
         embed_model = embed_model or config.get("embed_model", "bge-m3")
         if light_model == "":
             light_model = config.get("light_model", "") or config.get("chat_model", "")
-        if rerank_model == "BAAI/bge-reranker-base":
+        if rerank_model == "cross-encoder/ms-marco-MiniLM-L-6-v2":
             rerank_model = config.get("rerank_model") or rerank_model
         if context_token_budget is None:
             context_token_budget = config.get("context_token_budget")
@@ -407,8 +413,21 @@ def hybrid_search(
                 base_variants.append(combined)
 
         index_ok = _index_exists(root)
+        index_error = None
         if not index_ok:
             errors.append("No vector index found — run 'pm add' to index files first")
+        else:
+            index_error = index_compatibility_error(
+                root,
+                expected_model=embed_model,
+                expected_dim=config.get("embed_dim"),
+            )
+            if index_error:
+                # Never silently fall back to keyword-only: make the mismatch
+                # visible in logs, API errors and the returned result.
+                logger.error("Vector index incompatible: %s", index_error)
+                errors.append(f"Semantic search disabled: {index_error}")
+                index_ok = False
 
         # Pre-filter candidates when a file filter is active
         candidate_ids = _build_candidate_ids(root, files_filter or [])
@@ -423,11 +442,11 @@ def hybrid_search(
         if index_ok and base_variants:
             try:
                 # Check query embedding cache first
-                uncached_variants = []
+                uncached_variants: list[str] = []
                 for qv in base_variants:
-                    cached = _query_emb_cache.get(qv)
-                    if cached is not None:
-                        variant_vectors[qv] = cached
+                    cached_vec = _query_emb_cache.get(qv)
+                    if cached_vec is not None:
+                        variant_vectors[qv] = cached_vec
                     else:
                         uncached_variants.append(qv)
 
@@ -574,7 +593,7 @@ def hybrid_search(
             try:
                 from palimind.core.reranker import rerank
 
-                candidates = non_graph[:30]
+                candidates = non_graph[:20]
                 reranked = rerank(
                     query,
                     candidates,
@@ -583,7 +602,7 @@ def hybrid_search(
                     model_name=rerank_model,
                 )
                 if reranked:
-                    non_graph = reranked + non_graph[30:]
+                    non_graph = reranked + non_graph[20:]
             except Exception as e:
                 errors.append(f"Rerank error: {e}")
 
@@ -618,6 +637,7 @@ def hybrid_search(
             "total_results": len(kept_results),
             "has_media": has_media,
             "errors": deduped_errors,
+            "index_error": index_error,
         }
 
         # Semantic cache: store result for similar queries

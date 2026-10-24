@@ -18,13 +18,14 @@ async function parse<T>(res: Response, label: string): Promise<T> {
 }
 
 async function get<T>(path: string, headers?: Record<string, string>): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { headers });
+  const res = await fetch(`${BASE}${path}`, { headers, credentials: 'include' });
   return parse<T>(res, `GET ${path}`);
 }
 
 async function post<T>(path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
+    credentials: 'include',
     headers: {
       ...(body ? { 'Content-Type': 'application/json' } : {}),
       ...headers,
@@ -37,6 +38,7 @@ async function post<T>(path: string, body?: unknown, headers?: Record<string, st
 async function patch<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'PATCH',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
@@ -46,6 +48,7 @@ async function patch<T>(path: string, body: unknown): Promise<T> {
 async function put<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'PUT',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
@@ -53,7 +56,7 @@ async function put<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function del<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { method: 'DELETE' });
+  const res = await fetch(`${BASE}${path}`, { method: 'DELETE', credentials: 'include' });
   return parse<T>(res, `DELETE ${path}`);
 }
 
@@ -349,18 +352,6 @@ export const api = {
         headers: { 'Content-Type': 'application/octet-stream' },
         body: wavBlob,
       }).then(res => res.json() as Promise<{ text?: string; error?: string }>),
-  },
-  workflows: {
-    list: () => get<{ workflows: import('./types').Workflow[] }>('/workflows'),
-    save: (workflow: import('./types').Workflow) =>
-      post<import('./types').Workflow & { error?: string }>('/workflows', workflow),
-    delete: (id: string) => del<{ status?: string }>(`/workflows/${encodeURIComponent(id)}`),
-    run: (id: string) =>
-      post<{ execution?: import('./types').WorkflowExecution; error?: string }>(
-        `/workflows/${encodeURIComponent(id)}/run`,
-      ),
-    runInline: (workflow: import('./types').Workflow) =>
-      post<{ execution?: import('./types').WorkflowExecution; error?: string }>('/workflows/run', workflow),
   },
   tasks: {
     list: () => get<{ tasks: import('./types').KanbanTask[] }>('/tasks'),

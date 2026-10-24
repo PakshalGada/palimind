@@ -273,7 +273,8 @@ def insert_chunks(
                 media_end_ts,
             ),
         )
-        chunk_ids.append(cur.lastrowid)
+        if cur.lastrowid is not None:
+            chunk_ids.append(int(cur.lastrowid))
     return chunk_ids
 
 
@@ -644,6 +645,3 @@ def get_candidate_chunk_ids(
         params,
     )
     return {row[0] for row in cur.fetchall()}
-
-
-

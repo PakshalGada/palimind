@@ -1,6 +1,7 @@
 """File-backed store for board tasks (Phase 1 Task Board).
 
-Tasks live in a single JSON list at ``~/.palimind/tasks.json``. Each task
+Tasks are stored transactionally in ``~/.palimind/state.db`` (SQLite/WAL);
+legacy ``~/.palimind/tasks.json`` data is imported once and renamed. Each task
 carries an assigned agent and a free-form prompt; running a task executes that
 agent (see ``api_server.run_task``) and the result is written back here *and*
 into the agent's own chat history.
@@ -8,7 +9,6 @@ into the agent's own chat history.
 
 from __future__ import annotations
 
-import json
 import threading
 import time
 import uuid
@@ -24,19 +24,25 @@ _PRIORITIES = {"low", "medium", "high", "critical"}
 
 def _load() -> list[dict[str, Any]]:
     with _LOCK:
-        if not TASKS_FILE.exists():
-            return []
-        try:
-            data = json.loads(TASKS_FILE.read_text("utf-8"))
-            return data if isinstance(data, list) else []
-        except (OSError, json.JSONDecodeError):
-            return []
+        from palimind.storage import state_store
+
+        state_store.migrate_json_file("board_tasks", "items", TASKS_FILE, default=[])
+        data = state_store.get_json("board_tasks", "items", default=[])
+        return data if isinstance(data, list) else []
+
+
+_MAX_TASKS = 1000
 
 
 def _save(items: list[dict[str, Any]]) -> None:
     with _LOCK:
-        TASKS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        TASKS_FILE.write_text(json.dumps(items, indent=2), "utf-8")
+        from palimind.storage import state_store
+
+        if len(items) > _MAX_TASKS:
+            items = sorted(items, key=lambda t: float(t.get("created_at", 0) or 0), reverse=True)[
+                :_MAX_TASKS
+            ]
+        state_store.set_json("board_tasks", "items", items)
 
 
 def _normalize(raw: dict[str, Any], existing: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -65,7 +71,6 @@ def _normalize(raw: dict[str, Any], existing: dict[str, Any] | None = None) -> d
         "completed_at": raw.get("completed_at", base.get("completed_at")),
         "duration": raw.get("duration", base.get("duration")),
         "parent_task_id": raw.get("parent_task_id", base.get("parent_task_id", "")),
-        "workflow_id": raw.get("workflow_id", base.get("workflow_id", "")),
         "progress": raw.get("progress", base.get("progress", 0)),
         "metadata": raw.get("metadata", base.get("metadata", {})) or {},
         "tags": [str(t) for t in tags],
@@ -104,14 +109,20 @@ def update_task(task_id: str, changes: dict[str, Any]) -> dict[str, Any] | None:
         if task.get("id") != task_id:
             continue
         if "status" in changes and changes["status"] != task.get("status"):
-            task = {**task, "history": task.get("history", []) + [{
-                "id": uuid.uuid4().hex,
-                "task_id": task_id,
-                "from_status": task.get("status"),
-                "to_status": changes["status"],
-                "timestamp": time.time(),
-                "actor": actor,
-            }]}
+            task = {
+                **task,
+                "history": task.get("history", [])
+                + [
+                    {
+                        "id": uuid.uuid4().hex,
+                        "task_id": task_id,
+                        "from_status": task.get("status"),
+                        "to_status": changes["status"],
+                        "timestamp": time.time(),
+                        "actor": actor,
+                    }
+                ],
+            }
         merged = {**task, **changes}
         merged["id"] = task_id
         merged["created_at"] = task.get("created_at")

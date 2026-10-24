@@ -136,6 +136,7 @@ def _is_safe_url(url: str) -> bool:
             return False
         # Resolve hostname to IP and check if it's private
         import socket
+
         try:
             ip = ipaddress.ip_address(hostname)
         except ValueError:

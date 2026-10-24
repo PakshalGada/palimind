@@ -1,0 +1,130 @@
+/* ==========================================================================
+   WelcomeScreen.css — first-run empty state with feature cards.
+   ========================================================================== */
+
+.welcome-screen {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 24px;
+    background: var(--bg-color);
+}
+.welcome-content {
+    max-width: 680px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+.welcome-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: var(--panel-bg-2);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+}
+.welcome-content h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.03em;
+    color: var(--text-main);
+}
+.welcome-content p {
+    color: var(--text-secondary);
+    margin-bottom: 32px;
+    font-size: 0.96rem;
+    line-height: 1.6;
+    max-width: 520px;
+}
+.welcome-features {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    width: 100%;
+    text-align: left;
+}
+.welcome-feature-card {
+    background: var(--panel-bg-2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 18px 16px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.welcome-feature-card:hover {
+    border-color: var(--text-main);
+    box-shadow: var(--shadow-md);
+}
+.welcome-feature-icon {
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--bg-active);
+    margin-bottom: 4px;
+}
+.welcome-feature-title {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+.welcome-feature-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+.welcome-cta {
+    font-size: 0.95rem;
+    padding: 13px 28px;
+    border-radius: 12px;
+    margin-bottom: 40px;
+}
+
+/* Primary CTA — plain button, pre-dating the ui-button kit. */
+.primary-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--primary-color);
+    color: var(--primary-text);
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 11px 22px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: var(--shadow-md);
+    transition: all 0.2s;
+}
+.primary-btn:hover {
+    background: var(--primary-hover);
+    box-shadow: var(--shadow-lg);
+}
+
+/* ── responsive ────────────────────────────────────────────────────────── */
+@media (max-width: 460px) {
+    .welcome-screen {
+        padding: 24px 16px;
+    }
+    .welcome-content h1 {
+        font-size: 1.65rem;
+    }
+}

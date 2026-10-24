@@ -170,8 +170,8 @@ def read_audit_log(
                         entries.append(json.loads(line))
                     except json.JSONDecodeError:
                         continue
-        except OSError as e:
-            return [], str(e)
+        except OSError:
+            return [], 0
     total = len(entries)
     start = max(0, offset)
     return list(reversed(entries))[start : start + limit], total

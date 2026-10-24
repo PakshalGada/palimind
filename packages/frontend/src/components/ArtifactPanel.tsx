@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { formatMarkdown } from '../utils/markdown';
+import { useChatStreamContext } from '../stream/context';
 import {
   ARTIFACT_TYPE_LABEL,
   collectArtifacts,
@@ -37,10 +38,18 @@ export default function ArtifactPanel() {
   } = useApp();
 
   const currentSess = sessions.find((s) => s.id === activeSessionId);
-  const sessionArtifacts = useMemo(
-    () => collectArtifacts(currentSess?.messages),
-    [currentSess?.messages],
-  );
+  const { liveText } = useChatStreamContext();
+  // Only fold the in-flight buffer in while the panel is visible: this keeps
+  // artifact scanning off the streaming hot path otherwise.
+  const liveForArtifacts = artifactPanelOpen ? liveText : '';
+  const sessionArtifacts = useMemo(() => {
+    const messages = currentSess?.messages ?? [];
+    // Include the in-flight assistant buffer so artifacts appear as soon as
+    // their fence closes, not only after the session reloads.
+    return collectArtifacts(
+      liveForArtifacts ? [...messages, { role: 'system', content: liveForArtifacts }] : messages,
+    );
+  }, [currentSess?.messages, liveForArtifacts]);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [vaultArtifact, setVaultArtifact] = useState<SavedArtifact | null>(null);

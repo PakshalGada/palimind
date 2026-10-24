@@ -34,7 +34,7 @@ from palimind.llm.mixture_of_expert.planner import (
     build_synthesis_prompt,
     parse_plan,
 )
-from palimind.llm.mixture_of_expert.tools import set_tool_context
+from palimind.llm.mixture_of_expert.tools import make_tool_context
 from palimind.settings import (
     MOE_NUM_CTX,
     ORCHESTRATOR_CONFLICT_RESOLUTION,
@@ -317,6 +317,7 @@ async def orchestrate(
     max_concurrency: int | None = None,
     time_budget_s: float = 1800.0,
     approval_provider: Callable[[dict], dict] | None = None,
+    session_id: str = "",
 ) -> dict[str, Any]:
     """Run a multi-agent orchestration and return its result.
 
@@ -334,9 +335,18 @@ async def orchestrate(
             except Exception as e:  # noqa: BLE001
                 print(f"[orchestrator] emit failed ({etype}): {e}")
 
-    # Tools are sandboxed to the working root; set the process-wide context once
-    # (parallel workers share it, exactly like the MoE pipeline).
-    set_tool_context(working_root, ollama_url, model, light_model or model)
+    # Each worker gets its own immutable context. Passing it explicitly into
+    # run_agent (which installs it in that worker thread) is what prevents two
+    # agents on different workspaces from reading/writing the wrong root.
+    worker_context = make_tool_context(
+        working_root,
+        ollama_url,
+        model,
+        light_model or model,
+        write_access=bool(getattr(definition, "write_access", False)),
+        allow_network=False,
+        session_id=session_id,
+    )
 
     usage: dict[str, dict] = {}
     timings: dict[str, float] = {}
@@ -423,6 +433,7 @@ async def orchestrate(
                 briefing=briefing,
                 approval_provider=approval_provider,
                 usage_cb=agent_usage.update,
+                tool_context=worker_context,
             )
         if agent_usage:
             usage[f"agent_{agent_id}"] = dict(agent_usage)

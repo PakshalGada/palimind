@@ -143,3 +143,20 @@
   0%, 100% { transform: scaleY(0.32); opacity: 0.4; }
   50% { transform: scaleY(1); opacity: 1; }
 }
+
+/* ── reduced motion ──────────────────────────────────────────────────── */
+/* Thinking re-asserts its animations with !important (see base.css), so the
+   reduced-motion override must match that specificity and come after. */
+@media (prefers-reduced-motion: reduce) {
+  .tk-dot,
+  .tk-dot--core,
+  .tk--orbit .tk-orbit,
+  .tk--trace .tk-svg,
+  .tk--trace .tk-arc,
+  .tk--mesh .tk-dot,
+  .tk--ripple .tk-ring,
+  .tk--beacon .tk-halo,
+  .tk--bars .tk-bar {
+    animation: none !important;
+  }
+}

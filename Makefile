@@ -60,7 +60,7 @@ check-imports: ## Fail if any legacy 'core' package references remain
 	@! grep -rnE '(from|import)[[:space:]]+core([. ])|-m core\.|"core\.' \
 		--include='*.py' --include='*.rs' --include='*.toml' --include='*.ps1' --include='*.sh' \
 		--exclude-dir=target --exclude-dir=node_modules --exclude-dir=__pycache__ --exclude-dir=.venv \
-		packages apps scripts dev.ps1 2>/dev/null || true
+		packages apps scripts dev.ps1 2>/dev/null
 
 clean: ## Remove caches and build artifacts
 	rm -rf $(BACKEND_DIR)/palimind/__pycache__ $(BACKEND_DIR)/tests/__pycache__

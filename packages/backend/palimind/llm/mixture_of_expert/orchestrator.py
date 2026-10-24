@@ -17,6 +17,7 @@ from palimind.llm.mixture_of_expert.planner import (
     parse_plan,
 )
 from palimind.llm.mixture_of_expert.tools import set_tool_context
+from palimind.opencode.client import proxy_auth_headers
 from palimind.settings import (
     MOE_MAX_CONCURRENCY,
     MOE_NUM_CTX,
@@ -182,7 +183,9 @@ def _model_is_loaded(ollama_url: str, model: str) -> bool:
     import httpx
 
     try:
-        resp = httpx.get(f"{ollama_url.rstrip('/')}/api/ps", timeout=5.0)
+        resp = httpx.get(
+            f"{ollama_url.rstrip('/')}/api/ps", timeout=5.0, headers=proxy_auth_headers(ollama_url)
+        )
         if resp.status_code != 200:
             return False
         data = resp.json()

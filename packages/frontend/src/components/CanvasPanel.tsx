@@ -291,7 +291,7 @@ export default function CanvasPanel() {
     setStreamBuffer('');
     setBusy(true);
 
-    const es = new EventSource(`/api/canvas/generate?q=${encodeURIComponent(prompt)}`);
+    const es = new EventSource(`/api/canvas/generate?q=${encodeURIComponent(prompt)}`, { withCredentials: true });
     esRef.current = es;
 
     es.onmessage = (event) => {

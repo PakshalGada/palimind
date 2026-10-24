@@ -231,9 +231,7 @@ def parse_research_plan(text: str, num_subtopics: int = 5) -> list[dict[str, Any
     return normalize_research_plan(parsed, num_subtopics)
 
 
-def normalize_research_plan(
-    plan: Any, num_subtopics: int
-) -> list[dict[str, Any]]:
+def normalize_research_plan(plan: Any, num_subtopics: int) -> list[dict[str, Any]]:
     if not isinstance(plan, list) or not plan:
         return []
 
@@ -352,11 +350,14 @@ async def run_deep_research_pipeline(
             usage[stage] = u
 
     # ── Phase 1: Plan research sub-topics ────────────────────────────────
-    await emit({"type": "planning", "text": "Planning deep research — analyzing query and designing research plan..."})
-    t = time.monotonic()
-    plan_prompt = build_research_plan_prompt(
-        user_query, num_subtopics, memory_context=memory_ctx
+    await emit(
+        {
+            "type": "planning",
+            "text": "Planning deep research — analyzing query and designing research plan...",
+        }
     )
+    t = time.monotonic()
+    plan_prompt = build_research_plan_prompt(user_query, num_subtopics, memory_context=memory_ctx)
     plan_result = await asyncio.to_thread(
         llm_chat_safe,
         [{"role": "user", "content": plan_prompt}],
@@ -398,13 +399,20 @@ async def run_deep_research_pipeline(
             }
         plan = reviewed or plan
 
-    await emit({"type": "planning", "text": f"Research plan created with {len(plan)} sub-topics. Dispatching research agents..."})
+    await emit(
+        {
+            "type": "planning",
+            "text": f"Research plan created with {len(plan)} sub-topics. Dispatching research agents...",
+        }
+    )
 
     # ── Phase 2: Shared web briefing ─────────────────────────────────────
     briefing = ""
     from palimind.core.web_search import perform_web_search
 
-    await emit({"type": "planning", "text": "Gathering shared web briefing for all research agents..."})
+    await emit(
+        {"type": "planning", "text": "Gathering shared web briefing for all research agents..."}
+    )
     t = time.monotonic()
     briefing = await asyncio.to_thread(
         perform_web_search, user_query, max_results=DR_MAX_SEARCH_RESULTS, fetch_content=True

@@ -1,4 +1,5 @@
 import { useApp } from '../AppContext';
+import { ProgressBar } from '../ui/primitives';
 import Thinking from './Thinking';
 
 /**
@@ -15,21 +16,16 @@ export default function SetupProgress() {
     <div className="indexing-progress-container" role="status" aria-live="polite">
       {setupTasks.map((task) => (
         <div key={task.key} className="setup-task">
-          <div className="progress-bar-label">
-            <Thinking variant="beacon" size={12} />
-            {task.label}
-            {task.message ? ` — ${task.message}` : ''}
-          </div>
-          <div className="progress-bar-track">
-            <div
-              className="progress-bar-fill"
-              style={
-                task.progress != null
-                  ? { width: `${Math.round(task.progress * 100)}%`, animation: 'none' }
-                  : undefined
-              }
-            />
-          </div>
+          <ProgressBar
+            value={task.progress}
+            label={
+              <>
+                <Thinking variant="beacon" size={12} />
+                {task.label}
+                {task.message ? ` — ${task.message}` : ''}
+              </>
+            }
+          />
         </div>
       ))}
     </div>

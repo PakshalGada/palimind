@@ -1,0 +1,351 @@
+/* ==========================================================================
+   Messages.css — extracted from App.css (Phase 0 split).
+   ========================================================================== */
+
+/* ── messages, message, avatar ── */
+.messages {
+    flex: 1;
+    padding: 20px 28px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    scroll-behavior: auto;
+    min-height: 0;
+}
+.messages::-webkit-scrollbar {
+    width: 6px;
+}
+.messages::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+.message {
+    display: flex;
+    gap: 16px;
+    width: 100%;
+    max-width: 860px;
+    align-self: center;
+    animation: messageIn 0.25s ease both;
+    min-width: 0;
+}
+@keyframes messageIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+.message.user-message {
+    justify-content: flex-end;
+}
+.avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.88rem;
+    flex-shrink: 0;
+}
+
+/* ── message-content, code-box ── */
+.message-content {
+    background: transparent;
+    padding: 8px 0 12px;
+    border-radius: 20px;
+    border: none;
+    line-height: 1.68;
+    font-size: 0.9rem;
+    color: var(--text-main);
+    width: 100%;
+    min-width: 0;
+}
+.user-message .message-content {
+    background: var(--msg-user-bg);
+    border: 1px solid var(--border-color);
+    padding: 12px 14px;
+    border-radius: 18px;
+    width: auto;
+    max-width: min(680px, 82%);
+    font-size: 0.9rem;
+    box-shadow: 0 1px 0 var(--border-subtle) inset;
+}
+.message-content code {
+    font-family: var(--font-mono);
+    background: var(--input-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    color: var(--text-main);
+}
+.message-content pre {
+    background: var(--input-bg);
+    padding: 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 12px 0;
+    border: 1px solid var(--border-color);
+}
+.message-content p {
+    margin-bottom: 8px;
+}
+.message-content p:last-child {
+    margin-bottom: 0;
+}
+.message-content a {
+    color: var(--text-main);
+    text-underline-offset: 3px;
+}
+.message-content blockquote {
+    margin: 12px 0;
+    padding-left: 14px;
+    border-left: 2px solid var(--border-color);
+    color: var(--text-muted);
+}
+.message-content table {
+    width: 100%;
+    border-collapse: collapse;
+    display: block;
+    overflow-x: auto;
+    margin: 12px 0;
+}
+.message-content th,
+.message-content td {
+    border: 1px solid var(--border-color);
+    padding: 8px 10px;
+}
+.message-content h1,
+.message-content h2,
+.message-content h3 {
+    margin: 16px 0 8px 0;
+    color: var(--text-main);
+    font-weight: 600;
+}
+.message-content h1 {
+    font-size: 1.3rem;
+}
+.message-content h2 {
+    font-size: 1.15rem;
+}
+.message-content h3 {
+    font-size: 1.05rem;
+}
+.message-content ul,
+.message-content ol {
+    margin-left: 20px;
+    margin-bottom: 12px;
+}
+.message-content li {
+    margin-bottom: 4px;
+}
+.code-box {
+    background: var(--surface-raised);
+    border-radius: var(--radius-panel);
+    border: 1px solid var(--border-color);
+    margin: 16px 0;
+    overflow: hidden;
+    box-shadow: var(--shadow-soft);
+    text-align: left;
+}
+.code-box-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: color-mix(in srgb, var(--panel-bg) 88%, var(--text-main) 12%);
+    padding: 9px 12px 9px 14px;
+    border-bottom: 1px solid var(--border-color);
+}
+.code-box-lang {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+.code-box-copy {
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    padding: 5px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 28px;
+}
+.code-box-copy:hover {
+    background: var(--bg-active);
+    color: var(--text-main);
+}
+.code-box-copy.copied {
+    background: var(--primary-color);
+    color: var(--primary-text);
+}
+.code-box pre {
+    overflow-x: auto;
+    margin: 0 !important;
+    padding: 16px !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+}
+.message-content pre code {
+    font-family: var(--font-mono);
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--text-main);
+    background: transparent !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    display: block;
+}
+
+/* ── thinking-block details ── */
+details.thinking-block {
+    margin: 4px 0 12px 0;
+    background: var(--glass-bg);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    transition: border-color 0.2s;
+}
+details.thinking-block[open] {
+    border-color: var(--text-muted);
+}
+summary.thinking-toggle {
+    padding: 7px 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.15s;
+    outline: none;
+    list-style: none;
+}
+summary.thinking-toggle::-webkit-details-marker {
+    display: none;
+}
+summary.thinking-toggle::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    display: inline-block;
+    flex: 0 0 auto;
+}
+details[open] summary.thinking-toggle::before {
+    background: var(--text-secondary);
+}
+summary.thinking-toggle::after {
+    content: "";
+    width: 0;
+    height: 0;
+    margin-left: auto;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid var(--text-muted);
+    transition: transform 0.2s ease;
+    display: inline-block;
+}
+details[open] summary.thinking-toggle::after {
+    transform: rotate(180deg);
+}
+summary.thinking-toggle:hover {
+    background: var(--accent-soft);
+}
+.thinking-body {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border-subtle);
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+/* ── message-wrapper ── */
+.message-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+}
+.user-message .message-wrapper {
+    align-items: flex-end;
+}
+
+/* ── thought-duration-badge ── */
+.thought-duration-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    background: var(--accent-soft);
+    border: 1px solid var(--border-subtle);
+    padding: 3px 9px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    width: fit-content;
+    line-height: 1;
+}
+
+
+/* ── responsive ── */
+
+/* 1100px messages padding */
+@media (max-width: 1100px) {
+    .messages {
+        padding-left: 22px;
+        padding-right: 22px;
+    }
+}
+
+/* 760px messages/message/avatar */
+@media (max-width: 760px) {
+    .messages {
+        gap: 14px;
+        padding: 12px 14px;
+    }
+    .message {
+        gap: 10px;
+    }
+    .avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: var(--radius-sm);
+        font-size: 0.75rem;
+    }
+    .user-message .message-content {
+        max-width: 88%;
+    }
+}
+
+/* 460px avatar + message-content */
+@media (max-width: 460px) {
+    .message.system-message .avatar {
+        display: none;
+    }
+    .message-content {
+        font-size: 0.92rem;
+    }
+    .user-message .message-content {
+        max-width: 94%;
+    }
+}

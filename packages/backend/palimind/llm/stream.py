@@ -396,9 +396,7 @@ async def deep_research_mode_stream(
 
         async def on_plan(plan: list[dict]):
             pending = register_plan(q, plan, plan_event)
-            await on_progress(
-                {"type": "research_plan", "plan_id": pending.plan_id, "plan": plan}
-            )
+            await on_progress({"type": "research_plan", "plan_id": pending.plan_id, "plan": plan})
             try:
                 await asyncio.wait_for(plan_event.wait(), timeout=DR_PLAN_REVIEW_TIMEOUT)
             except TimeoutError:

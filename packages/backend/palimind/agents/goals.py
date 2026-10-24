@@ -9,15 +9,16 @@ Phase 4.5 lets agents work autonomously toward an objective:
 * A **runner** loop executes due tasks, records results, advances goal progress
   and emits **notifications** on completion.
 
-State is persisted as JSON under ``~/.palimind/agents`` so goals survive
-restarts. The runner is started by the API server; the pure state helpers are
-synchronous and unit-testable without a running event loop.
+State is persisted transactionally in ``~/.palimind/state.db`` (SQLite/WAL)
+so goals survive restarts and concurrent writers cannot corrupt them. Legacy
+JSON files are imported once and renamed ``*.bak``. The runner is started by
+the API server; the pure state helpers are synchronous and unit-testable
+without a running event loop.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import re
 import threading
 import time
@@ -48,19 +49,25 @@ _UNIT_SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
 # ── JSON helpers ──────────────────────────────────────────────────────────
 
 
+def _namespace(path: Path) -> str:
+    # Include the full path so isolated test/workspace state directories do
+    # not share rows in the global state database.
+    return f"agent_state:{path.resolve()}"
+
+
 def _load_list(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
-        return []
-    try:
-        data = json.loads(path.read_text("utf-8"))
-        return data if isinstance(data, list) else []
-    except (OSError, json.JSONDecodeError):
-        return []
+    """Load a list from SQLite, importing the legacy JSON file once."""
+    from palimind.storage import state_store
+
+    state_store.migrate_json_file(_namespace(path), "items", path, default=[])
+    data = state_store.get_json(_namespace(path), "items", default=[])
+    return data if isinstance(data, list) else []
 
 
 def _save_list(path: Path, items: list[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(items, indent=2), "utf-8")
+    from palimind.storage import state_store
+
+    state_store.set_json(_namespace(path), "items", items)
 
 
 # ── parsing ───────────────────────────────────────────────────────────────

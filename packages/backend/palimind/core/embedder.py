@@ -9,6 +9,7 @@ from pathlib import Path
 import httpx
 
 from palimind.exceptions import EmbeddingError
+from palimind.opencode.client import proxy_auth_headers
 
 _CACHE_TTL_HOURS = 24
 _mem_lock = threading.Lock()
@@ -135,7 +136,7 @@ def generate_embedding(
     url = f"{ollama_url.rstrip('/')}/api/embed"
     payload = {"model": embed_model, "input": text, "keep_alive": "30m"}
     try:
-        response = httpx.post(url, json=payload, timeout=120.0)
+        response = httpx.post(url, json=payload, timeout=120.0, headers=proxy_auth_headers(url))
         response.raise_for_status()
     except httpx.TimeoutException as e:
         raise EmbeddingError(f"Embedding request timed out: {e}") from e
@@ -182,7 +183,7 @@ def generate_embeddings_batch(
     url = f"{ollama_url.rstrip('/')}/api/embed"
     payload = {"model": embed_model, "input": uncached, "keep_alive": "30m"}
     try:
-        response = httpx.post(url, json=payload, timeout=300.0)
+        response = httpx.post(url, json=payload, timeout=300.0, headers=proxy_auth_headers(url))
         response.raise_for_status()
     except httpx.TimeoutException as e:
         raise EmbeddingError(f"Batch embedding request timed out: {e}") from e

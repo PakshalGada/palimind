@@ -88,7 +88,7 @@ export default function ModelSwitcher() {
         ...prev,
         [name]: { status: 'starting…', percent: null, done: false },
       }));
-      const es = new EventSource(api.models.pullUrl(name));
+      const es = new EventSource(api.models.pullUrl(name), { withCredentials: true });
       pullEsRef.current[name] = es;
       es.onmessage = (ev) => {
         try {

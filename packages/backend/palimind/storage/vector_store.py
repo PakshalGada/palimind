@@ -106,12 +106,17 @@ def _save_removed(root: Path, removed: set[int]) -> None:
 
 def _create_index(dim: int, quantization: str = "none") -> faiss.Index:
     """Create a FAISS HNSW index with the given quantization strategy."""
+    quantizer: Any
     if quantization == "sq8":
         # 8-bit scalar quantization — 4x compression vs float32
-        quantizer = faiss.IndexHNSWSQ(dim, faiss.ScalarQuantizer.QT_8bit, _M)
+        quantizer = faiss.IndexHNSWSQ(
+            dim,
+            faiss.ScalarQuantizer.QT_8bit,  # type: ignore[arg-type]
+            _M,
+        )
     elif quantization == "pq":
         # Product quantization — M_sub=8, nbits=8 (faiss signature: d, M, nbits)
-        quantizer = faiss.IndexHNSWPQ(dim, _M, 8)
+        quantizer = faiss.IndexHNSWPQ(dim, _M, 8)  # type: ignore[arg-type]
     else:
         # No quantization — best accuracy, float32 storage
         quantizer = faiss.IndexHNSWFlat(dim, _M)
@@ -159,6 +164,62 @@ def index_load_error(root: Path, expected_model: str | None = None) -> str | Non
             return (
                 f"Embedding model changed ({stamp['model']} → {expected_model}) — rebuilding index"
             )
+    return None
+
+
+def index_compatibility_error(
+    root: Path,
+    *,
+    expected_model: str | None = None,
+    expected_dim: int | None = None,
+) -> str | None:
+    """Return an actionable incompatibility message, or ``None`` if healthy.
+
+    Unlike :func:`index_load_error` this is safe to call on every query: it
+    checks the persisted index dimension, the stamp written at build time, and
+    the model/dimension the workspace is configured to use. A mismatch must be
+    surfaced to the user (and trigger a reindex) rather than silently degrading
+    to keyword-only search.
+    """
+    p = _index_path(root)
+    if not p.exists():
+        return None
+
+    try:
+        index = faiss.read_index(str(p))
+    except Exception as e:
+        return (
+            f"The vector index at {p} could not be loaded ({e}). "
+            "Rebuild it with 'pm update' (or re-run indexing from the UI)."
+        )
+
+    stamp = read_stamp(root)
+    index_dim = int(getattr(index, "d", 0) or 0)
+    if stamp:
+        stamp_dim = int(stamp.get("dim") or 0)
+        stamp_model = str(stamp.get("model") or "")
+        if stamp_dim and index_dim and stamp_dim != index_dim:
+            return (
+                f"Vector index dimension ({index_dim}) does not match its stamp "
+                f"({stamp_dim}). The index is corrupt; rebuild it with 'pm update'."
+            )
+        if expected_model and stamp_model and stamp_model != expected_model:
+            return (
+                f"Embedding model changed ({stamp_model} → {expected_model}) but the "
+                "vector index was not rebuilt. Run 'pm update' (or re-index from the "
+                "UI) so semantic search does not silently return wrong results."
+            )
+        if expected_dim and index_dim and int(expected_dim) != index_dim:
+            return (
+                f"Configured embedding dimension ({expected_dim}) does not match the "
+                f"index dimension ({index_dim}). Set embed_dim to match embed_model or "
+                "rebuild the index with 'pm update'."
+            )
+    elif index_dim:
+        return (
+            "The vector index has no embedding-model stamp (it predates stamping). "
+            "Rebuild it with 'pm update' so model/dimension mismatches can be detected."
+        )
     return None
 
 
@@ -225,15 +286,23 @@ class VectorStore:
 
     # -- internal ---------------------------------------------------------
 
-    def _ensure_loaded(self, dim: int = _DEFAULT_DIM) -> None:
+    def _ensure_loaded(self, dim: int | None = None) -> None:
         if self._index is None:
-            self._index = _load_index(self.root, dim, self.quantization)
+            self._index = _load_index(
+                self.root, _DEFAULT_DIM if dim is None else dim, self.quantization
+            )
             self._meta = _load_meta(self.root)
             self._removed = _load_removed(self.root)
             # Safety net: never add vectors of one dimension to an index built
             # at another. Indexing resets on a model change, so this only
             # triggers on an out-of-band path (e.g. capture) — fail loudly.
-            if self._index.ntotal > 0 and self._index.d != dim:
+            #
+            # Only enforce when the caller actually knows the expected
+            # embedding dimension (i.e. at insert time). Deletions must not
+            # assume a dimension: the persisted index is authoritative, and
+            # assuming the 768 default aborts re-indexing for any model with a
+            # different dimension (e.g. bge-m3 = 1024).
+            if dim is not None and self._index.ntotal > 0 and self._index.d != dim:
                 raise VectorIndexError(
                     f"Index dimension {self._index.d} does not match embedding "
                     f"dimension {dim}; rebuild the index."
@@ -422,6 +491,12 @@ def search(
 
     def _run(k: int) -> list[dict]:
         query = np.array(query_vector, dtype=np.float32).reshape(1, -1)
+        if int(getattr(index, "d", 0) or 0) != query.shape[1]:
+            raise VectorIndexError(
+                f"Embedding dimension mismatch: query has {query.shape[1]} dimensions "
+                f"but the vector index has {index.d}. Rebuild the index with 'pm update' "
+                "or use the embedding model it was built with."
+            )
         # Over-fetch to account for removed IDs
         over_fetch = min(k + len(removed) + 10, index.ntotal) if removed else k
         over_fetch = min(over_fetch, index.ntotal)

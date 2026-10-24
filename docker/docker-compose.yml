@@ -3,11 +3,17 @@ services:
     build:
       context: ..
       dockerfile: docker/backend.Dockerfile
+    # Bind to loopback only by default. Set PALIMIND_ALLOW_REMOTE=true and a
+    # strong PALIMIND_API_TOKEN to expose it deliberately (e.g. behind a
+    # reverse proxy with TLS).
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
       PALIMIND_ENABLE_PALIAGENTS: "true"
+      PALIMIND_ALLOW_REMOTE: "true"
+      # Required: the container refuses to start without an explicit secret.
+      PALIMIND_API_TOKEN: ${PALIMIND_API_TOKEN:?set PALIMIND_API_TOKEN to a long random value}
     volumes:
       - palimind_data:/data
     depends_on:

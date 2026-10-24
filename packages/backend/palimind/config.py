@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 # Paths relative to the project root where `pm init` is run
@@ -63,8 +64,15 @@ DEFAULTS = {
     "context_token_budget": 8000,  # Maximum tokens assembled into LLM context
     "num_ctx": 16384,  # Ollama context window; must cover context_token_budget + prompt overhead
     "comparison_chunks_per_doc": 4,  # Chunks retrieved per document in comparison mode
-    "rerank": True,  # Rerank fused results with a local cross-encoder
-    "rerank_model": "BAAI/bge-reranker-base",  # Local cross-encoder for reranking
+    # Cross-encoder reranking is opt-in: on CPU it can dominate query latency
+    # (tens of seconds for a warm cache). Enable per workspace or per query
+    # when accuracy matters more than speed.
+    "rerank": False,
+    # Existing configs written before reranking became opt-in still contain
+    # "rerank": true. This marker lets load_config disable that legacy value
+    # unless the user explicitly opts back in.
+    "rerank_opt_in": False,
+    "rerank_model": "cross-encoder/ms-marco-MiniLM-L-6-v2",  # small/fast CPU model
     "query_rewrite": True,  # LLM query rewriting at retrieval time
     "auto_reindex": False,  # Watcher auto-reindexes on file change (CPU/GIL heavy; off = manual Sync)
     "video_extensions": [".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v"],
@@ -117,11 +125,23 @@ def db_path(root: Path) -> Path:
 
 def load_config(root: Path) -> dict:
     path = config_path(root)
-    if not path.exists():
-        return dict(DEFAULTS)
-    with path.open() as f:
-        data = json.load(f)
-    return {**DEFAULTS, **data}
+    if path.exists():
+        with path.open() as f:
+            data = json.load(f)
+        merged = {**DEFAULTS, **data}
+    else:
+        merged = dict(DEFAULTS)
+    # Migration: the old default was `rerank: true`. Treat configs without the
+    # new opt-in marker as "off" so existing workspaces stop paying the CPU
+    # cross-encoder cost on every query.
+    if not merged.get("rerank_opt_in"):
+        merged["rerank"] = False
+    env_rerank = os.environ.get("PALIMIND_RERANK", "").strip().lower()
+    if env_rerank:
+        enabled = env_rerank in ("1", "true", "yes", "on")
+        merged["rerank"] = enabled
+        merged["rerank_opt_in"] = enabled
+    return merged
 
 
 def write_default_config(root: Path) -> None:
@@ -159,4 +179,11 @@ def load_global_config() -> dict:
                     config[key] = value
     except Exception:
         pass
+    if not config.get("rerank_opt_in"):
+        config["rerank"] = False
+    env_rerank = os.environ.get("PALIMIND_RERANK", "").strip().lower()
+    if env_rerank:
+        enabled = env_rerank in ("1", "true", "yes", "on")
+        config["rerank"] = enabled
+        config["rerank_opt_in"] = enabled
     return config

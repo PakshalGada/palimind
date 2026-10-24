@@ -72,7 +72,12 @@ ignore = ["E501", "B008", "UP007", "UP045", "E402", "E741", "B904", "B007"]
 [tool.mypy]
 python_version = "3.12"
 ignore_missing_imports = true
-exclude = ["__pycache__"]
+explicit_package_bases = true
+namespace_packages = true
+# Each tool folder has a `tool.py`; they are loaded dynamically by path and
+# are not importable as distinct packages, so mypy must not treat them as
+# duplicate top-level modules.
+exclude = ["__pycache__", "palimind/agents/tools/.*/tool\\.py"]
 files = ["palimind/api_server.py", "palimind/agents", "palimind/settings.py"]
 
 [tool.pytest.ini_options]

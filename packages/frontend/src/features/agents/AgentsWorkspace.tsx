@@ -3,14 +3,13 @@ import { useApp } from '../../AppContext';
 import AgentHeader from './AgentHeader';
 import AgentListPanel from './AgentListPanel';
 import ChatArea from '../../components/ChatArea';
-import WorkflowBuilder from '../../components/WorkflowBuilder';
 import KanbanDashboard from '../../components/KanbanDashboard';
 import './AgentsWorkspace.css';
 
 /**
- * The Agents workspace. The Chat / Workflows / Tasks switcher lives in the left
+ * The Agents workspace. The Chat / Tasks switcher lives in the left
  * sidebar (see Sidebar.tsx). The Chat view gets its own agent roster panel; the
- * workflows and tasks surfaces take the full width.
+ * tasks surface takes the full width.
  */
 export default function AgentsWorkspace() {
   const { agentsView, selectedAgentId } = useApp();
@@ -34,8 +33,6 @@ export default function AgentsWorkspace() {
               )}
             </div>
           </div>
-        ) : agentsView === 'workflows' ? (
-          <WorkflowBuilder />
         ) : (
           <KanbanDashboard />
         )}

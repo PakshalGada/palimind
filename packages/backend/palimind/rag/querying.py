@@ -73,8 +73,8 @@ def query_stream(
         ollama_url=config["ollama_base_url"],
         embed_model=config["embed_model"],
         light_model=config.get("light_model", "") or config["chat_model"],
-        rerank_enabled=bool(config.get("rerank", True)),
-        rerank_model=config.get("rerank_model") or "BAAI/bge-reranker-base",
+        rerank_enabled=bool(config.get("rerank", False)),
+        rerank_model=config.get("rerank_model") or "cross-encoder/ms-marco-MiniLM-L-6-v2",
         query_rewrite_enabled=bool(config.get("query_rewrite", True)),
         context_token_budget=config.get("context_token_budget"),
     )
@@ -137,8 +137,8 @@ def retrieve(
         ollama_url=config["ollama_base_url"],
         embed_model=config["embed_model"],
         light_model=config.get("light_model", "") or config["chat_model"],
-        rerank_enabled=bool(config.get("rerank", True)),
-        rerank_model=config.get("rerank_model") or "BAAI/bge-reranker-base",
+        rerank_enabled=bool(config.get("rerank", False)),
+        rerank_model=config.get("rerank_model") or "cross-encoder/ms-marco-MiniLM-L-6-v2",
         query_rewrite_enabled=bool(config.get("query_rewrite", True)),
         context_token_budget=config.get("context_token_budget"),
     )

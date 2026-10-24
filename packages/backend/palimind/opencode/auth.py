@@ -29,6 +29,7 @@ import json
 import os
 import sqlite3
 import tempfile
+import time
 from pathlib import Path
 
 __all__ = ["auth_path", "get_key", "set_key", "remove_key", "masked_preview"]
@@ -39,7 +40,10 @@ _AUTH_RELATIVE = Path("opencode") / "auth.json"
 # from the legacy auth.json provider names. Map a Palimind/provider name to the
 # v2 integration ids holding its credentials, most-preferred first.
 _V2_PROVIDER_ALIASES: dict[str, tuple[str, ...]] = {
-    "opencode": ("opencode-go", "opencode"),
+    # Prefer the OAuth credential (`opencode`) when it is unexpired; fall back
+    # to the API-key integration (`opencode-go`). A stale/inactive API key must
+    # not shadow a working OAuth token.
+    "opencode": ("opencode", "opencode-go"),
 }
 
 
@@ -90,7 +94,20 @@ def _extract_credential_key(raw: object) -> str | None:
         return None
     if not isinstance(data, dict):
         return None
-    for field in ("key", "access"):
+    # OAuth credentials carry an expiry (seconds or milliseconds) and sometimes
+    # a refresh token. Never reuse an expired access token: prefer the next
+    # candidate (e.g. an API key) instead.
+    expires = data.get("expires")
+    if data.get("type") == "oauth" and expires is not None:
+        try:
+            expiry = float(expires)
+            if expiry > 10_000_000_000:  # milliseconds
+                expiry /= 1000.0
+            if expiry <= time.time():
+                return None
+        except (TypeError, ValueError):
+            pass
+    for field in ("access", "key"):
         value = data.get(field)
         if isinstance(value, str) and value:
             return value
@@ -117,18 +134,17 @@ def _read_v2_key(provider: str) -> str | None:
     try:
         for integration_id in integration_ids:
             try:
-                row = con.execute(
+                rows = con.execute(
                     "SELECT value FROM credential WHERE integration_id = ? "
-                    "ORDER BY active DESC, time_updated DESC LIMIT 1",
+                    "ORDER BY active DESC, time_updated DESC LIMIT 10",
                     (integration_id,),
-                ).fetchone()
+                ).fetchall()
             except sqlite3.Error:
                 return None
-            if row is None:
-                continue
-            key = _extract_credential_key(row[0])
-            if key:
-                return key
+            for (raw,) in rows:
+                key = _extract_credential_key(raw)
+                if key:
+                    return key
     finally:
         con.close()
     return None

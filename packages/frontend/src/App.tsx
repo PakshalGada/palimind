@@ -26,6 +26,7 @@ import AgentManager from './features/agents/AgentManager';
 import AgentsWorkspace from './features/agents/AgentsWorkspace';
 import { useCommandHandlers } from './commands/useCommand';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { ChatStreamProvider } from './stream/ChatStream';
 
 export default function App() {
   const {
@@ -110,11 +111,7 @@ export default function App() {
     'agents.tasks': () => {
       window.dispatchEvent(new CustomEvent('palimind:open-task-monitor'));
     },
-    'workflows.builder': () => {
-      setActiveView('agents');
-      setAgentsView('workflows');
-    },
-    'workflows.kanban': () => {
+    'agents.kanban': () => {
       setActiveView('agents');
       setAgentsView('kanban');
     },
@@ -194,34 +191,36 @@ export default function App() {
   ].filter(Boolean).join(' ');
 
   return (
-    <div className={containerClass}>
-      <SetupProgress />
-      <Sidebar />
-      {activeView === "agents" ? (
-        <AgentsWorkspace />
-      ) : activeView === "chat" || activeField ? (
-        <ChatArea />
-      ) : (
-        <WelcomeScreen />
-      )}
-      <ArtifactPanel />
-      <CanvasPanel />
-      <AgentManager />
-      <SettingsModal />
-      <DirectoryPicker />
-      <KnowledgeGraph />
-      <ShortcutsModal />
-      <CommandPalette />
-      <ResearchPlanModal />
-      <ResearchManager />
-      <SaveToResearchModal />
-      <ComparisonView />
-      <SocialSignals />
-      <AgentGraph />
-      <SkillManager />
-      <PlanReview />
-      <TaskMonitor />
-      <ToastContainer />
-    </div>
+    <ChatStreamProvider>
+      <div className={containerClass}>
+        <SetupProgress />
+        <Sidebar />
+        {activeView === "agents" ? (
+          <AgentsWorkspace />
+        ) : activeView === "chat" || activeField ? (
+          <ChatArea />
+        ) : (
+          <WelcomeScreen />
+        )}
+        <ArtifactPanel />
+        <CanvasPanel />
+        <AgentManager />
+        <SettingsModal />
+        <DirectoryPicker />
+        <KnowledgeGraph />
+        <ShortcutsModal />
+        <CommandPalette />
+        <ResearchPlanModal />
+        <ResearchManager />
+        <SaveToResearchModal />
+        <ComparisonView />
+        <SocialSignals />
+        <AgentGraph />
+        <SkillManager />
+        <PlanReview />
+        <TaskMonitor />
+        <ToastContainer />
+      </div>
+    </ChatStreamProvider>
   );
 }

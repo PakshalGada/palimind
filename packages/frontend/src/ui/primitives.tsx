@@ -9,7 +9,6 @@ import {
   type TextareaHTMLAttributes,
 } from 'react';
 import { createPortal } from 'react-dom';
-import './ui.css';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'icon';
@@ -426,6 +425,37 @@ export function Tabs<T extends string>({
           {t.count != null && t.count > 0 && <span className="ui-tab__count">{t.count}</span>}
         </button>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Progress bar. Pass `value` (0–1) for a determinate bar or leave it out for
+ * an indeterminate sliding bar.
+ */
+export function ProgressBar({
+  value,
+  label,
+  className = '',
+}: {
+  value?: number | null;
+  label?: ReactNode;
+  className?: string;
+}) {
+  const indeterminate = value == null;
+  const pct = indeterminate ? undefined : Math.round(Math.min(1, Math.max(0, value)) * 100);
+  return (
+    <div
+      className={`ui-progress${indeterminate ? ' ui-progress--indeterminate' : ''} ${className}`.trim()}
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={pct}
+    >
+      {label != null && <div className="ui-progress__label">{label}</div>}
+      <div className="ui-progress__track">
+        <div className="ui-progress__fill" style={pct === undefined ? undefined : { width: `${pct}%` }} />
+      </div>
     </div>
   );
 }

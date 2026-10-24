@@ -39,6 +39,7 @@ class DocumentEngine:
         chat_model: str = "",
         embed_model: str = "",
         light_model: str = "",
+        rerank: bool | None = None,
     ) -> None:
         self.root = root
         config = load_config(root)
@@ -46,8 +47,8 @@ class DocumentEngine:
         self.chat_model = chat_model or config.get("chat_model", "gemma4:e2b")
         self.embed_model = embed_model or config.get("embed_model", "bge-m3")
         self.light_model = light_model or config.get("light_model", "") or self.chat_model
-        self.rerank_enabled = bool(config.get("rerank", True))
-        self.rerank_model = config.get("rerank_model") or "BAAI/bge-reranker-base"
+        self.rerank_enabled = bool(config.get("rerank", False)) if rerank is None else bool(rerank)
+        self.rerank_model = config.get("rerank_model") or "cross-encoder/ms-marco-MiniLM-L-6-v2"
         self.query_rewrite_enabled = bool(config.get("query_rewrite", True))
         self.context_token_budget = config.get("context_token_budget")
         self.num_ctx = config.get("num_ctx")

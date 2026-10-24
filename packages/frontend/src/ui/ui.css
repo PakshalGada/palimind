@@ -1,6 +1,7 @@
 /* ==========================================================================
-   PaliMind UI kit — generic primitives used by the rebuilt Agents experience.
-   Layered on top of the global tokens defined in App.css.
+   PaliMind UI kit — generic primitives used across the app. Imported by
+   App.css after tokens.css and base.css; colors come exclusively from
+   design tokens.
    ========================================================================== */
 
 /* ── buttons ─────────────────────────────────────────────────────────── */
@@ -298,6 +299,54 @@
   animation: ui-spin 0.7s linear infinite;
 }
 @keyframes ui-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .ui-spinner { animation: none; }
+}
+
+/* ── progress ────────────────────────────────────────────────────────── */
+.ui-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.ui-progress__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-meta);
+  font-family: var(--font-mono);
+  color: var(--text-main);
+  font-weight: var(--weight-medium);
+}
+.ui-progress__track {
+  width: 100%;
+  height: 4px;
+  background: var(--border-color);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.ui-progress__fill {
+  height: 100%;
+  background: var(--primary-color);
+  border-radius: 2px;
+  transition: width var(--t-med) var(--ease-out);
+}
+.ui-progress--indeterminate .ui-progress__fill {
+  width: 35%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  animation: progress-slide 1.5s infinite ease-in-out;
+}
+@keyframes progress-slide {
+  0% { left: -35%; }
+  100% { left: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-progress--indeterminate .ui-progress__fill { animation: none; }
+}
 
 /* ── empty state ─────────────────────────────────────────────────────── */
 .ui-empty {

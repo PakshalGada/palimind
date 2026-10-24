@@ -25,6 +25,11 @@ _NAME_RE = re.compile(r"^[\w-]{1,64}$")
 
 DEFAULT_MAX_ITERATIONS = 15
 
+# Risky tools (write/shell/browser mutations) require human approval by
+# default. A definition can opt out explicitly by setting
+# ``human_in_loop_threshold`` to 0 together with ``approval_explicit: true``.
+DEFAULT_HITL_THRESHOLD = 0.5
+
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
@@ -52,6 +57,7 @@ class AgentDefinition:
     write_access: bool
     shell_access: bool
     enabled: bool
+    approval_explicit: bool = False
     self_critique: bool = False
     skills: list[str] = field(default_factory=list)
     webhook_token: str = ""
@@ -88,7 +94,7 @@ class AgentDefinition:
         schedule: str | None = None,
         watcher_pattern: str | None = None,
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
-        human_in_loop_threshold: float = 0.0,
+        human_in_loop_threshold: float = DEFAULT_HITL_THRESHOLD,
         write_access: bool = False,
         shell_access: bool = False,
         enabled: bool = True,
@@ -166,10 +172,20 @@ class AgentDefinition:
         cleaned.setdefault("schedule", None)
         cleaned.setdefault("watcher_pattern", None)
         cleaned.setdefault("max_iterations", DEFAULT_MAX_ITERATIONS)
-        cleaned.setdefault("human_in_loop_threshold", 0.0)
+        cleaned.setdefault("human_in_loop_threshold", DEFAULT_HITL_THRESHOLD)
         cleaned.setdefault("write_access", False)
         cleaned.setdefault("shell_access", False)
         cleaned.setdefault("enabled", True)
+        cleaned.setdefault("approval_explicit", False)
+        # Upgrade pre-existing definitions that used the old implicit 0.0
+        # default. Only an explicit opt-out (approval_explicit=true) keeps the
+        # gate disabled.
+        if not cleaned.get("approval_explicit"):
+            try:
+                if float(cleaned.get("human_in_loop_threshold") or 0.0) <= 0.0:
+                    cleaned["human_in_loop_threshold"] = DEFAULT_HITL_THRESHOLD
+            except (TypeError, ValueError):
+                cleaned["human_in_loop_threshold"] = DEFAULT_HITL_THRESHOLD
         cleaned.setdefault("self_critique", False)
         cleaned.setdefault("skills", [])
         cleaned.setdefault("webhook_token", "")
@@ -367,6 +383,9 @@ class AgentCatalog:
             # id / created_at are immutable
             data["id"] = existing.id
             data["created_at"] = existing.created_at
+            # Changing the HITL threshold is an explicit approval decision.
+            if "human_in_loop_threshold" in changes:
+                data["approval_explicit"] = True
             new_defn = AgentDefinition.from_dict(data)
             error = validate_definition(new_defn)
             if error:

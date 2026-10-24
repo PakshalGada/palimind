@@ -10,6 +10,8 @@ import json
 
 import httpx
 
+from palimind.opencode.client import proxy_auth_headers
+
 _SYSTEM = (
     "You are a concise technical summariser. "
     "Write a 2-3 sentence plain-English summary of the document provided. "
@@ -62,7 +64,7 @@ def summarise_file(
 
     url = f"{ollama_url.rstrip('/')}/api/chat"
     try:
-        resp = httpx.post(url, json=payload, timeout=120.0)
+        resp = httpx.post(url, json=payload, timeout=120.0, headers=proxy_auth_headers(url))
         resp.raise_for_status()
         data = resp.json()
         return data.get("message", {}).get("content", "").strip()
@@ -105,7 +107,7 @@ def summarise_conversation(
 
     url = f"{ollama_url.rstrip('/')}/api/chat"
     try:
-        resp = httpx.post(url, json=payload, timeout=120.0)
+        resp = httpx.post(url, json=payload, timeout=120.0, headers=proxy_auth_headers(url))
         resp.raise_for_status()
         data = resp.json()
         return data.get("message", {}).get("content", "").strip()
@@ -150,7 +152,7 @@ async def asummarise_file(
     url = f"{ollama_url.rstrip('/')}/api/chat"
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(url, json=payload)
+            resp = await client.post(url, json=payload, headers=proxy_auth_headers(url))
             resp.raise_for_status()
             data = resp.json()
             return data.get("message", {}).get("content", "").strip()

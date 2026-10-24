@@ -338,7 +338,8 @@ def rich_chunk_document(
 
     # Adaptive chunking: different sizes for code vs prose vs tables
     is_code = doc_meta.path and any(
-        doc_meta.path.endswith(ext) for ext in [".py", ".js", ".ts", ".go", ".rs", ".c", ".cpp", ".h"]
+        doc_meta.path.endswith(ext)
+        for ext in [".py", ".js", ".ts", ".go", ".rs", ".c", ".cpp", ".h"]
     )
     is_table_heavy = doc_meta.doc_type in ("report", "presentation")
 

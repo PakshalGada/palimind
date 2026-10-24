@@ -21,7 +21,7 @@ export type ActivityMode = 'llm' | 'document' | 'moe' | 'deep_research' | 'agent
 export type ActivityStatus = 'pending' | 'active' | 'done' | 'error';
 
 /** Sub-views inside the Agents workspace. */
-export type AgentsView = 'chat' | 'workflows' | 'kanban';
+export type AgentsView = 'chat' | 'kanban';
 
 export interface ActivityStep {
   id: string;
@@ -294,7 +294,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [theme]);
 
   useEffect(() => {
-    const es = new EventSource('/api/events');
+    const es = new EventSource('/api/events', { withCredentials: true });
     es.onmessage = (ev) => {
       try {
         const data = JSON.parse(ev.data);

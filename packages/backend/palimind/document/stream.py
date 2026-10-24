@@ -25,6 +25,7 @@ async def document_mode_stream(
     web_search: str,
     long_term_episodes: list[dict] | None = None,
     persona: str = "",
+    rerank: bool | None = None,
 ) -> StreamingResponse:
     """STRICT DOCUMENT RAG MODE: Answers only from indexed documents
     using hybrid search + knowledge graph.  No internet access, no code
@@ -47,7 +48,7 @@ async def document_mode_stream(
                 q,
             )
 
-        engine = DocumentEngine(active_field, ollama_url, chat_model)
+        engine = DocumentEngine(active_field, ollama_url, chat_model, rerank=rerank)
 
         yield (
             f"data: {json.dumps({'type': 'reasoning', 'text': 'Document Mode — searching indexed documents only'})}\n\n"

@@ -2,7 +2,6 @@ import asyncio
 import json
 import os as _os
 import platform
-import re
 import subprocess
 import sys as _sys
 import time
@@ -82,6 +81,7 @@ from palimind.memory.session_store import (
     set_active_session_id,
     truncate_session_messages,
 )
+from palimind.opencode.client import proxy_auth_headers
 from palimind.research.plan_registry import resolve_plan
 from palimind.research.project_store import (
     add_finding,
@@ -93,8 +93,9 @@ from palimind.research.project_store import (
     load_project,
     update_project,
 )
+from palimind.security.auth import install_auth
+from palimind.security.tokens import get_api_token
 from palimind.storage import task_store as board_store
-from palimind.storage import workflow_store
 from palimind.storage.canvas_store import (
     delete_canvas,
     list_canvases,
@@ -104,13 +105,26 @@ from palimind.storage.canvas_store import (
 
 app = FastAPI(title="Palimind V2 API")
 
+# CORS is limited to loopback origins. The UI is normally same-origin; the
+# extra ports cover `vite` dev servers. Never allow `*` with credentials.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:8000"],
+    allow_origins=[
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+    ],
+    allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Every /api/* request must present the per-install bearer token. Loading /ui
+# sets an HttpOnly same-origin cookie so the browser app (and EventSource)
+# authenticates automatically.
+install_auth(app, token_provider=get_api_token, cookie_path_prefix="/ui")
 
 app.include_router(agents_router)
 
@@ -307,7 +321,7 @@ def _read_clipboard() -> str:
 
 
 # -- Global Event Listeners for Watcher notifications --
-EVENT_LISTENERS = set()
+EVENT_LISTENERS: set[Any] = set()
 
 
 async def broadcast_event(data: dict):
@@ -551,7 +565,16 @@ async def startup_event():
     from palimind.agents.catalog import migrate_field_agents, migrate_field_chats
     from palimind.agents.goals import start_runner
     from palimind.agents.registry import set_registry_field
+    from palimind.agents.run_journal import recover_interrupted
+    from palimind.agents.runtime import record_run
     from palimind.agents.scheduler import start_scheduler
+
+    # Promote journals left behind by a crash into normal "interrupted" run
+    # history instead of silently losing those runs.
+    try:
+        await asyncio.to_thread(recover_interrupted, record_run)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[agents] run-journal recovery failed: {exc}")
 
     roots = list(state.fields)
     if state.active_field and state.active_field not in roots:
@@ -564,6 +587,26 @@ async def startup_event():
     start_runner()
 
     if state.active_field:
+        # Surface embedding/index mismatches at startup instead of letting
+        # semantic search silently degrade to keyword-only.
+        try:
+            from palimind.config import load_config
+            from palimind.storage.vector_store import index_compatibility_error
+
+            cfg = load_config(state.active_field)
+            problem = index_compatibility_error(
+                state.active_field,
+                expected_model=cfg.get("embed_model"),
+                expected_dim=cfg.get("embed_dim"),
+            )
+            if problem:
+                import logging
+
+                logging.getLogger("palimind.api_server").error(
+                    "Vector index incompatible: %s", problem
+                )
+        except Exception as exc:  # noqa: BLE001
+            print(f"[startup] index compatibility check failed: {exc}")
         update_watcher(state.active_field)
 
 
@@ -1061,52 +1104,6 @@ async def remove_canvas(canvas_id: str):
     return {"status": "success" if removed else "not_found"}
 
 
-# ── Visual workflows (Phase 1) ─────────────────────────────────────────────
-
-
-def _resolve_template(text: str, results: dict[str, Any], primary_input: str) -> str:
-    """Substitute ``{{input}}`` and ``{{node_id.output}}`` placeholders."""
-
-    def replace(match: "re.Match[str]") -> str:
-        token = match.group(1).strip()
-        if token in ("input", "start"):
-            return primary_input
-        key = token[: -len(".output")].strip() if token.endswith(".output") else token
-        value = results.get(key)
-        if value is None:
-            value = primary_input
-        if isinstance(value, (dict, list)):
-            return json.dumps(value)
-        return str(value)
-
-    return re.sub(r"\{\{(.*?)\}\}", replace, text or "")
-
-
-def _topo_sort(nodes: list[dict], edges: list[dict]) -> list[dict]:
-    """Order nodes so every dependency runs before its dependents."""
-    node_ids = [n.get("id") for n in nodes]
-    incoming = {nid: 0 for nid in node_ids}
-    adjacency: dict[str, list[str]] = {nid: [] for nid in node_ids}
-    for edge in edges:
-        source, target = edge.get("source"), edge.get("target")
-        if source in adjacency and target in incoming:
-            adjacency[source].append(target)
-            incoming[target] += 1
-    queue = [nid for nid in node_ids if incoming[nid] == 0]
-    order: list[str] = []
-    while queue:
-        nid = queue.pop(0)
-        order.append(nid)
-        for nxt in adjacency[nid]:
-            incoming[nxt] -= 1
-            if incoming[nxt] == 0:
-                queue.append(nxt)
-    if len(order) != len(node_ids):
-        return list(nodes)  # cycle: fall back to declaration order
-    by_id = {n["id"]: n for n in nodes}
-    return [by_id[nid] for nid in order]
-
-
 async def _run_agent_and_record(agent_id: str, prompt: str, session_id: str) -> str:
     """Run an agent and record the exchange in its own chat history."""
     from palimind.agents.registry import get_registry
@@ -1147,147 +1144,6 @@ async def _run_agent_and_record(agent_id: str, prompt: str, session_id: str) -> 
             None,
         )
     return output
-
-
-async def _execute_workflow(record: dict) -> dict:
-    """Run a workflow's nodes in dependency order, returning an execution log."""
-    nodes = record.get("nodes") or []
-    edges = record.get("edges") or []
-    ordered = _topo_sort(nodes, edges)
-    results: dict[str, Any] = {}
-    node_results: dict[str, Any] = {}
-    logs: list[dict] = []
-    started = time.time()
-    primary_input = str(record.get("input") or "")
-    status = "completed"
-
-    for node in ordered:
-        nid = str(node.get("id"))
-        name = str(node.get("name") or nid)
-        ntype = node.get("type")
-        config = node.get("config") or {}
-        node_start = time.time()
-        logs.append(
-            {
-                "timestamp": node_start,
-                "node_id": nid,
-                "level": "info",
-                "message": f"Starting {name}",
-            }
-        )
-        try:
-            prompt = _resolve_template(
-                str(config.get("prompt") or config.get("instruction") or ""), results, primary_input
-            )
-            if ntype == "agent":
-                agent_id = str(config.get("agent_id") or "")
-                if not agent_id:
-                    raise ValueError("No agent selected for this node")
-                output = await _run_agent_and_record(
-                    agent_id, prompt or name, f"_wf:{record.get('id')}:{nid}"
-                )
-            elif ntype == "delay":
-                seconds = min(10, max(0, int(config.get("seconds") or 0)))
-                await asyncio.sleep(seconds)
-                output = f"waited {seconds}s"
-            elif ntype == "transform":
-                try:
-                    output = json.loads(prompt)
-                except Exception:
-                    output = {"text": prompt}
-            elif ntype == "condition":
-                output = {
-                    "result": bool(
-                        prompt and prompt.strip().lower() not in ("false", "0", "no", "")
-                    )
-                }
-            else:
-                output = prompt or name
-            results[nid] = output
-            duration = int((time.time() - node_start) * 1000)
-            node_results[nid] = {"status": "done", "output": output, "duration": duration}
-            logs.append(
-                {
-                    "timestamp": time.time(),
-                    "node_id": nid,
-                    "level": "info",
-                    "message": f"Completed {name} ({duration}ms)",
-                }
-            )
-        except Exception as exc:
-            duration = int((time.time() - node_start) * 1000)
-            status = "failed"
-            node_results[nid] = {"status": "error", "error": str(exc), "duration": duration}
-            logs.append(
-                {
-                    "timestamp": time.time(),
-                    "node_id": nid,
-                    "level": "error",
-                    "message": f"Failed {name}: {exc}",
-                }
-            )
-
-    return {
-        "id": f"exec_{uuid.uuid4().hex[:12]}",
-        "workflow_id": record.get("id"),
-        "status": status,
-        "started_at": started,
-        "completed_at": time.time(),
-        "node_results": node_results,
-        "logs": logs,
-    }
-
-
-@app.get("/api/workflows")
-async def get_workflows():
-    return {"workflows": await asyncio.to_thread(workflow_store.list_workflows)}
-
-
-@app.post("/api/workflows")
-async def save_workflow_endpoint(req: Request):
-    try:
-        data = await req.json()
-    except Exception:
-        return {"error": "Invalid JSON body"}
-    try:
-        record = await asyncio.to_thread(workflow_store.save_workflow, data)
-    except ValueError as exc:
-        return {"error": str(exc)}
-    return record
-
-
-@app.delete("/api/workflows/{workflow_id}")
-async def delete_workflow_endpoint(workflow_id: str):
-    try:
-        removed = await asyncio.to_thread(workflow_store.delete_workflow, workflow_id)
-    except ValueError as exc:
-        return {"error": str(exc)}
-    return {"status": "success" if removed else "not_found"}
-
-
-@app.post("/api/workflows/{workflow_id}/run")
-async def run_workflow_endpoint(workflow_id: str):
-    record = await asyncio.to_thread(workflow_store.load_workflow, workflow_id)
-    if record is None:
-        return {"error": "Workflow not found"}
-    execution = await _execute_workflow(record)
-    record["last_execution"] = execution
-    try:
-        await asyncio.to_thread(workflow_store.save_workflow, record)
-    except ValueError:
-        pass
-    return {"execution": execution}
-
-
-@app.post("/api/workflows/run")
-async def run_inline_workflow_endpoint(req: Request):
-    """Run a workflow definition without saving it first."""
-    try:
-        data = await req.json()
-    except Exception:
-        return {"error": "Invalid JSON body"}
-    execution = await _execute_workflow(data)
-    return {"execution": execution}
 
 
 # ── Task board (Phase 1) ───────────────────────────────────────────────────
@@ -1702,6 +1558,7 @@ async def chat_stream(
     web_search: str = "false",
     llm_sub_mode: str | None = None,
     scope: str = "field",
+    rerank: bool | None = None,
 ):
     if scope.startswith("agent:"):
         return await _agent_scope_chat(scope, q, session_id)
@@ -1802,6 +1659,7 @@ async def chat_stream(
             web_search,
             long_term_episodes=long_term_episodes,
             persona=persona,
+            rerank=rerank,
         )
 
     moe_sub_mode = (
@@ -2156,6 +2014,7 @@ async def pull_model(model: str):
                     "POST",
                     f"{ollama_url}/api/pull",
                     json={"model": model.strip(), "stream": True},
+                    headers=proxy_auth_headers(ollama_url),
                 ) as resp:
                     if resp.status_code >= 400:
                         body = await resp.aread()
@@ -2500,14 +2359,21 @@ _OPENCODE_BASE_URL = _os.environ.get("OPENCODE_BASE_URL", "https://opencode.ai/z
     "/"
 )
 
-# Model used to verify a pasted key. OpenCode Zen's GET /models returns 200 even
-# for a bogus token, so it cannot be used to validate anything — a minimal
-# chat completion is the only call that actually exercises auth.
-_OPENCODE_KEY_PROBE_MODEL = _os.environ.get("OPENCODE_KEY_PROBE_MODEL", "space-bunny-free")
+# Optional model used for the fallback completion probe. The primary check is
+# the credential-scoped ``GET /models`` call: validating a key must not depend
+# on any particular model remaining available (OpenCode retires free models
+# regularly, which previously made valid keys fail with
+# "400 Model is unavailable").
+_OPENCODE_KEY_PROBE_MODEL = _os.environ.get("OPENCODE_KEY_PROBE_MODEL", "").strip()
 
 
 async def _probe_opencode_key(key: str) -> tuple[bool, str]:
-    """Verify *key* against OpenCode Zen with a 1-token completion.
+    """Verify *key* against OpenCode Zen without depending on a specific model.
+
+    The credential is checked with ``GET /models`` (401/403 means rejected).
+    If that endpoint is unavailable, fall back to a 1-token completion. A
+    completion that fails only because the probe model is unavailable is
+    treated as "the credential authenticated", not as a bad key.
 
     Returns ``(ok, reason)`` where ``reason`` is a short, user-facing
     explanation. Distinguishes an upstream 401 ("rejected") from transport
@@ -2520,29 +2386,61 @@ async def _probe_opencode_key(key: str) -> tuple[bool, str]:
         "Authorization": f"Bearer {key}",
         SESSION_HEADER: opencode_session_id(),
     }
-    payload = {
-        "model": _OPENCODE_KEY_PROBE_MODEL,
-        "messages": [{"role": "user", "content": "ping"}],
-        "max_tokens": 1,
-    }
     timeout = httpx.Timeout(connect=15.0, read=30.0, write=15.0, pool=15.0)
+    models_status: int | None = None
+    model_ids: list[str] = []
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.post(
-                f"{_OPENCODE_BASE_URL}/chat/completions", json=payload, headers=headers
-            )
+            models_resp = await client.get(f"{_OPENCODE_BASE_URL}/models", headers=headers)
+            models_status = models_resp.status_code
+            if models_resp.status_code in (401, 403):
+                return False, "OpenCode rejected this key (401 Unauthorized)."
+            if models_resp.status_code == 200:
+                try:
+                    body = models_resp.json()
+                    model_ids = [
+                        str(m.get("id"))
+                        for m in (body.get("data") or [])
+                        if isinstance(m, dict) and m.get("id")
+                    ]
+                except Exception:
+                    model_ids = []
+                # A 200 from this credential-scoped endpoint is sufficient proof.
+                return True, ""
+
+            # Some deployments expose chat but not /models. Probe with a model
+            # that is actually listed, or the configured fallback.
+            probe_model = _OPENCODE_KEY_PROBE_MODEL
+            if not probe_model and model_ids:
+                probe_model = model_ids[0]
+            if probe_model:
+                payload = {
+                    "model": probe_model,
+                    "messages": [{"role": "user", "content": "ping"}],
+                    "max_tokens": 1,
+                }
+                resp = await client.post(
+                    f"{_OPENCODE_BASE_URL}/chat/completions", json=payload, headers=headers
+                )
+                if resp.status_code in (401, 403):
+                    return False, "OpenCode rejected this key (401 Unauthorized)."
+                if resp.status_code < 400:
+                    return True, ""
+                detail = ""
+                try:
+                    detail = (resp.json().get("error") or {}).get("message", "")
+                except Exception:
+                    pass
+                # Auth succeeded but the probe model is retired/unavailable.
+                if resp.status_code == 400 and "model" in detail.lower():
+                    return True, ""
+                suffix = f": {detail}" if detail else ""
+                return False, f"OpenCode returned HTTP {resp.status_code}{suffix}"
     except Exception:
         return False, "Could not reach OpenCode — check your network connection."
-    if resp.status_code == 401:
-        return False, "OpenCode rejected this key (401 Unauthorized)."
-    if resp.status_code >= 400:
-        detail = ""
-        try:
-            detail = (resp.json().get("error") or {}).get("message", "")
-        except Exception:
-            pass
-        suffix = f": {detail}" if detail else ""
-        return False, f"OpenCode returned HTTP {resp.status_code}{suffix}"
+
+    if models_status is not None and models_status >= 400:
+        return False, f"OpenCode returned HTTP {models_status} while checking the key."
     return True, ""
 
 

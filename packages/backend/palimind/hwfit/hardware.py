@@ -56,7 +56,7 @@ def _run_cmd(cmd: list[str], timeout: int = 10) -> Optional[str]:
 
 def detect_nvidia_gpus() -> list[GPUInfo]:
     """Detect NVIDIA GPUs using nvidia-smi."""
-    gpus = []
+    gpus: list[GPUInfo] = []
     output = _run_cmd(
         ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"]
     )
@@ -77,7 +77,7 @@ def detect_nvidia_gpus() -> list[GPUInfo]:
 
 def detect_amd_gpus_linux() -> list[GPUInfo]:
     """Detect AMD GPUs using rocm-smi on Linux."""
-    gpus = []
+    gpus: list[GPUInfo] = []
     output = _run_cmd(["rocm-smi", "--showmeminfo", "vram", "--json"])
     if output:
         try:
@@ -103,7 +103,7 @@ def detect_amd_gpus_linux() -> list[GPUInfo]:
 
 def detect_amd_gpus_windows() -> list[GPUInfo]:
     """Detect AMD GPUs using wmic on Windows (no ROCm on Windows)."""
-    gpus = []
+    gpus: list[GPUInfo] = []
     output = _run_cmd(
         [
             "wmic",
@@ -136,7 +136,7 @@ def detect_amd_gpus_windows() -> list[GPUInfo]:
 
 def detect_intel_igpu_windows() -> list[GPUInfo]:
     """Detect Intel iGPUs via wmic — these are CPU-only for inference."""
-    gpus = []
+    gpus: list[GPUInfo] = []
     output = _run_cmd(
         [
             "wmic",
@@ -173,7 +173,7 @@ def detect_intel_igpu_windows() -> list[GPUInfo]:
 
 def detect_apple_metal() -> list[GPUInfo]:
     """Detect Apple Silicon / Metal GPUs on macOS."""
-    gpus = []
+    gpus: list[GPUInfo] = []
     output = _run_cmd(["system_profiler", "SPDisplaysDataType"])
     if not output:
         return gpus

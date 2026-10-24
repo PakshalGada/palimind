@@ -195,7 +195,9 @@ def ui(
         8000, "--port", help="Backend API port (window loads http://127.0.0.1:<port>/ui)"
     ),
     skip_install: bool = typer.Option(
-        False, "--skip-install", help="Skip dependency install and frontend build"
+        False,
+        "--skip-install",
+        help="Skip dependency installation (the frontend is still built if dist is missing)",
     ),
     keep_backend: bool = typer.Option(
         False, "--keep-backend", help="Keep Ollama/API server running after the app closes"
@@ -274,11 +276,18 @@ def ui(
                 print_success("Frontend dependencies installed")
 
         if not (frontend_dir / "dist").exists():
-            print_error(
-                "frontend dist missing — build it once with: "
-                "npm run build --prefix packages/frontend"
-            )
-            raise typer.Exit(1)
+            # `--skip-install` skips dependency installation, not the build:
+            # Tauri cannot load a UI that was never built. Fail with an
+            # actionable message only when npm itself is unavailable.
+            npm = "npm.cmd" if os.name == "nt" else "npm"
+            if shutil.which(npm) is None:
+                print_error(
+                    "frontend dist is missing and npm was not found. Install Node.js, "
+                    "then run: npm run build --prefix packages/frontend"
+                )
+                raise typer.Exit(1)
+            print_info("Frontend dist missing — building it now...")
+            subprocess.run([npm, "run", "build"], cwd=str(frontend_dir), check=True)
         print_success("Frontend ready")
 
         # Credentials are configured once in the app's Settings and reused from
@@ -335,10 +344,15 @@ def ui(
             print_success(f"API server already running on :{port}")
 
         npm = "npm.cmd" if os.name == "nt" else "npm"
-        print_info("Starting Palimind via 'tauri dev' (no release build)...")
+        print_info(f"Starting Palimind via 'tauri dev' (backend port {port})...")
         try:
+            # The Tauri wrapper script reads these to override devUrl/window URL
+            # and to poll the same port the backend is actually listening on.
+            child_env = dict(os.environ)
+            child_env["PALIMIND_API_PORT"] = str(port)
+            child_env["PALIMIND_API_URL"] = f"http://127.0.0.1:{port}"
             # root package.json delegates to apps/desktop where the Tauri CLI lives
-            subprocess.run([npm, "run", "dev"], cwd=str(repo_root), check=True)
+            subprocess.run([npm, "run", "dev"], cwd=str(repo_root), check=True, env=child_env)
         except subprocess.CalledProcessError as e:
             print_error(f"Tauri dev failed (exit {e.returncode}).")
             raise typer.Exit(1)
@@ -382,7 +396,7 @@ def hotkey(
         pm hotkey stop                     # Stop listening
     """
     try:
-        from hotkey.manager import HotkeyConfig, HotkeyManager
+        from palimind.hotkey.manager import HotkeyConfig, HotkeyManager
     except ImportError:
         print_error("Hotkey feature requires extra dependencies.")
         print_info("Install with: pip install -e '.\\[hotkey]'")

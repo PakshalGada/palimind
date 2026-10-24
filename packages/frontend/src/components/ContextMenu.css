@@ -1,0 +1,44 @@
+/* ==========================================================================
+   ContextMenu.css — extracted from App.css (Phase 0 split).
+   ========================================================================== */
+
+/* ── context menu ── */
+.context-menu {
+    position: fixed;
+    z-index: 9999;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    padding: 4px;
+    min-width: 160px;
+    animation: modalFadeIn 0.1s ease-out;
+}
+.context-menu-item {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    color: var(--text-main);
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.1s;
+}
+.context-menu-item:hover {
+    background: var(--bg-active);
+}
+
+/* ── context menu danger items ── */
+.context-menu-item.danger {
+    color: var(--danger) !important;
+}
+
+.context-menu-item.danger:hover {
+    background: var(--danger-soft) !important;
+    color: var(--danger-strong) !important;
+}
+

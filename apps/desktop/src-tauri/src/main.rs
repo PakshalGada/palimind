@@ -3,13 +3,13 @@
 // Responsibilities:
 //  1. Spawn the FastAPI / Uvicorn backend as a child process
 //  2. Poll the backend until it's ready
-//  3. Open the main WebView window pointing at http://127.0.0.1:8000/ui
+//  3. Open the main WebView window pointing at http://127.0.0.1:<port>/ui
 //  4. Register global shortcuts (platform-aware):
 //       Ctrl/Cmd/Super+Shift+Space  → toggle main window (PaliSpace)
 //  5. Clean up the backend on app exit
 
 use std::fs::File;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -37,7 +37,7 @@ impl Drop for BackendProcess {
 
 // ── Python interpreter discovery ─────────────────────────────────────────────
 
-fn find_python(project_root: &PathBuf) -> String {
+fn find_python(project_root: &Path) -> String {
     let candidates = [
         project_root.join(".venv").join("bin").join("python"),
         project_root.join("venv").join("bin").join("python"),
@@ -115,6 +115,22 @@ fn main() {
     std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
     std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
 
+    // The launcher (`pm ui --port`) passes the chosen backend port. Keep the
+    // health poll and spawned backend in sync with it instead of hard-coding
+    // 8000 (which made `pm ui --port` unusable).
+    let api_port = std::env::var("PALIMIND_API_PORT")
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
+        .or_else(|| {
+            std::env::var("PALIMIND_API_URL").ok().and_then(|url| {
+                url.rsplit(':')
+                    .next()
+                    .and_then(|port| port.trim_end_matches('/').parse::<u16>().ok())
+            })
+        })
+        .unwrap_or(8000);
+    let api_base = format!("http://127.0.0.1:{api_port}");
+
     // Determine project root (the repo checkout that contains packages/backend)
     let exe_dir = std::env::current_exe()
         .ok()
@@ -142,7 +158,7 @@ fn main() {
     let backend_root = project_root.join("packages").join("backend");
 
     // Check if FastAPI is already running (e.g. started by beforeDevCommand)
-    let server_already_up = ureq::get("http://127.0.0.1:8000")
+    let server_already_up = ureq::get(&format!("{api_base}/health"))
         .call()
         .map(|r| r.status() < 500)
         .unwrap_or(false);
@@ -175,11 +191,14 @@ fn main() {
             // Login-shell resolution marker: "sh|-lc|<python>"
             let inner = python_cmd.trim_start_matches("sh|-lc|");
             let mut cmd = Command::new("sh");
-            cmd.args(["-lc", &format!("exec {} -m palimind.api_server", inner)]);
+            cmd.args([
+                "-lc",
+                &format!("exec {} -m palimind.api_server --port {}", inner, api_port),
+            ]);
             cmd
         } else {
             let mut cmd = Command::new(&python_cmd);
-            cmd.args(["-m", "palimind.api_server"]);
+            cmd.args(["-m", "palimind.api_server", "--port", &api_port.to_string()]);
             cmd
         };
         let backend_child = backend_cmd
@@ -190,8 +209,8 @@ fn main() {
             .spawn();
 
         // Wait for the server to be ready (up to ~30 s)
-        eprintln!("[Palimind] Waiting for FastAPI backend…");
-        let ready = wait_for_backend("http://127.0.0.1:8000", 120);
+        eprintln!("[Palimind] Waiting for FastAPI backend on {}…", api_base);
+        let ready = wait_for_backend(&format!("{api_base}/health"), 120);
         if ready {
             eprintln!("[Palimind] Backend is ready.");
         } else {

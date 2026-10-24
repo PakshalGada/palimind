@@ -1,6 +1,8 @@
 # PaliMind
 
-PaliMind is an open-source, **local-first AI intelligence platform** that brings a full suite of AI productivity tools to your desktop. All inference runs on your own machine via **Ollama** - no cloud subscription, no external API keys required, and no data ever leaves your computer.
+PaliMind is an open-source, **local-first AI intelligence platform** that brings a full suite of AI productivity tools to your desktop. Local models run on your own machine via **Ollama**; no cloud subscription or external API key is required for local-only use.
+
+PaliMind is local-first, not network-isolated: web search, URL fetching, optional MQTT/browser tools, and the optional OpenCode cloud provider send data to third parties when you use them. No telemetry is sent, and nothing leaves the machine unless you explicitly invoke one of those features.
 
 ---
 
@@ -25,8 +27,8 @@ PaliMind is an open-source, **local-first AI intelligence platform** that brings
 
 The core retrieval-augmented generation (RAG) engine. Point it at any folder and index every document into a local vector store you can query in natural language.
 
-- **Multimodal indexing** - parses PDF, DOCX, PPTX, XLSX, images (OCR), Markdown, code, CSV, and video (with Whisper transcription).
-- **Local vector store** - TurboVec 4-bit quantized embeddings stored in SQLite. No external database.
+- **Multimodal indexing** - parses PDF, DOCX, PPTX, XLSX, Markdown, code, CSV, and video (with Whisper transcription). Image OCR requires the optional `easyocr` dependency; without it images are skipped with an error rather than silently indexed.
+- **Local vector store** - FAISS HNSW vectors with SQLite/FTS5 metadata for document chunks; a separate TurboVec index stores episodic chat memory. No external database server.
 - **Hierarchical memory** - episodic conversation turns are embedded and retrieved for long-term context.
 - **Session management** - multiple persistent chat sessions per workspace with summaries.
 - **Web search** - integrated DuckDuckGo search and Scrapling for real-time context augmentation.
@@ -178,7 +180,7 @@ pm ui
 Related flags:
 
 ```bash
-pm ui --skip-install       # skip dependency install / frontend build
+pm ui --skip-install       # skip dependency install (frontend is built if dist is missing)
 pm ui --keep-backend       # keep Ollama/API server running after the app closes
 pm ui --port 8001          # use a custom backend port
 ```
@@ -218,16 +220,17 @@ Per-workspace settings live in `.palimind/config.json` (created in the directory
 
 | Key                    | Default                  | Purpose                          |
 | ---------------------- | ------------------------ | -------------------------------- |
-| `embed_model`          | `nomic-embed-text`       | Embedding model                  |
-| `chat_model`           | any                      | Chat model                       |
-| `chunk_size`           | `3000`                   | Document chunk size              |
-| `chunk_overlap`        | `500`                    | Chunk overlap                    |
-| `turbovec_bit_width`   | `4`                      | Embedding compression (2 or 4)   |
-| `summarise`            | `true`                   | Generate per-file summaries      |
+| `embed_model`          | `bge-m3`                 | Embedding model                  |
+| `embed_dim`            | `1024`                   | Must match `embed_model`         |
+| `chat_model`           | `gemma4:e2b`             | Chat model                       |
+| `chunk_size`           | `1500`                   | Document chunk size              |
+| `chunk_overlap`        | `200`                    | Chunk overlap                    |
+| `summarise`            | `false`                  | Generate per-file summaries      |
 | `retrieval_limit`      | `10`                     | Chunks returned per retrieval    |
 | `context_token_budget` | `8000`                   | Max tokens in LLM context        |
 | `num_ctx`              | `16384`                  | Ollama context window (must cover `context_token_budget` + prompt overhead) |
-| `rerank`               | `true`                   | Rerank fused results             |
+| `rerank`               | `false`                  | Cross-encoder reranking (CPU-heavy) |
+| `rerank_opt_in`        | `false`                  | Must be `true` to enable `rerank`; `PALIMIND_RERANK=1` overrides |
 | `query_rewrite`        | `true`                   | LLM query rewriting at retrieval |
 | `ollama_base_url`      | `http://localhost:11434` | Ollama endpoint                  |
 | `extensions`           | (many)                   | Indexed file extensions          |
@@ -276,6 +279,17 @@ Phase 4 (agent intelligence & automation) tuning (all optional):
 
 ---
 
+## Security & privacy
+
+- **Local API authentication** — every `/api/*` request needs a per-install bearer token. It is generated on first run at `~/.palimind/api_token` (mode `0600`) and can be overridden with `PALIMIND_API_TOKEN`. The UI receives an HttpOnly same-origin cookie; scripts should send `Authorization: Bearer <token>` or `X-Palimind-Token`.
+- **Loopback by default** — the API binds `127.0.0.1` and rejects non-loopback clients unless `PALIMIND_ALLOW_REMOTE=1`. The Docker Compose file publishes the port on loopback and requires `PALIMIND_API_TOKEN`.
+- **Proxy authentication** — the OpenCode proxy (`:11435`) requires a separate per-install token (`~/.palimind/opencode_proxy_token` / `OPENCODE_PROXY_TOKEN`), so other local processes cannot spend your key.
+- **Approval gate** — new and existing agents require human approval for risky tools (`write_file`, `search_replace`, `run_python`, `run_shell`, browser mutations) by default. Opt out explicitly per agent by setting `human_in_loop_threshold: 0` with `approval_explicit: true`.
+- **Execution sandbox** — `run_shell` and `run_python` run under bubblewrap with no network and a read-only workspace unless the agent has write access. Without `bwrap` they fail closed; `PALIMIND_ALLOW_UNSANDBOXED_EXEC=1` is an explicit, unsafe opt-out.
+- **At-rest encryption** — not provided. Session/index files rely on your OS account and filesystem permissions.
+
+**Platform support:** the desktop shell builds on Linux, macOS and Windows. The agent execution sandbox currently uses Linux namespaces (`bwrap`); on other platforms agent shell/Python tools are disabled unless the unsafe opt-out above is set.
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -285,11 +299,12 @@ Phase 4 (agent intelligence & automation) tuning (all optional):
 | Backend | Python 3.12+, FastAPI, Uvicorn |
 | CLI | Typer, Rich |
 | AI / Inference | Ollama (Gemma, nomic-embed-text) |
-| Embeddings | Sentence-Transformers, TurboVec (4-bit quantized) |
+| Embeddings | Ollama embeddings (default `bge-m3`), FAISS HNSW; TurboVec for chat memory |
 | STT / TTS | Faster-Whisper, Kokoro-ONNX |
-| OCR | EasyOCR |
-| Database | SQLite with FTS5 |
-| Encryption | Fernet (AES-128, cryptography) |
+| OCR | EasyOCR (optional extra) |
+| Database | SQLite with FTS5 + WAL |
+| Encryption at rest | Not implemented — data is protected by OS filesystem permissions only |
+| Sandboxing | bubblewrap (`bwrap`) on Linux; shell/Python tools fail closed elsewhere |
 
 ---
 
@@ -349,11 +364,9 @@ ruff format --check .  # backend formatting gate (run from packages/backend)
 ```
 
 - Unit tests: `cd packages/backend && python -m pytest -m "not integration"`
-  (the fast suite CI runs). The full suite (`pytest`) needs a running
+  (the fast local suite). The full suite (`pytest`) needs a running
   backend/Ollama — mark such tests `@pytest.mark.integration`.
-- GitHub Actions CI verifies backend lint + unit tests, frontend lint/build,
-  the Rust desktop shell (`cargo fmt`/`clippy`/`check`), and a gitleaks
-  secret scan on every PR and push to `main`. `v*` tags trigger desktop
+- Run the checks above locally before opening a PR. `v*` tags trigger desktop
   installer builds and a draft GitHub Release.
 
 Note: Core backend changes should degrade gracefully when Ollama is not running.

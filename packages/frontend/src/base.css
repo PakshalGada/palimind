@@ -1,0 +1,267 @@
+/* ==========================================================================
+   base.css — app shell, element reset, shared modal chrome, focus rings and
+   global motion rules. All colors come from tokens.css.
+   ========================================================================== */
+
+/* ── reset ──────────────────────────────────────────────────────────────── */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) var(--panel-bg);
+}
+
+/* ── app shell ──────────────────────────────────────────────────────────── */
+body {
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    display: flex;
+    transition:
+        background-color 0.3s,
+        color 0.3s;
+}
+#root {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+}
+.app-container {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+    background: var(--bg-color);
+    min-height: 0;
+    min-width: 0;
+}
+
+/* ── typography baseline ───────────────────────────────────────────────── */
+
+/* ── controls baseline ─────────────────────────────────────────────────── */
+button {
+    background: var(--primary-color);
+    color: var(--primary-text);
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+        background-color 0.2s,
+        transform 0.1s;
+}
+button:active {
+    transform: translateY(0) scale(0.97);
+}
+/* consistent typography: form controls must inherit the app font */
+button,
+input,
+textarea {
+    font: inherit;
+}
+select {
+    font-family: inherit;
+}
+
+/* ── legacy controls (kept for the pre-existing chat/action buttons) ───── */
+.action-btn {
+    width: 100%;
+    margin-top: 6px;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    font-size: 0.78rem;
+    padding: 7px 12px;
+    border-radius: var(--radius-sm);
+}
+.action-btn.primary {
+    background: var(--primary-color);
+    color: var(--primary-text);
+}
+.action-btn.primary:hover {
+    background: var(--primary-hover);
+}
+.action-btn.ghost {
+    background: transparent;
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+}
+.danger-btn {
+    color: var(--danger-strong) !important;
+    border-color: var(--danger) !important;
+    background: transparent !important;
+}
+.danger-btn:hover {
+    border-color: var(--danger-strong) !important;
+}
+
+.icon-btn {
+    background: transparent;
+    color: var(--text-muted);
+    border: none;
+    padding: 5px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+        color 0.15s,
+        transform 0.15s ease;
+}
+.icon-btn:hover {
+    color: var(--text-main);
+}
+
+/* ── focus ─────────────────────────────────────────────────────────────── */
+:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+}
+button:disabled,
+textarea:disabled,
+input:disabled {
+    cursor: not-allowed;
+    opacity: 0.52;
+}
+
+/* ── recording state (mic-driven border pulse on the app frame) ───────── */
+@keyframes border-pulse {
+    0% {
+        border-color: var(--border-color);
+    }
+    50% {
+        border-color: var(--text-main);
+    }
+    100% {
+        border-color: var(--border-color);
+    }
+}
+.app-container.recording,
+.app-container.transcribing,
+.app-container.speaking {
+    animation: border-pulse 1.5s infinite ease-in-out;
+}
+
+/* ── shared modal shell (Settings / Directory picker / Graph) ──────────── */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 20px;
+}
+.modal-content {
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-panel);
+    width: 90%;
+    max-width: 650px;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    animation: modalFadeIn 0.2s ease-out;
+    max-height: calc(100vh - 40px);
+}
+@keyframes modalFadeIn {
+    from {
+        transform: scale(0.95);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border-color);
+}
+.modal-header h2 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+.modal-body {
+    padding: 32px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    overflow-y: auto;
+}
+
+/* ── motion ────────────────────────────────────────────────────────────── */
+/* Determinism switch: the app intentionally disables decorative animation
+   globally. Components that must animate (loading spinner, thinking orb)
+   re-assert their own animation with !important below this rule. */
+*,
+*::before,
+*::after {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+}
+.loading-spinner-svg {
+    animation: spin-loader 0.85s linear infinite !important;
+    animation-duration: 0.85s !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.001ms !important;
+    }
+    /* Orb / spinner / pulse indicators rest entirely under reduced motion. */
+    .ui-spinner,
+    .mic-btn,
+    .send-btn,
+    .pulse-dot {
+        animation: none !important;
+    }
+}
+
+/* ── responsive ────────────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+    body {
+        height: 100dvh;
+    }
+    .app-container {
+        flex-direction: column;
+        height: 100dvh;
+    }
+    .modal {
+        padding: 12px;
+        align-items: flex-start;
+    }
+    .modal-content {
+        width: 100%;
+        max-height: calc(100dvh - 24px);
+    }
+    .modal-header,
+    .modal-body {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+}

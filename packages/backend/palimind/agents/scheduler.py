@@ -26,22 +26,22 @@ def _field_matches(expr: str, value: int, lo: int, hi: int) -> bool:
         if atom == "*":
             return True
         if "/" in atom:
-            base, step = atom.split("/", 1)
+            base, step_text = atom.split("/", 1)
             try:
-                step = int(step)
+                step_value = int(step_text)
             except ValueError:
                 continue
-            if step <= 0:
+            if step_value <= 0:
                 continue
             if base == "*":
-                if value % step == 0:
+                if value % step_value == 0:
                     return True
             else:
                 try:
                     start = int(base)
                 except ValueError:
                     continue
-                if value >= start and (value - start) % step == 0:
+                if value >= start and (value - start) % step_value == 0:
                     return True
             continue
         if "-" in atom:

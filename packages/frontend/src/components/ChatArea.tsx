@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo, useState, useCallback } from 'react';
+import { useRef, useEffect, useMemo, useState, useCallback, memo } from 'react';
 import { useApp } from '../AppContext';
 import { api } from '../api';
 import { useBookmarks } from '../hooks/useBookmarks';
@@ -6,6 +6,8 @@ import IndexingProgress from './IndexingProgress';
 import InputArea from './InputArea';
 import MessageActions from './MessageActions';
 import MessageContent from './MessageContent';
+import { useChatStreamContext } from '../stream/context';
+import StreamingTurn from '../stream/StreamingTurn';
 import type { CitationPayload } from '../types';
 
 interface ChatMessage {
@@ -30,9 +32,16 @@ export default function ChatArea() {
     canvasEnabled,
   } = useApp();
   const messagesRef = useRef<HTMLDivElement>(null);
+  const { state: streamState } = useChatStreamContext();
 
   const currentSess = sessions.find(s => s.id === activeSessionId);
-  const isEmpty = !currentSess || !currentSess.messages || currentSess.messages.length === 0;
+  // A live turn belongs to the session it was started from. New sessions have
+  // no id yet, so `null` means "show wherever the composer is".
+  const isStreaming =
+    streamState.status !== 'idle' &&
+    (streamState.sessionId === null || streamState.sessionId === activeSessionId);
+  const isEmpty =
+    !isStreaming && (!currentSess || !currentSess.messages || currentSess.messages.length === 0);
 
   const { isBookmarked, toggle: toggleBookmark } = useBookmarks(activeSessionId);
 
@@ -193,7 +202,7 @@ export default function ChatArea() {
     if (pinnedToBottom.current) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [messagesKey]);
+  }, [messagesKey, streamState.revision]);
 
   return (
     <main className="chat-area" id="main-area">
@@ -213,10 +222,10 @@ export default function ChatArea() {
               onShare={handleShare}
               onOpenCanvas={handleOpenCanvas}
               onSaveResearch={handleSaveResearch}
-              onToggleBookmark={() => toggleBookmark(msg)}
+              onToggleBookmark={toggleBookmark}
             />
           ))}
-          <div id="streaming-messages-container" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}></div>
+          <StreamingTurn activeSessionId={activeSessionId} />
         </div>
 
         <div className="chat-empty-hero" aria-hidden={!isEmpty}>
@@ -239,10 +248,10 @@ interface MessageComponentProps {
   onShare: () => void;
   onOpenCanvas: (content: string) => void;
   onSaveResearch: (content: string, sources: unknown[]) => void;
-  onToggleBookmark: () => void;
+  onToggleBookmark: (msg: ChatMessage) => void;
 }
 
-function MessageComponent({
+const MessageComponent = memo(function MessageComponent({
   msg,
   index,
   bookmarked,
@@ -320,10 +329,10 @@ function MessageComponent({
           onSaveResearch={!isUser ? () => onSaveResearch(msg.content, msg.citations?.sources ?? []) : undefined}
           onDelete={() => onDelete(index)}
           onShare={onShare}
-          onToggleBookmark={onToggleBookmark}
+          onToggleBookmark={() => onToggleBookmark(msg)}
         />
         <MessageContent content={msg.content} citations={msg.citations} sources={msg.sources} />
       </div>
     </div>
   );
-}
+});

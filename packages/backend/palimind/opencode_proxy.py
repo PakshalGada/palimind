@@ -21,6 +21,9 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
+from palimind.security.auth import install_auth
+from palimind.security.tokens import get_proxy_token
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -135,6 +138,16 @@ def _upstream_headers(client_headers: dict | None = None) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 app = FastAPI(title="opencode-proxy")
+
+# The proxy spends the user's OpenCode key, so it is never an open local
+# endpoint. Every request (except the liveness probe) needs the per-install
+# proxy token; internal clients add it via palimind.opencode.client.
+install_auth(
+    app,
+    token_provider=get_proxy_token,
+    protected_prefixes=("/api",),
+    public_paths={"/health"},
+)
 
 _embedder = None  # lazy singleton for sentence-transformers model
 

@@ -1,0 +1,22 @@
+/* ==========================================================================
+   AgentAvatar.css — deterministic hash-seeded agent avatar mosaic.
+   ========================================================================== */
+
+.agent-avatar {
+    display: inline-flex;
+    flex-shrink: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px var(--border-color);
+}
+.agent-avatar-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    grid-template-rows: repeat(12, 1fr);
+    width: 100%;
+    height: 100%;
+}
+.agent-avatar-cell {
+    width: 100%;
+    height: 100%;
+}

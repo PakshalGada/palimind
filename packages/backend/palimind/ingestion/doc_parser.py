@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import zipfile
 from pathlib import Path
+from typing import Any
 from xml.etree import ElementTree
 
 from palimind.exceptions import ParseError
@@ -11,9 +12,9 @@ from palimind.ingestion.ocr import extract_text_from_image
 def parse_pdf(file_path: Path) -> str:
     import pymupdf  # PyMuPDF (heavy; imported lazily)
 
-    text_content = []
+    text_content: list[str] = []
     try:
-        doc = pymupdf.open(file_path)
+        doc: Any = pymupdf.open(file_path)
         for page_no, page in enumerate(doc, start=1):
             page_text = page.get_text("text").strip()
             if not page_text:
@@ -36,7 +37,7 @@ def parse_pptx(file_path: Path) -> str:
 
     text_content = []
     try:
-        prs = Presentation(file_path)
+        prs = Presentation(str(file_path))
         for slide in prs.slides:
             slide_text = []
             for shape in slide.shapes:

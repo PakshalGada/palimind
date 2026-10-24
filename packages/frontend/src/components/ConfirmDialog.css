@@ -1,0 +1,70 @@
+/* ==========================================================================
+   ConfirmDialog.css — custom confirm dialog (Tauri webviews don't support
+   window.confirm).
+   ========================================================================== */
+
+.confirm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+}
+.confirm-dialog {
+    width: min(380px, 90vw);
+    padding: 20px 22px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.confirm-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+.confirm-message {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    word-break: break-word;
+}
+.confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 6px;
+}
+.confirm-actions .action-btn {
+    width: auto;
+    margin-top: 0;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 500;
+}
+.confirm-actions .action-btn.primary {
+    background: var(--bg-active);
+    border-color: var(--border-color);
+    color: var(--text-main);
+}
+.confirm-actions .action-btn.primary:hover {
+    color: var(--text-main);
+}
+.confirm-actions .action-btn.danger-btn {
+    background: var(--danger-soft);
+    border-color: var(--danger);
+    color: var(--danger-strong);
+}
+.confirm-actions .action-btn.danger-btn:hover {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: var(--bg-color);
+}

@@ -4,6 +4,7 @@ from pathlib import Path
 import httpx
 
 from palimind.exceptions import CaptionError
+from palimind.opencode.client import proxy_auth_headers
 
 
 def caption_image(file_path: Path, ollama_url: str, vision_model: str) -> str:
@@ -22,7 +23,7 @@ def caption_image(file_path: Path, ollama_url: str, vision_model: str) -> str:
             "keep_alive": "30m",
         }
         url = f"{ollama_url.rstrip('/')}/api/generate"
-        response = httpx.post(url, json=payload, timeout=60.0)
+        response = httpx.post(url, json=payload, timeout=60.0, headers=proxy_auth_headers(url))
         response.raise_for_status()
         return response.json().get("response", "").strip()
     except httpx.HTTPError as e:

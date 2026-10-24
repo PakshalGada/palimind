@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from palimind.config import load_config, palimind_dir
+from palimind.opencode.client import proxy_auth_headers
 from palimind.storage.db import (
     clear_entity_mentions_for_path,
     get_chunk_ids_for_file,
@@ -337,6 +338,7 @@ def _light_llm_chat(prompt: str, ollama_url: str, model: str, num_predict: int =
                 "options": {"temperature": 0.1, "num_predict": num_predict},
             },
             timeout=120.0,
+            headers=proxy_auth_headers(url),
         )
         resp.raise_for_status()
         return resp.json().get("message", {}).get("content", "")

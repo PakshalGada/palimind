@@ -1,0 +1,101 @@
+/* ==========================================================================
+   ChatArea.css — chat surface: layout shell, empty-state hero and the
+   inline chain-of-thought slot.
+   ========================================================================== */
+
+.chat-interface {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+    min-height: 0;
+    min-width: 0;
+}
+
+/* Chain of thought appears inline, below the current question. */
+.cot-inline {
+    max-width: 760px;
+    width: 100%;
+}
+
+.chat-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    background: var(--bg-color);
+    min-height: 0;
+    min-width: 0;
+    max-width: 820px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* ── empty chat state ──────────────────────────────────────────────────── */
+.chat-interface.empty-chat {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+}
+.chat-interface.empty-chat .messages {
+    display: none;
+}
+.chat-interface.empty-chat .input-area {
+    border-top: none;
+    background: transparent;
+    width: 100%;
+    flex: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    margin-top: 0;
+    padding-top: 0;
+}
+.chat-empty-hero {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    margin-bottom: 24px;
+    padding: 0 24px;
+    pointer-events: none;
+    margin-top: 0;
+}
+.chat-empty-hero h1 {
+    font-family: "Space Grotesk", var(--font-serif);
+    font-size: 2.2rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--text-main);
+    letter-spacing: -0.03em;
+}
+.chat-empty-hero p {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+    max-width: 340px;
+}
+.chat-interface.empty-chat .chat-empty-hero {
+    display: flex;
+}
+
+/* ── responsive ────────────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+    .chat-area {
+        min-height: 0;
+        flex: 1;
+    }
+}
+
+@media (max-width: 460px) {
+    .chat-empty-hero h1 {
+        font-size: 1.65rem;
+    }
+}

@@ -5,9 +5,9 @@ import json
 import threading
 import time
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from palimind.agents import activity, approvals
 from palimind.agents.catalog import AgentDefinition
@@ -98,10 +98,12 @@ def clear_agent_memory(agent_id: str) -> None:
     if defn is None or not defn.memory_file:
         return
     try:
+        from palimind.agents.memory import _memory_namespace
+        from palimind.storage import state_store
+
         p = Path(defn.memory_file).expanduser()
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text("[]", "utf-8")
-    except OSError as e:
+        state_store.set_json(_memory_namespace(p), "entries", [])
+    except Exception as e:
         print(f"[agents] failed to clear memory for {agent_id}: {e}")
 
 
@@ -118,10 +120,12 @@ def delete_memory_entry(agent_id: str, index: int) -> None:
         return
     entries.pop(index)
     try:
+        from palimind.agents.memory import _memory_namespace
+        from palimind.storage import state_store
+
         p = Path(defn.memory_file).expanduser()
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(entries, indent=2), "utf-8")
-    except OSError as e:
+        state_store.set_json(_memory_namespace(p), "entries", entries)
+    except Exception as e:
         print(f"[agents] failed to delete memory entry for {agent_id}: {e}")
 
 
@@ -145,17 +149,14 @@ def record_run(
     verification: dict | None = None,
     effort: dict | None = None,
 ) -> None:
-    path = _runs_dir() / f"{agent_id}.json"
+    from palimind.storage import state_store
+
     try:
-        data = []
-        if path.exists():
-            data = json.loads(path.read_text("utf-8"))
-            if not isinstance(data, list):
-                data = []
         entry: dict = {
             "run_id": run_id,
             "timestamp": time.time(),
             "input": input[:2000],
+            # Keep each run bounded; retention is enforced by SQL.
             "output": output[:100_000],
             "status": status,
             "duration": round(duration, 2),
@@ -171,9 +172,7 @@ def record_run(
             entry["verification"] = verification
         if effort:
             entry["effort"] = effort
-        data.append(entry)
-        data = data[-AGENT_RUN_HISTORY_LIMIT:]
-        path.write_text(json.dumps(data, indent=2), "utf-8")
+        state_store.append_run(agent_id, run_id, entry, AGENT_RUN_HISTORY_LIMIT)
     except Exception as e:
         print(f"[agents] failed to record run for {agent_id}: {e}")
 
@@ -183,15 +182,39 @@ def record_run(
 _RUN_TRACE_LIMIT = 400
 
 
-def get_run_history(agent_id: str, limit: int = 50) -> list[dict]:
+def _migrate_legacy_runs(agent_id: str) -> None:
+    """Import the old per-agent JSON run history exactly once."""
+    from palimind.storage import state_store
+
     path = _runs_dir() / f"{agent_id}.json"
     if not path.exists():
-        return []
+        return
     try:
         data = json.loads(path.read_text("utf-8"))
-        return (data if isinstance(data, list) else [])[-limit:]
-    except Exception:
-        return []
+    except Exception as exc:
+        print(f"[agents] could not migrate run history for {agent_id}: {exc}")
+        return
+    if isinstance(data, list):
+        for entry in data[-AGENT_RUN_HISTORY_LIMIT:]:
+            if isinstance(entry, dict):
+                state_store.append_run(
+                    agent_id,
+                    str(entry.get("run_id") or uuid.uuid4()),
+                    entry,
+                    AGENT_RUN_HISTORY_LIMIT,
+                )
+    try:
+        path.rename(path.with_suffix(".json.migrated"))
+    except OSError:
+        pass
+
+
+def get_run_history(agent_id: str, limit: int = 50) -> list[dict]:
+    from palimind.storage import state_store
+
+    if not state_store.list_runs(agent_id, limit=1):
+        _migrate_legacy_runs(agent_id)
+    return state_store.list_runs(agent_id, limit=limit)
 
 
 def get_last_run(agent_id: str) -> dict | None:
@@ -201,10 +224,13 @@ def get_last_run(agent_id: str) -> dict | None:
 
 def get_run(agent_id: str, run_id: str) -> dict | None:
     """Fetch a single run record (including its reasoning trace)."""
-    for record in get_run_history(agent_id, limit=10**6):
-        if str(record.get("run_id")) == str(run_id):
-            return record
-    return None
+    from palimind.storage import state_store
+
+    record = state_store.get_run(agent_id, run_id)
+    if record is not None:
+        return record
+    _migrate_legacy_runs(agent_id)
+    return state_store.get_run(agent_id, run_id)
 
 
 # ── human-in-the-loop bridge ──────────────────────────────────────────────
@@ -547,6 +573,9 @@ async def run_with_definition(
     loop = asyncio.get_running_loop()
     append_chat(definition.id, "user", input)
     activity.start(definition.id, definition.name, run_id, session_id)
+    from palimind.agents import run_journal
+
+    run_journal.start(run_id, definition.id, input, session_id)
 
     # Reasoning trace for the run-history detail view. Token frames are
     # excluded (they are just the answer streamed in chunks).
@@ -564,6 +593,8 @@ async def run_with_definition(
         if event_type != "agent:token":
             with trace_lock:
                 trace.append({"type": event_type, **payload})
+            # Checkpoint every meaningful step so a crash leaves an audit trail.
+            run_journal.append(run_id, definition.id, event_type, payload)
         kind = _live_kinds.get(event_type)
         if kind is not None:
             label = payload.get("text") or payload.get("tool") or ""
@@ -571,7 +602,9 @@ async def run_with_definition(
         if emit is None:
             return
         try:
-            fut = asyncio.run_coroutine_threadsafe(emit(event_type, payload), loop)
+            fut: Any = asyncio.run_coroutine_threadsafe(
+                cast(Coroutine[Any, Any, None], emit(event_type, payload)), loop
+            )
             fut.result(timeout=30)
         except Exception as e:
             print(f"[agents] emit failed: {e}")
@@ -603,6 +636,10 @@ async def run_with_definition(
         model,
         light_model,
         extra_roots=[],
+        agent_id=definition.id,
+        session_id=session_id,
+        write_access=bool(definition.write_access),
+        allow_network=False,
     )
 
     # ── Phase 4.1: adaptive reasoning effort ─────────────────────────────
@@ -717,6 +754,7 @@ async def run_with_definition(
     start = time.time()
     status = "success"
     output = ""
+    cancelled = False
     verification_holder: dict[str, Any] = {}
     orchestration_result: dict[str, Any] | None = None
     try:
@@ -745,6 +783,7 @@ async def run_with_definition(
                         mode=definition.orchestration,
                         emit=orch_emit,
                         approval_provider=approval_provider,
+                        session_id=session_id,
                     )
                     output = orchestration_result.get("output", "")
                 else:
@@ -768,9 +807,13 @@ async def run_with_definition(
             except asyncio.CancelledError:
                 status = "cancelled"
                 output = "[Agent run cancelled]"
-                activity.finish(definition.id, status, output)
-                await emit_completed(output, status)
-                raise
+                cancelled = True
+                # Finalisation (run history, chat, journal) happens below so a
+                # cancelled run is never lost. Re-raise only after persisting.
+                try:
+                    await emit_completed(output, status)
+                except Exception:
+                    pass
             except Exception as e:
                 status = "error"
                 output = f"[Agent run error] {e}"
@@ -822,6 +865,7 @@ async def run_with_definition(
     )
     append_chat(definition.id, "agent", output)
     activity.finish(definition.id, status, output)
+    run_journal.finish(run_id, definition.id, status, output)
 
     if definition.memory_scope != "none":
         try:
@@ -840,4 +884,6 @@ async def run_with_definition(
                 )
             )
 
+    if cancelled:
+        raise asyncio.CancelledError()
     return output

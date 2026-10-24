@@ -1,0 +1,23 @@
+/* ==========================================================================
+   KnowledgeGraph.css — extracted from App.css (Phase 0 split).
+   ========================================================================== */
+
+/* ── graph modal ── */
+.graph-modal-content {
+    width: 90vw !important;
+    max-width: 1200px !important;
+    height: 85vh !important;
+    max-height: 850px !important;
+}
+.graph-modal-body {
+    flex: 1;
+    display: flex;
+    padding: 0 !important;
+    min-height: 800px;
+    height: calc(100% - 50px);
+}
+#graph-visualization {
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    overflow: hidden;
+}
+

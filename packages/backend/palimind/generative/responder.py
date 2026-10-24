@@ -9,6 +9,7 @@ from pathlib import Path
 import httpx
 
 from palimind.exceptions import ImageEncodeError, ResponseError
+from palimind.opencode.client import proxy_auth_headers
 
 _MIN_CTX = 2048  # Ollama's default window when num_ctx is not set
 
@@ -132,7 +133,9 @@ def generate_response_stream(
             with httpx.Client(
                 timeout=httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
             ) as client:
-                with client.stream("POST", url, json=payload) as response:
+                with client.stream(
+                    "POST", url, json=payload, headers=proxy_auth_headers(url)
+                ) as response:
                     response.raise_for_status()
                     for line in response.iter_lines():
                         if not line:
@@ -166,7 +169,9 @@ def generate_response_stream(
                     with httpx.Client(
                         timeout=httpx.Timeout(connect=10.0, read=300.0, write=10.0, pool=10.0)
                     ) as client:
-                        resp = client.post(url, json=fallback_payload)
+                        resp = client.post(
+                            url, json=fallback_payload, headers=proxy_auth_headers(url)
+                        )
                         resp.raise_for_status()
                         data = resp.json()
                 except httpx.HTTPError as fe:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -74,6 +73,10 @@ def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _memory_namespace(path: Path) -> str:
+    return f"agent_memory:{path.expanduser().resolve()}"
+
+
 def read_memory(agent_id: str) -> list[dict[str, Any]]:
     """Return the agent's memory entries as a list of
     {timestamp, type, content} dicts, oldest first.
@@ -82,16 +85,17 @@ def read_memory(agent_id: str) -> list[dict[str, Any]]:
     with memory_scope 'none' have no memory file and return [].
     """
     path = _memory_path(agent_id)
-    if path is None or not path.exists():
+    if path is None:
         return []
-    try:
-        data = json.loads(path.read_text("utf-8"))
-        if not isinstance(data, list):
-            return []
-        entries = [e for e in data if isinstance(e, dict)]
-        return sorted(entries, key=lambda e: str(e.get("timestamp", "")))
-    except Exception:
+    from palimind.storage import state_store
+
+    namespace = _memory_namespace(path)
+    state_store.migrate_json_file(namespace, "entries", path, default=[])
+    data = state_store.get_json(namespace, "entries", default=[])
+    if not isinstance(data, list):
         return []
+    entries = [e for e in data if isinstance(e, dict)]
+    return sorted(entries, key=lambda e: str(e.get("timestamp", "")))
 
 
 def recall_memory(agent_id: str, query: str, k: int = 8) -> list[dict[str, Any]]:
@@ -132,7 +136,8 @@ def append_memory(agent_id: str, entry_type: str, content: str) -> None:
         entries = entries[-AGENT_MEMORY_MAX_ENTRIES:]
 
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(entries, indent=2), "utf-8")
-    except OSError as e:
+        from palimind.storage import state_store
+
+        state_store.set_json(_memory_namespace(path), "entries", entries)
+    except Exception as e:
         print(f"[agents] failed to write memory for {agent_id}: {e}")

@@ -1,21 +1,93 @@
 from __future__ import annotations
 
+import contextvars
 import inspect
 import threading
 from pathlib import Path
 from typing import Any
 
 # ── per-run context (set by the orchestrator) ────────────────────────────
-
-_tool_context: dict[str, Any] = {
+#
+# The authoritative context lives in a ContextVar so parallel agents cannot
+# read or overwrite each other's workspace. ``_tool_context`` remains as a
+# process-wide mirror for backwards compatibility with older tools/tests, but
+# every code path that *executes* a tool reads the ContextVar.
+_DEFAULT_TOOL_CONTEXT: dict[str, Any] = {
     "root": None,
     "extra_roots": [],
     "ollama_url": "",
     "chat_model": "",
     "light_model": "",
     "source_collector": None,
+    "delegate_depth": 0,
+    "agent_id": "",
+    "session_id": "",
+    "write_access": False,
+    "allow_network": False,
 }
+_tool_context_var: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
+    "palimind_tool_context", default=None
+)
+
+
+class _ContextMirror(dict):
+    """Legacy process-wide view that also updates the current context.
+
+    Kept so older tools/tests that write ``_tool_context[...]`` still affect
+    execution, while concurrent workers continue to use their own ContextVar.
+    """
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        super().__setitem__(key, value)
+        ctx = _tool_context_var.get()
+        if ctx is not None:
+            updated = dict(ctx)
+            updated[key] = value
+            _tool_context_var.set(updated)
+
+    def update(self, *args: Any, **kwargs: Any) -> None:  # type: ignore[override]
+        super().update(*args, **kwargs)
+        ctx = _tool_context_var.get()
+        if ctx is not None:
+            updated = dict(ctx)
+            updated.update(*args, **kwargs)
+            _tool_context_var.set(updated)
+
+
+_tool_context: dict[str, Any] = _ContextMirror(_DEFAULT_TOOL_CONTEXT)
 _context_lock = threading.Lock()
+
+
+def make_tool_context(
+    root: Path | None,
+    ollama_url: str = "",
+    chat_model: str = "",
+    light_model: str = "",
+    extra_roots: list[Path] | None = None,
+    source_collector: list[dict] | None = None,
+    *,
+    agent_id: str = "",
+    session_id: str = "",
+    write_access: bool = False,
+    allow_network: bool = False,
+    delegate_depth: int = 0,
+) -> dict[str, Any]:
+    """Build a complete, isolated tool context."""
+    return {
+        "root": root,
+        "extra_roots": list(extra_roots or []),
+        "ollama_url": ollama_url,
+        "chat_model": chat_model,
+        "light_model": light_model,
+        # Optional sink for web sources discovered by tools, used by
+        # deep research to build a citation-rich bibliography.
+        "source_collector": source_collector,
+        "delegate_depth": int(delegate_depth or 0),
+        "agent_id": str(agent_id or ""),
+        "session_id": str(session_id or ""),
+        "write_access": bool(write_access),
+        "allow_network": bool(allow_network),
+    }
 
 
 def set_tool_context(
@@ -25,28 +97,60 @@ def set_tool_context(
     light_model: str = "",
     extra_roots: list[Path] | None = None,
     source_collector: list[dict] | None = None,
+    *,
+    agent_id: str = "",
+    session_id: str = "",
+    write_access: bool = False,
+    allow_network: bool = False,
+    delegate_depth: int = 0,
 ) -> None:
+    """Set the tool context for the current thread/task.
+
+    Never share this implicitly between workers: call this once at the top of
+    each worker (or pass ``tool_context=`` to :func:`run_agent`).
+    """
+    ctx = make_tool_context(
+        root,
+        ollama_url,
+        chat_model,
+        light_model,
+        extra_roots,
+        source_collector,
+        agent_id=agent_id,
+        session_id=session_id,
+        write_access=write_access,
+        allow_network=allow_network,
+        delegate_depth=delegate_depth,
+    )
+    _tool_context_var.set(ctx)
+    # Mirror for legacy readers. Execution never relies on this copy.
     with _context_lock:
-        _tool_context.update(
-            {
-                "root": root,
-                "extra_roots": list(extra_roots or []),
-                "ollama_url": ollama_url,
-                "chat_model": chat_model,
-                "light_model": light_model,
-                # Optional sink for web sources discovered by tools, used by
-                # deep research to build a citation-rich bibliography.
-                "source_collector": source_collector,
-                # A fresh top-level run starts at depth 0; the delegate tool
-                # increments this so sub-agents cannot recurse unbounded.
-                "delegate_depth": 0,
-            }
-        )
+        _tool_context.update(ctx)
+
+
+def apply_tool_context(ctx: dict[str, Any]) -> None:
+    """Install a fully-built context in the current thread/task."""
+    merged = {**_DEFAULT_TOOL_CONTEXT, **ctx}
+    _tool_context_var.set(merged)
+    with _context_lock:
+        _tool_context.update(merged)
 
 
 def _get_context() -> dict[str, Any]:
+    ctx = _tool_context_var.get()
+    if ctx is not None:
+        return dict(ctx)
     with _context_lock:
         return dict(_tool_context)
+
+
+def _update_context(**changes: Any) -> None:
+    """Atomically update the current context (used by delegate)."""
+    ctx = _get_context()
+    ctx.update(changes)
+    _tool_context_var.set(ctx)
+    with _context_lock:
+        _tool_context.update(changes)
 
 
 # ── per-call execution context (set/read by individual tools) ─────────────
@@ -269,8 +373,8 @@ def document_search(query: str, limit: int = 6) -> str:
             ollama_url=ollama_url,
             embed_model=embed_model,
             light_model=light_model,
-            rerank_enabled=bool(config.get("rerank", True)),
-            rerank_model=config.get("rerank_model") or "BAAI/bge-reranker-base",
+            rerank_enabled=bool(config.get("rerank", False)),
+            rerank_model=config.get("rerank_model") or "cross-encoder/ms-marco-MiniLM-L-6-v2",
             query_rewrite_enabled=bool(config.get("query_rewrite", True)),
             context_token_budget=config.get("context_token_budget"),
         )
@@ -470,36 +574,33 @@ def search_replace(path: str, old_string: str, new_string: str, count: int = 1) 
 
 
 def run_python(code: str, timeout: int = 15) -> str:
-    """Execute Python code in an isolated subprocess with a timeout.
+    """Execute Python code in an OS-sandboxed subprocess.
 
-    Prints/stdout are captured and returned.
+    This delegates to the same hardened implementation as the
+    ``python-exec`` tool: bubblewrap isolation (no network, read-only
+    workspace unless write access), address-space/CPU/file-size limits, and a
+    hard timeout. Prints/stdout are captured and returned.
     """
-    import subprocess
-    import sys
-    import tempfile
+    from palimind.security.sandbox import run_python_isolated
+    from palimind.settings import PYTHON_EXEC_TIMEOUT
 
+    ctx = _get_context()
+    root = ctx.get("root")
+    if root is None:
+        return "Error: no active workspace configured for Python execution."
+    # The model-supplied timeout may shorten, never extend, the hard ceiling.
     try:
-        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as f:
-            f.write(code)
-            tmp_path = f.name
-        try:
-            proc = subprocess.run(
-                [sys.executable, "-I", tmp_path],
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
-            out = proc.stdout.strip()
-            err = proc.stderr.strip()
-            if proc.returncode != 0:
-                return f"Error (exit {proc.returncode}):\n{err[-2000:]}"
-            return out[-4000:] if out else "Code executed successfully (no output)"
-        finally:
-            Path(tmp_path).unlink(missing_ok=True)
-    except subprocess.TimeoutExpired:
-        return f"Error: code execution timed out after {timeout}s"
-    except Exception as e:
-        return f"Error executing code: {e}"
+        requested = int(timeout or PYTHON_EXEC_TIMEOUT)
+    except (TypeError, ValueError):
+        requested = PYTHON_EXEC_TIMEOUT
+    effective = max(1, min(requested, PYTHON_EXEC_TIMEOUT))
+    return run_python_isolated(
+        code,
+        root=Path(root),
+        timeout_s=effective,
+        allow_network=bool(ctx.get("allow_network", False)),
+        allow_write=bool(ctx.get("write_access", False)),
+    )
 
 
 # ── summarization tool ────────────────────────────────────────────────────
@@ -586,8 +687,7 @@ def delegate(task: str, max_iterations: int = 6) -> str:
         "context": "",
     }
 
-    with _context_lock:
-        _tool_context["delegate_depth"] = depth + 1
+    _update_context(delegate_depth=depth + 1)
     try:
         output = _run_agent(
             901,
@@ -599,8 +699,7 @@ def delegate(task: str, max_iterations: int = 6) -> str:
     except Exception as e:  # noqa: BLE001 - a failed child must not kill the parent
         return f"Error: delegated run failed: {e}"
     finally:
-        with _context_lock:
-            _tool_context["delegate_depth"] = depth
+        _update_context(delegate_depth=depth)
     return output or "[delegated sub-agent produced no output]"
 
 
@@ -837,6 +936,9 @@ def call_tool(name: str, **kwargs: Any) -> str:
     if not entry:
         return f"Error: unknown tool '{name}'. Available: {', '.join(get_tool_names())}"
     fn = entry["fn"]
+    ctx = _get_context()
+    agent_id = str(ctx.get("agent_id") or "")
+    session_id = str(ctx.get("session_id") or "")
 
     # Surface bad arguments as an argument error (the loop retries/adjusts),
     # rather than a tool crash. Non-introspectable callables are let through.
@@ -857,6 +959,8 @@ def call_tool(name: str, **kwargs: Any) -> str:
             timeout_s=timeout_s,
             tool_name=name,
             args_summary=kwargs,
+            agent_id=agent_id,
+            session_id=session_id,
         )
     except Exception as e:  # noqa: BLE001 - tools must never crash the loop
         return f"Tool '{name}' error: {e}"

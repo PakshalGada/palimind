@@ -4,12 +4,11 @@ import { ArrowUp, Loader2, Mic, Square } from "lucide-react";
 import ModelSwitcher from "./ModelSwitcher";
 import LoadingSpinner from "./LoadingSpinner";
 import AgentAvatar from "./AgentAvatar";
-import ActivityChain from "./ActivityChain";
 import MicWave from "./MicWave";
 import { useApp } from "../AppContext";
-import type { ActivityMode, AgentState } from "../AppContext";
+import type { ActivityMode } from "../AppContext";
 import { useCommandHandlers } from "../commands/useCommand";
-import { formatMarkdown } from "../utils/markdown";
+import { useChatStreamActions } from "../stream/context";
 import { exportWAV } from "../utils/audio";
 import { api } from "../api";
 import type { AgentListItem, ModelItem } from "../types";
@@ -33,25 +32,21 @@ export default function InputArea() {
     setWorkerModel,
     selectedFiles,
     isGenerating,
-    setIsGenerating,
     activeSessionId,
     sessions,
     attachedFiles,
     setAttachedFiles,
     currentModel,
-    refreshSessions,
-    setThinkingText,
-    setAgentStates,
-    setAgentLoading,
     activeView,
     selectedAgentId,
-    setActivity,
     isRecording,
     setIsRecording,
     isTranscribing,
     setIsTranscribing,
     addToast,
   } = useApp();
+
+  const { send: sendMessage, stop: stopStream } = useChatStreamActions();
 
   const isChatView = activeView === 'chat' || activeView === 'agents';
   // The Agents view reuses this exact composer but targets the selected
@@ -67,24 +62,10 @@ export default function InputArea() {
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState("");
-  const abortRef = useRef<AbortController | null>(null);
   // When set, the next handleSend() uses this text instead of the composer
   // value. Used by the "regenerate" command to replay a previous message.
   const sendOverrideRef = useRef<string | null>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Clean up EventSource and interval on unmount to prevent memory leaks.
-  useEffect(() => {
-    return () => {
-      eventSourceRef.current?.close();
-      eventSourceRef.current = null;
-      if (timerIntervalRef.current !== null) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
-      }
-    };
-  }, []);
   const [moePopupOpen, setMoePopupOpen] = useState(false);
   const moeBtnRef = useRef<HTMLButtonElement>(null);
   const moePopupRef = useRef<HTMLDivElement>(null);
@@ -94,7 +75,6 @@ export default function InputArea() {
   const [allAgents, setAllAgents] = useState<AgentListItem[]>([]);
   const [mention, setMention] = useState<{ query: string } | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
-  const [chainSlot, setChainSlot] = useState<HTMLElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
@@ -380,49 +360,8 @@ export default function InputArea() {
 
     setValue("");
     setAttachedFiles([]);
-    setIsGenerating(true);
 
-    const abortCtrl = new AbortController();
-    abortRef.current = abortCtrl;
-    (
-      window as unknown as { __abortController: AbortController }
-    ).__abortController = abortCtrl;
-
-    const messagesContainer = document.getElementById(
-      "streaming-messages-container",
-    );
-    const chatInterface = document.getElementById("chat-interface");
-    if (chatInterface) chatInterface.classList.remove("empty-chat");
-
-    if (messagesContainer) messagesContainer.innerHTML = "";
-
-    const userMsgDiv = document.createElement("div");
-    userMsgDiv.className = "message user-message";
-    userMsgDiv.innerHTML = `<div class="message-wrapper"><div class="message-content" style="background:var(--msg-user-bg);border:1px solid var(--border-color);padding:12px 16px;border-radius:var(--radius-lg);max-width:100%;font-size:0.9rem;">${text || "Sent attachments."}</div></div>`;
-    messagesContainer?.appendChild(userMsgDiv);
-    // Chain-of-thought slot: directly below the question, in the answer stream.
-    const chainSlotEl = document.createElement("div");
-    chainSlotEl.className = "cot-inline";
-    userMsgDiv.insertAdjacentElement("afterend", chainSlotEl);
-    setChainSlot(chainSlotEl);
-    const scrollArea = document.getElementById("messages-scroll-area");
-    if (scrollArea) {
-      // Only auto-scroll if user is already near the bottom
-      const distanceFromBottom = scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight;
-      if (distanceFromBottom < 80) {
-        scrollArea.scrollTo({
-          top: userMsgDiv.offsetTop - 16,
-          behavior: "auto",
-        });
-      }
-    }
-
-    setThinkingText("Analyzing your request...");
-    setAgentStates([]);
-    setAgentLoading(null);
-    const thinkingBaseRef = { current: "Analyzing your request" };
-
-    // ── unified activity chain (same shell for every mode) ────────────
+    // ── activity-chain metadata (same shell for every mode) ───────────
     const agentInfo = selectedAgentId
       ? allAgents.find((a) => a.id === selectedAgentId)
       : undefined;
@@ -441,656 +380,41 @@ export default function InputArea() {
       actMode = "deep_research";
       actTitle = "Deep Research";
     }
-    setActivity({
-      mode: actMode,
-      title: actTitle,
-      subtitle: actMode === "agent" ? "agent" : undefined,
-      seed:
-        actMode === "agent" && agentInfo
-          ? agentInfo.color_seed || agentInfo.id + agentInfo.name
-          : undefined,
-      steps: [],
-    });
 
-    let stepSeq = 0;
-    const newId = () => `st${Date.now().toString(36)}${(stepSeq++).toString(36)}`;
-    const addStep = (kind: string, title: string, detail = "") => {
-      thinkingBaseRef.current = title;
-      setActivity((prev) =>
-        prev
-          ? {
-              ...prev,
-              steps: [
-                ...prev.steps,
-                { id: newId(), kind, title, detail, status: "active" as const },
-              ],
-            }
-          : prev,
-      );
-    };
-    const completeActive = () =>
-      setActivity((prev) =>
-        prev
-          ? {
-              ...prev,
-              steps: prev.steps.map((s) =>
-                s.status === "active" ? { ...s, status: "done" as const } : s,
-              ),
-            }
-          : prev,
-      );
-    const setActiveDetail = (text: string) =>
-      setActivity((prev) => {
-        if (!prev || prev.steps.length === 0) return prev;
-        const steps = [...prev.steps];
-        const i = steps.length - 1;
-        steps[i] = { ...steps[i], detail: text.length > 2000 ? text.slice(-2000) : text };
-        return { ...prev, steps };
-      });
-    const agentStepIds: Record<number, string> = {};
-    const addAgentStep = (aid: number, title: string, detail = "") => {
-      thinkingBaseRef.current = title;
-      const sid = newId();
-      agentStepIds[aid] = sid;
-      setActivity((prev) =>
-        prev
-          ? {
-              ...prev,
-              steps: [
-                ...prev.steps,
-                {
-                  id: sid,
-                  kind: "agent",
-                  title,
-                  detail,
-                  status: "active" as const,
-                  children: [],
-                },
-              ],
-            }
-          : prev,
-      );
-    };
-    const completeAgentStep = (aid: number) => {
-      const sid = agentStepIds[aid];
-      if (!sid) return;
-      setActivity((prev) =>
-        prev
-          ? {
-              ...prev,
-              steps: prev.steps.map((s) =>
-                s.id === sid ? { ...s, status: "done" as const } : s,
-              ),
-            }
-          : prev,
-      );
-    };
-    const appendAgentChild = (aid: number, text: string) => {
-      const sid = agentStepIds[aid];
-      if (!sid) return;
-      setActivity((prev) =>
-        prev
-          ? {
-              ...prev,
-              steps: prev.steps.map((s) =>
-                s.id === sid
-                  ? {
-                      ...s,
-                      children: [
-                        ...(s.children || []),
-                        { id: newId(), kind: "thought", title: text, status: "done" as const },
-                      ],
-                    }
-                  : s,
-              ),
-            }
-          : prev,
-      );
-    };
-    const reasonKind = (text: string): string => {
-      const t = text.toLowerCase();
-      if (t.includes("document mode") || t.includes("llm mode") || t.includes("deep research mode")) return "mode";
-      if (t.includes("routing")) return "route";
-      if (t.includes("briefing")) return "briefing";
-      if (t.includes("planning") || t.includes("plan") || t.includes("research plan")) return "plan";
-      if (t.includes("graph")) return "graph";
-      if (t.includes("search") || t.includes("research agent")) return "search";
-      if (t.includes("passage") || t.includes("source")) return "docs";
-      if (t.includes("synthesi") || t.includes("research report")) return "synthesis";
-      if (t.includes("verif")) return "verify";
-      if (t.includes("generat")) return "answer";
-      return "info";
-    };
-    let agentsStarted = false;
-    let reasoningStarted = false;
-    let answerStarted = false;
-
-    // When an agent is being invoked in this PaliSpace, surface the same
-    // animated profile-picture loading the Agents view uses.
+    // When an agent is invoked in this PaliSpace, surface the same animated
+    // profile-picture loading the Agents view uses.
     const mentionAtStart = text.match(/^@([\w-]+)/);
-    if (mentionAtStart) {
-      const agent = allAgents.find((a) => a.name === mentionAtStart[1]);
-      if (agent) {
-        setAgentLoading({
-          seed: agent.color_seed || agent.id + agent.name,
-          name: agent.name,
-        });
-      }
-    }
-
-    const startTime = Date.now();
-    let totalThoughtDuration = "";
-    const timerInterval = setInterval(() => {
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-      setThinkingText(`${thinkingBaseRef.current} ${elapsed}s`);
-    }, 500);
-    timerIntervalRef.current = timerInterval;
+    const mentionedAgent = mentionAtStart
+      ? allAgents.find((a) => a.name === mentionAtStart[1])
+      : undefined;
+    const agentLoading = mentionedAgent
+      ? {
+          seed: mentionedAgent.color_seed || mentionedAgent.id + mentionedAgent.name,
+          name: mentionedAgent.name,
+        }
+      : null;
 
     const mode = isChatView ? "llm" : chatMode;
-    const sub_mode = mode === "llm" ? llmSubMode : "";
-    const url =
-      `/api/chat?q=${encodeURIComponent(text)}&chat_mode=${mode}&scope=${scope}${sub_mode ? `&llm_sub_mode=${sub_mode}` : ""}${activeSessionId ? `&session_id=${activeSessionId}` : ""}` +
-      (selectedFiles.size > 0
-        ? `&files=${encodeURIComponent(Array.from(selectedFiles).join(","))}`
-        : "");
 
-    const eventSource = new EventSource(url);
-    eventSourceRef.current = eventSource;
-
-    abortCtrl.signal.addEventListener("abort", () => {
-      eventSource.close();
-      eventSourceRef.current = null;
-      clearInterval(timerInterval);
-      timerIntervalRef.current = null;
-      setThinkingText("");
-      setAgentStates([]);
-      setAgentLoading(null);
-      setActivity(null);
-      setChainSlot(null);
-      setIsGenerating(false);
-      refreshSessions().then(() => {
-        if (messagesContainer) messagesContainer.innerHTML = "";
-      });
+    sendMessage({
+      text,
+      userText: text || "Sent attachments.",
+      mode,
+      scope,
+      sessionId: activeSessionId,
+      subMode: mode === "llm" ? llmSubMode : undefined,
+      files: selectedFiles.size > 0 ? Array.from(selectedFiles) : undefined,
+      activity: {
+        mode: actMode,
+        title: actTitle,
+        subtitle: actMode === "agent" ? "agent" : undefined,
+        seed:
+          actMode === "agent" && agentInfo
+            ? agentInfo.color_seed || agentInfo.id + agentInfo.name
+            : undefined,
+      },
+      agentLoading,
     });
-
-    let contentDiv: HTMLElement | null = null;
-    let fullText = "";
-    let thinkingDetails: HTMLDetailsElement | null = null;
-    let thinkingBody: HTMLElement | null = null;
-
-    const fmtTs = (s: number) => {
-      const sec = Math.round(s);
-      const h = Math.floor(sec / 3600);
-      const m = Math.floor((sec % 3600) / 60);
-      const r = sec % 60;
-      return h > 0
-        ? `${h}:${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`
-        : `${m}:${String(r).padStart(2, "0")}`;
-    };
-
-    const openVideoPlayer = (
-      filePath: string,
-      start: number,
-      end?: number | null,
-    ) => {
-      const existing = document.getElementById("palimind-video-overlay");
-      if (existing) existing.remove();
-      const overlay = document.createElement("div");
-      overlay.id = "palimind-video-overlay";
-      overlay.style.cssText =
-        "position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:999999;display:flex;align-items:center;justify-content:center;";
-      const panel = document.createElement("div");
-      panel.style.cssText =
-        "background:var(--bg-color,#111);border:1px solid var(--border-color,#333);border-radius:12px;padding:12px;max-width:min(880px,90vw);width:100%;";
-      const video = document.createElement("video");
-      video.style.cssText = "width:100%;max-height:65vh;border-radius:8px;background:#000;";
-      video.controls = true;
-      video.src = `/api/media/stream?path=${encodeURIComponent(filePath)}`;
-      const label = document.createElement("div");
-      label.style.cssText =
-        "color:var(--text-main,#eee);font-size:0.85rem;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;";
-      const titleSpan = document.createElement("span");
-      titleSpan.textContent = `${filePath} @ ${fmtTs(start)}${end ? `–${fmtTs(end)}` : ""}`;
-      const closeBtn = document.createElement("button");
-      closeBtn.textContent = "Close";
-      closeBtn.style.cssText =
-        "background:none;border:none;color:inherit;font-size:1rem;cursor:pointer;padding:4px 8px;";
-      closeBtn.onclick = () => {
-        video.pause();
-        overlay.remove();
-      };
-      label.appendChild(titleSpan);
-      label.appendChild(closeBtn);
-      panel.appendChild(label);
-      panel.appendChild(video);
-      overlay.appendChild(panel);
-      overlay.onclick = (e) => {
-        if (e.target === overlay) {
-          video.pause();
-          overlay.remove();
-        }
-      };
-      document.body.appendChild(overlay);
-      video.onloadedmetadata = () => {
-        video.currentTime = start;
-        void video.play().catch(() => {});
-      };
-    };
-
-    const renderMediaCitations = (
-      citations: {
-        file: string;
-        start: number;
-        end?: number | null;
-        snippet?: string;
-      }[],
-    ) => {
-      if (!citations.length || !messagesContainer) return;
-      const row = document.createElement("div");
-      row.className = "media-citations-row";
-      row.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;";
-      citations.forEach((c) => {
-        const chip = document.createElement("button");
-        chip.className = "media-citation-chip";
-        chip.title = c.snippet || c.file;
-        chip.style.cssText =
-          "display:inline-flex;align-items:center;gap:6px;background:var(--accent-bg);color:var(--text-main);border:1px solid var(--border-color,#444);border-radius:999px;padding:4px 12px;font-size:0.78rem;cursor:pointer;";
-        const baseName = c.file.split(/[\\/]/).pop() || c.file;
-        chip.textContent = `▶ ${baseName} @ ${fmtTs(c.start)}`;
-        chip.onclick = () => openVideoPlayer(c.file, c.start, c.end);
-        row.appendChild(chip);
-      });
-      messagesContainer.appendChild(row);
-    };
-
-    const renderTextCitations = (
-      citations: {
-        file: string;
-        section?: string;
-        snippet?: string;
-        chunk_id?: number;
-      }[],
-    ) => {
-      if (!citations.length || !messagesContainer) return;
-      const row = document.createElement("div");
-      row.className = "media-citations-row";
-      row.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;";
-      citations.forEach((c) => {
-        const chip = document.createElement("span");
-        chip.className = "media-citation-chip";
-        chip.title = c.snippet || c.file;
-        chip.style.cssText =
-          "display:inline-flex;align-items:center;gap:6px;background:var(--accent-bg);color:var(--text-main);border:1px solid var(--border-color,#444);border-radius:999px;padding:4px 12px;font-size:0.78rem;";
-        const baseName = c.file.split(/[\\/]/).pop() || c.file;
-        chip.textContent = c.section ? `${baseName} → ${c.section}` : baseName;
-        row.appendChild(chip);
-      });
-      messagesContainer.appendChild(row);
-    };
-
-    eventSource.onmessage = async (event) => {
-      const data = JSON.parse(event.data);
-
-      if (data.type === "research_plan") {
-        // Deep research paused for plan review (3.1).
-        window.dispatchEvent(
-          new CustomEvent("palimind:research-plan", {
-            detail: { plan_id: data.plan_id, plan: data.plan, query: text },
-          }),
-        );
-      } else if (data.type === "sources") {
-        if (data.sources?.length) {
-          fullText = `*Sources: ${data.sources.join(", ")}*\n\n`;
-          contentDiv = document.createElement("div");
-          contentDiv.className = "message-content";
-          contentDiv.innerHTML = formatMarkdown(fullText);
-          const wrapper = document.createElement("div");
-          wrapper.className = "message-wrapper";
-          wrapper.appendChild(contentDiv);
-          const msgDiv = document.createElement("div");
-          msgDiv.className = "message system-message";
-          msgDiv.appendChild(wrapper);
-          messagesContainer?.appendChild(msgDiv);
-        }
-      } else if (data.type === "media_citations") {
-        renderMediaCitations(data.citations || []);
-      } else if (data.type === "citations") {
-        renderTextCitations(data.citations || []);
-      } else if (data.type === "reasoning") {
-        const reasonText = String(data.text || "").replace(/[>*_]/g, "").trim();
-        setThinkingText(reasonText);
-        completeActive();
-        addStep(reasonKind(reasonText), reasonText);
-      } else if (data.type === "thinking") {
-        const t = String(data.text || "").trim();
-        if (!t || !messagesContainer) return;
-        if (!thinkingDetails) {
-          thinkingDetails = document.createElement("details");
-          thinkingDetails.className = "thinking-block";
-          const summary = document.createElement("summary");
-          summary.className = "thinking-toggle";
-          summary.textContent = "Thinking";
-          thinkingDetails.appendChild(summary);
-          thinkingBody = document.createElement("div");
-          thinkingBody.className = "thinking-body";
-          thinkingDetails.appendChild(thinkingBody);
-          const wrapper = document.createElement("div");
-          wrapper.className = "message-wrapper";
-          wrapper.appendChild(thinkingDetails);
-          const msgDiv = document.createElement("div");
-          msgDiv.className = "message system-message";
-          msgDiv.appendChild(wrapper);
-          messagesContainer.appendChild(msgDiv);
-        }
-        thinkingBody!.textContent = (thinkingBody!.textContent || "") + t;
-        if (!reasoningStarted) {
-          completeActive();
-          addStep("reason", "Reasoning");
-          reasoningStarted = true;
-        }
-        setActiveDetail(t);
-      } else if (data.type === "progress") {
-        setThinkingText(data.text);
-      } else if (data.type === "agent_progress") {
-        setAgentStates((prev: AgentState[]) => {
-          const aid = data.agent_id as number;
-          const existing = prev.find((a) => a.agent_id === aid);
-          if (existing) {
-            return prev.map((a) =>
-              a.agent_id === aid
-                ? {
-                    ...a,
-                    status: data.status || a.status,
-                    task: data.task || a.task,
-                  }
-                : a,
-            );
-          }
-          const newAgent: AgentState = {
-            agent_id: aid,
-            label: data.label || `Agent ${aid}`,
-            task: data.task || "",
-            status: (data.status as "working" | "complete") || "working",
-            steps: [],
-          };
-          return [...prev, newAgent];
-        });
-        const aid = data.agent_id as number;
-        if ((data.status || "working") === "complete") {
-          completeAgentStep(aid);
-        } else if (!agentStepIds[aid]) {
-          if (!agentsStarted) {
-            completeActive();
-            agentsStarted = true;
-          }
-          addAgentStep(aid, data.label || `Agent ${aid}`, data.task || "");
-        }
-      } else if (data.type === "agent_thinking") {
-        const aid = data.agent_id as number;
-        const step = data.text as string;
-        setAgentStates((prev: AgentState[]) => {
-          return prev.map((a) =>
-            a.agent_id === aid ? { ...a, steps: [...a.steps, step] } : a,
-          );
-        });
-        appendAgentChild(aid, step);
-      } else if (data.type === "agent:thought") {
-        const t = String(data.text || "").replace(/\s+/g, " ").trim();
-        if (t && !t.startsWith("FINAL_ANSWER")) {
-          setThinkingText(t.slice(0, 90));
-          completeActive();
-          addStep("thought", "Thinking", t.slice(0, 400));
-        }
-      } else if (data.type === "agent:tool_call") {
-        setThinkingText(`Using tool: ${String(data.tool || "…")}`);
-        completeActive();
-        addStep(
-          "tool",
-          String(data.tool || "tool"),
-          data.args != null ? JSON.stringify(data.args) : "",
-        );
-      } else if (data.type === "agent:effort") {
-        const level = String(data.level || "");
-        if (level) {
-          addStep("effort", "Reasoning effort", `${level} ${data.indicator || ""}`.trim());
-        }
-      } else if (data.type === "agent:plan") {
-        window.dispatchEvent(new CustomEvent("palimind:plan-pending", { detail: data }));
-        addStep("plan", "Plan", `${(data.steps as unknown[])?.length || 0} steps`);
-      } else if (data.type === "agent:verification") {
-        const rep = (data.report || {}) as { confidence?: number; passed?: boolean };
-        addStep(
-          "verification",
-          "Verification",
-          `${rep.passed ? "passed" : "needs attention"} · ${Math.round((rep.confidence || 0) * 100)}%`,
-        );
-      } else if (data.type === "agent:needs_review") {
-        addStep("review", "Human review suggested", "Low-confidence result");
-      } else if (String(data.type || "").startsWith("orchestrator:")) {
-        window.dispatchEvent(new CustomEvent("palimind:orchestrator-event", { detail: data }));
-      } else if (data.type === "agent:completed") {
-        if (!answerStarted) {
-          completeActive();
-          addStep("answer", "Answer");
-          answerStarted = true;
-        }
-        clearInterval(timerInterval);
-        setThinkingText("");
-        const finalOutput = String(data.output || "").trim();
-        if (finalOutput) {
-          fullText = finalOutput;
-          if (!contentDiv) {
-            if (!totalThoughtDuration) {
-              const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-              totalThoughtDuration = `${elapsed}s`;
-            }
-            contentDiv = document.createElement("div");
-            contentDiv.className = "message-content";
-            const wrapper = document.createElement("div");
-            wrapper.className = "message-wrapper";
-            const badgeDiv = document.createElement("div");
-            badgeDiv.className = "thought-duration-badge";
-            badgeDiv.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Thought for ${totalThoughtDuration}`;
-            wrapper.appendChild(badgeDiv);
-            wrapper.appendChild(contentDiv);
-            const msgDiv = document.createElement("div");
-            msgDiv.className = "message system-message";
-            msgDiv.appendChild(wrapper);
-            messagesContainer?.appendChild(msgDiv);
-          }
-          contentDiv.innerHTML = formatMarkdown(fullText);
-        }
-      } else if (data.type === "agent:waiting_for_human") {
-        setThinkingText(`Awaiting approval: ${data.tool || "action"}`);
-        completeActive();
-        addStep("approval", "Approval required", String(data.tool || ""));
-        if (!messagesContainer) return;
-        const card = document.createElement("div");
-        card.className = "approval-card";
-        card.style.cssText =
-          "border:1px solid var(--border-color);border-radius:10px;padding:12px;margin:8px 0;max-width:640px;background:var(--panel-bg);";
-        const title = document.createElement("div");
-        title.style.cssText = "font-size:0.85rem;color:var(--text-main);margin-bottom:8px;";
-        title.innerHTML = `<strong>Approval required</strong> — <code>${String(data.tool || "")}</code>`;
-        card.appendChild(title);
-        if (data.args != null) {
-          const pre = document.createElement("pre");
-          pre.style.cssText =
-            "margin:0 0 8px;padding:8px;background:var(--bg-color);border-radius:6px;font-size:0.75rem;color:var(--text-secondary);white-space:pre-wrap;word-break:break-word;max-height:180px;overflow:auto;";
-          pre.textContent =
-            typeof data.args === "string" ? data.args : JSON.stringify(data.args, null, 2);
-          card.appendChild(pre);
-        }
-        const correction = document.createElement("input");
-        correction.type = "text";
-        correction.placeholder = "Optional correction / feedback…";
-        correction.style.cssText =
-          "width:100%;padding:7px 10px;border:1px solid var(--border-color);border-radius:6px;background:var(--input-bg);color:var(--text-main);margin-bottom:8px;";
-        card.appendChild(correction);
-        const row = document.createElement("div");
-        row.style.cssText = "display:flex;gap:8px;";
-        const approveBtn = document.createElement("button");
-        approveBtn.textContent = "Approve";
-        approveBtn.className = "action-btn primary";
-        const rejectBtn = document.createElement("button");
-        rejectBtn.textContent = "Reject";
-        rejectBtn.className = "action-btn danger-btn";
-        const finish = (approved: boolean) => {
-          approveBtn.disabled = true;
-          rejectBtn.disabled = true;
-          correction.disabled = true;
-          const status = document.createElement("div");
-          status.style.cssText = "font-size:0.78rem;color:var(--text-muted);margin-top:6px;";
-          status.textContent = approved ? "Approved — resuming…" : "Rejected.";
-          card.appendChild(status);
-          api.agents
-            .approve(String(data.agent_id), approved, correction.value)
-            .catch(() => {});
-          setThinkingText(approved ? "Resuming…" : "Rejected");
-        };
-        approveBtn.onclick = () => finish(true);
-        rejectBtn.onclick = () => finish(false);
-        row.appendChild(approveBtn);
-        row.appendChild(rejectBtn);
-        card.appendChild(row);
-        messagesContainer.appendChild(card);
-        const approvalScroll = document.getElementById("messages-scroll-area");
-        if (approvalScroll) {
-          const distanceFromBottom = approvalScroll.scrollHeight - approvalScroll.scrollTop - approvalScroll.clientHeight;
-          if (distanceFromBottom < 80) {
-            approvalScroll.scrollTop = approvalScroll.scrollHeight;
-          }
-        }
-      } else if (data.type === "agent:token") {
-        if (!answerStarted) {
-          completeActive();
-          addStep("answer", "Answer");
-          answerStarted = true;
-        }
-        if (data.reset) {
-          fullText = "";
-          if (contentDiv) contentDiv.innerHTML = "";
-        } else if (data.text) {
-          if (!contentDiv) {
-            clearInterval(timerInterval);
-            setThinkingText("");
-            if (!totalThoughtDuration) {
-              const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-              totalThoughtDuration = `${elapsed}s`;
-            }
-            contentDiv = document.createElement("div");
-            contentDiv.className = "message-content";
-            const wrapper = document.createElement("div");
-            wrapper.className = "message-wrapper";
-            const badgeDiv = document.createElement("div");
-            badgeDiv.className = "thought-duration-badge";
-            badgeDiv.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Thought for ${totalThoughtDuration}`;
-            wrapper.appendChild(badgeDiv);
-            wrapper.appendChild(contentDiv);
-            const msgDiv = document.createElement("div");
-            msgDiv.className = "message system-message";
-            msgDiv.appendChild(wrapper);
-            messagesContainer?.appendChild(msgDiv);
-          }
-          fullText += data.text;
-          contentDiv.innerHTML = formatMarkdown(fullText);
-        }
-      } else if (data.type === "answer_final") {
-        // Backend post-processed the answer (e.g. attached inline citations).
-        if (typeof data.text === "string" && data.text) {
-          fullText = data.text;
-          if (contentDiv) contentDiv.innerHTML = formatMarkdown(fullText);
-        }
-      } else if (data.type === "token") {
-        if (!answerStarted) {
-          completeActive();
-          addStep("answer", "Answer");
-          answerStarted = true;
-        }
-        if (!contentDiv) {
-          clearInterval(timerInterval);
-          setThinkingText("");
-          if (!totalThoughtDuration) {
-            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-            totalThoughtDuration = `${elapsed}s`;
-          }
-          contentDiv = document.createElement("div");
-          contentDiv.className = "message-content";
-          const wrapper = document.createElement("div");
-          wrapper.className = "message-wrapper";
-
-          const badgeDiv = document.createElement("div");
-          badgeDiv.className = "thought-duration-badge";
-          badgeDiv.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Thought for ${totalThoughtDuration}`;
-          wrapper.appendChild(badgeDiv);
-          wrapper.appendChild(contentDiv);
-
-          const msgDiv = document.createElement("div");
-          msgDiv.className = "message system-message";
-          msgDiv.appendChild(wrapper);
-          messagesContainer?.appendChild(msgDiv);
-        }
-        fullText += data.text;
-        contentDiv.innerHTML = formatMarkdown(fullText);
-      } else if (data.type === "error") {
-        clearInterval(timerInterval);
-        timerIntervalRef.current = null;
-        setThinkingText("");
-        setAgentStates([]);
-        setAgentLoading(null);
-        setActivity(null);
-        setChainSlot(null);
-        if (!contentDiv) {
-          contentDiv = document.createElement("div");
-          contentDiv.className = "message-content";
-          const wrapper = document.createElement("div");
-          wrapper.className = "message-wrapper";
-          wrapper.appendChild(contentDiv);
-          const msgDiv = document.createElement("div");
-          msgDiv.className = "message system-message";
-          msgDiv.appendChild(wrapper);
-          messagesContainer?.appendChild(msgDiv);
-        }
-        fullText += `\n**Error:** ${data.text}`;
-        contentDiv.innerHTML = formatMarkdown(fullText);
-        eventSource.close();
-        eventSourceRef.current = null;
-        setIsGenerating(false);
-        refreshSessions().then(() => {
-          if (messagesContainer) messagesContainer.innerHTML = "";
-        });
-      } else if (data.type === "done") {
-        clearInterval(timerInterval);
-        timerIntervalRef.current = null;
-        setThinkingText("");
-        setAgentStates([]);
-        setAgentLoading(null);
-        setActivity(null);
-        setChainSlot(null);
-        eventSource.close();
-        eventSourceRef.current = null;
-        setIsGenerating(false);
-        refreshSessions().then(() => {
-          if (messagesContainer) messagesContainer.innerHTML = "";
-        });
-      }
-    };
-
-    eventSource.onerror = () => {
-      clearInterval(timerInterval);
-      timerIntervalRef.current = null;
-      setThinkingText("");
-      setAgentStates([]);
-      setAgentLoading(null);
-      setActivity(null);
-      setChainSlot(null);
-      eventSource.close();
-      eventSourceRef.current = null;
-      setIsGenerating(false);
-      refreshSessions().then(() => {
-        if (messagesContainer) messagesContainer.innerHTML = "";
-      });
-    };
   }, [
     value,
     isGenerating,
@@ -1102,12 +426,10 @@ export default function InputArea() {
     selectedFiles,
     attachedFiles,
     setAttachedFiles,
-    setIsGenerating,
-    refreshSessions,
     allAgents,
     activeView,
     selectedAgentId,
-    setActivity,
+    sendMessage,
   ]);
 
   const findLastMessage = useCallback(
@@ -1126,15 +448,11 @@ export default function InputArea() {
 
   useCommandHandlers({
     "chat.stop": () => {
-      const ctrl =
-        abortRef.current ??
-        (window as unknown as { __abortController?: AbortController }).__abortController ??
-        null;
-      if (!ctrl) {
+      if (!isGenerating) {
         addToast("Nothing is generating.");
         return;
       }
-      ctrl.abort();
+      stopStream();
     },
     "chat.copy-last": () => {
       const last = findLastMessage("system");
@@ -1606,11 +924,7 @@ export default function InputArea() {
                 disabled={!isGenerating && isEmpty}
                 onClick={() => {
                   if (isGenerating) {
-                    const ac = (
-                      window as unknown as { __abortController?: AbortController }
-                    ).__abortController;
-                    if (ac) ac.abort();
-                    setIsGenerating(false);
+                    stopStream();
                   } else {
                     handleSend();
                   }
@@ -1627,7 +941,6 @@ export default function InputArea() {
         </div>
       </PromptInput>
       <ModelSwitcher />
-      {chainSlot && createPortal(<ActivityChain />, chainSlot)}
     </div>
   );
 }

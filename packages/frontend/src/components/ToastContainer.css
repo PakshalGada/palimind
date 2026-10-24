@@ -1,0 +1,55 @@
+/* ==========================================================================
+   ToastContainer.css — extracted from App.css (Phase 0 split).
+   ========================================================================== */
+
+/* ── sync-toast ── */
+.sync-toast {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    padding: 12px 20px;
+    border-radius: var(--radius-panel);
+    font-size: 0.85rem;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 100;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    animation:
+        slideIn 0.3s ease-out,
+        fadeOut 0.5s ease-in 4.5s forwards;
+    max-width: min(420px, calc(100vw - 32px));
+}
+@keyframes slideIn {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+        pointer-events: none;
+    }
+}
+
+
+/* ── responsive ── */
+
+/* 760px sync-toast */
+@media (max-width: 760px) {
+    .sync-toast {
+        top: 12px;
+        right: 12px;
+        left: 12px;
+    }
+}

@@ -19,6 +19,7 @@ from palimind.llm.mixture_of_expert.tools import (
     AVAILABLE_TOOLS_DESC,
     TOOL_REGISTRY,
     _register_plugin_tools,
+    apply_tool_context,
     call_tool,
 )
 from palimind.settings import (
@@ -234,7 +235,13 @@ def _gate_tool(
             return f"Access denied: this agent does not have shell_access ('{tool_name}' blocked)"
 
         threshold = float(getattr(definition, "human_in_loop_threshold", 0.0) or 0.0)
-        if approval_provider is not None and threshold > 0 and tool_name in RISKY_TOOLS:
+        if threshold > 0 and tool_name in RISKY_TOOLS:
+            if approval_provider is None:
+                return (
+                    f"Access denied: '{tool_name}' is a risky tool and this run has no "
+                    "approval channel. Start it from the UI (or disable the approval "
+                    "gate explicitly on the agent)."
+                )
             return _request_approval(tool_name, tool_args, approval_provider, response)
         return None
 
@@ -296,6 +303,7 @@ def run_agent(
     usage_cb: Callable[[dict], None] | None = None,
     token_stream: bool = False,
     reflect: bool = False,
+    tool_context: dict[str, Any] | None = None,
 ) -> str:
     """Run one agent loop.
 
@@ -321,9 +329,11 @@ def run_agent(
       answer live from the model as ``agent:token`` events (with a ``reset``
       event if streamed text turns out to be internal reasoning).
     """
-    del session_id  # correlation only; kept for interface compatibility
-
     _register_plugin_tools()
+    if tool_context is not None:
+        # Each worker installs its own context in its own thread; never rely
+        # on a process-global set by the orchestrator.
+        apply_tool_context({**tool_context, "agent_id": str(agent_id), "session_id": session_id})
 
     if max_tool_iterations is None:
         max_tool_iterations = _budget_for_sub_task(sub_task, MOE_MAX_AGENT_ITERATIONS)

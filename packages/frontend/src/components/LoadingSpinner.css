@@ -1,0 +1,67 @@
+/* ==========================================================================
+   LoadingSpinner.css — enhanced monochrome loading spinner.
+   ========================================================================== */
+
+.loading-spinner-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+}
+.loading-spinner-container.inline {
+    display: inline-flex;
+    flex-direction: row;
+    gap: 6px;
+    padding: 2px 6px;
+    align-items: center;
+    vertical-align: middle;
+}
+.loading-spinner-svg {
+    animation: spin-loader 0.85s linear infinite;
+}
+.loading-spinner-track {
+    opacity: 0.18;
+    stroke: currentColor;
+}
+.loading-spinner-head {
+    stroke: var(--primary-color);
+    transform-origin: center;
+}
+.loading-spinner-text {
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    color: var(--text-muted);
+    animation: pulse-text 1.8s ease-in-out infinite alternate !important;
+}
+
+@keyframes spin-loader {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes pulse-text {
+    0% {
+        opacity: 0.55;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+/* The spinner re-asserts its animation with !important (see base.css), so
+   reduced motion must be re-asserted here too. */
+@media (prefers-reduced-motion: reduce) {
+    .loading-spinner-svg,
+    .loading-spinner-text {
+        animation: none !important;
+    }
+}

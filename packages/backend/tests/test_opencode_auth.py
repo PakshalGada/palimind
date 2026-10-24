@@ -15,6 +15,7 @@ import json
 import os
 import stat
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -247,6 +248,11 @@ class TestProbeRejectsNonCredentials:
             async def __aexit__(self, *exc):
                 return False
 
+            async def get(self, url, headers=None):
+                captured["url"] = url
+                captured["auth"] = (headers or {}).get("Authorization")
+                return _Resp()
+
             async def post(self, url, json=None, headers=None):
                 captured["url"] = url
                 captured["auth"] = (headers or {}).get("Authorization")
@@ -255,15 +261,56 @@ class TestProbeRejectsNonCredentials:
         monkeypatch.setattr(api_server.httpx, "AsyncClient", _Client)
         return captured
 
-    def test_probe_uses_chat_completions_not_models(self, monkeypatch):
-        """Regression: GET /models returns 200 for a bogus key, so it cannot
-        be the validation call."""
+    def test_probe_uses_models_endpoint(self, monkeypatch):
+        """A credential is validated without depending on a specific model."""
         from palimind.api_server import _probe_opencode_key
 
-        captured = self._patch_client(monkeypatch, 200, {"choices": []})
+        captured = self._patch_client(monkeypatch, 200, {"data": [{"id": "some-model"}]})
         ok, _ = asyncio.run(_probe_opencode_key("whatever-key-value"))
         assert ok is True
-        assert captured["url"].endswith("/chat/completions")
+        assert captured["url"].endswith("/models")
+
+    def test_probe_accepts_key_when_only_probe_model_is_unavailable(self, monkeypatch):
+        """A retired probe model must not make a valid credential look invalid."""
+        import palimind.api_server as api_server
+
+        captured: dict = {}
+
+        class _Resp:
+            def __init__(self, status: int, body: dict) -> None:
+                self.status_code = status
+                self.reason_phrase = "Bad Request"
+                self._body = body
+
+            def json(self):
+                return self._body
+
+        class _Client:
+            def __init__(self, *a, **kw) -> None:
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def get(self, url, headers=None):
+                captured["get_url"] = url
+                return _Resp(405, {})
+
+            async def post(self, url, json=None, headers=None):
+                captured["post_url"] = url
+                return _Resp(
+                    400,
+                    {"error": {"message": "Upstream request failed: Model is unavailable."}},
+                )
+
+        monkeypatch.setattr(api_server.httpx, "AsyncClient", _Client)
+        monkeypatch.setattr(api_server, "_OPENCODE_KEY_PROBE_MODEL", "retired-model")
+        ok, reason = asyncio.run(api_server._probe_opencode_key("sk-abc123456789"))
+        assert ok is True, reason
+        assert captured["post_url"].endswith("/chat/completions")
 
     def test_probe_rejects_prose_with_401(self, monkeypatch):
         from palimind.api_server import _probe_opencode_key
@@ -355,11 +402,31 @@ class TestOpenCodeV2Fallback:
         )
         assert get_key() == "oauth-token-xyz"
 
-    def test_prefers_active_go_key_over_console(self):
+    def test_prefers_unexpired_oauth_over_go_key(self):
+        future = int(time.time()) + 3600
         self._write_v2_db(
             [
-                ("opencode", json.dumps({"access": "console-token"}), 1, 99),
-                ("opencode-go", json.dumps({"key": "go-key"}), 1, 1),
+                (
+                    "opencode",
+                    json.dumps({"type": "oauth", "access": "oauth", "expires": future}),
+                    1,
+                    99,
+                ),
+                ("opencode-go", json.dumps({"type": "key", "key": "go-key"}), 1, 1),
+            ]
+        )
+        assert get_key() == "oauth"
+
+    def test_falls_back_to_go_key_when_oauth_expired(self):
+        self._write_v2_db(
+            [
+                (
+                    "opencode",
+                    json.dumps({"type": "oauth", "access": "expired", "expires": 1}),
+                    1,
+                    99,
+                ),
+                ("opencode-go", json.dumps({"type": "key", "key": "go-key"}), 1, 1),
             ]
         )
         assert get_key() == "go-key"

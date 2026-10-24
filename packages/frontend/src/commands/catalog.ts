@@ -281,15 +281,7 @@ export const COMMANDS: CommandDef[] = [
   },
 
   {
-    id: 'workflows.builder',
-    title: 'Workflow Builder',
-    category: 'Agents',
-    icon: 'blocks',
-    description: 'Open the visual drag-and-drop workflow editor',
-    keywords: ['workflow', 'canvas', 'nodes', 'pipeline', 'automation'],
-  },
-  {
-    id: 'workflows.kanban',
+    id: 'agents.kanban',
     title: 'Task Board',
     category: 'Agents',
     icon: 'layers',

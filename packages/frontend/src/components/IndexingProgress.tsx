@@ -1,4 +1,5 @@
 import { useApp } from '../AppContext';
+import { ProgressBar } from '../ui/primitives';
 import Thinking from './Thinking';
 
 export default function IndexingProgress() {
@@ -8,13 +9,14 @@ export default function IndexingProgress() {
 
   return (
     <div id="indexing-progress-container" className="indexing-progress-container">
-      <div className="progress-bar-label" id="progress-bar-label">
-        <Thinking variant="beacon" size={12} />
-        {indexingStatus || 'Indexing Knowledge Base...'}
-      </div>
-      <div className="progress-bar-track">
-        <div className="progress-bar-fill" />
-      </div>
+      <ProgressBar
+        label={
+          <>
+            <Thinking variant="beacon" size={12} />
+            {indexingStatus || 'Indexing Knowledge Base...'}
+          </>
+        }
+      />
     </div>
   );
 }

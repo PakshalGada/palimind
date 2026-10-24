@@ -1,0 +1,22 @@
+/* ==========================================================================
+   IndexingProgress.css — global indexing/setup progress banner. The bars
+   themselves are the ProgressBar primitive (ui.css); this file only styles
+   the fixed banner shell and stacked task spacing.
+   ========================================================================== */
+
+.indexing-progress-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1500;
+    padding: 12px 24px;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.setup-task + .setup-task {
+    margin-top: 10px;
+}

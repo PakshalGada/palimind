@@ -30,6 +30,24 @@ from pathlib import Path
 PROXY_URL = os.environ.get("OPENCODE_PROXY_URL", "http://127.0.0.1:11435").rstrip("/")
 OPENCODE_BASE_URL = os.environ.get("OPENCODE_BASE_URL", "https://opencode.ai/zen/go/v1").rstrip("/")
 
+
+def _proxy_headers() -> dict[str, str]:
+    try:
+        from palimind.security.tokens import get_proxy_token
+
+        return {"Authorization": f"Bearer {get_proxy_token()}"}
+    except Exception:
+        return {}
+
+
+def _bare_proxy_url() -> str:
+    """PROXY_URL without embedded credentials (for urllib/health checks)."""
+    if "@" not in PROXY_URL:
+        return PROXY_URL
+    scheme, _, rest = PROXY_URL.partition("://")
+    return f"{scheme}://{rest.split('@', 1)[1]}"
+
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 _models_cache: list[dict] | None = None
@@ -46,7 +64,7 @@ _OLLAMA_IDS_TTL = 30.0
 def _proxy_alive() -> bool:
     """Return True if the OpenCode proxy is reachable on its port."""
     try:
-        req = urllib.request.Request(f"{PROXY_URL}/health", method="GET")
+        req = urllib.request.Request(f"{_bare_proxy_url()}/health", method="GET")
         with urllib.request.urlopen(req, timeout=2) as resp:
             return resp.status == 200
     except Exception:
@@ -133,7 +151,7 @@ def _fetch_sync() -> list[dict]:
     """Blocking fetch of OpenCode models (proxy first, then direct Zen)."""
     models: list[dict] = []
     if ensure_proxy():
-        data = _get_json(f"{PROXY_URL}/api/tags")
+        data = _get_json(f"{_bare_proxy_url()}/api/tags", headers=_proxy_headers())
         if data:
             models = _from_ollama_tags(data)
 

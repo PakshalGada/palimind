@@ -269,41 +269,60 @@ def _fallback_steps(task: str, available_tools: list[str] | None) -> list[dict[s
 # ── persistence ───────────────────────────────────────────────────────────
 
 
-def _plan_path(plan_id: str) -> Path:
+def _plan_key(plan_id: str) -> str:
     # Guard against path traversal from user-supplied ids.
-    safe = "".join(c for c in str(plan_id) if c.isalnum() or c in "-_")
-    return PLANS_DIR / f"{safe}.json"
+    return "".join(c for c in str(plan_id) if c.isalnum() or c in "-_")
+
+
+def _migrate_plans() -> None:
+    """Import legacy ``plans/*.json`` files once."""
+    if not PLANS_DIR.is_dir():
+        return
+    from palimind.storage import state_store
+
+    for path in PLANS_DIR.glob("*.json"):
+        state_store.migrate_json_file("plans", _plan_key(path.stem), path, default=None)
+
+
+def _prune_plans(max_plans: int = 200) -> None:
+    """Keep plan storage bounded (oldest plans are dropped first)."""
+    from palimind.storage import state_store
+
+    plans = state_store.list_json("plans", limit=max_plans + 50)
+    if len(plans) <= max_plans:
+        return
+    plans.sort(key=lambda p: float(p.get("updated_at", 0) or 0))
+    for old in plans[: len(plans) - max_plans]:
+        plan_id = str(old.get("id") or "")
+        if plan_id:
+            state_store.delete_json("plans", _plan_key(plan_id))
 
 
 def save_plan(plan: dict[str, Any]) -> dict[str, Any]:
-    PLANS_DIR.mkdir(parents=True, exist_ok=True)
+    from palimind.storage import state_store
+
     plan["updated_at"] = time.time()
-    _plan_path(plan["id"]).write_text(json.dumps(plan, indent=2), "utf-8")
+    state_store.set_json("plans", _plan_key(plan["id"]), plan)
+    _prune_plans()
     return plan
 
 
 def get_plan(plan_id: str) -> dict[str, Any] | None:
-    path = _plan_path(plan_id)
-    if not path.exists():
-        return None
-    try:
-        data = json.loads(path.read_text("utf-8"))
-        return data if isinstance(data, dict) else None
-    except (OSError, json.JSONDecodeError):
-        return None
+    from palimind.storage import state_store
+
+    key = _plan_key(plan_id)
+    data = state_store.get_json("plans", key, default=None)
+    if data is None:
+        _migrate_plans()
+        data = state_store.get_json("plans", key, default=None)
+    return data if isinstance(data, dict) else None
 
 
 def list_plans(limit: int = 50) -> list[dict[str, Any]]:
-    if not PLANS_DIR.is_dir():
-        return []
-    plans: list[dict[str, Any]] = []
-    for path in PLANS_DIR.glob("*.json"):
-        try:
-            data = json.loads(path.read_text("utf-8"))
-            if isinstance(data, dict):
-                plans.append(data)
-        except (OSError, json.JSONDecodeError):
-            continue
+    from palimind.storage import state_store
+
+    _migrate_plans()
+    plans = state_store.list_json("plans", limit=max(limit, 1))
     plans.sort(key=lambda p: float(p.get("updated_at", 0) or 0), reverse=True)
     return plans[:limit]
 
@@ -322,14 +341,15 @@ def update_plan(plan_id: str, changes: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def delete_plan(plan_id: str) -> bool:
-    path = _plan_path(plan_id)
-    if path.exists():
-        try:
-            path.unlink()
-            return True
-        except OSError:
+    from palimind.storage import state_store
+
+    key = _plan_key(plan_id)
+    if state_store.get_json("plans", key, default=None) is None:
+        _migrate_plans()
+        if state_store.get_json("plans", key, default=None) is None:
             return False
-    return False
+    state_store.delete_json("plans", key)
+    return True
 
 
 # ── approval bridge (used by runtime in "review" mode) ────────────────────
