@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import AgentAvatar from '../../components/AgentAvatar';
+import { botStateFor } from '../../bots/config';
 import ContextMenu from '../../components/ContextMenu';
 import { useConfirm } from '../../components/ConfirmDialog';
 import type { AgentListItem } from '../../types';
@@ -65,6 +66,22 @@ export default function AgentListPanel() {
     }
   };
 
+  const deleteAll = async () => {
+    const ok = await confirm(
+      `Delete all ${agents.length} agents? This removes every bot along with its memory and chat history. This cannot be undone.`,
+      { title: 'Delete all agents', confirmLabel: 'Delete all', danger: true },
+    );
+    if (!ok) return;
+    try {
+      await api.agents.removeAll();
+      setAgents([]);
+      setSelectedAgentId(null);
+      window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+    } catch {
+      // ignore
+    }
+  };
+
   const showMenu = (e: React.MouseEvent, agent: AgentListItem) => {
     e.preventDefault();
     e.stopPropagation();
@@ -82,14 +99,26 @@ export default function AgentListPanel() {
     <aside className="aw-agent-panel" aria-label="Agents">
       <div className="aw-agent-panel__head">
         <span>Agents</span>
-        <button
-          className="icon-btn"
-          title="New Agent"
-          aria-label="Create new agent"
-          onClick={() => window.dispatchEvent(new CustomEvent('palimind:new-agent'))}
-        >
-          <Plus size={14} />
-        </button>
+        <div className="aw-agent-panel__actions">
+          {agents.length > 0 && (
+            <button
+              className="icon-btn"
+              title="Delete all agents"
+              aria-label="Delete all agents"
+              onClick={() => void deleteAll()}
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+          <button
+            className="icon-btn"
+            title="New Agent"
+            aria-label="Create new agent"
+            onClick={() => window.dispatchEvent(new CustomEvent('palimind:new-agent'))}
+          >
+            <Plus size={14} />
+          </button>
+        </div>
       </div>
       <div className="aw-agent-panel__list">
         {agents.map((a) => (
@@ -99,8 +128,17 @@ export default function AgentListPanel() {
             onClick={() => setSelectedAgentId(a.id)}
             onContextMenu={(e) => showMenu(e, a)}
           >
-            <AgentAvatar seed={a.color_seed || a.id + a.name} size={22} />
-            <span className="aw-agent-item__name">{a.name}</span>
+            <AgentAvatar
+              config={a.avatar_config}
+              type={a.avatar_type === 'upload' ? 'upload' : 'bot'}
+              upload={a.avatar_upload}
+              state={botStateFor(a)}
+              size={26}
+            />
+            <span className="aw-agent-item__text">
+              <span className="aw-agent-item__name">{a.name}</span>
+              {a.title && <span className="aw-agent-item__title">{a.title}</span>}
+            </span>
             <button
               className="icon-btn aw-agent-item__menu"
               title="Options"

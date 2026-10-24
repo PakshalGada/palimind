@@ -40,6 +40,23 @@ export const EMPTY_DEF: Partial<AgentDefinition> = {
   orchestration_agents: 0,
   verify_confidence_threshold: 0.0,
   success_criteria: '',
+  title: '',
+  description: '',
+  avatar_type: 'bot',
+  avatar_upload: '',
+  avatar_config: {},
+  personality_style: '',
+  goal: '',
+  custom_instructions: '',
+  memory_mode: 'shared',
+  autonomy_level: 'semi',
+  proactive_message_first: false,
+  morning_brief: false,
+  watch_sources: [],
+  working_hours: '',
+  max_concurrent_runs: 1,
+  knowledge_access: 'personal',
+  can_create_knowledge: false,
 };
 
 export function fmtTime(ts?: number | null): string {

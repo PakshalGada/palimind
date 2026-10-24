@@ -4,6 +4,7 @@ import { ArrowUp, Loader2, Mic, Square } from "lucide-react";
 import ModelSwitcher from "./ModelSwitcher";
 import LoadingSpinner from "./LoadingSpinner";
 import AgentAvatar from "./AgentAvatar";
+import { botStateFor } from "../bots/config";
 import MicWave from "./MicWave";
 import { useApp } from "../AppContext";
 import type { ActivityMode } from "../AppContext";
@@ -662,7 +663,13 @@ export default function InputArea() {
                 }}
                 onMouseEnter={() => setMentionIndex(i)}
               >
-                <AgentAvatar seed={a.color_seed || a.id + a.name} thinking={!!a.running} size={20} />
+                <AgentAvatar
+                  config={a.avatar_config}
+                  type={a.avatar_type === 'upload' ? 'upload' : 'bot'}
+                  upload={a.avatar_upload}
+                  state={botStateFor(a)}
+                  size={20}
+                />
                 <span className="agent-mention-name">@{a.name}</span>
               </div>
             ))}

@@ -1,3 +1,5 @@
+import type { BotAvatarConfig } from './bots/config';
+
 export interface Field {
   path: string;
 }
@@ -239,6 +241,24 @@ export interface AgentDefinition {
   orchestration_agents: number;
   verify_confidence_threshold: number;
   success_criteria: string;
+  // ── Agent creation workflow (Identity / Purpose / Autonomy / Scope) ──
+  title?: string;
+  description?: string;
+  avatar_type?: 'bot' | 'upload';
+  avatar_upload?: string;
+  avatar_config?: BotAvatarConfig;
+  personality_style?: string;
+  goal?: string;
+  custom_instructions?: string;
+  memory_mode?: 'shared' | 'private' | 'project';
+  autonomy_level?: 'supervised' | 'semi' | 'high';
+  proactive_message_first?: boolean;
+  morning_brief?: boolean;
+  watch_sources?: string[];
+  working_hours?: string;
+  max_concurrent_runs?: number;
+  knowledge_access?: 'personal' | 'project' | 'shared';
+  can_create_knowledge?: boolean;
 }
 
 export type ReasoningEffort = 'off' | 'auto' | 'minimal' | 'standard' | 'high' | 'max';

@@ -70,10 +70,24 @@ class AgentDefinition:
     orchestration_agents: int = 0
     verify_confidence_threshold: float = 0.0
     success_criteria: str = ""
-
-    @property
-    def avatar_seed(self) -> str:
-        return self.color_seed or f"{self.id}{self.name}"
+    # ── Agent creation workflow (Identity / Purpose / Autonomy / Scope) ──
+    title: str = ""
+    description: str = ""
+    avatar_type: str = "bot"
+    avatar_upload: str = ""
+    avatar_config: dict[str, Any] = field(default_factory=dict)
+    personality_style: str = ""
+    goal: str = ""
+    custom_instructions: str = ""
+    memory_mode: str = "shared"
+    autonomy_level: str = "semi"
+    proactive_message_first: bool = False
+    morning_brief: bool = False
+    watch_sources: list[str] = field(default_factory=list)
+    working_hours: str = ""
+    max_concurrent_runs: int = 1
+    knowledge_access: str = "personal"
+    can_create_knowledge: bool = False
 
     # ── construction helpers ────────────────────────────────────────────
 
@@ -420,6 +434,30 @@ class AgentCatalog:
                     raise OSError(f"Failed to delete agent file {path}: {e}") from e
             self._by_name.pop(existing.name, None)
             self._by_id.pop(agent_id, None)
+
+    def delete_all(self) -> int:
+        """Delete every agent definition.
+
+        Memory and chat files are removed too so a wipe leaves no orphaned
+        state behind. Returns the number of agents deleted.
+        """
+        with self._lock:
+            ids = list(self._by_id.keys())
+        deleted = 0
+        for agent_id in ids:
+            try:
+                self.delete(agent_id)
+                for sub in ("memory", "chats"):
+                    p = GLOBAL_AGENTS_DIR / sub / f"{agent_id}.json"
+                    if p.exists():
+                        try:
+                            p.unlink()
+                        except OSError:
+                            pass
+                deleted += 1
+            except Exception:
+                continue
+        return deleted
 
     def _write(self, defn: AgentDefinition) -> None:
         path = self._dir_for(defn) / f"{defn.name}.json"

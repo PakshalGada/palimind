@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Bot,
@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useApp, type ActivityStep } from '../AppContext';
 import AgentAvatar from './AgentAvatar';
+import { configFromSeed } from '../bots/config';
 import Thinking, { type ThinkingVariant } from './Thinking';
 import './ActivityChain.css';
 
@@ -131,6 +132,11 @@ export default function ActivityChain() {
     if (el) el.scrollTop = el.scrollHeight;
   });
 
+  const seedConfig = useMemo(
+    () => configFromSeed(activity?.seed || activity?.title || 'activity'),
+    [activity?.seed, activity?.title],
+  );
+
   if (!activity) return null;
 
   const ModeIcon = MODE_ICON[activity.mode] ?? Info;
@@ -149,7 +155,7 @@ export default function ActivityChain() {
       <div className="ac-header">
         <div className="ac-header-left">
           {activity.seed ? (
-            <AgentAvatar seed={activity.seed} thinking size={20} />
+            <AgentAvatar config={seedConfig} state="working" size={20} />
           ) : (
             <ModeIcon size={16} className="ac-mode-icon" />
           )}

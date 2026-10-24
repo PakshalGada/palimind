@@ -67,6 +67,16 @@ async def update_agent(agent_id: str, req: Request):
         return {"error": "Failed to update agent"}
 
 
+@router.delete("/all")
+async def delete_all_agents():
+    """Wipe every agent definition (and its memory/chat files)."""
+    try:
+        count = get_registry().delete_all()
+        return {"status": "success", "deleted": count}
+    except Exception:
+        return {"error": "Failed to delete all agents"}
+
+
 @router.delete("/{agent_id}")
 async def delete_agent(agent_id: str):
     try:

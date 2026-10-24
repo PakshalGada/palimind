@@ -32,6 +32,12 @@
   letter-spacing: 0.06em;
 }
 
+.aw-agent-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .aw-agent-panel__list {
   flex: 1;
   overflow-y: auto;
@@ -62,11 +68,25 @@
   color: var(--text-main);
 }
 
-.aw-agent-item__name {
+.aw-agent-item__text {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.aw-agent-item__name {
   font-size: 0.8rem;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aw-agent-item__title {
+  font-size: 0.68rem;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

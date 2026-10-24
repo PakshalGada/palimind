@@ -3,6 +3,7 @@ import { MoreVertical } from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import AgentAvatar from '../../components/AgentAvatar';
+import { botStateFor } from '../../bots/config';
 import ContextMenu from '../../components/ContextMenu';
 import { useConfirm } from '../../components/ConfirmDialog';
 import type { AgentListItem } from '../../types';
@@ -67,10 +68,17 @@ export default function AgentHeader() {
 
   return (
     <header className="agents-topbar">
-      <AgentAvatar seed={agent.color_seed || agent.id + agent.name} size={24} thinking={agent.running} />
+      <AgentAvatar
+        config={agent.avatar_config}
+        type={agent.avatar_type === 'upload' ? 'upload' : 'bot'}
+        upload={agent.avatar_upload}
+        state={botStateFor(agent)}
+        size={30}
+      />
       <div className="agents-topbar__id">
         <span className="agents-topbar__name">{agent.name}</span>
         <span className="agents-topbar__meta">
+          {agent.title ? `${agent.title} · ` : ''}
           {agent.model || 'default model'} · {agent.tools.length} tools
           {!agent.enabled ? ' · disabled' : ''}
         </span>

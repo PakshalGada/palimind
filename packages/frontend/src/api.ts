@@ -110,6 +110,7 @@ export const api = {
     update: (agentId: string, changes: Partial<AgentDefinition>) =>
       patch<AgentListItem & { error?: string }>(`/agents/${agentId}`, changes),
     remove: (agentId: string) => del<{ error?: string; status?: string }>(`/agents/${agentId}`),
+    removeAll: () => del<{ error?: string; status?: string; deleted?: number }>('/agents/all'),
     tools: () => get<{ tools: Record<string, ToolMeta> }>('/agents/tools'),
     skills: () => get<{ skills: SkillMeta[] }>('/agents/skills'),
     activity: () => get<AgentActivitySnapshot>('/agents/activity'),

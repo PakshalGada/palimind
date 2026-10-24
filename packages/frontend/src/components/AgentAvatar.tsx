@@ -1,63 +1,44 @@
-import { useEffect, useMemo, useState } from 'react';
+import BotAvatarCanvas from './BotAvatarCanvas';
+import type { BotAvatarConfig, BotState } from '../bots/config';
 
-const GRID = 12;
-
-function hashSeed(seed: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < seed.length; i++) {
-    h ^= seed.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-function mulberry32(a: number) {
-  return function () {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
+/**
+ * Agent avatar rendered by the vendored "bots" library: an animated, plush
+ * 3D-style canvas bot. Uploaded images are still supported.
+ */
 export default function AgentAvatar({
-  seed,
-  thinking = false,
+  config,
   size = 32,
+  type = 'bot',
+  upload,
+  state = 'default',
+  interactive = true,
+  paused = false,
 }: {
-  seed: string;
-  thinking?: boolean;
+  config?: BotAvatarConfig;
   size?: number;
+  type?: 'bot' | 'upload' | string;
+  upload?: string;
+  state?: BotState;
+  interactive?: boolean;
+  paused?: boolean;
 }) {
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    if (!thinking) return;
-    const id = setInterval(() => setTick(t => t + 1), 120);
-    return () => clearInterval(id);
-  }, [thinking]);
-
-  const colors = useMemo(() => {
-    const base = hashSeed(seed) % 360;
-    const rand = mulberry32(base + tick * 7919);
-    return Array.from({ length: GRID * GRID }, () => {
-      // Keep every cell within the same colour family: a small hue drift
-      // around the base, with light/dark variation for depth.
-      const h = (base + rand() * 14 - 7 + 360) % 360;
-      const s = 46 + rand() * 26;
-      const l = 32 + rand() * 40;
-      return `hsl(${h.toFixed(0)}, ${s.toFixed(0)}%, ${l.toFixed(0)}%)`;
-    });
-  }, [seed, tick]);
+  if (type === 'upload' && upload) {
+    return (
+      <span className="agent-avatar agent-avatar--upload" style={{ width: size, height: size }}>
+        <img className="agent-avatar__img" src={upload} alt="" />
+      </span>
+    );
+  }
 
   return (
-    <span className="agent-avatar" style={{ width: size, height: size }} aria-hidden>
-      <span className="agent-avatar-grid">
-        {colors.map((c, i) => (
-          <span key={`${i}-${c}`} className="agent-avatar-cell" style={{ background: c }} />
-        ))}
-      </span>
+    <span className={`agent-avatar bot-avatar${paused ? ' bot-avatar--static' : ''}`} style={{ width: size, height: size }}>
+      <BotAvatarCanvas
+        config={config || {}}
+        size={size}
+        state={state}
+        interactive={interactive}
+        paused={paused}
+      />
     </span>
   );
 }

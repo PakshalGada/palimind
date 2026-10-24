@@ -366,8 +366,8 @@ ruff format --check .  # backend formatting gate (run from packages/backend)
 - Unit tests: `cd packages/backend && python -m pytest -m "not integration"`
   (the fast local suite). The full suite (`pytest`) needs a running
   backend/Ollama — mark such tests `@pytest.mark.integration`.
-- Run the checks above locally before opening a PR. `v*` tags trigger desktop
-  installer builds and a draft GitHub Release.
+- Run the checks above locally before opening a PR. Build installers locally
+  with `make build`.
 
 Note: Core backend changes should degrade gracefully when Ollama is not running.
 
