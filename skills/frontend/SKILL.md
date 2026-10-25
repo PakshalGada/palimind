@@ -20,7 +20,7 @@ description: >
 - TypeScript strict; build runs `tsc -b` — type errors break the build.
 - Lint with oxlint (`npm run lint` inside packages/frontend).
 - Styling is plain CSS files per component today; new design tokens will land
-  in `src/styles/tokens.css` (see skills/brand when it exists). Prefer tokens
+  in `src/design/tokens.css` (see skills/brand when it exists). Prefer tokens
   over hard-coded colors for anything user-visible.
 - Markdown rendering uses marked + katex with DOMPurify sanitization — never
   bypass the sanitizer for model output.

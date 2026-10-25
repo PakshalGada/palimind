@@ -3,12 +3,15 @@ import {
   useRef,
   useState,
   type ButtonHTMLAttributes,
+  type CSSProperties,
+  type HTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { AlertTriangle, CheckCircle2, Info, X, XCircle } from 'lucide-react';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'icon';
@@ -106,6 +109,230 @@ export function Select({
     <select {...rest} className={`ui-select ${className}`.trim()}>
       {children}
     </select>
+  );
+}
+
+/** Single-line input. Alias of TextInput with the shorter, canonical name. */
+export function Input({
+  className = '',
+  ...rest
+}: InputHTMLAttributes<HTMLInputElement>) {
+  return <input {...rest} className={`ui-input ${className}`.trim()} />;
+}
+
+export function Card({
+  children,
+  className = '',
+  interactive = false,
+  ...rest
+}: HTMLAttributes<HTMLDivElement> & { interactive?: boolean }) {
+  return (
+    <div
+      {...rest}
+      className={`ui-card${interactive ? ' ui-card--interactive' : ''} ${className}`.trim()}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function Kbd({
+  children,
+  className = '',
+  title,
+}: {
+  children: ReactNode;
+  className?: string;
+  title?: string;
+}) {
+  return (
+    <kbd className={`ui-kbd ${className}`.trim()} title={title}>
+      {children}
+    </kbd>
+  );
+}
+
+type AvatarSize = 'xs' | 'sm' | 'md' | 'lg';
+type AvatarTone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger';
+
+function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+export function Avatar({
+  name,
+  src,
+  size = 'md',
+  tone = 'neutral',
+  status,
+  className = '',
+}: {
+  name: string;
+  src?: string;
+  size?: AvatarSize;
+  tone?: AvatarTone;
+  status?: 'online' | 'busy' | 'offline';
+  className?: string;
+}) {
+  return (
+    <span
+      className={`ui-avatar ui-avatar--${size} ui-avatar--${tone} ${className}`.trim()}
+      title={name}
+    >
+      {src ? (
+        <img className="ui-avatar__img" src={src} alt={name} />
+      ) : (
+        <span className="ui-avatar__initials" aria-hidden="true">
+          {initialsFor(name)}
+        </span>
+      )}
+      {status && <span className={`ui-avatar__status ui-avatar__status--${status}`} aria-label={status} />}
+      <span className="ui-sr-only">{name}</span>
+    </span>
+  );
+}
+
+export function Separator({
+  orientation = 'horizontal',
+  label,
+  className = '',
+}: {
+  orientation?: 'horizontal' | 'vertical';
+  label?: ReactNode;
+  className?: string;
+}) {
+  if (orientation === 'vertical') {
+    return <span role="separator" aria-orientation="vertical" className={`ui-separator ui-separator--vertical ${className}`.trim()} />;
+  }
+  if (label != null) {
+    return (
+      <div role="separator" className={`ui-separator ui-separator--labelled ${className}`.trim()}>
+        <span>{label}</span>
+      </div>
+    );
+  }
+  return <div role="separator" aria-orientation="horizontal" className={`ui-separator ${className}`.trim()} />;
+}
+
+/** Theme-aware scroll container with consistently styled scrollbars. */
+export function Scrollbar({
+  children,
+  className = '',
+  ...rest
+}: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div {...rest} className={`ui-scrollbar ${className}`.trim()}>
+      {children}
+    </div>
+  );
+}
+
+export function Skeleton({
+  width,
+  height = 12,
+  radius = 'sm',
+  className = '',
+  style,
+}: {
+  width?: number | string;
+  height?: number | string;
+  radius?: 'sm' | 'md' | 'full';
+  className?: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`ui-skeleton ui-skeleton--${radius} ${className}`.trim()}
+      style={{ width, height, ...style }}
+    />
+  );
+}
+
+/** A stack of skeleton lines for paragraph-shaped loading states. */
+export function SkeletonText({
+  lines = 3,
+  className = '',
+}: {
+  lines?: number;
+  className?: string;
+}) {
+  return (
+    <span className={`ui-skeleton-text ${className}`.trim()}>
+      {Array.from({ length: lines }, (_, i) => (
+        <Skeleton key={i} width={i === lines - 1 ? '64%' : '100%'} height={11} />
+      ))}
+    </span>
+  );
+}
+
+/** Avatar + two-line skeleton row, used for lists and panels while loading. */
+export function SkeletonList({
+  rows = 4,
+  avatar = true,
+  className = '',
+}: {
+  rows?: number;
+  avatar?: boolean;
+  className?: string;
+}) {
+  return (
+    <span className={`ui-skeleton-list ${className}`.trim()} role="status" aria-label="Loading">
+      {Array.from({ length: rows }, (_, i) => (
+        <span className="ui-skeleton-row" key={i}>
+          {avatar && <Skeleton width={28} height={28} radius="full" />}
+          <span className="ui-skeleton-row__lines">
+            <Skeleton width={`${72 - (i % 3) * 12}%`} height={11} />
+            <Skeleton width={`${44 + (i % 2) * 10}%`} height={9} />
+          </span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** Alias that reads well when several skeleton blocks form one surface. */
+export const SkeletonCollection = SkeletonList;
+
+export function InlineError({
+  title = 'Something went wrong',
+  message,
+  onRetry,
+  onDismiss,
+  className = '',
+}: {
+  title?: ReactNode;
+  message?: ReactNode;
+  onRetry?: () => void;
+  onDismiss?: () => void;
+  className?: string;
+}) {
+  return (
+    <div className={`ui-error-banner ${className}`.trim()} role="alert">
+      <AlertTriangle size={15} className="ui-error-banner__icon" />
+      <div className="ui-error-banner__text">
+        <span className="ui-error-banner__title">{title}</span>
+        {message != null && <span className="ui-error-banner__message">{message}</span>}
+      </div>
+      {onRetry && (
+        <button type="button" className="ui-error-banner__retry" onClick={onRetry}>
+          Retry
+        </button>
+      )}
+      {onDismiss && (
+        <button
+          type="button"
+          className="ui-error-banner__dismiss"
+          onClick={onDismiss}
+          aria-label="Dismiss error"
+        >
+          <X size={13} />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -251,6 +478,101 @@ export function Picker({
   );
 }
 
+/**
+ * Lightweight anchored overlay for menus, filters and contextual actions.
+ * The panel renders in a portal so it is never clipped by a scroll container.
+ */
+export function Popover({
+  trigger,
+  children,
+  align = 'start',
+  ariaLabel,
+  className = '',
+}: {
+  trigger: ReactNode;
+  children: ReactNode | ((close: () => void) => ReactNode);
+  align?: 'start' | 'end';
+  ariaLabel?: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState<{ left: number; right: number; top: number; width: number } | null>(null);
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const close = () => setOpen(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (anchorRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      close();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    const onLayout = () => close();
+    window.addEventListener('mousedown', onDoc);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onLayout);
+    window.addEventListener('scroll', onLayout, true);
+    return () => {
+      window.removeEventListener('mousedown', onDoc);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onLayout);
+      window.removeEventListener('scroll', onLayout, true);
+    };
+  }, [open]);
+
+  const toggle = () => {
+    if (open) {
+      close();
+      return;
+    }
+    const r = anchorRef.current?.getBoundingClientRect();
+    if (r) setRect({ left: r.left, right: r.right, top: r.bottom + 6, width: r.width });
+    setOpen(true);
+  };
+
+  return (
+    <>
+      <span
+        ref={anchorRef}
+        className="ui-popover-anchor"
+        onClick={toggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggle();
+          }
+        }}
+      >
+        {trigger}
+      </span>
+      {open && rect
+        ? createPortal(
+            <div
+              ref={menuRef}
+              role="dialog"
+              aria-label={ariaLabel}
+              className={`ui-popover ${align === 'end' ? 'ui-popover--end' : ''} ${className}`.trim()}
+              style={{
+                top: rect.top,
+                ...(align === 'end' ? { right: window.innerWidth - rect.right } : { left: rect.left }),
+                minWidth: rect.width,
+              }}
+            >
+              {typeof children === 'function' ? children(close) : children}
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+}
+
 export function Toggle({
   checked,
   onChange,
@@ -326,23 +648,96 @@ export function EmptyState({
   title,
   description,
   action,
+  children,
+  compact = false,
+  className = '',
 }: {
   icon?: ReactNode;
   title: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
+  children?: ReactNode;
+  compact?: boolean;
+  className?: string;
 }) {
   return (
-    <div className="ui-empty">
+    <div className={`ui-empty${compact ? ' ui-empty--compact' : ''} ${className}`.trim()}>
       {icon != null && <div className="ui-empty__icon">{icon}</div>}
       <div className="ui-empty__title">{title}</div>
       {description != null && <div className="ui-empty__desc">{description}</div>}
       {action != null && <div className="ui-empty__action">{action}</div>}
+      {children != null && <div className="ui-empty__extra">{children}</div>}
     </div>
   );
 }
 
-export function Modal({
+export type ToastTone = 'default' | 'success' | 'warning' | 'error' | 'info';
+
+const TOAST_ICONS = {
+  success: CheckCircle2,
+  warning: AlertTriangle,
+  error: XCircle,
+  info: Info,
+  default: Info,
+} as const;
+
+export function Toast({
+  title,
+  message,
+  tone = 'default',
+  action,
+  onDismiss,
+  duration,
+  className = '',
+}: {
+  title?: ReactNode;
+  message: ReactNode;
+  tone?: ToastTone;
+  action?: { label: string; onClick: () => void };
+  onDismiss?: () => void;
+  /** Auto-dismiss delay, used to pace the progress bar. Omit for no bar. */
+  duration?: number;
+  className?: string;
+}) {
+  const Icon = TOAST_ICONS[tone];
+  return (
+    <div className={`ui-toast ui-toast--${tone} ${className}`.trim()} role={tone === 'error' ? 'alert' : 'status'}>
+      <span className="ui-toast__icon" aria-hidden="true">
+        <Icon size={16} />
+      </span>
+      <div className="ui-toast__body">
+        {title != null && <div className="ui-toast__title">{title}</div>}
+        <div className="ui-toast__message">{message}</div>
+      </div>
+      {action && (
+        <button
+          type="button"
+          className="ui-toast__action"
+          onClick={() => {
+            action.onClick();
+            onDismiss?.();
+          }}
+        >
+          {action.label}
+        </button>
+      )}
+      {onDismiss && (
+        <button type="button" className="ui-toast__close" onClick={onDismiss} aria-label="Dismiss notification">
+          <X size={14} />
+        </button>
+      )}
+      {duration != null && duration > 0 && (
+        <span
+          className="ui-toast__progress"
+          aria-hidden="true"
+          style={{ animationDuration: `${duration}ms` }}
+        />
+      )}
+    </div>
+  );
+}
+
+export function Dialog({
   open,
   onClose,
   title,
@@ -350,6 +745,7 @@ export function Modal({
   children,
   footer,
   width = 720,
+  className = '',
 }: {
   open: boolean;
   onClose: () => void;
@@ -358,6 +754,7 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
   width?: number;
+  className?: string;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -367,17 +764,23 @@ export function Modal({
         onClose();
       }
     };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
   }, [open, onClose]);
 
   if (!open) return null;
   return createPortal(
     <div className="ui-modal-overlay" onMouseDown={onClose}>
       <div
-        className="ui-modal"
+        className={`ui-modal ${className}`.trim()}
         role="dialog"
         aria-modal="true"
+        aria-label={typeof title === 'string' ? title : undefined}
         style={{ width }}
         onMouseDown={(e) => e.stopPropagation()}
       >
@@ -400,6 +803,9 @@ export function Modal({
     document.body,
   );
 }
+
+/** Backwards-compatible alias; new code should use `Dialog`. */
+export const Modal = Dialog;
 
 export function Tabs<T extends string>({
   tabs,

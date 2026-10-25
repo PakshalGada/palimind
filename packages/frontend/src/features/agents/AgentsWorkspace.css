@@ -29,23 +29,15 @@
   overflow: hidden;
 }
 
-.aw-empty {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  color: var(--text-muted);
-  text-align: center;
+.aw-empty.ui-empty {
+  padding: 24px;
+  gap: 4px;
 }
-
-.aw-empty p {
-  margin: 6px 0 0;
+.aw-empty .ui-empty__title {
   font-size: 0.95rem;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
 }
-
-.aw-empty span {
-  font-size: 0.8rem;
+.aw-empty .ui-empty__desc {
+  font-size: var(--text-xs);
+  max-width: 300px;
 }

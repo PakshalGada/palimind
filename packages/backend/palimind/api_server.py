@@ -82,6 +82,7 @@ from palimind.memory.session_store import (
     truncate_session_messages,
 )
 from palimind.opencode.client import proxy_auth_headers
+from palimind.projects.api import router as projects_router
 from palimind.research.plan_registry import resolve_plan
 from palimind.research.project_store import (
     add_finding,
@@ -127,6 +128,7 @@ app.add_middleware(
 install_auth(app, token_provider=get_api_token, cookie_path_prefix="/ui")
 
 app.include_router(agents_router)
+app.include_router(projects_router)
 
 
 # Built frontend lives at packages/frontend/dist (repo layout: backend package
@@ -257,13 +259,28 @@ def _chat_root(scope: str) -> Path | None:
     ``scope="chat"`` uses a global, knowledge-base-independent store under the
     user's home directory. ``scope="agent:<id>"`` uses that agent's own store
     so its conversations are kept entirely separate from global/field chat.
-    ``scope="field"`` (default) uses the active knowledge base.
+    ``scope="project:<id>"`` uses the project's private folder, which also holds
+    its isolated index and artifacts. ``scope="field"`` (default) uses the
+    active knowledge base.
     """
     if scope == "chat":
         return Path.home()
     if scope.startswith("agent:"):
         agent_id = scope.split(":", 1)[1].strip()
         return _agent_chat_root(agent_id) if agent_id else None
+    if scope.startswith("project:"):
+        project_id = scope.split(":", 1)[1].strip()
+        if not project_id:
+            return None
+        try:
+            from palimind.projects import kb
+            from palimind.projects.store import get_project
+
+            if get_project(project_id) is None:
+                return None
+            return kb.ensure_project_storage(project_id)
+        except ValueError:
+            return None
     return state.active_field
 
 
@@ -2070,7 +2087,16 @@ async def update_model(req: Request, scope: str = "field"):
             return {"error": "Failed to update agent model"}
         return {"status": "success", "model": model_id}
 
-    from palimind.config import config_path, load_config, palimind_dir
+    from palimind.config import config_path, load_config, palimind_dir, save_config
+
+    if scope.startswith("project:"):
+        root = _chat_root(scope)
+        if root is None:
+            return {"error": "Project not found"}
+        cfg = load_config(root)
+        cfg["chat_model"] = model_id
+        save_config(root, cfg)
+        return {"status": "success", "model": model_id}
 
     # Update field-level config
     if state.active_field:
@@ -2188,6 +2214,9 @@ async def get_config(scope: str = "field"):
         }
     if scope == "chat":
         config = _global_chat_config()
+    elif scope.startswith("project:"):
+        root = _chat_root(scope)
+        config = load_config(root) if root else {}
     elif state.active_field:
         config = load_config(state.active_field)
     else:
@@ -2218,14 +2247,24 @@ def _patch_field_config(data: dict) -> None:
 
 
 @app.patch("/api/config/persona")
-async def update_persona(req: Request):
-    """Set the per-field persona (name + system prompt). Empty prompt disables."""
+async def update_persona(req: Request, scope: str = "field"):
+    """Set the per-scope persona (name + system prompt). Empty prompt disables."""
     data = await req.json()
     patch = {}
     if "persona_name" in data:
         patch["persona_name"] = str(data["persona_name"]).strip()
     if "persona_system_prompt" in data:
         patch["persona_system_prompt"] = str(data["persona_system_prompt"])
+    if scope.startswith("project:"):
+        from palimind.config import load_config, save_config
+
+        root = _chat_root(scope)
+        if root is None:
+            return {"error": "Project not found"}
+        cfg = load_config(root)
+        cfg.update(patch)
+        save_config(root, cfg)
+        return {"status": "success", **patch}
     _patch_field_config(patch)
     return {"status": "success", **patch}
 
@@ -2249,7 +2288,18 @@ async def update_moe_config(req: Request, scope: str = "field"):
                 global_data[key] = data[key]
         GLOBAL_CONFIG_PATH.write_text(json.dumps(global_data, indent=2), "utf-8")
         return {"status": "success"}
-    from palimind.config import config_path, load_config, palimind_dir
+    from palimind.config import config_path, load_config, palimind_dir, save_config
+
+    if scope.startswith("project:"):
+        root = _chat_root(scope)
+        if root is None:
+            return {"error": "Project not found"}
+        cfg = load_config(root)
+        for key in ("moe_orchestrator_model", "moe_worker_model", "moe_sub_mode"):
+            if key in data:
+                cfg[key] = data[key]
+        save_config(root, cfg)
+        return {"status": "success"}
 
     if state.active_field:
         cfg = load_config(state.active_field)
@@ -2286,7 +2336,16 @@ async def update_embed_model(req: Request, scope: str = "field"):
         global_data["embed_model"] = model_id
         GLOBAL_CONFIG_PATH.write_text(json.dumps(global_data, indent=2), "utf-8")
         return {"status": "success"}
-    from palimind.config import config_path, load_config, palimind_dir
+    from palimind.config import config_path, load_config, palimind_dir, save_config
+
+    if scope.startswith("project:"):
+        root = _chat_root(scope)
+        if root is None:
+            return {"error": "Project not found"}
+        cfg = load_config(root)
+        cfg["embed_model"] = model_id
+        save_config(root, cfg)
+        return {"status": "success"}
 
     if state.active_field:
         cfg = load_config(state.active_field)

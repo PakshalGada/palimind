@@ -3,7 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
     <title>Palimind - AI Workspace for Everything</title>
+    <script>
+      // Apply the persisted/system theme before first paint to avoid a flash.
+      (function () {
+        try {
+          var theme =
+            localStorage.getItem('palimind:theme') ||
+            localStorage.getItem('theme');
+          if (theme !== 'light' && theme !== 'dark') {
+            theme = window.matchMedia('(prefers-color-scheme: light)').matches
+              ? 'light'
+              : 'dark';
+          }
+          var root = document.documentElement;
+          root.classList.add(theme === 'light' ? 'light-mode' : 'dark-mode');
+          root.dataset.theme = theme;
+        } catch (e) {
+          /* ignore */
+        }
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

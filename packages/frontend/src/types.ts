@@ -97,6 +97,77 @@ export interface ResearchProjectSummary {
   finding_count: number;
 }
 
+// ── First-class projects (isolated sessions, KB and artifacts) ───────────
+
+export type ProjectScope = `project:${string}`;
+
+export interface ArtifactVersion {
+  version: number;
+  created_at: number;
+  size: number;
+  checksum: string;
+  filename: string;
+  mime_type: string;
+}
+
+export interface ProjectArtifact {
+  id: string;
+  project_id: string;
+  title: string;
+  type: string;
+  language: string;
+  description: string;
+  size: number;
+  current_version: number;
+  created_at: number;
+  updated_at: number;
+  versions: ArtifactVersion[];
+  metadata: Record<string, unknown>;
+  source?: string;
+  session_id?: string;
+  message_id?: string;
+  /** Present when fetching a single artifact. */
+  content?: string;
+  /** Version returned with `content` (defaults to the current version). */
+  version?: number;
+}
+
+export interface ProjectKbMeta {
+  last_synced_at?: number;
+  indexed_files?: number;
+  deleted_files?: number;
+  unchanged_files?: number;
+  chunks_indexed?: number;
+  file_errors?: number;
+  status?: 'idle' | 'syncing' | 'error' | string;
+  error?: string;
+}
+
+export interface ProjectKbStatus {
+  project_id: string;
+  workspace_path: string;
+  has_index: boolean;
+  indexed_files: number;
+  chunks: number;
+  last_indexed_at: number | null;
+  status: string;
+  error: string;
+  file_errors: number;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  workspace_path: string;
+  created_at: number;
+  updated_at: number;
+  last_opened_at: number | null;
+  scope: ProjectScope;
+  kb: ProjectKbMeta;
+  kb_status?: ProjectKbStatus;
+}
+
 export interface ComparisonConsensus {
   text: string;
   models: string[];

@@ -20,6 +20,7 @@ description: >
 - Domain layout: `core/` (embedder, reranker, web search, persona, watcher),
   `audio/` (stt/tts), `memory/` (session store, hierarchical memory),
   `opencode/` (CLI auth + model routing), `rag/` (indexing, querying),
+  `projects/` (project store, sessions, isolated KB, artifacts),
   plus `agents/`, `document/`, `generative/`, `hwfit/`, `ingestion/`,
   `llm/`, `storage/`.
 - Shared data types live in `palimind/models.py`; domain errors in

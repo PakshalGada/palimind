@@ -20,13 +20,25 @@ def compute_md5(file_path: Path) -> str:
         return ""
 
 
-def crawl_directory(root: Path) -> tuple[list[Path], list[Path], list[str], dict[str, str]]:
+def crawl_directory(
+    root: Path,
+    *,
+    index_root: Path | None = None,
+    config: dict | None = None,
+) -> tuple[list[Path], list[Path], list[str], dict[str, str]]:
     """Scan *root* and return (new_or_modified, unchanged, deleted_paths, hashes).
 
     ``hashes`` maps relative path → md5 for every new/modified file, so the
     indexer can reuse them instead of hashing the same bytes a second time.
+
+    ``root`` is the directory that is scanned. ``index_root`` optionally points
+    at a different directory holding the index database — used by projects,
+    whose content lives in ``workspace_path`` while the index lives in the
+    project's private store. ``config`` may be supplied to avoid re-reading it.
     """
-    config = load_config(root)
+    scan_root = root
+    storage_root = index_root or root
+    config = config if config is not None else load_config(storage_root)
     allowed_exts = set(
         config["extensions"]
         + config["doc_extensions"]
@@ -35,7 +47,7 @@ def crawl_directory(root: Path) -> tuple[list[Path], list[Path], list[str], dict
     )
     ignore_dirs = {str(d).lower() for d in config.get("ignore_dirs", [])}
 
-    conn = get_connection(root)
+    conn = get_connection(storage_root)
     try:
         cur = conn.cursor()
         cur.execute("SELECT path, md5_hash FROM files")
@@ -44,7 +56,7 @@ def crawl_directory(root: Path) -> tuple[list[Path], list[Path], list[str], dict
         conn.close()
 
     current_files: list[Path] = []
-    for dirpath, dirnames, filenames in os.walk(root):
+    for dirpath, dirnames, filenames in os.walk(scan_root):
         # Skip hidden directories and known noise (node_modules, venv, build…)
         # so selecting a project folder doesn't hash/parse thousands of files.
         dirnames[:] = [
@@ -63,7 +75,7 @@ def crawl_directory(root: Path) -> tuple[list[Path], list[Path], list[str], dict
     hashes: dict[str, str] = {}
 
     for file_path in current_files:
-        path_str = str(file_path.relative_to(root))
+        path_str = str(file_path.relative_to(scan_root))
         current_paths.add(path_str)
 
         current_hash = compute_md5(file_path)

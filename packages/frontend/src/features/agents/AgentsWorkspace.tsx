@@ -4,6 +4,7 @@ import AgentHeader from './AgentHeader';
 import AgentListPanel from './AgentListPanel';
 import ChatArea from '../../components/ChatArea';
 import KanbanDashboard from '../../components/KanbanDashboard';
+import { Button, EmptyState } from '../../ui/primitives';
 import './AgentsWorkspace.css';
 
 /**
@@ -25,11 +26,23 @@ export default function AgentsWorkspace() {
               {selectedAgentId ? (
                 <ChatArea />
               ) : (
-                <div className="aw-empty">
-                  <Bot size={26} />
-                  <p>No agent selected</p>
-                  <span>Choose an agent from the panel, or create one to begin.</span>
-                </div>
+                <EmptyState
+                  className="aw-empty"
+                  icon={<Bot size={24} />}
+                  title="No agent selected"
+                  description="Choose an agent from the panel, or create one to begin."
+                  action={
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() =>
+                        window.dispatchEvent(new CustomEvent('palimind:new-agent'))
+                      }
+                    >
+                      New agent
+                    </Button>
+                  }
+                />
               )}
             </div>
           </div>

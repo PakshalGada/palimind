@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
-from palimind.memory.session_store import get_sessions_index_file, load_session_by_id
+from palimind.memory.session_store import load_session_by_id, load_sessions
 from palimind.storage.chat_store import search_chat_episodes
 
 
@@ -30,10 +29,9 @@ def get_hierarchical_memory(
     active_sess_id = session_id
     if not active_sess_id:
         try:
-            index_file = get_sessions_index_file(root)
-            if index_file.exists():
-                index_data = json.loads(index_file.read_text("utf-8"))
-                active_sess_id = index_data.get("active_session_id")
+            # The session store is SQLite-backed; load_sessions also creates a
+            # default session on a first visit so the turn can be persisted.
+            active_sess_id = load_sessions(root).get("active_session_id")
         except Exception:
             pass
 

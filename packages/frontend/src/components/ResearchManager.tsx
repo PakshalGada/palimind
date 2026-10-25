@@ -94,6 +94,13 @@ export default function ResearchManager() {
     return () => window.removeEventListener('palimind:open-research', handler);
   }, [loadProjects]);
 
+  // Let the sidebar reflect an active Projects state while this modal is open.
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('palimind:research-visibility', { detail: { open } }),
+    );
+  }, [open]);
+
   const createProject = async () => {
     const title = newTitle.trim() || 'Untitled Research';
     try {

@@ -1,30 +1,42 @@
-/* Message-level hover actions (1.5) */
+/* Message-level hover actions — an inline row below the message bubble. */
 
 .message-wrapper {
   position: relative;
 }
 
 .msg-actions {
-  position: absolute;
-  top: -12px;
-  right: 4px;
+  position: static;
+  align-self: flex-start;
   z-index: 5;
   display: flex;
   align-items: center;
   gap: 1px;
-  padding: 2px;
-  border: 1px solid var(--border-color);
+  max-height: 0;
+  margin-top: 0;
+  padding: 0;
+  border: 0;
   border-radius: 9px;
-  background: var(--panel-bg);
-  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.18));
+  background: transparent;
+  box-shadow: none;
   opacity: 0;
-  transform: translateY(2px);
+  overflow: hidden;
+  transform: translateY(-3px);
   pointer-events: none;
-  transition: opacity 0.12s ease, transform 0.12s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    max-height 0.15s ease,
+    margin-top 0.15s ease;
+}
+.user-message .msg-actions {
+  align-self: flex-end;
 }
 .message:hover .msg-actions,
 .msg-actions:focus-within {
+  max-height: 30px;
+  margin-top: 2px;
   opacity: 1;
+  overflow: visible;
   transform: translateY(0);
   pointer-events: auto;
 }

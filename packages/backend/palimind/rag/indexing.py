@@ -189,19 +189,30 @@ def update_index(
     root: Path,
     *,
     on_progress: ProgressCallback | None = None,
+    source_root: Path | None = None,
 ) -> UpdateIndexResult:
+    """Update the index stored in *root*.
+
+    ``source_root`` optionally indexes a different directory (a project's
+    workspace) into this store. When omitted, content and index share *root*
+    exactly as before.
+    """
     from palimind.storage.db import INDEX_WRITE_LOCK
 
     with INDEX_WRITE_LOCK:
-        return _update_index_locked(root, on_progress=on_progress)
+        return _update_index_locked(root, on_progress=on_progress, source_root=source_root)
 
 
 def _update_index_locked(
     root: Path,
     *,
     on_progress: ProgressCallback | None = None,
+    source_root: Path | None = None,
 ) -> UpdateIndexResult:
     root = require_index(root)
+    scan_root = (source_root or root).resolve()
+    if not scan_root.is_dir():
+        raise ValueError(f"Not a directory: {scan_root}")
     config = load_config(root)
     init_db(root)
 
@@ -229,7 +240,9 @@ def _update_index_locked(
             reset_conn.close()
 
     report("crawl", message="Scanning directory...")
-    new_or_modified, unchanged, deleted, crawled_hashes = crawl_directory(root)
+    new_or_modified, unchanged, deleted, crawled_hashes = crawl_directory(
+        scan_root, index_root=root, config=config
+    )
     report(
         "crawl",
         message=(
@@ -291,7 +304,7 @@ def _update_index_locked(
                 out["md5"] = md5
 
                 try:
-                    rich_chunks = extract_chunks(fpath, root, config)
+                    rich_chunks = extract_chunks(fpath, scan_root, config)
                 except (ParseError, CaptionError, OCRError) as e:
                     out["error"] = str(e)
                     return out
@@ -452,7 +465,7 @@ def _update_index_locked(
             # Process files in streaming batches
             batch: list[tuple[int, Path, str, str]] = []
             for i, fpath in enumerate(new_or_modified, start=1):
-                rel_path = str(fpath.relative_to(root))
+                rel_path = str(fpath.relative_to(scan_root))
                 batch.append((i, fpath, rel_path, crawled_hashes.get(rel_path, "")))
                 if len(batch) >= batch_size:
                     process_batch(batch)

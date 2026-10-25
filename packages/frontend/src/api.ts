@@ -1,4 +1,4 @@
-import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, Approval, BackgroundTask, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, MarketplaceSkill, MemoryEntry, ModelItem, PlanTemplate, RecentRun, Recommendation, ResearchFinding, ResearchProject, ResearchProjectSummary, RunRecord, SetupTask, SkillCommand, SkillMeta, SocialSignal, ToolMeta, TreeNode, VerificationReport } from './types';
+import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, Approval, BackgroundTask, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, MarketplaceSkill, MemoryEntry, ModelItem, PlanTemplate, Project, ProjectArtifact, ProjectKbStatus, ProjectScope, RecentRun, Recommendation, ResearchFinding, ResearchProject, ResearchProjectSummary, RunRecord, SetupTask, SkillCommand, SkillMeta, SocialSignal, ToolMeta, TreeNode, VerificationReport } from './types';
 
 const BASE = '/api';
 
@@ -314,6 +314,131 @@ export const api = {
     save: (canvasId: string, title: string, content: string) =>
       put<{ id: string; title: string; content: string; updated_at: number; error?: string }>(`/canvas/${encodeURIComponent(canvasId)}`, { title, content }),
     remove: (canvasId: string) => del<{ status?: string; error?: string }>(`/canvas/${encodeURIComponent(canvasId)}`),
+  },
+  projects: {
+    scope: (projectId: string): ProjectScope => `project:${projectId}`,
+    list: (query = '') =>
+      get<{ projects: Project[] }>(`/projects${query ? `?q=${encodeURIComponent(query)}` : ''}`),
+    create: (data: { name: string; description?: string; workspace_path?: string }) =>
+      post<Project>('/projects', data),
+    get: (projectId: string) =>
+      get<Project & { error?: string }>(`/projects/${encodeURIComponent(projectId)}`),
+    update: (
+      projectId: string,
+      changes: { name?: string; description?: string; workspace_path?: string },
+    ) =>
+      patch<Project & { error?: string }>(
+        `/projects/${encodeURIComponent(projectId)}`,
+        changes,
+      ),
+    remove: (projectId: string) =>
+      del<{ status?: string; deleted?: boolean; error?: string }>(
+        `/projects/${encodeURIComponent(projectId)}`,
+      ),
+    open: (projectId: string) =>
+      post<{
+        project: Project;
+        scope: ProjectScope;
+        sessions: {
+          sessions: { id: string; name: string; messages: { role: string; content: string }[] }[];
+          active_session_id: string | null;
+        };
+      }>(`/projects/${encodeURIComponent(projectId)}/open`),
+    sessions: {
+      list: (projectId: string) =>
+        get<{
+          sessions: { id: string; name: string; messages: { role: string; content: string }[] }[];
+          active_session_id: string | null;
+          error?: string;
+        }>(`/projects/${encodeURIComponent(projectId)}/sessions`),
+      create: (projectId: string, name = 'New Session') =>
+        post<{
+          sessions: { id: string; name: string; messages: { role: string; content: string }[] }[];
+          active_session_id: string | null;
+          error?: string;
+        }>(`/projects/${encodeURIComponent(projectId)}/sessions`, { name }),
+    },
+    kb: {
+      status: (projectId: string) =>
+        get<ProjectKbStatus & { error?: string }>(
+          `/projects/${encodeURIComponent(projectId)}/kb/status`,
+        ),
+      sync: (projectId: string) =>
+        post<{
+          status?: string;
+          project_id?: string;
+          workspace_path?: string;
+          indexed_files?: number;
+          deleted_files?: number;
+          unchanged_files?: number;
+          chunks_indexed?: number;
+          file_errors?: number;
+          errors?: { path: string; error: string }[];
+          error?: string;
+        }>(`/projects/${encodeURIComponent(projectId)}/kb/sync`),
+    },
+    artifacts: {
+      /** Project artifact library, newest first. */
+      library: (projectId: string) =>
+        get<{ artifacts: ProjectArtifact[]; error?: string }>(
+          `/projects/${encodeURIComponent(projectId)}/artifacts`,
+        ),
+      list: (projectId: string) =>
+        get<{ artifacts: ProjectArtifact[]; error?: string }>(
+          `/projects/${encodeURIComponent(projectId)}/artifacts`,
+        ),
+      get: (projectId: string, artifactId: string, version?: number) =>
+        get<ProjectArtifact & { error?: string }>(
+          `/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(artifactId)}${
+            version != null ? `?version=${version}` : ''
+          }`,
+        ),
+      save: (
+        projectId: string,
+        data: {
+          title?: string;
+          type?: string;
+          language?: string;
+          description?: string;
+          content?: string;
+          source_path?: string;
+          filename?: string;
+          session_id?: string;
+          message_id?: string;
+          source?: string;
+          metadata?: Record<string, unknown>;
+        },
+      ) =>
+        post<ProjectArtifact & { error?: string }>(
+          `/projects/${encodeURIComponent(projectId)}/artifacts`,
+          data,
+        ),
+      addVersion: (
+        projectId: string,
+        artifactId: string,
+        data: {
+          content?: string;
+          source_path?: string;
+          filename?: string;
+          title?: string;
+          description?: string;
+          metadata?: Record<string, unknown>;
+        },
+      ) =>
+        post<ProjectArtifact & { error?: string }>(
+          `/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(artifactId)}/versions`,
+          data,
+        ),
+      remove: (projectId: string, artifactId: string) =>
+        del<{ status?: string; deleted?: boolean; error?: string }>(
+          `/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(artifactId)}`,
+        ),
+      /** Download URL for the artifact (defaults to the latest version). */
+      exportUrl: (projectId: string, artifactId: string, version?: number) =>
+        `${BASE}/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(artifactId)}/export${
+          version != null ? `?version=${version}` : ''
+        }`,
+    },
   },
   research: {
     approve: (planId: string, plan: unknown[]) =>

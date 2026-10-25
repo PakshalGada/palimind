@@ -228,10 +228,6 @@ export default function ChatArea() {
           <StreamingTurn activeSessionId={activeSessionId} />
         </div>
 
-        <div className="chat-empty-hero" aria-hidden={!isEmpty}>
-          <h1>Palimind</h1>
-        </div>
-
         <InputArea />
       </div>
     </main>
@@ -319,6 +315,7 @@ const MessageComponent = memo(function MessageComponent({
   return (
     <div className={`message ${isUser ? 'user-message' : 'system-message'}`}>
       <div className="message-wrapper">
+        <MessageContent content={msg.content} citations={msg.citations} sources={msg.sources} />
         <MessageActions
           content={msg.content}
           isUser={isUser}
@@ -331,7 +328,6 @@ const MessageComponent = memo(function MessageComponent({
           onShare={onShare}
           onToggleBookmark={() => onToggleBookmark(msg)}
         />
-        <MessageContent content={msg.content} citations={msg.citations} sources={msg.sources} />
       </div>
     </div>
   );

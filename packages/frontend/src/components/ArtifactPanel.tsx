@@ -14,6 +14,7 @@ import {
 import { useApp } from '../AppContext';
 import { formatMarkdown } from '../utils/markdown';
 import { useChatStreamContext } from '../stream/context';
+import { EmptyState } from '../ui/primitives';
 import {
   ARTIFACT_TYPE_LABEL,
   collectArtifacts,
@@ -88,6 +89,17 @@ export default function ArtifactPanel() {
   useEffect(() => {
     if (artifactPanelOpen) setSavedIds(new Set(loadVault().map((a) => a.id)));
   }, [artifactPanelOpen]);
+
+  // The sidebar's "Open artifact vault" action opens the panel and jumps
+  // straight to saved artifacts.
+  useEffect(() => {
+    const handler = () => {
+      setArtifactPanelOpen(true);
+      setVaultOpen(true);
+    };
+    window.addEventListener('palimind:open-artifact-vault', handler);
+    return () => window.removeEventListener('palimind:open-artifact-vault', handler);
+  }, [setArtifactPanelOpen]);
 
   if (!artifactPanelOpen) return null;
 
@@ -216,13 +228,12 @@ export default function ArtifactPanel() {
       </header>
 
       {!active ? (
-        <div className="artifact-empty">
-          <Code2 size={26} />
-          <p>No artifacts in this conversation yet.</p>
-          <span>
-            Ask for HTML, an SVG, a Mermaid diagram, or a React component and it will appear here.
-          </span>
-        </div>
+        <EmptyState
+          className="artifact-empty"
+          icon={<Code2 size={24} />}
+          title="No artifacts yet"
+          description="Ask for HTML, an SVG, a Mermaid diagram, or a React component and it will appear here."
+        />
       ) : (
         <>
           {sessionArtifacts.length > 1 && !vaultArtifact && (

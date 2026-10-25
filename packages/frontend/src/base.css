@@ -1,6 +1,6 @@
 /* ==========================================================================
    base.css — app shell, element reset, shared modal chrome, focus rings and
-   global motion rules. All colors come from tokens.css.
+   global motion rules. All colors come from design/tokens.css.
    ========================================================================== */
 
 /* ── reset ──────────────────────────────────────────────────────────────── */
@@ -208,20 +208,10 @@ input:disabled {
 }
 
 /* ── motion ────────────────────────────────────────────────────────────── */
-/* Determinism switch: the app intentionally disables decorative animation
-   globally. Components that must animate (loading spinner, thinking orb)
-   re-assert their own animation with !important below this rule. */
-*,
-*::before,
-*::after {
-    animation-duration: 0s !important;
-    animation-delay: 0s !important;
-    transition-duration: 0s !important;
-    transition-delay: 0s !important;
-}
-.loading-spinner-svg {
-    animation: spin-loader 0.85s linear infinite !important;
-    animation-duration: 0.85s !important;
+/* Interactive elements use the --transition-* tokens. Decorative motion is
+   disabled wholesale for users who prefer reduced motion. */
+html {
+    scroll-behavior: smooth;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -230,14 +220,15 @@ input:disabled {
     *::after {
         animation-duration: 0.001ms !important;
         animation-iteration-count: 1 !important;
-        scroll-behavior: auto !important;
         transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
     }
     /* Orb / spinner / pulse indicators rest entirely under reduced motion. */
     .ui-spinner,
     .mic-btn,
     .send-btn,
-    .pulse-dot {
+    .pulse-dot,
+    .loading-spinner-svg {
         animation: none !important;
     }
 }

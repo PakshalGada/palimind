@@ -1,9 +1,40 @@
 import { useState, useEffect, useCallback } from "react";
+import {
+  BookOpen,
+  Bot,
+  Folder,
+  FolderKanban,
+  FolderPlus,
+  LayoutGrid,
+  MessageSquare,
+  Moon,
+  Network,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings,
+  Sun,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { useApp } from "../AppContext";
 import { api } from "../api";
 import FileTreeView from "./FileTreeView";
 import ContextMenu from "./ContextMenu";
 import { useCommandHandlers } from "../commands/useCommand";
+import { getCommand } from "../commands/catalog";
+import { runCommand } from "../commands/registry";
+import { formatShortcut } from "../utils/shortcuts";
+import {
+  Avatar,
+  EmptyState,
+  InlineError,
+  Kbd,
+  Scrollbar,
+  SkeletonList,
+} from "../ui/primitives";
 
 const FIELD_TITLE_KEY = "palimind:field-display-titles";
 
@@ -59,6 +90,15 @@ interface CtxMenu {
   items: { label: string; action: () => void; isDanger?: boolean }[];
 }
 
+interface NavItem {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  active: boolean;
+  shortcutId: string;
+  onSelect: () => void;
+}
+
 export default function Sidebar() {
   const {
     activeView,
@@ -77,6 +117,12 @@ export default function Sidebar() {
     setAgentsView,
     setChatMode,
     setCommandPaletteOpen,
+    sidebarCollapsed,
+    toggleSidebar,
+    setSidebarCollapsed,
+    shortcutOverrides,
+    theme,
+    setTheme,
   } = useApp();
 
   const chatScope = () =>
@@ -89,11 +135,16 @@ export default function Sidebar() {
         : 'field';
 
   const [fields, setFields] = useState<string[]>([]);
+  const [fieldsLoading, setFieldsLoading] = useState(true);
+  const [fieldsError, setFieldsError] = useState<string | null>(null);
   const [syncText, setSyncText] = useState("Sync Active Knowledge Base");
   const [treeField, setTreeField] = useState<string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
+  const [researchOpen, setResearchOpen] = useState(false);
 
   const fetchFields = useCallback(async () => {
+    setFieldsLoading(true);
+    setFieldsError(null);
     try {
       const data = await api.fields.list();
       setFields(data.fields);
@@ -103,13 +154,16 @@ export default function Sidebar() {
         setIndexingStatus(data.indexing_status || "Indexing knowledge base...");
       }
     } catch (e) {
-      console.error("fetchFields error:", e);
+      const message = e instanceof Error ? e.message : "Could not reach the local backend.";
+      setFieldsError(message);
+    } finally {
+      setFieldsLoading(false);
     }
-  }, []);
+  }, [setActiveField, setIsIndexing, setIndexingStatus]);
 
   useEffect(() => {
-    fetchFields();
-  }, []);
+    void fetchFields();
+  }, [fetchFields]);
 
   // The command palette can request the workspace file tree for the active
   // knowledge base.
@@ -121,12 +175,24 @@ export default function Sidebar() {
     return () => window.removeEventListener("palimind:open-file-tree", handler);
   }, [activeField]);
 
+  // ResearchManager announces when its modal opens/closes so Projects can show
+  // an active state even though it is not a routed view.
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ open?: boolean }>).detail;
+      setResearchOpen(Boolean(detail?.open));
+    };
+    window.addEventListener("palimind:research-visibility", handler);
+    return () => window.removeEventListener("palimind:research-visibility", handler);
+  }, []);
+
   const handleSetActive = async (path: string) => {
     try {
       await api.fields.setActive(path);
       await fetchFields();
     } catch (e) {
       console.error(e);
+      addToast("Could not switch knowledge base.", { tone: "error" });
     }
   };
 
@@ -149,20 +215,25 @@ export default function Sidebar() {
         );
         addToast(
           `Synced successfully: ${data.indexed_files} added, ${data.deleted_files} deleted`,
+          { tone: "success" },
         );
       } else {
         setSyncText(`Error: ${data.error}`);
-        addToast(`Sync error: ${data.error}`);
+        addToast(`Sync error: ${data.error}`, { tone: "error" });
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "unknown";
       setSyncText("Error!");
-      addToast(`Sync failed: ${msg}`);
+      addToast(`Sync failed: ${msg}`, { tone: "error" });
     }
     setTimeout(() => setSyncText("Sync Active Knowledge Base"), 3000);
   };
 
   const handleNewSession = async () => {
+    if (!chatScope()) {
+      addToast("Select an agent to start a session.");
+      return;
+    }
     try {
       const data = await api.sessions.new(`Session ${sessions.length + 1}`, chatScope());
       if (!data.error) {
@@ -171,6 +242,7 @@ export default function Sidebar() {
       }
     } catch (e) {
       console.error(e);
+      addToast("Could not create a new chat.", { tone: "error" });
     }
   };
 
@@ -195,6 +267,7 @@ export default function Sidebar() {
       }
     } catch (e) {
       console.error(e);
+      addToast("Could not delete the session.", { tone: "error" });
     }
   };
 
@@ -202,6 +275,14 @@ export default function Sidebar() {
     const modal = document.getElementById("graph-modal");
     if (modal) modal.style.display = "flex";
     window.dispatchEvent(new CustomEvent("palimind:open-graph"));
+  };
+
+  const openSettings = () => {
+    runCommand("general.settings");
+  };
+
+  const openResearch = () => {
+    window.dispatchEvent(new CustomEvent("palimind:open-research"));
   };
 
   useCommandHandlers({
@@ -220,6 +301,60 @@ export default function Sidebar() {
       void handleSync();
     },
   });
+
+  const shortcutFor = (commandId: string): string => {
+    const combo = shortcutOverrides[commandId] ?? getCommand(commandId)?.defaultShortcut ?? "";
+    return combo ? formatShortcut(combo) : "";
+  };
+
+  const navItems: NavItem[] = [
+    {
+      id: "chats",
+      label: "Chats",
+      icon: MessageSquare,
+      active: activeView === "chat",
+      shortcutId: "nav.chat",
+      onSelect: () => {
+        setActiveView("chat");
+        setChatMode("llm");
+      },
+    },
+    {
+      id: "projects",
+      label: "Projects",
+      icon: FolderKanban,
+      active: researchOpen,
+      shortcutId: "research.projects",
+      onSelect: openResearch,
+    },
+    {
+      id: "agents",
+      label: "Agents",
+      icon: Bot,
+      active: activeView === "agents",
+      shortcutId: "nav.agents",
+      onSelect: () => setActiveView("agents"),
+    },
+    {
+      id: "knowledge",
+      label: "Knowledge Base",
+      icon: BookOpen,
+      active: activeView === "fields",
+      shortcutId: "nav.knowledge",
+      onSelect: () => {
+        setActiveView("fields");
+        setChatMode("document");
+      },
+    },
+  ];
+
+  const openDirPicker = () => {
+    const modal = document.getElementById("dir-picker-modal");
+    if (modal) {
+      modal.style.display = "flex";
+      window.dispatchEvent(new CustomEvent("palimind:open-dir-picker"));
+    }
+  };
 
   const showFieldMenu = (e: React.MouseEvent, path: string) => {
     e.preventDefault();
@@ -257,287 +392,296 @@ export default function Sidebar() {
     });
   };
 
-  const sessionsSidebar = (
-    <div className="sessions-sidebar-container">
-      <div className="sessions-sidebar-header">
-        <h3>Sessions</h3>
+  const sessionsSection = (
+    <div className="sb-section">
+      <div className="sb-section-head">
+        <span className="sb-section-title sb-collapsible">
+          {activeView === "chat" ? "Recent chats" : "Sessions"}
+        </span>
         <button
-          className="icon-btn"
-          title="New Session"
-          aria-label="Create new session"
+          type="button"
+          className="sb-icon-btn"
+          title="New chat"
+          aria-label="Create new chat"
           onClick={handleNewSession}
         >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
+          <Plus size={14} />
         </button>
       </div>
-      <div className="session-list">
-        {sessions.map((sess) => (
-          <div
-            key={sess.id}
-            className={`session-tab ${sess.id === activeSessionId ? "active" : ""}`}
-            onClick={() => handleSwitchSession(sess.id)}
-            onContextMenu={(e) => showSessionMenu(e, sess.id)}
-          >
-            <span className="session-tab-name">{sess.name}</span>
-          </div>
-        ))}
+      {sessions.length === 0 ? (
+        <EmptyState
+          compact
+          icon={<MessageSquare size={18} />}
+          title="No chats yet"
+          description="Start a conversation and it will appear here."
+        />
+      ) : (
+        <div className="sb-list">
+          {sessions.map((sess) => (
+            <button
+              key={sess.id}
+              type="button"
+              className={`sb-row${sess.id === activeSessionId ? " is-active" : ""}`}
+              onClick={() => handleSwitchSession(sess.id)}
+              onContextMenu={(e) => showSessionMenu(e, sess.id)}
+              title={sess.name}
+            >
+              <span className="sb-row__label">{sess.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const knowledgeSection = (
+    <div className="sb-section">
+      <div className="sb-section-head">
+        <span className="sb-section-title sb-collapsible">Knowledge bases</span>
+        <button
+          type="button"
+          className="sb-icon-btn"
+          title="Add knowledge base"
+          aria-label="Add knowledge base"
+          onClick={openDirPicker}
+        >
+          <FolderPlus size={14} />
+        </button>
       </div>
+
+      {fieldsLoading ? (
+        <SkeletonList rows={3} avatar={false} />
+      ) : fieldsError ? (
+        <InlineError
+          title="Couldn't load knowledge bases"
+          message={fieldsError}
+          onRetry={() => void fetchFields()}
+        />
+      ) : fields.length === 0 ? (
+        <EmptyState
+          compact
+          icon={<FolderPlus size={18} />}
+          title="No knowledge bases"
+          description="Add a folder to index documents locally."
+          action={
+            <button type="button" className="sb-action" onClick={openDirPicker}>
+              Add folder
+            </button>
+          }
+        />
+      ) : (
+        <div className="sb-list">
+          {fields.map((path) => (
+            <button
+              key={path}
+              type="button"
+              className={`sb-row${path === activeField ? " is-active" : ""}`}
+              title={path}
+              onClick={() => handleSetActive(path)}
+              onContextMenu={(e) => showFieldMenu(e, path)}
+            >
+              <Folder size={14} className="sb-row__icon" />
+              <span className="sb-row__label">{getFieldDisplayTitle(path)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="sb-action"
+        style={{ display: activeField ? "flex" : "none" }}
+        onClick={handleSync}
+      >
+        <RefreshCw size={13} />
+        <span>{syncText}</span>
+      </button>
+      <button
+        type="button"
+        className="sb-action"
+        style={{ display: activeField ? "flex" : "none" }}
+        onClick={handleOpenGraph}
+      >
+        <Network size={13} />
+        <span>Knowledge graph</span>
+      </button>
+    </div>
+  );
+
+  const agentsSection = (
+    <div className="sb-section">
+      <div className="sb-section-head">
+        <span className="sb-section-title sb-collapsible">Workspace</span>
+      </div>
+      <div className="sb-list">
+        <button
+          type="button"
+          className={`sb-row${agentsView === "chat" ? " is-active" : ""}`}
+          onClick={() => setAgentsView("chat")}
+        >
+          <MessageSquare size={14} className="sb-row__icon" />
+          <span className="sb-row__label">Agent chat</span>
+        </button>
+        <button
+          type="button"
+          className={`sb-row${agentsView === "kanban" ? " is-active" : ""}`}
+          onClick={() => setAgentsView("kanban")}
+        >
+          <LayoutGrid size={14} className="sb-row__icon" />
+          <span className="sb-row__label">Task board</span>
+        </button>
+      </div>
+      <button
+        type="button"
+        className="sb-action"
+        onClick={() => window.dispatchEvent(new CustomEvent("palimind:new-agent"))}
+      >
+        <Plus size={13} />
+        <span>New agent</span>
+      </button>
+    </div>
+  );
+
+  const projectsSection = (
+    <div className="sb-section">
+      <div className="sb-section-head">
+        <span className="sb-section-title sb-collapsible">Research</span>
+      </div>
+      <EmptyState
+        compact
+        icon={<FolderKanban size={18} />}
+        title="Persistent projects"
+        description="Collect notes, findings and sources in one research workspace."
+        action={
+          <button type="button" className="sb-action" onClick={openResearch}>
+            <FolderKanban size={13} />
+            <span>Open projects</span>
+          </button>
+        }
+      />
     </div>
   );
 
   return (
-    <aside className="sidebar" id="main-sidebar">
-      <div className="logo">
-        <h2 className="sidebar-wordmark">Palimind</h2>
+    <aside className="sidebar" id="main-sidebar" aria-label="Primary navigation">
+      <div className="sb-header">
+        <div className="sb-brand">
+          <span className="sb-wordmark sb-collapsible">Palimind</span>
+        </div>
         <button
-          id="btn-settings"
-          className="icon-btn"
-          title="Settings"
-          aria-label="Open settings"
-          style={{ marginLeft: "auto" }}
-          onClick={() => {
-            const modal = document.getElementById("settings-modal");
-            if (modal) modal.style.display = "flex";
-          }}
+          type="button"
+          className="sb-icon-btn"
+          title={`${sidebarCollapsed ? "Expand" : "Collapse"} sidebar (${shortcutFor("view.toggle-sidebar")})`}
+          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          onClick={toggleSidebar}
         >
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
+          {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
         </button>
       </div>
 
       <button
         type="button"
-        className="sidebar-search-btn"
+        className="sb-search"
         onClick={() => setCommandPaletteOpen(true)}
-        title="Search or run a command (Ctrl+K)"
+        title={`Search or run a command (${shortcutFor("general.palette")})`}
         aria-label="Open command palette"
       >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="11" cy="11" r="8" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-        <span className="sidebar-search-label">Search or run…</span>
-        <kbd className="sidebar-search-kbd">Ctrl K</kbd>
+        <Search size={14} />
+        <span className="sb-search__label sb-collapsible">Search or run…</span>
+        <Kbd className="sb-search__kbd sb-collapsible">{shortcutFor("general.palette")}</Kbd>
       </button>
 
-      <nav className="sidebar-nav" aria-label="Workspace mode">
-        <button
-          className={`sidebar-nav-item${activeView === "chat" ? " active" : ""}`}
-          aria-label="Chat mode"
-          title="Chat — talk with a local LLM using general knowledge only"
-          onClick={() => {
-            setActiveView("chat");
-            setChatMode("llm");
-          }}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          Chat
-        </button>
-        <button
-          className={`sidebar-nav-item${activeView === "fields" ? " active" : ""}`}
-          aria-label="Knowledge Base mode"
-          title="Knowledge Base — chat with your indexed documents and workspaces"
-          onClick={() => {
-            setActiveView("fields");
-            setChatMode("document");
-          }}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-          </svg>
-          Knowledge Base
-        </button>
-        <button
-          className={`sidebar-nav-item${activeView === "agents" ? " active" : ""}`}
-          aria-label="Agents mode"
-          title="Agents — chat with AI agents that can research, write code, and analyze data"
-          onClick={() => setActiveView("agents")}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <rect x="4" y="8" width="16" height="12" rx="2" />
-            <circle cx="9" cy="13.5" r="1.2" fill="currentColor" stroke="none" />
-            <circle cx="15" cy="13.5" r="1.2" fill="currentColor" stroke="none" />
-            <path d="M12 8V5M9 5h6" />
-          </svg>
-          Agents
-        </button>
+      <nav className="sb-nav" aria-label="Workspace">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const shortcut = shortcutFor(item.shortcutId);
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={`sb-nav-item${item.active ? " is-active" : ""}`}
+              aria-current={item.active ? "page" : undefined}
+              aria-expanded={item.id === "projects" ? researchOpen : undefined}
+              title={shortcut ? `${item.label} (${shortcut})` : item.label}
+              onClick={() => {
+                item.onSelect();
+                if (window.matchMedia("(max-width: 900px)").matches) {
+                  setSidebarCollapsed(true);
+                }
+              }}
+            >
+              <span className="sb-nav-item__icon">
+                <Icon size={16} />
+              </span>
+              <span className="sb-nav-item__label sb-collapsible">{item.label}</span>
+              {shortcut && (
+                <Kbd className="sb-nav-item__kbd sb-collapsible">{shortcut}</Kbd>
+              )}
+            </button>
+          );
+        })}
       </nav>
 
-      {activeView === "chat" && (
-        <div className="chat-sidebar-content">
-          {sessionsSidebar}
-        </div>
-      )}
+      <Scrollbar className="sb-context">
+        {activeView === "chat" && sessionsSection}
+        {activeView === "fields" && (
+          <>
+            {knowledgeSection}
+            {sessionsSection}
+          </>
+        )}
+        {activeView === "agents" && agentsSection}
+        {researchOpen && projectsSection}
+      </Scrollbar>
 
-      {activeView === "fields" && (
-      <div id="fields-sidebar-content">
-        <div className="fields-container">
-            <div className="fields-header">
-              <h3>Knowledge Bases</h3>
+      <div className="sb-footer">
+        <div className="sb-user">
+          <Avatar name="Local workspace" size="sm" tone="accent" status="online" />
+          <div className="sb-user__meta sb-collapsible">
+            <span className="sb-user__name">Local workspace</span>
+            <span className="sb-user__hint">Offline · private</span>
+          </div>
+          <button
+            type="button"
+            className="sb-icon-btn sb-collapsible"
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} theme (${shortcutFor("view.toggle-theme")})`}
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
+            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
+          <button
+            type="button"
+            className="sb-icon-btn"
+            title={`Settings (${shortcutFor("general.settings")})`}
+            aria-label="Open settings"
+            onClick={openSettings}
+          >
+            <Settings size={15} />
+          </button>
+        </div>
+      </div>
+
+      {treeField && (
+        <div className="modal" onClick={() => setTreeField(null)}>
+          <div
+            className="modal-content file-tree-modal-content"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2>Workspace Files</h2>
               <button
                 className="icon-btn"
-                title="Add Knowledge Base"
-                aria-label="Add knowledge base"
-                onClick={() => {
-                  const modal = document.getElementById("dir-picker-modal");
-                  if (modal) {
-                    modal.style.display = "flex";
-                    window.dispatchEvent(
-                      new CustomEvent("palimind:open-dir-picker"),
-                    );
-                  }
-                }}
+                onClick={() => setTreeField(null)}
+                aria-label="Close"
               >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
+                <X size={15} />
               </button>
             </div>
-            <ul className="fields-list">
-              {fields.map((path) => (
-                <li
-                  key={path}
-                  className={`field-item ${path === activeField ? "active" : ""}`}
-                  onContextMenu={(e) => showFieldMenu(e, path)}
-                >
-                  <span
-                    className="field-name"
-                    title={path}
-                    onClick={() => handleSetActive(path)}
-                  >
-                    {getFieldDisplayTitle(path)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <button
-              className="action-btn"
-              style={{ display: activeField ? "block" : "none" }}
-              onClick={handleSync}
-            >
-              {syncText}
-            </button>
-            <button
-              className="action-btn graph-btn"
-              style={{ display: activeField ? "block" : "none" }}
-              onClick={handleOpenGraph}
-            >
-              View Knowledge Graph
-            </button>
-          </div>
-
-          {sessionsSidebar}
-
-          {treeField && (
-            <div className="modal" onClick={() => setTreeField(null)}>
-              <div
-                className="modal-content file-tree-modal-content"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="modal-header">
-                  <h2>Workspace Files</h2>
-                  <button
-                    className="icon-btn"
-                    onClick={() => setTreeField(null)}
-                  >
-                    ×
-                  </button>
-                </div>
-                <div className="modal-body file-tree-modal-body">
-                  <FileTreeView modal />
-                </div>
-              </div>
+            <div className="modal-body file-tree-modal-body">
+              <FileTreeView modal />
             </div>
-          )}
-      </div>
-      )}
-
-      {activeView === "agents" && (
-        <div className="sidebar-agents-content">
-          <nav className="sidebar-subnav sidebar-subnav--top" aria-label="Agents workspace">
-            <button
-              className={`sidebar-subnav-item${agentsView === "chat" ? " active" : ""}`}
-              onClick={() => setAgentsView("chat")}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>
-              Chat
-            </button>
-            <button
-              className={`sidebar-subnav-item${agentsView === "kanban" ? " active" : ""}`}
-              onClick={() => setAgentsView("kanban")}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="5" height="18" rx="1" />
-                <rect x="10" y="3" width="5" height="12" rx="1" />
-                <rect x="17" y="3" width="5" height="8" rx="1" />
-              </svg>
-              Tasks
-            </button>
-          </nav>
+          </div>
         </div>
       )}
 

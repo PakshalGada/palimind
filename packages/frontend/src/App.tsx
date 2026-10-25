@@ -11,8 +11,6 @@ import ToastContainer from './components/ToastContainer';
 import SetupProgress from './components/SetupProgress';
 import ShortcutsModal from './components/ShortcutsModal';
 import CommandPalette from './components/CommandPalette';
-import ArtifactPanel from './components/ArtifactPanel';
-import CanvasPanel from './components/CanvasPanel';
 import ResearchPlanModal from './components/ResearchPlanModal';
 import ResearchManager from './components/ResearchManager';
 import SaveToResearchModal from './components/SaveToResearchModal';
@@ -24,6 +22,9 @@ import PlanReview from './components/PlanReview';
 import TaskMonitor from './components/TaskMonitor';
 import AgentManager from './features/agents/AgentManager';
 import AgentsWorkspace from './features/agents/AgentsWorkspace';
+import AppLayout from './components/layout/AppLayout';
+import ResponsiveSidebar from './components/layout/ResponsiveSidebar';
+import SidePanel from './components/layout/SidePanel';
 import { useCommandHandlers } from './commands/useCommand';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { ChatStreamProvider } from './stream/ChatStream';
@@ -42,7 +43,6 @@ export default function App() {
     toggleSidebar, setArtifactPanelOpen, setCanvasOpen,
     artifactPanelOpen, canvasOpen, canvasEnabled,
     shortcutOverrides, commandPaletteOpen,
-    sidebarCollapsed,
   } = useApp();
 
   useKeyboardShortcuts({ overrides: shortcutOverrides, disabled: commandPaletteOpen });
@@ -183,18 +183,23 @@ export default function App() {
   }, [scope, activeField]);
 
   const containerClass = [
-    'app-container',
     isRecording ? 'recording' : '',
     isTranscribing ? 'transcribing' : '',
     isSpeaking ? 'speaking' : '',
-    sidebarCollapsed ? 'sidebar-collapsed' : '',
   ].filter(Boolean).join(' ');
 
   return (
     <ChatStreamProvider>
-      <div className={containerClass}>
+      <AppLayout
+        className={containerClass}
+        sidebar={
+          <ResponsiveSidebar>
+            <Sidebar />
+          </ResponsiveSidebar>
+        }
+        sidePanel={<SidePanel />}
+      >
         <SetupProgress />
-        <Sidebar />
         {activeView === "agents" ? (
           <AgentsWorkspace />
         ) : activeView === "chat" || activeField ? (
@@ -202,8 +207,6 @@ export default function App() {
         ) : (
           <WelcomeScreen />
         )}
-        <ArtifactPanel />
-        <CanvasPanel />
         <AgentManager />
         <SettingsModal />
         <DirectoryPicker />
@@ -220,7 +223,7 @@ export default function App() {
         <PlanReview />
         <TaskMonitor />
         <ToastContainer />
-      </div>
+      </AppLayout>
     </ChatStreamProvider>
   );
 }

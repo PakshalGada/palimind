@@ -6,17 +6,17 @@
    CommandPalette.css, thinking.css, …) are intentionally not listed here.
    ========================================================================== */
 
-@import "./tokens.css";
+@import "./design/tokens.css";
 @import "./base.css";
 @import "./ui/ui.css";
 
 @import "./components/Sidebar.css";
+@import "./components/layout/layout.css";
 @import "./components/AgentAvatar.css";
 @import "./components/WelcomeScreen.css";
 @import "./components/ChatArea.css";
 @import "./components/Messages.css";
 @import "./components/InputArea.css";
-@import "./components/ToastContainer.css";
 @import "./components/ModelSwitcher.css";
 @import "./components/IndexingProgress.css";
 @import "./components/SettingsModal.css";

@@ -3,10 +3,30 @@ import { api } from './api';
 import type { AppView, ChatMode, CitationPayload, LlmSubMode, SetupTask, Theme } from './types';
 import type { ShortcutOverrides } from './utils/shortcuts';
 import { loadShortcutOverrides, saveShortcutOverrides } from './utils/shortcuts';
+import { useTheme } from './design/ThemeProvider';
 
-interface Toast {
+export type ToastTone = 'default' | 'success' | 'warning' | 'error' | 'info';
+
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
+export interface ToastOptions {
+  title?: string;
+  tone?: ToastTone;
+  /** Auto-dismiss delay in ms. Pass 0 to keep the toast until dismissed. */
+  duration?: number;
+  action?: ToastAction;
+}
+
+export interface Toast {
   id: number;
   message: string;
+  title?: string;
+  tone?: ToastTone;
+  action?: ToastAction;
+  duration?: number;
 }
 
 export interface AgentState {
@@ -94,7 +114,8 @@ interface AppContextType extends AppState {
   setWorkerModel: (model: string) => void;
   setIsIndexing: (v: boolean) => void;
   setIndexingStatus: (s: string) => void;
-  addToast: (message: string) => void;
+  addToast: (message: string, options?: ToastOptions) => void;
+  dismissToast: (id: number) => void;
   setAttachedFiles: (files: File[]) => void;
   setIsRecording: (v: boolean) => void;
   setIsTranscribing: (v: boolean) => void;
@@ -132,7 +153,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [chatMode, setChatMode] = useState<ChatMode>('llm');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [theme, setThemeState] = useState<Theme>(() => (localStorage.getItem('theme') as Theme) || 'dark');
+  const { theme, setTheme } = useTheme();
   const [currentModel, setCurrentModel] = useState('Loading...');
   const [llmSubMode, setLlmSubMode] = useState<LlmSubMode>('default');
   const [orchestratorModel, setOrchestratorModel] = useState('');
@@ -151,7 +172,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activity, setActivity] = useState<ActivityState | null>(null);
   const [setupTasks, setSetupTasks] = useState<SetupTask[]>([]);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches,
+  );
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
   const [artifactPanelOpen, setArtifactPanelOpen] = useState(false);
@@ -200,16 +223,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setShortcutOverridesState({});
   }, []);
 
-  const setTheme = useCallback((t: Theme) => {
-    setThemeState(t);
-    localStorage.setItem('theme', t);
-    if (t === 'light') {
-      document.documentElement.classList.add('light-mode');
-    } else {
-      document.documentElement.classList.remove('light-mode');
-    }
-  }, []);
-
   const toggleSelectedFile = useCallback((path: string) => {
     setSelectedFiles(prev => {
       const next = new Set(prev);
@@ -223,12 +236,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSelectedFiles(new Set());
   }, []);
 
-  const addToast = useCallback((message: string) => {
+  const addToast = useCallback((message: string, options: ToastOptions = {}) => {
     const id = ++toastId.current;
-    setToasts(prev => [...prev, { id, message }]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, 5000);
+    const duration = options.duration ?? (options.action ? 8000 : 5000);
+    const toast: Toast = {
+      id,
+      message,
+      title: options.title,
+      tone: options.tone,
+      action: options.action,
+      duration,
+    };
+    // Keep the stack short so notifications never cover the workspace.
+    setToasts(prev => [...prev.slice(-4), toast]);
+    if (duration > 0) {
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+      }, duration);
+    }
+  }, []);
+
+  const dismissToast = useCallback((id: number) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
   const refreshFields = useCallback(async () => {
@@ -288,12 +317,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (theme === 'light') {
-      document.documentElement.classList.add('light-mode');
-    }
-  }, [theme]);
-
-  useEffect(() => {
     const es = new EventSource('/api/events', { withCredentials: true });
     es.onmessage = (ev) => {
       try {
@@ -347,7 +370,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     workerModel, setWorkerModel,
     isIndexing, setIsIndexing,
     indexingStatus, setIndexingStatus,
-    toasts, addToast,
+    toasts, addToast, dismissToast,
     attachedFiles, setAttachedFiles,
     isRecording, setIsRecording,
     isTranscribing, setIsTranscribing,
@@ -370,7 +393,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     activeView, agentsView, activeField, activeSessionId, sessions, selectedFiles,
     chatMode, isGenerating, theme, currentModel, llmSubMode,
     orchestratorModel, workerModel, isIndexing, indexingStatus,
-    toasts, attachedFiles, isRecording, isTranscribing, isSpeaking,
+    toasts, dismissToast, attachedFiles, isRecording, isTranscribing, isSpeaking,
     thinkingText, agentStates, selectedAgentId, agentLoading,
     activity, setupTasks, abortController,
     sidebarCollapsed, commandPaletteOpen, shortcutsModalOpen,

@@ -1,0 +1,260 @@
+/* ==========================================================================
+   layout.css — application shell: sidebar rail, main column, right rail.
+   Loaded after Sidebar.css so the responsive behaviour wins.
+   ========================================================================== */
+
+.app-layout {
+  position: relative;
+  flex-direction: row;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ── sidebar shell ───────────────────────────────────────────────────── */
+.app-sidebar-shell {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--sidebar-width);
+  min-width: 0;
+  height: 100%;
+  z-index: var(--z-sidebar);
+  transition: width var(--transition-base);
+}
+.app-sidebar-shell .sidebar {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+}
+
+/* Collapsed desktop: a slim icon rail. Hovering (or focusing) floats the full
+   sidebar above the workspace without shifting the main column. */
+.app-sidebar-shell.is-collapsed {
+  width: var(--sidebar-rail-width);
+}
+.app-sidebar-shell.is-collapsed .sidebar {
+  width: var(--sidebar-rail-width);
+}
+.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-collapsible {
+  display: none !important;
+}
+.app-sidebar-shell.is-collapsed:not(.is-hovering) .sidebar {
+  align-items: stretch;
+}
+.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-header,
+.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-footer {
+  justify-content: center;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-brand {
+  display: none;
+}
+.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-nav-item,
+.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-icon-btn,
+.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-search {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+  gap: 0;
+}
+.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-search {
+  margin-left: 10px;
+  margin-right: 10px;
+}
+.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-nav {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-context {
+  display: none;
+}
+.app-sidebar-shell.is-collapsed.is-hovering {
+  width: var(--sidebar-rail-width);
+}
+.app-sidebar-shell.is-collapsed.is-hovering .sidebar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--sidebar-width);
+  box-shadow: var(--shadow-lg);
+  animation: sidebar-unfurl var(--duration-base) var(--ease-out);
+}
+@keyframes sidebar-unfurl {
+  from { opacity: 0.65; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ── main column ─────────────────────────────────────────────────────── */
+.app-main-panel {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+.app-main-panel > * {
+  min-width: 0;
+}
+.app-mobile-menu {
+  display: none;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 26;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-glass);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: pointer;
+}
+
+/* ── right rail ──────────────────────────────────────────────────────── */
+.app-side-panel {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  height: 100%;
+  animation: side-panel-in var(--duration-base) var(--ease-out);
+}
+@keyframes side-panel-in {
+  from { opacity: 0; transform: translateX(18px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.app-side-panel > .artifact-panel,
+.app-side-panel > .canvas-panel {
+  flex: 1 1 auto;
+}
+
+/* ── tablet ──────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .app-sidebar-shell {
+    width: 240px;
+  }
+}
+
+/* ── mobile: off-canvas drawer ───────────────────────────────────────── */
+@media (max-width: 900px) {
+  .app-sidebar-shell,
+  .app-sidebar-shell.is-expanded,
+  .app-sidebar-shell.is-collapsed {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--sidebar-mobile-width);
+    height: 100dvh;
+    z-index: var(--z-sidebar);
+    transform: translateX(0);
+    transition: transform var(--duration-base) var(--ease-out);
+  }
+  .app-sidebar-shell.is-collapsed {
+    width: var(--sidebar-mobile-width);
+    transform: translateX(-100%);
+    pointer-events: none;
+  }
+  .app-sidebar-shell.is-collapsed .sidebar {
+    width: 100%;
+  }
+  .app-sidebar-shell .sidebar {
+    width: 100%;
+    min-width: 0;
+    max-height: none;
+    height: 100dvh;
+    border-right: 1px solid var(--color-border);
+    border-bottom: 0;
+    padding: 0;
+  }
+  .app-sidebar-shell .sidebar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .app-sidebar-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    border: 0;
+    padding: 0;
+    background: var(--color-scrim);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    cursor: pointer;
+  }
+  .app-sidebar-shell.is-collapsed .app-sidebar-scrim {
+    display: none;
+  }
+  .app-sidebar-shell.is-collapsed.is-hovering .sidebar {
+    position: relative;
+    inset: auto;
+    box-shadow: none;
+    animation: none;
+  }
+  .app-mobile-menu[data-visible="true"] {
+    display: inline-flex;
+  }
+  .app-side-panel {
+    position: absolute;
+    inset: 0;
+    z-index: 45;
+    background: var(--color-bg);
+  }
+  .app-side-panel > .artifact-panel,
+  .app-side-panel > .canvas-panel {
+    position: relative;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    height: 100%;
+    flex: 1 1 auto;
+  }
+}
+
+/* ── reduced motion ──────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .app-sidebar-shell,
+  .app-sidebar-shell .sidebar,
+  .app-side-panel {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ── top-level error fallback ────────────────────────────────────────── */
+.app-error-fallback {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--color-bg);
+}
+.app-error-fallback .ui-empty {
+  max-width: 480px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+}
+.app-error-fallback .ui-empty__icon { color: var(--color-error); }
+.app-error-fallback__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+/* Rail: stack the avatar above settings so both fit a 64px column. */
+.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-footer {
+  padding: 8px 4px;
+}
+.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-user {
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0;
+}
