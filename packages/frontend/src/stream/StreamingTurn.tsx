@@ -1,5 +1,7 @@
 import ActivityChain from '../components/ActivityChain';
 import MessageContent from '../components/MessageContent';
+import { useApp } from '../AppContext';
+import { nextAssistantMessageIndex } from '../utils/artifacts';
 import { useChatStreamContext } from './context';
 import StreamingMessage from './StreamingMessage';
 
@@ -10,6 +12,9 @@ import StreamingMessage from './StreamingMessage';
  */
 export default function StreamingTurn({ activeSessionId }: { activeSessionId: string | null }) {
   const { state, openVideo } = useChatStreamContext();
+  const { sessions, openArtifact } = useApp();
+  const session = sessions.find(item => item.id === activeSessionId);
+  const messageIndex = nextAssistantMessageIndex(session?.messages);
 
   if (state.status === 'idle') return null;
   // A live turn belongs to the session it was started from. If the user
@@ -28,7 +33,12 @@ export default function StreamingTurn({ activeSessionId }: { activeSessionId: st
         <ActivityChain />
       </div>
 
-      <StreamingMessage state={state} onOpenVideo={openVideo} />
+      <StreamingMessage
+        state={state}
+        messageIndex={messageIndex}
+        onOpenArtifact={openArtifact}
+        onOpenVideo={openVideo}
+      />
     </>
   );
 }

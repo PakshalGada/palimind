@@ -11,8 +11,9 @@ import asyncio
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
+from palimind.artifacts import export as artifact_export
 from palimind.projects import artifacts, kb, session_store, store
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -145,9 +146,13 @@ async def sync_project_kb(project_id: str):
 
 
 @router.get("/{project_id}/artifacts")
-async def list_project_artifacts(project_id: str):
+async def list_project_artifacts(project_id: str, include_content: bool = False):
     await asyncio.to_thread(_get_project_or_404, project_id)
-    return {"artifacts": await asyncio.to_thread(artifacts.list_artifacts, project_id)}
+    return {
+        "artifacts": await asyncio.to_thread(
+            artifacts.list_artifacts, project_id, include_content
+        )
+    }
 
 
 @router.post("/{project_id}/artifacts", status_code=201)
@@ -194,6 +199,42 @@ async def delete_project_artifact(project_id: str, artifact_id: str):
     if not removed:
         raise HTTPException(status_code=404, detail="Artifact not found")
     return {"status": "success", "deleted": True}
+
+
+@router.post("/{project_id}/artifacts/{artifact_id}/export")
+async def export_project_artifact_format(project_id: str, artifact_id: str, req: Request):
+    """Export a project artifact to a downloadable binary format."""
+    await asyncio.to_thread(_get_project_or_404, project_id)
+    body = _json_body(await req.json())
+    fmt = str(body.get("format") or "md").lower().lstrip(".")
+    try:
+        artifact = await asyncio.to_thread(artifacts.get_artifact, project_id, artifact_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    try:
+        data, extension, media_type = await asyncio.to_thread(
+            artifact_export.export_bytes, artifact, fmt
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        await asyncio.to_thread(
+            artifact_export.store_export,
+            artifact_id=artifact_id,
+            fmt=fmt,
+            data=data,
+            project_id=project_id,
+        )
+    except Exception:
+        pass
+    filename = artifact_export.export_filename(
+        str(artifact.get("title") or "artifact"), extension
+    )
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/{project_id}/artifacts/{artifact_id}/export")

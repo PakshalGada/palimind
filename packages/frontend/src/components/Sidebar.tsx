@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Moon,
   Network,
+  Package,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
@@ -123,6 +124,9 @@ export default function Sidebar() {
     shortcutOverrides,
     theme,
     setTheme,
+    artifactLibraryOpen,
+    setArtifactLibraryOpen,
+    openArtifactLibrary,
   } = useApp();
 
   const chatScope = () =>
@@ -326,6 +330,17 @@ export default function Sidebar() {
       active: researchOpen,
       shortcutId: "research.projects",
       onSelect: openResearch,
+    },
+    {
+      id: "artifacts",
+      label: "Artifacts",
+      icon: Package,
+      active: artifactLibraryOpen,
+      shortcutId: "",
+      onSelect: () => {
+        if (artifactLibraryOpen) setArtifactLibraryOpen(false);
+        else openArtifactLibrary();
+      },
     },
     {
       id: "agents",

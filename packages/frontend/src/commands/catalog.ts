@@ -23,7 +23,6 @@ export type CommandIcon =
   | 'refresh'
   | 'square'
   | 'blocks'
-  | 'canvas'
   | 'brain'
   | 'layers'
   | 'bot'
@@ -200,6 +199,15 @@ export const COMMANDS: CommandDef[] = [
     defaultShortcut: 'Mod+B',
   },
   {
+    id: 'view.browse-artifacts',
+    title: 'Browse Artifacts',
+    category: 'View',
+    icon: 'blocks',
+    description: 'Open the full artifacts library',
+    keywords: ['library', 'vault', 'files'],
+    defaultShortcut: 'Mod+Shift+E',
+  },
+  {
     id: 'view.toggle-artifacts',
     title: 'Toggle Artifacts Panel',
     category: 'View',
@@ -207,15 +215,6 @@ export const COMMANDS: CommandDef[] = [
     description: 'Show or hide rich outputs (code, diagrams, HTML)',
     keywords: ['preview', 'code', 'mermaid', 'svg'],
     defaultShortcut: 'Mod+Shift+A',
-  },
-  {
-    id: 'view.toggle-canvas',
-    title: 'Toggle Canvas',
-    category: 'View',
-    icon: 'canvas',
-    description: 'Open the side-by-side editing canvas',
-    keywords: ['editor', 'document', 'write'],
-    defaultShortcut: 'Mod+Shift+E',
   },
   {
     id: 'view.toggle-theme',

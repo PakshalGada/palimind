@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import { api } from './api';
-import type { AppView, ChatMode, CitationPayload, LlmSubMode, SetupTask, Theme } from './types';
+import type { AppView, ChatMode, CitationPayload, LlmSubMode, Theme } from './types';
+import type { BotAvatarConfig } from './bots/config';
 import type { ShortcutOverrides } from './utils/shortcuts';
 import { loadShortcutOverrides, saveShortcutOverrides } from './utils/shortcuts';
 import { useTheme } from './design/ThemeProvider';
@@ -52,12 +53,20 @@ export interface ActivityStep {
   children?: ActivityStep[];
 }
 
+export interface ActivityAgentAvatar {
+  config?: BotAvatarConfig;
+  type?: string;
+  upload?: string;
+}
+
 export interface ActivityState {
   mode: ActivityMode;
   title: string;
   subtitle?: string;
   /** Avatar seed when the activity belongs to a named agent. */
   seed?: string;
+  /** The named agent's exact avatar, when the activity is an agent run. */
+  agentAvatar?: ActivityAgentAvatar;
   steps: ActivityStep[];
 }
 
@@ -65,6 +74,7 @@ interface AppState {
   activeView: AppView;
   agentsView: AgentsView;
   activeField: string | null;
+  activeProjectId: string | null;
   activeSessionId: string | null;
   sessions: { id: string; name: string; messages: { role: string; content: string; sources?: string[]; citations?: CitationPayload }[] }[];
   selectedFiles: Set<string>;
@@ -82,18 +92,13 @@ interface AppState {
   isRecording: boolean;
   isTranscribing: boolean;
   isSpeaking: boolean;
-  thinkingText: string;
-  agentStates: AgentState[];
   selectedAgentId: string | null;
-  agentLoading: { seed: string; name: string } | null;
-  activity: ActivityState | null;
-  setupTasks: SetupTask[];
   sidebarCollapsed: boolean;
   commandPaletteOpen: boolean;
   shortcutsModalOpen: boolean;
   artifactPanelOpen: boolean;
-  canvasOpen: boolean;
-  canvasEnabled: boolean;
+  artifactLibraryOpen: boolean;
+  artifactTarget: { id: string; nonce: number } | null;
   shortcutOverrides: ShortcutOverrides;
 }
 
@@ -101,6 +106,7 @@ interface AppContextType extends AppState {
   setActiveView: (view: AppView) => void;
   setAgentsView: (view: AgentsView) => void;
   setActiveField: (field: string | null) => void;
+  setActiveProjectId: (id: string | null) => void;
   setActiveSessionId: (id: string | null) => void;
   setSessions: (sessions: AppState['sessions']) => void;
   toggleSelectedFile: (path: string) => void;
@@ -120,11 +126,7 @@ interface AppContextType extends AppState {
   setIsRecording: (v: boolean) => void;
   setIsTranscribing: (v: boolean) => void;
   setIsSpeaking: (v: boolean) => void;
-  setThinkingText: React.Dispatch<React.SetStateAction<string>>;
-  setAgentStates: React.Dispatch<React.SetStateAction<AgentState[]>>;
   setSelectedAgentId: (id: string | null) => void;
-  setAgentLoading: (v: { seed: string; name: string } | null) => void;
-  setActivity: React.Dispatch<React.SetStateAction<ActivityState | null>>;
   refreshFields: () => Promise<void>;
   refreshSessions: () => Promise<void>;
   refreshFileTree: () => Promise<void>;
@@ -135,19 +137,43 @@ interface AppContextType extends AppState {
   setCommandPaletteOpen: (v: boolean) => void;
   setShortcutsModalOpen: (v: boolean) => void;
   setArtifactPanelOpen: (v: boolean) => void;
-  setCanvasOpen: (v: boolean) => void;
-  setCanvasEnabled: (v: boolean) => void;
+  setArtifactLibraryOpen: (v: boolean) => void;
+  openArtifactLibrary: () => void;
+  openArtifact: (id: string) => void;
+  clearArtifactTarget: () => void;
   setShortcutOverride: (commandId: string, combo: string | null) => void;
   resetShortcut: (commandId: string) => void;
   resetAllShortcuts: () => void;
 }
 
+/**
+ * Live run state (thinking text, activity chain, agent roster).
+ *
+ * These values change several times per second while a response streams. They
+ * live in their own context so a token/timer tick only re-renders the activity
+ * UI instead of every consumer of the app-wide context.
+ */
+export interface ActivityContextType {
+  thinkingText: string;
+  setThinkingText: React.Dispatch<React.SetStateAction<string>>;
+  agentStates: AgentState[];
+  setAgentStates: React.Dispatch<React.SetStateAction<AgentState[]>>;
+  agentLoading: { seed: string; name: string } | null;
+  setAgentLoading: (v: { seed: string; name: string } | null) => void;
+  activity: ActivityState | null;
+  setActivity: React.Dispatch<React.SetStateAction<ActivityState | null>>;
+}
+
 export const AppContext = createContext<AppContextType | null>(null);
+export const ActivityContext = createContext<ActivityContextType | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [activeView, setActiveView] = useState<AppView>('chat');
   const [agentsView, setAgentsView] = useState<AgentsView>('chat');
   const [activeField, setActiveField] = useState<string | null>(null);
+  const [activeProjectId, setActiveProjectIdState] = useState<string | null>(
+    () => localStorage.getItem('palimind:active-project'),
+  );
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<AppState['sessions']>([]);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
@@ -170,7 +196,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [agentLoading, setAgentLoading] = useState<{ seed: string; name: string } | null>(null);
   const [activity, setActivity] = useState<ActivityState | null>(null);
-  const [setupTasks, setSetupTasks] = useState<SetupTask[]>([]);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches,
@@ -178,25 +203,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
   const [artifactPanelOpen, setArtifactPanelOpen] = useState(false);
-  const [canvasOpen, setCanvasOpen] = useState(false);
-  const [canvasEnabled, setCanvasEnabledState] = useState<boolean>(
-    () => localStorage.getItem('palimind:canvas-enabled') !== 'false',
-  );
+  const [artifactLibraryOpen, setArtifactLibraryOpen] = useState(false);
+  const [artifactTarget, setArtifactTarget] = useState<{ id: string; nonce: number } | null>(null);
+  const artifactNonce = useRef(0);
   const [shortcutOverrides, setShortcutOverridesState] = useState<ShortcutOverrides>(() => loadShortcutOverrides());
 
   const toastId = useRef(0);
 
   const toggleSidebar = useCallback(() => setSidebarCollapsed((v) => !v), []);
 
-  const setCanvasEnabled = useCallback((value: boolean) => {
-    setCanvasEnabledState(value);
+  const setActiveProjectId = useCallback((id: string | null) => {
+    setActiveProjectIdState(id);
     try {
-      localStorage.setItem('palimind:canvas-enabled', value ? 'true' : 'false');
+      if (id) localStorage.setItem('palimind:active-project', id);
+      else localStorage.removeItem('palimind:active-project');
     } catch {
-      // ignore
+      // ignore unavailable storage
     }
-    if (!value) setCanvasOpen(false);
   }, []);
+
+  const openArtifactLibrary = useCallback(() => {
+    setArtifactPanelOpen(true);
+    setArtifactLibraryOpen(true);
+  }, []);
+
+  const openArtifact = useCallback((id: string) => {
+    artifactNonce.current += 1;
+    setArtifactTarget({ id, nonce: artifactNonce.current });
+    setArtifactLibraryOpen(false);
+    setArtifactPanelOpen(true);
+  }, []);
+
+  const clearArtifactTarget = useCallback(() => setArtifactTarget(null), []);
 
   const setShortcutOverride = useCallback((commandId: string, combo: string | null) => {
     setShortcutOverridesState((prev) => {
@@ -333,31 +371,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => es.close();
   }, [setIsIndexing, setIndexingStatus]);
 
-  // Poll first-run model download/load status so the user sees progress even
-  // though the backend's stdout/stderr are detached in the packaged app.
-  useEffect(() => {
-    let cancelled = false;
-    const tick = async () => {
-      try {
-        const data = await api.setup.status();
-        if (!cancelled) setSetupTasks(data.tasks || []);
-      } catch {
-        // backend not ready yet — ignore
-      }
-    };
-    void tick();
-    const timer = window.setInterval(tick, 2000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, []);
-
   // Memoize the context value to prevent unnecessary re-renders of all consumers
   const contextValue = useMemo(() => ({
     activeView, setActiveView,
     agentsView, setAgentsView,
     activeField, setActiveField,
+    activeProjectId, setActiveProjectId,
     activeSessionId, setActiveSessionId,
     sessions, setSessions,
     selectedFiles, toggleSelectedFile, clearSelectedFiles,
@@ -375,35 +394,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isRecording, setIsRecording,
     isTranscribing, setIsTranscribing,
     isSpeaking, setIsSpeaking,
-    thinkingText, setThinkingText,
-    agentStates, setAgentStates,
     selectedAgentId, setSelectedAgentId,
-    agentLoading, setAgentLoading,
-    activity, setActivity,
-    setupTasks,
     refreshFields, refreshSessions, refreshFileTree,
     abortController, setAbortController,
     sidebarCollapsed, setSidebarCollapsed, toggleSidebar,
     commandPaletteOpen, setCommandPaletteOpen,
     shortcutsModalOpen, setShortcutsModalOpen,
     artifactPanelOpen, setArtifactPanelOpen,
-    canvasOpen, setCanvasOpen, canvasEnabled, setCanvasEnabled,
+    artifactLibraryOpen, setArtifactLibraryOpen, artifactTarget,
+    openArtifactLibrary, openArtifact, clearArtifactTarget,
     shortcutOverrides, setShortcutOverride, resetShortcut, resetAllShortcuts,
   }), [
-    activeView, agentsView, activeField, activeSessionId, sessions, selectedFiles,
+    activeView, agentsView, activeField, activeProjectId, activeSessionId, sessions, selectedFiles,
     chatMode, isGenerating, theme, currentModel, llmSubMode,
     orchestratorModel, workerModel, isIndexing, indexingStatus,
     toasts, dismissToast, attachedFiles, isRecording, isTranscribing, isSpeaking,
-    thinkingText, agentStates, selectedAgentId, agentLoading,
-    activity, setupTasks, abortController,
+    selectedAgentId, abortController,
     sidebarCollapsed, commandPaletteOpen, shortcutsModalOpen,
-    artifactPanelOpen, canvasOpen, canvasEnabled, shortcutOverrides,
+    artifactPanelOpen, artifactLibraryOpen, artifactTarget, shortcutOverrides,
     toggleSidebar, setShortcutOverride, resetShortcut, resetAllShortcuts,
+    openArtifactLibrary, openArtifact, clearArtifactTarget,
+    setActiveProjectId,
   ]);
+
+  const activityValue = useMemo<ActivityContextType>(() => ({
+    thinkingText, setThinkingText,
+    agentStates, setAgentStates,
+    agentLoading, setAgentLoading,
+    activity, setActivity,
+  }), [thinkingText, agentStates, agentLoading, activity]);
 
   return (
     <AppContext.Provider value={contextValue}>
-      {children}
+      <ActivityContext.Provider value={activityValue}>
+        {children}
+      </ActivityContext.Provider>
     </AppContext.Provider>
   );
 }
@@ -411,5 +436,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 export function useApp(): AppContextType {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('useApp must be used within AppProvider');
+  return ctx;
+}
+
+export function useActivity(): ActivityContextType {
+  const ctx = useContext(ActivityContext);
+  if (!ctx) throw new Error('useActivity must be used within AppProvider');
   return ctx;
 }

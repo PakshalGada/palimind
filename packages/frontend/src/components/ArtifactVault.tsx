@@ -17,10 +17,19 @@ export default function ArtifactVault({
   const [items, setItems] = useState<SavedArtifact[]>([]);
 
   useEffect(() => {
-    if (open) setItems(loadVault());
+    if (!open) return;
+    let cancelled = false;
+    void loadVault().then(items => {
+      if (!cancelled) setItems(items);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [open]);
 
-  const remove = (id: string) => setItems(removeFromVault(id));
+  const remove = (id: string) => {
+    void removeFromVault(id).then(setItems);
+  };
 
   return (
     <Modal

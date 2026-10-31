@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useApp } from '../AppContext';
 import { api } from '../api';
-import { Toggle } from '../ui/primitives';
 import type { Theme } from '../types';
 import SettingsSelect from './SettingsSelect';
 
@@ -65,7 +64,7 @@ function Feedback({ message, isError }: { message: string; isError: boolean }) {
 }
 
 export default function SettingsModal() {
-  const { theme, setTheme, canvasEnabled, setCanvasEnabled } = useApp();
+  const { theme, setTheme } = useApp();
   const [section, setSection] = useState<SectionKey>('appearance');
   const [ocKeyConfigured, setOcKeyConfigured] = useState(false);
   const [ocKeyMasked, setOcKeyMasked] = useState<string | null>(null);
@@ -309,13 +308,11 @@ export default function SettingsModal() {
                 </div>
               </div>
               <div className="settings-card">
-                <div className="settings-card-title">Canvas</div>
-                <Toggle
-                  checked={canvasEnabled}
-                  onChange={setCanvasEnabled}
-                  title="Enable Canvas"
-                  description="Side-by-side document editor for AI output. When off, the Canvas shortcut and the \u201COpen in Canvas\u201D message action are hidden."
-                />
+                <div className="settings-card-title">Artifacts</div>
+                <p className="settings-hint">
+                  Artifacts are previewed in the right rail. Use the Artifacts page in the
+                  sidebar to browse everything you have saved.
+                </p>
               </div>
             </div>
 

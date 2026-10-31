@@ -268,9 +268,17 @@ def add_version(project_id: str, artifact_id: str, data: dict[str, Any]) -> dict
     raise FileNotFoundError(f"Artifact not found: {artifact_id}")
 
 
-def list_artifacts(project_id: str) -> list[dict[str, Any]]:
+def list_artifacts(project_id: str, include_content: bool = False) -> list[dict[str, Any]]:
     index = _load_index(project_id)
     artifacts = [_public(a) for a in index["artifacts"] if isinstance(a, dict)]
+    if include_content:
+        for artifact in artifacts:
+            try:
+                path, meta = _version_file(project_id, artifact, None)
+                artifact["content"] = path.read_text("utf-8", errors="replace")
+                artifact["version"] = int(meta.get("version") or 0)
+            except (FileNotFoundError, OSError):
+                artifact["content"] = ""
     artifacts.sort(key=lambda a: float(a.get("updated_at") or 0), reverse=True)
     return artifacts
 

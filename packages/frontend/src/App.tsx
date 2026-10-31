@@ -20,6 +20,7 @@ import AgentGraph from './components/AgentGraph';
 import SkillManager from './components/SkillManager';
 import PlanReview from './components/PlanReview';
 import TaskMonitor from './components/TaskMonitor';
+import ArtifactAutoOpen from './components/ArtifactAutoOpen';
 import AgentManager from './features/agents/AgentManager';
 import AgentsWorkspace from './features/agents/AgentsWorkspace';
 import AppLayout from './components/layout/AppLayout';
@@ -40,8 +41,8 @@ export default function App() {
     setActiveView, setAgentsView, setChatMode, theme, setTheme,
     chatMode,
     setCommandPaletteOpen, setShortcutsModalOpen,
-    toggleSidebar, setArtifactPanelOpen, setCanvasOpen,
-    artifactPanelOpen, canvasOpen, canvasEnabled,
+    toggleSidebar, setArtifactPanelOpen, openArtifactLibrary,
+    artifactPanelOpen,
     shortcutOverrides, commandPaletteOpen,
   } = useApp();
 
@@ -58,19 +59,9 @@ export default function App() {
     'view.toggle-sidebar': toggleSidebar,
     'view.toggle-theme': () => setTheme(theme === 'dark' ? 'light' : 'dark'),
     'view.toggle-artifacts': () => {
-      const next = !artifactPanelOpen;
-      setArtifactPanelOpen(next);
-      if (next) setCanvasOpen(false);
+      setArtifactPanelOpen(!artifactPanelOpen);
     },
-    'view.toggle-canvas': () => {
-      if (!canvasEnabled) {
-        addToast('Canvas is disabled in Settings.');
-        return;
-      }
-      const next = !canvasOpen;
-      setCanvasOpen(next);
-      if (next) setArtifactPanelOpen(false);
-    },
+    'view.browse-artifacts': openArtifactLibrary,
     'nav.chat': () => {
       setActiveView('chat');
       setChatMode('llm');
@@ -190,6 +181,7 @@ export default function App() {
 
   return (
     <ChatStreamProvider>
+      <ArtifactAutoOpen />
       <AppLayout
         className={containerClass}
         sidebar={

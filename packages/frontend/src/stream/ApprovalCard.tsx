@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useApp } from '../AppContext';
+import { useActivity } from '../AppContext';
 import { api } from '../api';
 import type { ApprovalPrompt } from './types';
 
@@ -17,7 +17,7 @@ function formatArgs(args: unknown): string {
  * createElement/inline CSS inside the SSE handler.
  */
 export default function ApprovalCard({ prompt }: { prompt: ApprovalPrompt }) {
-  const { setThinkingText } = useApp();
+  const { setThinkingText } = useActivity();
   const [correction, setCorrection] = useState('');
   const [status, setStatus] = useState<'pending' | 'approved' | 'rejected'>('pending');
 

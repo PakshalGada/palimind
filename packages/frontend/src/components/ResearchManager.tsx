@@ -13,11 +13,19 @@ import { api } from '../api';
 import { useApp } from '../AppContext';
 import { useConfirm } from './ConfirmDialog';
 import { Modal, EmptyState, Tabs } from '../ui/primitives';
-import { exportMarkdown } from '../utils/canvasExport';
+import { triggerDownload } from '../utils/artifacts';
 import type { ResearchProject, ResearchProjectSummary } from '../types';
 import './ResearchManager.css';
 
 type Tab = 'notes' | 'findings' | 'sources' | 'timeline' | 'reports';
+
+function downloadMarkdown(title: string, content: string): void {
+  const filename = (title || 'research').replace(/[^\w.-]+/g, '_').slice(0, 80) || 'research';
+  triggerDownload(
+    new Blob([content], { type: 'text/markdown;charset=utf-8' }),
+    `${filename}.md`,
+  );
+}
 
 function projectToMarkdown(project: ResearchProject): string {
   const lines: string[] = [`# ${project.title}`, ''];
@@ -264,7 +272,7 @@ export default function ResearchManager() {
                     type="button"
                     className="ui-icon-btn"
                     title="Export project"
-                    onClick={() => exportMarkdown(project.title, projectToMarkdown(project))}
+                    onClick={() => downloadMarkdown(project.title, projectToMarkdown(project))}
                   >
                     <Download size={15} />
                   </button>

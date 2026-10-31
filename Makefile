@@ -40,6 +40,7 @@ backend-test: ## Run Python tests
 	cd $(BACKEND_DIR) && python -m pytest -m "not integration"
 
 frontend-test: ## Run frontend tests + typecheck + lint
+	npm test --prefix $(FRONTEND_DIR)
 	npm run lint --prefix $(FRONTEND_DIR)
 	npm run build --prefix $(FRONTEND_DIR)
 

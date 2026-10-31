@@ -20,7 +20,7 @@ import {
   Wrench,
   type LucideIcon,
 } from 'lucide-react';
-import { useApp, type ActivityStep } from '../AppContext';
+import { useActivity, type ActivityStep } from '../AppContext';
 import AgentAvatar from './AgentAvatar';
 import { configFromSeed } from '../bots/config';
 import Thinking, { type ThinkingVariant } from './Thinking';
@@ -123,7 +123,7 @@ function ThoughtStream({ thinkingText, state }: { thinkingText: string; state: s
 }
 
 export default function ActivityChain() {
-  const { activity, thinkingText } = useApp();
+  const { activity, thinkingText } = useActivity();
   const [collapsed, setCollapsed] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -154,8 +154,16 @@ export default function ActivityChain() {
     <div className="ac-card">
       <div className="ac-header">
         <div className="ac-header-left">
-          {activity.seed ? (
-            <AgentAvatar config={seedConfig} state="working" size={20} />
+          {activity.agentAvatar ? (
+            <AgentAvatar
+              config={activity.agentAvatar.config}
+              type={activity.agentAvatar.type === 'upload' ? 'upload' : 'bot'}
+              upload={activity.agentAvatar.upload}
+              state="working"
+              size={24}
+            />
+          ) : activity.seed ? (
+            <AgentAvatar config={seedConfig} state="working" size={24} />
           ) : (
             <ModeIcon size={16} className="ac-mode-icon" />
           )}

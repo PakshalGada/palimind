@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DataSet } from 'vis-data';
-import { Network } from 'vis-network';
-import 'vis-network/styles/vis-network.css';
+import type { DataSet } from 'vis-data';
+import type { Network } from 'vis-network';
 import { useApp } from '../AppContext';
 import { api } from '../api';
 import type { GraphData, GraphEdge } from '../types';
@@ -277,6 +276,32 @@ function connectedComponent(start: string, adjacency: Map<string, Set<string>>):
   return seen;
 }
 
+type VisModules = {
+  DataSet: typeof import('vis-data').DataSet;
+  Network: typeof import('vis-network').Network;
+};
+
+let visModulesPromise: Promise<VisModules> | null = null;
+
+/**
+ * vis-network is ~500KB of renderer + physics engine that is only needed once
+ * the graph modal is opened. Importing it lazily keeps that out of the initial
+ * bundle (and out of startup parse time).
+ */
+function loadVisModules(): Promise<VisModules> {
+  if (!visModulesPromise) {
+    visModulesPromise = Promise.all([
+      import('vis-data'),
+      import('vis-network'),
+      import('vis-network/styles/vis-network.css'),
+    ]).then(([data, network]) => ({
+      DataSet: data.DataSet,
+      Network: network.Network,
+    }));
+  }
+  return visModulesPromise;
+}
+
 export default function KnowledgeGraph() {
   const { setActiveView, theme } = useApp();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -286,7 +311,9 @@ export default function KnowledgeGraph() {
   const baseNodesRef = useRef<Record<string, unknown>[]>([]);
   const baseEdgesRef = useRef<Record<string, unknown>[]>([]);
   const adjacencyRef = useRef<Map<string, Set<string>>>(new Map());
+  const visRef = useRef<VisModules | null>(null);
 
+  const [visReady, setVisReady] = useState(false);
   const [stats, setStats] = useState('');
   const [showSections, setShowSections] = useState(false);
   const [search, setSearch] = useState('');
@@ -453,6 +480,10 @@ export default function KnowledgeGraph() {
       return;
     }
 
+    const vis = visRef.current;
+    if (!vis) return;
+    const { DataSet, Network } = vis;
+
     const container = containerRef.current;
     if (networkRef.current) {
       networkRef.current.destroy();
@@ -578,7 +609,7 @@ export default function KnowledgeGraph() {
     });
 
     setSelection(null);
-  }, [data.nodes.length, highlightNode, isDark, loading, resetHighlight, searchFiltered]);
+  }, [data.nodes.length, highlightNode, isDark, loading, resetHighlight, searchFiltered, visReady]);
 
   const destroyNetwork = useCallback(() => {
     if (networkRef.current) {
@@ -623,6 +654,16 @@ export default function KnowledgeGraph() {
 
   useEffect(() => {
     const openHandler = () => {
+      // Fetch the renderer in parallel with the graph payload the first time
+      // the modal is opened, then re-render once both are ready.
+      void loadVisModules()
+        .then((modules) => {
+          visRef.current = modules;
+          setVisReady(true);
+        })
+        .catch(() => {
+          setError('Could not load the graph renderer.');
+        });
       void loadGraph();
     };
     window.addEventListener('palimind:open-graph', openHandler);

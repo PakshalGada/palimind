@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowRight, Clock, CornerDownLeft, Search } from 'lucide-react';
+import { ArrowRight, Clock, CornerDownLeft, FileText, Search } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { api } from '../api';
 import { VISIBLE_COMMANDS } from '../commands/catalog';
@@ -186,7 +186,7 @@ export default function CommandPalette() {
         kind: 'file',
         title: file.name,
         subtitle: file.path,
-        icon: <CommandIconView icon="canvas" size={16} />,
+        icon: <FileText size={16} />,
         run: () => window.dispatchEvent(new CustomEvent('palimind:open-file-tree')),
       });
     }

@@ -101,13 +101,23 @@ export interface ResearchProjectSummary {
 
 export type ProjectScope = `project:${string}`;
 
-export interface ArtifactVersion {
+export interface ProjectArtifactVersion {
   version: number;
   created_at: number;
   size: number;
   checksum: string;
   filename: string;
   mime_type: string;
+}
+
+/** Local vault version metadata (content bodies live in IndexedDB). */
+export interface ArtifactVersion {
+  id: string;
+  artifactId: string;
+  savedAt: number;
+  note?: string;
+  size?: number;
+  autosaved?: boolean;
 }
 
 export interface ProjectArtifact {
@@ -121,7 +131,7 @@ export interface ProjectArtifact {
   current_version: number;
   created_at: number;
   updated_at: number;
-  versions: ArtifactVersion[];
+  versions: ProjectArtifactVersion[];
   metadata: Record<string, unknown>;
   source?: string;
   session_id?: string;
@@ -130,6 +140,21 @@ export interface ProjectArtifact {
   content?: string;
   /** Version returned with `content` (defaults to the current version). */
   version?: number;
+}
+
+/** Summary returned by the global artifact library. */
+export interface LibraryArtifact {
+  id: string;
+  title: string;
+  type: string;
+  language: string;
+  description: string;
+  project_id: string;
+  source: string;
+  size: number;
+  created_at: number;
+  updated_at: number;
+  content?: string;
 }
 
 export interface ProjectKbMeta {

@@ -68,6 +68,7 @@ from palimind.api import (
     require_index,
     update_index,
 )
+from palimind.artifacts.api import router as artifacts_router
 from palimind.audio.stt import transcribe_wav_bytes
 from palimind.audio.tts import text_to_speech_bytes
 from palimind.document.stream import document_mode_stream
@@ -97,12 +98,6 @@ from palimind.research.project_store import (
 from palimind.security.auth import install_auth
 from palimind.security.tokens import get_api_token
 from palimind.storage import task_store as board_store
-from palimind.storage.canvas_store import (
-    delete_canvas,
-    list_canvases,
-    load_canvas,
-    save_canvas,
-)
 
 app = FastAPI(title="Palimind V2 API")
 
@@ -129,6 +124,7 @@ install_auth(app, token_provider=get_api_token, cookie_path_prefix="/ui")
 
 app.include_router(agents_router)
 app.include_router(projects_router)
+app.include_router(artifacts_router)
 
 
 # Built frontend lives at packages/frontend/dist (repo layout: backend package
@@ -205,11 +201,9 @@ state.load()
 
 def _agent_chat_root(agent_id: str) -> Path:
     """Per-agent private store (sessions, config) under the agents folder."""
-    import re
+    from palimind.agents.chat import agent_session_root
 
-    if not re.match(r"^[\w-]{1,64}$", agent_id):
-        raise ValueError(f"Invalid agent_id: {agent_id!r}")
-    return Path.home() / ".palimind" / "agents" / agent_id
+    return agent_session_root(agent_id)
 
 
 _agent_sessions_seeded: set[str] = set()
@@ -229,10 +223,11 @@ def _ensure_agent_sessions(agent_id: str) -> None:
         from palimind.memory.session_store import (
             append_message_to_session,
             get_sessions_index_file,
+            has_session_data,
             load_sessions,
         )
 
-        if get_sessions_index_file(root).exists():
+        if get_sessions_index_file(root).exists() or has_session_data(root):
             return
         from palimind.agents.chat import read_chat
 
@@ -598,6 +593,15 @@ async def startup_event():
         roots.append(state.active_field)
     migrate_field_agents([Path(r) for r in roots])
     migrate_field_chats([Path(r) for r in roots])
+
+    # Canvas was retired in favour of artifacts; carry any existing documents
+    # into the global artifact library once.
+    try:
+        from palimind.artifacts.registry import migrate_canvas_documents
+
+        await asyncio.to_thread(migrate_canvas_documents)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[startup] canvas → artifact migration failed: {exc}")
 
     set_registry_field(state.active_field)
     start_scheduler(state.loop)
@@ -1035,90 +1039,6 @@ async def delete_message(req: Request, scope: str = "field"):
         return {"error": "index must be an integer"}
     sessions_data = await asyncio.to_thread(delete_session_message, root, session_id, index)
     return sessions_data
-
-
-@app.get("/api/canvas")
-async def get_canvases():
-    """List saved canvas documents (most recently updated first)."""
-    return {"canvases": await asyncio.to_thread(list_canvases)}
-
-
-@app.get("/api/canvas/generate")
-async def canvas_generate(q: str):
-    """Stream a canvas document from the LLM without persisting a chat turn.
-
-    Registered before ``/api/canvas/{canvas_id}`` so the literal path wins.
-    """
-    config = _global_chat_config()
-    ollama_url = config.get("ollama_base_url", "http://localhost:11434")
-    chat_model = config.get("chat_model", "llama3")
-    from palimind.opencode.router import resolve_model
-
-    resolved_model, resolved_url, model_note = resolve_model(
-        chat_model, ollama_url, fallback_model=chat_model
-    )
-    if model_note:
-        print(f"[canvas] {model_note}")
-
-    system_prompt = (
-        "You are a writing assistant embedded in a Markdown document editor. "
-        "Return only the requested document content in Markdown, with no preamble, "
-        "explanation, or surrounding code fence."
-    )
-
-    async def stream():
-        from palimind.generative.responder import generate_response_stream
-
-        try:
-            for token in generate_response_stream(
-                query=q,
-                context="",
-                image_paths=[],
-                ollama_url=resolved_url,
-                chat_model=resolved_model,
-                system_prompt=system_prompt,
-                history=[],
-                is_chat_only=True,
-                num_ctx=config.get("num_ctx"),
-            ):
-                yield f"data: {json.dumps({'type': 'token', 'text': token})}\n\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'text': str(e)})}\n\n"
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
-
-    return StreamingResponse(stream(), media_type="text/event-stream")
-
-
-@app.get("/api/canvas/{canvas_id}")
-async def get_canvas(canvas_id: str):
-    record = await asyncio.to_thread(load_canvas, canvas_id)
-    if record is None:
-        return {"error": "Canvas not found"}
-    return record
-
-
-@app.put("/api/canvas/{canvas_id}")
-async def put_canvas(canvas_id: str, req: Request):
-    try:
-        data = await req.json()
-    except Exception:
-        return {"error": "Invalid JSON body"}
-    title = str(data.get("title", "Untitled"))
-    content = str(data.get("content", ""))
-    try:
-        record = await asyncio.to_thread(save_canvas, canvas_id, title, content)
-    except ValueError as exc:
-        return {"error": str(exc)}
-    return record
-
-
-@app.delete("/api/canvas/{canvas_id}")
-async def remove_canvas(canvas_id: str):
-    try:
-        removed = await asyncio.to_thread(delete_canvas, canvas_id)
-    except ValueError as exc:
-        return {"error": str(exc)}
-    return {"status": "success" if removed else "not_found"}
 
 
 async def _run_agent_and_record(agent_id: str, prompt: str, session_id: str) -> str:

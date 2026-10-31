@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BookOpen, ExternalLink, FileText, ShieldCheck } from 'lucide-react';
 import { formatMarkdown } from '../utils/markdown';
@@ -21,17 +21,55 @@ export default function MessageContent({
   content,
   citations,
   sources,
+  messageIndex,
+  streaming = false,
+  onOpenArtifact,
 }: {
   content: string;
   citations?: CitationPayload;
   sources?: string[];
+  messageIndex?: number;
+  streaming?: boolean;
+  onOpenArtifact?: (artifactId: string) => void;
 }) {
   const html = useMemo(
-    () => formatMarkdown(annotateCitationMarkers(content, citations)),
-    [content, citations],
+    () =>
+      formatMarkdown(annotateCitationMarkers(content, citations), {
+        messageIndex,
+        streaming,
+      }),
+    [content, citations, messageIndex, streaming],
   );
   const sourceLookup = useMemo(() => sourceMap(citations), [citations]);
   const [hover, setHover] = useState<HoverState | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const collapsedArtifactsRef = useRef<Set<string>>(new Set());
+  const initializedDefaultsRef = useRef<Set<string>>(new Set());
+
+  // Re-apply collapse state after streamed content re-renders the HTML.
+  useLayoutEffect(() => {
+    const root = contentRef.current;
+    if (!root) return;
+    root.querySelectorAll('.artifact-block').forEach(block => {
+      const id = block.getAttribute('data-artifact-id') ?? '';
+      // Large blocks start collapsed in the generated markup; remember that
+      // default so it survives streaming re-renders.
+      if (id && !initializedDefaultsRef.current.has(id)) {
+        initializedDefaultsRef.current.add(id);
+        if (block.classList.contains('is-collapsed')) {
+          collapsedArtifactsRef.current.add(id);
+        }
+      }
+      const collapsed = collapsedArtifactsRef.current.has(id);
+      block.classList.toggle('is-collapsed', collapsed);
+      const toggle = block.querySelector('.artifact-block-toggle');
+      toggle?.setAttribute('aria-expanded', String(!collapsed));
+      toggle?.setAttribute(
+        'title',
+        collapsed ? 'Expand artifact block' : 'Collapse artifact block',
+      );
+    });
+  }, [html]);
 
   const activate = useCallback(
     (marker: number) => {
@@ -51,6 +89,56 @@ export default function MessageContent({
   );
 
   const onClick = (e: React.MouseEvent) => {
+    const target = e.target;
+    if (target instanceof HTMLElement) {
+      const copyButton = target.closest('.code-box-copy') as HTMLElement | null;
+      if (copyButton) {
+        e.preventDefault();
+        const code = copyButton.closest('.code-box')?.querySelector('code');
+        const value = code?.textContent ?? '';
+        void navigator.clipboard
+          .writeText(value)
+          .then(() => {
+            copyButton.textContent = 'Copied!';
+            copyButton.classList.add('copied');
+            window.setTimeout(() => {
+              copyButton.textContent = 'Copy';
+              copyButton.classList.remove('copied');
+            }, 1600);
+          })
+          .catch(() => undefined);
+        return;
+      }
+
+      const openButton = target.closest('[data-artifact-open]') as HTMLElement | null;
+      if (openButton) {
+        e.preventDefault();
+        const artifactId = openButton.getAttribute('data-artifact-open');
+        if (artifactId && onOpenArtifact) onOpenArtifact(artifactId);
+        return;
+      }
+
+      const toggleButton = target.closest('.artifact-block-toggle') as HTMLElement | null;
+      if (toggleButton) {
+        e.preventDefault();
+        const block = toggleButton.closest('.artifact-block');
+        if (block) {
+          const collapsed = block.classList.toggle('is-collapsed');
+          const artifactId = block.getAttribute('data-artifact-id') ?? '';
+          if (artifactId) {
+            if (collapsed) collapsedArtifactsRef.current.add(artifactId);
+            else collapsedArtifactsRef.current.delete(artifactId);
+          }
+          toggleButton.setAttribute('aria-expanded', String(!collapsed));
+          toggleButton.setAttribute(
+            'title',
+            collapsed ? 'Expand artifact block' : 'Collapse artifact block',
+          );
+        }
+        return;
+      }
+    }
+
     const ref = findCitationRef(e.target);
     if (!ref) return;
     const marker = Number(ref.getAttribute('data-citation'));
@@ -76,6 +164,7 @@ export default function MessageContent({
   return (
     <>
       <div
+        ref={contentRef}
         className="message-content"
         onClick={onClick}
         onMouseOver={onMouseOver}

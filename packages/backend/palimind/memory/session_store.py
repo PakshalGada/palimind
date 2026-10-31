@@ -46,6 +46,22 @@ def _state_path(root: Path) -> Path:
     return root / ".palimind" / "state.db"
 
 
+def has_session_data(root: Path) -> bool:
+    """True when the session store already contains at least one message."""
+    path = _state_path(root)
+    if not path.exists():
+        return False
+    try:
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        try:
+            row = conn.execute("SELECT COUNT(*) FROM messages").fetchone()
+            return bool(row and row[0])
+        finally:
+            conn.close()
+    except Exception:
+        return False
+
+
 def _connect(root: Path) -> sqlite3.Connection:
     path = _state_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -112,14 +128,20 @@ def _session_dicts(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     rows = conn.execute(
         "SELECT id, name, created_at, summary FROM sessions ORDER BY created_at ASC"
     ).fetchall()
+    # Fetch every message in one pass instead of one query per session. The
+    # frontend reloads all sessions after each turn, so N+1 here is felt
+    # directly as chat latency once the history grows.
+    grouped: dict[str, list[tuple[Any, ...]]] = {}
+    msg_rows = conn.execute(
+        "SELECT session_id, role, content, timestamp, meta FROM messages "
+        "ORDER BY session_id ASC, id ASC"
+    ).fetchall()
+    for msg_row in msg_rows:
+        grouped.setdefault(msg_row[0], []).append(msg_row[1:])
+
     for sid, name, created_at, summary in rows:
-        msg_rows = conn.execute(
-            "SELECT role, content, timestamp, meta FROM messages "
-            "WHERE session_id=? ORDER BY id ASC",
-            (sid,),
-        ).fetchall()
         messages: list[dict[str, Any]] = []
-        for role, content, ts, meta_raw in msg_rows:
+        for role, content, ts, meta_raw in grouped.get(sid, ()):
             msg: dict[str, Any] = {"role": role, "content": content, "timestamp": ts}
             try:
                 extra = json.loads(meta_raw or "{}")

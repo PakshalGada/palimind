@@ -123,15 +123,30 @@
   flex: 0 0 auto;
   min-width: 0;
   height: 100%;
-  animation: side-panel-in var(--duration-base) var(--ease-out);
 }
-@keyframes side-panel-in {
-  from { opacity: 0; transform: translateX(18px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-.app-side-panel > .artifact-panel,
-.app-side-panel > .canvas-panel {
+.app-side-panel.is-closing { pointer-events: none; }
+
+/* Opening: ease the panel's width in, so the chat column reflows smoothly
+   alongside it instead of snapping to its final size in a single frame. */
+.app-side-panel > .artifact-panel {
   flex: 1 1 auto;
+  animation: artifact-panel-in 260ms var(--ease-out);
+}
+@keyframes artifact-panel-in {
+  /* min-width joins the animation, otherwise the panel's hard min-width
+     (380px) clamps the width curve and the first part of the motion looks
+     stuck before jumping. Both curves end at their underlying values, so
+     there is no snap when the animation finishes. */
+  from { width: 0; min-width: 0; }
+}
+@keyframes artifact-panel-fade {
+  from { opacity: 0; }
+}
+
+/* Closing: the same keyframes played in reverse (SidePanel keeps the panel
+   mounted while this runs, then unmounts it). */
+.app-side-panel.is-closing > .artifact-panel {
+  animation: artifact-panel-in 240ms var(--ease-in-out) reverse;
 }
 
 /* ── tablet ──────────────────────────────────────────────────────────── */
@@ -203,14 +218,20 @@
     z-index: 45;
     background: var(--color-bg);
   }
-  .app-side-panel > .artifact-panel,
-  .app-side-panel > .canvas-panel {
+  /* The persisted width lives in an inline style, so it takes !important to
+     make the mobile overlay truly full-width. Mobile gets a cross-fade
+     instead of the width animation, which makes no sense at inset: 0. */
+  .app-side-panel > .artifact-panel {
     position: relative;
-    width: 100%;
+    width: 100% !important;
     max-width: none;
     min-width: 0;
     height: 100%;
     flex: 1 1 auto;
+    animation: artifact-panel-fade 200ms var(--ease-out);
+  }
+  .app-side-panel.is-closing > .artifact-panel {
+    animation: artifact-panel-fade 200ms var(--ease-out) reverse !important;
   }
 }
 
@@ -218,7 +239,8 @@
 @media (prefers-reduced-motion: reduce) {
   .app-sidebar-shell,
   .app-sidebar-shell .sidebar,
-  .app-side-panel {
+  .app-side-panel,
+  .app-side-panel > .artifact-panel {
     transition: none !important;
     animation: none !important;
   }

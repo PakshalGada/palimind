@@ -52,24 +52,36 @@ export interface HighlightResult {
   language: string;
 }
 
+function escapeCode(code: string): string {
+  return code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 /**
  * Highlight source code to themed HTML. Falls back to escaped plain text when
  * the language is unknown or highlighting throws.
+ *
+ * `autoDetect` runs highlight.js' language guesser, which is deliberately
+ * expensive (it scores every registered grammar). During streaming the same
+ * growing block is re-highlighted many times, so callers turn it off there.
  */
-export function highlightCode(code: string, lang?: string): HighlightResult {
+export function highlightCode(
+  code: string,
+  lang?: string,
+  { autoDetect = true }: { autoDetect?: boolean } = {},
+): HighlightResult {
   ensureRegistered();
   const language = (lang || '').trim().toLowerCase().split(/\s+/)[0];
   try {
     if (language && hljs.getLanguage(language)) {
       return { html: hljs.highlight(code, { language, ignoreIllegals: true }).value, language };
     }
-    const auto = hljs.highlightAuto(code);
-    return { html: auto.value, language: auto.language || language || 'text' };
+    // Untagged blocks: only guess for small, settled snippets.
+    if (autoDetect && code.length <= 2000) {
+      const auto = hljs.highlightAuto(code);
+      return { html: auto.value, language: auto.language || language || 'text' };
+    }
+    return { html: escapeCode(code), language: language || 'text' };
   } catch {
-    const escaped = code
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-    return { html: escaped, language: language || 'text' };
+    return { html: escapeCode(code), language: language || 'text' };
   }
 }

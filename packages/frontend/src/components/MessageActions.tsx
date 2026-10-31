@@ -3,7 +3,6 @@ import {
   Check,
   ChevronDown,
   Copy,
-  FileText,
   FlaskConical,
   Pencil,
   RefreshCw,
@@ -23,8 +22,6 @@ export interface MessageActionsProps {
   onRegenerate?: () => void;
   /** Enter inline edit mode (user messages only). */
   onEdit?: () => void;
-  /** Send this message's content to the Canvas panel. */
-  onOpenCanvas?: () => void;
   /** Save this message into a research project. */
   onSaveResearch?: () => void;
   onDelete: () => void;
@@ -56,7 +53,6 @@ export default function MessageActions({
   bookmarked,
   onRegenerate,
   onEdit,
-  onOpenCanvas,
   onSaveResearch,
   onDelete,
   onShare,
@@ -147,18 +143,6 @@ export default function MessageActions({
           onClick={onEdit}
         >
           <Pencil size={14} />
-        </button>
-      )}
-
-      {!isUser && onOpenCanvas && (
-        <button
-          type="button"
-          className="msg-action-btn"
-          title="Open in Canvas"
-          aria-label="Open message in canvas"
-          onClick={onOpenCanvas}
-        >
-          <FileText size={14} />
         </button>
       )}
 

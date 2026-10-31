@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react';
-import { useApp } from '../AppContext';
+import { startTransition, useCallback, useEffect, useReducer, useRef } from 'react';
+import { useActivity, useApp } from '../AppContext';
 import { createActivityTracker, type ActivityInfo } from './activity';
 import { streamReducer } from './reducer';
 import {
@@ -13,6 +13,17 @@ import {
 /** Re-render the markdown buffer at most every 64ms (or every 4 tokens). */
 const FLUSH_MS = 64;
 const FLUSH_TOKENS = 4;
+
+/**
+ * Re-parsing markdown is linear in the answer length, so a fixed 64ms cadence
+ * makes a long answer quadratic over the course of the stream. Slow the flush
+ * as the buffer grows: short answers stay smooth, long ones stop janking.
+ */
+function flushIntervalFor(length: number): number {
+  if (length > 12_000) return 220;
+  if (length > 4_000) return 130;
+  return FLUSH_MS;
+}
 
 export interface SendRequest {
   /** Query sent to the backend (may be empty for attachments-only sends). */
@@ -43,14 +54,13 @@ export interface ChatStream {
  * turns events into state.
  */
 export function useChatStream(): ChatStream {
+  const { setIsGenerating, refreshSessions } = useApp();
   const {
     setThinkingText,
     setAgentStates,
     setAgentLoading,
     setActivity,
-    setIsGenerating,
-    refreshSessions,
-  } = useApp();
+  } = useActivity();
 
   const [state, dispatch] = useReducer(streamReducer, initialStreamState);
 
@@ -88,16 +98,29 @@ export function useChatStream(): ChatStream {
     (force = false) => {
       tokensSinceFlush.current += 1;
       const now = performance.now();
+      const interval = flushIntervalFor(rawRef.current.length);
       const due =
         force ||
-        now - lastFlushAt.current >= FLUSH_MS ||
+        now - lastFlushAt.current >= interval ||
         tokensSinceFlush.current >= FLUSH_TOKENS;
+
+      // Markdown render is expensive, so keep it interruptible: typing in the
+      // composer must stay responsive even while a long answer re-parses.
+      // The stream id guard stops a queued transition from an old turn from
+      // overwriting the next turn's answer.
+      const scheduledFor = streamIdRef.current;
+      const commit = () => {
+        if (streamIdRef.current !== scheduledFor) return;
+        const text = rawRef.current;
+        if (force) dispatch({ type: 'setAnswer', text });
+        else startTransition(() => dispatch({ type: 'setAnswer', text }));
+      };
 
       if (due) {
         clearFlushTimer();
         lastFlushAt.current = now;
         tokensSinceFlush.current = 0;
-        dispatch({ type: 'setAnswer', text: rawRef.current });
+        commit();
         return;
       }
 
@@ -106,8 +129,8 @@ export function useChatStream(): ChatStream {
           flushTimerRef.current = null;
           lastFlushAt.current = performance.now();
           tokensSinceFlush.current = 0;
-          dispatch({ type: 'setAnswer', text: rawRef.current });
-        }, FLUSH_MS);
+          commit();
+        }, interval);
       }
     },
     [clearFlushTimer],

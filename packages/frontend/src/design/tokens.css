@@ -13,77 +13,77 @@
 /* ── font faces ─────────────────────────────────────────────────────────── */
 @font-face {
     font-family: "Universal Sans";
-    src: url("/fonts/UniversalSans-Text-400.woff2") format("woff2");
+    src: url("/ui/fonts/UniversalSans-Text-400.woff2") format("woff2");
     font-style: normal;
     font-weight: 400;
     font-display: swap;
 }
 @font-face {
     font-family: "Universal Sans";
-    src: url("/fonts/UniversalSans-Text-400Italic.woff2") format("woff2");
+    src: url("/ui/fonts/UniversalSans-Text-400Italic.woff2") format("woff2");
     font-style: italic;
     font-weight: 400;
     font-display: swap;
 }
 @font-face {
     font-family: "Universal Sans";
-    src: url("/fonts/UniversalSans-Text-550.woff2") format("woff2");
+    src: url("/ui/fonts/UniversalSans-Text-550.woff2") format("woff2");
     font-style: normal;
     font-weight: 550;
     font-display: swap;
 }
 @font-face {
     font-family: "Universal Sans";
-    src: url("/fonts/UniversalSans-Text-550Italic.woff2") format("woff2");
+    src: url("/ui/fonts/UniversalSans-Text-550Italic.woff2") format("woff2");
     font-style: italic;
     font-weight: 550;
     font-display: swap;
 }
 @font-face {
     font-family: "Universal Sans Display";
-    src: url("/fonts/UniversalSans-Display-400.woff2") format("woff2");
+    src: url("/ui/fonts/UniversalSans-Display-400.woff2") format("woff2");
     font-style: normal;
     font-weight: 400;
     font-display: swap;
 }
 @font-face {
     font-family: "Universal Sans Display";
-    src: url("/fonts/UniversalSans-Display-550.woff2") format("woff2");
+    src: url("/ui/fonts/UniversalSans-Display-550.woff2") format("woff2");
     font-style: normal;
     font-weight: 550;
     font-display: swap;
 }
 @font-face {
     font-family: "IBM Plex Mono";
-    src: url("/fonts/IBMPlexMono-400.woff2") format("woff2");
+    src: url("/ui/fonts/IBMPlexMono-400.woff2") format("woff2");
     font-style: normal;
     font-weight: 400;
     font-display: swap;
 }
 @font-face {
     font-family: "IBM Plex Mono";
-    src: url("/fonts/IBMPlexMono-400Italic.woff2") format("woff2");
+    src: url("/ui/fonts/IBMPlexMono-400Italic.woff2") format("woff2");
     font-style: italic;
     font-weight: 400;
     font-display: swap;
 }
 @font-face {
     font-family: "Noto Serif";
-    src: url("/fonts/NotoSerif-400.woff2") format("woff2");
+    src: url("/ui/fonts/NotoSerif-400.woff2") format("woff2");
     font-style: normal;
     font-weight: 400 600;
     font-display: swap;
 }
 @font-face {
     font-family: "Noto Serif";
-    src: url("/fonts/NotoSerif-400Italic.woff2") format("woff2");
+    src: url("/ui/fonts/NotoSerif-400Italic.woff2") format("woff2");
     font-style: italic;
     font-weight: 400;
     font-display: swap;
 }
 @font-face {
     font-family: "Space Grotesk";
-    src: url("/fonts/SpaceGrotesk-var.woff2") format("woff2");
+    src: url("/ui/fonts/SpaceGrotesk-var.woff2") format("woff2");
     font-style: normal;
     font-weight: 300 700;
     font-display: swap;

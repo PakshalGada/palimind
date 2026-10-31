@@ -1,360 +1,820 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Code2,
-  Copy,
-  Download,
-  ExternalLink,
-  Eye,
-  Package,
-  Pencil,
-  Save,
-  Share2,
-  X,
-} from 'lucide-react';
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
+import { Code2, Package } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { formatMarkdown } from '../utils/markdown';
 import { useChatStreamContext } from '../stream/context';
+import type { StreamState } from '../stream/types';
 import { EmptyState } from '../ui/primitives';
-import {
-  ARTIFACT_TYPE_LABEL,
-  collectArtifacts,
-  downloadArtifact,
-  type Artifact,
-} from '../utils/artifacts';
-import { loadVault, saveToVault, type SavedArtifact } from '../utils/artifactVault';
-import MermaidPreview from './MermaidPreview';
-import HighlightedCode from './HighlightedCode';
-import ArtifactVault from './ArtifactVault';
+import type { Artifact, ArtifactSource } from '../utils/artifacts';
+import ArtifactLibrary, { type OpenedArtifact } from './ArtifactLibrary';
+import ArtifactPanelHeader from './artifact/ArtifactPanelHeader';
+import ArtifactProjectDialog from './artifact/ArtifactProjectDialog';
+import ArtifactPreview from './artifact/ArtifactPreview';
+import ArtifactTabs from './artifact/ArtifactTabs';
+import ArtifactToolbar from './artifact/ArtifactToolbar';
+import ArtifactVersionDialog from './artifact/ArtifactVersionDialog';
+import ArtifactEditor from './artifact/ArtifactEditor';
+import { sourceLanguage } from './artifact/languages';
+import type { ActiveArtifact, ViewMode } from './artifact/types';
+import { useArtifactExport } from './artifact/useArtifactExport';
+import { useArtifactProjects } from './artifact/useArtifactProjects';
+import { useArtifactVault } from './artifact/useArtifactVault';
+import { useLiveArtifacts } from './artifact/useLiveArtifacts';
 import './ArtifactPanel.css';
 
-type ActiveArtifact = Artifact | SavedArtifact;
+function toActive(artifact: Artifact | OpenedArtifact): ActiveArtifact {
+  return {
+    id: artifact.id,
+    type: artifact.type,
+    language: artifact.language,
+    title: artifact.title,
+    content: artifact.content,
+    messageIndex: 'messageIndex' in artifact ? artifact.messageIndex : undefined,
+    projectId: 'projectId' in artifact ? artifact.projectId : undefined,
+    source: 'source' in artifact ? artifact.source : undefined,
+    filePaths: 'filePaths' in artifact ? artifact.filePaths : undefined,
+    files: 'files' in artifact ? artifact.files : undefined,
+    streaming: 'streaming' in artifact ? artifact.streaming : undefined,
+    closed: 'closed' in artifact ? artifact.closed : undefined,
+  };
+}
 
-export default function ArtifactPanel() {
+const SPLIT_KEY = 'palimind:artifact-editor-split';
+const PANEL_WIDTH_KEY = 'palimind:artifact-panel-width';
+const PANEL_MIN_WIDTH = 380;
+const PANEL_MAX_WIDTH = 980;
+const PANEL_DEFAULT_WIDTH = 600;
+
+function clampPanelWidth(width: number): number {
+  const viewportMax = Math.max(
+    PANEL_MIN_WIDTH,
+    Math.min(PANEL_MAX_WIDTH, window.innerWidth - 420),
+  );
+  return Math.min(Math.max(width, PANEL_MIN_WIDTH), viewportMax);
+}
+
+function initialPanelWidth(): number {
+  try {
+    const stored = Number(window.localStorage.getItem(PANEL_WIDTH_KEY));
+    if (Number.isFinite(stored) && stored > 0) return clampPanelWidth(stored);
+  } catch {
+    // localStorage may be unavailable
+  }
+  return PANEL_DEFAULT_WIDTH;
+}
+
+function initialSplit(): number {
+  try {
+    const stored = Number(window.localStorage.getItem(SPLIT_KEY));
+    if (Number.isFinite(stored) && stored >= 25 && stored <= 75) return stored;
+  } catch {
+    // localStorage may be unavailable
+  }
+  return 48;
+}
+
+interface ArtifactFeed {
+  artifacts: Artifact[];
+  status: StreamState['status'];
+}
+
+/**
+ * Subscribes to the live stream and publishes artifacts on the throttled
+ * cadence used by `useLiveArtifacts`.
+ *
+ * The panel itself must not consume `ChatStreamContext`: that value changes on
+ * every token and every reasoning chunk, which would re-render the entire
+ * panel (tabs, toolbar, preview, editor) many times per second. This tiny
+ * component can re-render freely because it returns nothing.
+ */
+function LiveArtifactFeed({
+  messages,
+  onChange,
+}: {
+  messages: ArtifactSource[] | undefined;
+  onChange: (feed: ArtifactFeed) => void;
+}) {
+  const { liveText, state } = useChatStreamContext();
+  const artifacts = useLiveArtifacts({
+    messages,
+    liveText,
+    streaming: state.status !== 'idle',
+  });
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  useEffect(() => {
+    onChangeRef.current({ artifacts, status: state.status });
+  }, [artifacts, state.status]);
+
+  return null;
+}
+
+function isEditableElement(element: Element | null): boolean {
+  if (!(element instanceof HTMLElement)) return false;
+  const tag = element.tagName;
+  return (
+    tag === 'INPUT' ||
+    tag === 'TEXTAREA' ||
+    tag === 'SELECT' ||
+    element.isContentEditable
+  );
+}
+
+/**
+ * `forceVisible` keeps the panel mounted while its exit animation plays
+ * (SidePanel sets it during the closing phase) even though the app context
+ * already reports the panel as closed.
+ */
+export default function ArtifactPanel({
+  forceVisible = false,
+}: {
+  forceVisible?: boolean;
+}) {
   const {
     artifactPanelOpen,
     setArtifactPanelOpen,
+    artifactLibraryOpen,
+    setArtifactLibraryOpen,
+    openArtifactLibrary,
+    artifactTarget,
+    clearArtifactTarget,
     sessions,
     activeSessionId,
+    activeProjectId,
+    setActiveProjectId,
     addToast,
   } = useApp();
 
-  const currentSess = sessions.find((s) => s.id === activeSessionId);
-  const { liveText } = useChatStreamContext();
-  // Only fold the in-flight buffer in while the panel is visible: this keeps
-  // artifact scanning off the streaming hot path otherwise.
-  const liveForArtifacts = artifactPanelOpen ? liveText : '';
-  const sessionArtifacts = useMemo(() => {
-    const messages = currentSess?.messages ?? [];
-    // Include the in-flight assistant buffer so artifacts appear as soon as
-    // their fence closes, not only after the session reloads.
-    return collectArtifacts(
-      liveForArtifacts ? [...messages, { role: 'system', content: liveForArtifacts }] : messages,
-    );
-  }, [currentSess?.messages, liveForArtifacts]);
+  const messages = useMemo(
+    () => sessions.find(session => session.id === activeSessionId)?.messages,
+    [sessions, activeSessionId],
+  );
+
+  const [artifactFeed, setArtifactFeed] = useState<ArtifactFeed>({
+    artifacts: [],
+    status: 'idle',
+  });
+  const { artifacts: sessionArtifacts, status: streamStatus } = artifactFeed;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [vaultArtifact, setVaultArtifact] = useState<SavedArtifact | null>(null);
+  const [external, setExternal] = useState<ActiveArtifact | null>(null);
+  const [edits, setEdits] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview');
-  const [vaultOpen, setVaultOpen] = useState(false);
-  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<ViewMode>('preview');
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [newIds, setNewIds] = useState<Set<string>>(() => new Set());
+  const [splitPercent, setSplitPercent] = useState(initialSplit);
+  const [panelWidth, setPanelWidth] = useState(initialPanelWidth);
 
-  // Keep the selection valid as the conversation changes.
+  const panelRef = useRef<HTMLElement>(null);
+  const previewScrollRef = useRef<HTMLDivElement>(null);
+  const pendingScrollRef = useRef<number | null>(null);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
+  const panelDraggingRef = useRef(false);
+  const panelDragStartXRef = useRef(0);
+  const panelDragStartWidthRef = useRef(panelWidth);
+  const previousIdsRef = useRef<Set<string>>(new Set());
+  const previousSessionRef = useRef(activeSessionId);
+  const newIdsReadyRef = useRef(false);
+
+  const selectedSessionArtifact = useMemo(() => {
+    if (sessionArtifacts.length === 0) return null;
+    return (
+      sessionArtifacts.find(artifact => artifact.id === selectedId) ??
+      sessionArtifacts[0]
+    );
+  }, [sessionArtifacts, selectedId]);
+
+  const active = useMemo<ActiveArtifact | null>(() => {
+    if (external) return external;
+    return selectedSessionArtifact ? toActive(selectedSessionArtifact) : null;
+  }, [external, selectedSessionArtifact]);
+
+  const activeId = active?.id ?? '';
+  const content = active ? (edits[activeId] ?? active.content) : '';
+  const streaming = sessionArtifacts.some(artifact => artifact.streaming);
+
+  const {
+    saved,
+    save: saveToVaultNow,
+    saveDraft,
+    saveDraftFor,
+    restore,
+    refresh: refreshVault,
+    projectArtifact,
+    projectLoading,
+    refreshProject,
+    restoreProjectVersion,
+    getLocalVersionContent,
+    getProjectVersionContent,
+  } = useArtifactVault({
+    active,
+    content,
+    panelOpen: artifactPanelOpen,
+    activeProjectId,
+    activeSessionId,
+    addToast,
+    applyContent: (artifactId, next) => {
+      setEdits(prev => ({ ...prev, [artifactId]: next }));
+    },
+  });
+
+  const {
+    exporting,
+    copy,
+    download,
+    share,
+    openInNewTab,
+    exportAs,
+    saveToKnowledge,
+  } = useArtifactExport({ active, content, activeProjectId, addToast });
+
+  const {
+    projects,
+    pickerOpen,
+    setPickerOpen,
+    newProjectName,
+    setNewProjectName,
+    creatingProject,
+    pinBusy,
+    openPicker,
+    createProject,
+    pinToProject,
+  } = useArtifactProjects({
+    active,
+    content,
+    activeProjectId,
+    activeSessionId,
+    setActiveProjectId,
+    addToast,
+  });
+
+  const baselineContent = saved?.content ?? active?.content ?? '';
+  const dirty = Boolean(active) && content !== baselineContent;
+
+  // Keep the latest values available to unmount/switch-time autosave without
+  // re-registering handlers on every render.
+  const activeRef = useRef(active);
+  const dirtyRef = useRef(dirty);
+  const saveDraftRef = useRef(saveDraft);
+  const saveDraftForRef = useRef(saveDraftFor);
+  activeRef.current = active;
+  dirtyRef.current = dirty;
+  saveDraftRef.current = saveDraft;
+  saveDraftForRef.current = saveDraftFor;
+
+  const autosave = useCallback(() => {
+    if (dirtyRef.current && activeRef.current) {
+      void saveDraftRef.current('Autosaved before closing');
+    }
+  }, []);
+
+  const previousSnapshotRef = useRef<{
+    id: string;
+    artifact: ActiveArtifact;
+    content: string;
+    dirty: boolean;
+  } | null>(null);
+
+  // Flush the artifact we are leaving before switching tabs.
+  useLayoutEffect(() => {
+    const previous = previousSnapshotRef.current;
+    if (previous && previous.id !== activeId && previous.dirty) {
+      void saveDraftForRef.current(
+        previous.artifact,
+        previous.content,
+        'Autosaved before switching artifacts',
+      );
+    }
+  }, [activeId]);
+
+  // Snapshot for the switch handler above. Runs after the layout effect so the
+  // previous snapshot is still readable when the active id changes.
   useEffect(() => {
-    if (vaultArtifact) return;
+    previousSnapshotRef.current = activeRef.current
+      ? {
+          id: activeId,
+          artifact: activeRef.current,
+          content,
+          dirty,
+        }
+      : null;
+  });
+
+  useEffect(() => () => autosave(), [autosave]);
+
+  const wasOpenRef = useRef(artifactPanelOpen);
+  useEffect(() => {
+    const wasOpen = wasOpenRef.current;
+    wasOpenRef.current = artifactPanelOpen;
+    if (wasOpen && !artifactPanelOpen) autosave();
+  }, [artifactPanelOpen, autosave]);
+
+  // Reset transient state when switching artifacts.
+  useEffect(() => {
+    setEditing(false);
+    setViewMode('preview');
+  }, [activeId]);
+
+  // Entering edit mode freezes the current content in the editor draft, so a
+  // still-streaming artifact cannot overwrite what the user is typing.
+  useEffect(() => {
+    if (!editing || !activeId || !activeRef.current?.streaming) return;
+    setEdits(prev => {
+      if (prev[activeId] !== undefined) return prev;
+      const current = activeRef.current?.content ?? '';
+      return { ...prev, [activeId]: current };
+    });
+  }, [editing, activeId]);
+
+  // Keep the selected tab valid as artifacts stream in.
+  useEffect(() => {
+    if (external) return;
     if (sessionArtifacts.length === 0) {
       setSelectedId(null);
       return;
     }
-    if (!selectedId || !sessionArtifacts.some((a) => a.id === selectedId)) {
-      setSelectedId(sessionArtifacts[0].id);
+    if (!selectedId || !sessionArtifacts.some(artifact => artifact.id === selectedId)) {
+      setSelectedId(sessionArtifacts[sessionArtifacts.length - 1].id);
     }
-  }, [sessionArtifacts, selectedId, vaultArtifact]);
+  }, [external, sessionArtifacts, selectedId]);
 
-  const active: ActiveArtifact | null =
-    vaultArtifact ?? sessionArtifacts.find((a) => a.id === selectedId) ?? sessionArtifacts[0] ?? null;
-
-  // Reset the editor whenever the shown artifact changes. Content is read
-  // from a ref so the effect can key on the id alone.
-  const activeId = active?.id;
-  const activeContentRef = useRef(active?.content ?? '');
-  activeContentRef.current = active?.content ?? '';
+  // Restore a saved draft when reopening, unless the editor already has newer
+  // content for this artifact.
   useEffect(() => {
-    setEditing(false);
-    setViewMode('preview');
-    setDraft(activeContentRef.current);
-  }, [activeId]);
+    if (!activeId || !saved) return;
+    setEdits(prev => {
+      if (prev[activeId] !== undefined) return prev;
+      if (saved.content === activeRef.current?.content) return prev;
+      return { ...prev, [activeId]: saved.content };
+    });
+  }, [activeId, saved]);
 
+  // Sidebar / command palette can request the library.
   useEffect(() => {
-    if (artifactPanelOpen) setSavedIds(new Set(loadVault().map((a) => a.id)));
-  }, [artifactPanelOpen]);
-
-  // The sidebar's "Open artifact vault" action opens the panel and jumps
-  // straight to saved artifacts.
-  useEffect(() => {
-    const handler = () => {
-      setArtifactPanelOpen(true);
-      setVaultOpen(true);
-    };
+    const handler = () => openArtifactLibrary();
+    window.addEventListener('palimind:open-artifact-library', handler);
     window.addEventListener('palimind:open-artifact-vault', handler);
-    return () => window.removeEventListener('palimind:open-artifact-vault', handler);
-  }, [setArtifactPanelOpen]);
+    return () => {
+      window.removeEventListener('palimind:open-artifact-library', handler);
+      window.removeEventListener('palimind:open-artifact-vault', handler);
+    };
+  }, [openArtifactLibrary]);
 
-  if (!artifactPanelOpen) return null;
+  // A chat block asked to open a specific artifact.
+  useEffect(() => {
+    if (!artifactTarget) return;
+    setExternal(null);
+    setSelectedId(artifactTarget.id);
+    clearArtifactTarget();
+  }, [artifactTarget, clearArtifactTarget]);
 
-  const previewContent = editing ? draft : active?.content ?? '';
+  // Mark artifacts that appear while streaming.
+  useEffect(() => {
+    const ids = new Set(sessionArtifacts.map(artifact => artifact.id));
+    const sessionChanged = previousSessionRef.current !== activeSessionId;
 
-  const selectSessionArtifact = (id: string) => {
-    setVaultArtifact(null);
-    setSelectedId(id);
-  };
+    if (!newIdsReadyRef.current || sessionChanged) {
+      newIdsReadyRef.current = true;
+      previousSessionRef.current = activeSessionId;
+      previousIdsRef.current = ids;
+      const latest = sessionArtifacts[sessionArtifacts.length - 1];
+      setNewIds(
+        !external && streamStatus === 'streaming' && latest
+          ? new Set([latest.id])
+          : new Set(),
+      );
+      return;
+    }
 
-  const copy = () => {
-    if (!active) return;
-    navigator.clipboard
-      .writeText(previewContent)
-      .then(() => addToast('Artifact copied to clipboard'))
-      .catch(() => addToast('Could not access the clipboard'));
-  };
-
-  const save = () => {
-    if (!active) return;
-    const next = saveToVault({ ...active, content: previewContent });
-    setSavedIds(new Set(next.map((a) => a.id)));
-    addToast('Saved to Artifact Vault');
-  };
-
-  const share = async () => {
-    if (!active) return;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: active.title, text: previewContent });
-        return;
-      } catch {
-        // fall through to clipboard
+    if (streamStatus === 'streaming' && !external) {
+      const added = [...ids].filter(id => !previousIdsRef.current.has(id));
+      if (added.length > 0) {
+        setNewIds(prev => {
+          const next = new Set(prev);
+          for (const id of added) next.add(id);
+          return next;
+        });
       }
     }
-    copy();
+    previousIdsRef.current = ids;
+  }, [activeSessionId, external, sessionArtifacts, streamStatus]);
+
+  // Fade the "new" dots once the stream settles.
+  useEffect(() => {
+    if (streamStatus === 'streaming' || newIds.size === 0) return;
+    const timer = window.setTimeout(() => setNewIds(new Set()), 2500);
+    return () => window.clearTimeout(timer);
+  }, [newIds, streamStatus]);
+
+  // Focus the panel on open, but never steal focus from the composer.
+  useEffect(() => {
+    if (!artifactPanelOpen) return;
+    if (isEditableElement(document.activeElement)) return;
+    panelRef.current?.focus({ preventScroll: true });
+  }, [artifactPanelOpen]);
+
+  // Restore preview scroll across edit-mode toggles.
+  useLayoutEffect(() => {
+    if (pendingScrollRef.current === null) return;
+    const scrollTop = pendingScrollRef.current;
+    pendingScrollRef.current = null;
+    if (previewScrollRef.current) previewScrollRef.current.scrollTop = scrollTop;
+  }, [editing]);
+
+  const updateContent = useCallback(
+    (next: string) => {
+      if (!activeId) return;
+      setEdits(prev => ({ ...prev, [activeId]: next }));
+    },
+    [activeId],
+  );
+
+  const selectSessionArtifact = useCallback((id: string) => {
+    setExternal(null);
+    setSelectedId(id);
+    setNewIds(prev => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const toggleEditing = useCallback(() => {
+    pendingScrollRef.current = previewScrollRef.current?.scrollTop ?? null;
+    setEditing(value => !value);
+  }, []);
+
+  // Keyboard shortcuts. Registered once per open (not on every render).
+  const shortcutsRef = useRef({ editing, toggleEditing, saveToVaultNow, copy });
+  shortcutsRef.current = { editing, toggleEditing, saveToVaultNow, copy };
+  const hasActive = Boolean(active);
+
+  useEffect(() => {
+    if (!artifactPanelOpen || !hasActive) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      const target = document.activeElement;
+      const focusInPanel = Boolean(panelRef.current?.contains(target));
+      const focusIsNeutral =
+        !target || target === document.body || target === document.documentElement;
+      if (!focusInPanel && !focusIsNeutral) return;
+
+      const current = shortcutsRef.current;
+      if (event.key === 'Escape' && current.editing) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        current.toggleEditing();
+        return;
+      }
+
+      if (!(event.metaKey || event.ctrlKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === 's') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        void current.saveToVaultNow();
+        return;
+      }
+      if (key === 'e') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        current.toggleEditing();
+        return;
+      }
+      if (event.shiftKey && key === 'c') {
+        if (window.getSelection()?.toString()) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        current.copy();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [artifactPanelOpen, hasActive]);
+
+  const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    draggingRef.current = true;
+    document.body.classList.add('is-resizing-artifact');
   };
 
-  const openInNewTab = () => {
-    if (!active) return;
-    const mime = active.type === 'svg' ? 'image/svg+xml' : 'text/html';
-    const body =
-      active.type === 'svg'
-        ? `<!doctype html><html><body style="margin:0;padding:24px;background:#fff">${previewContent}</body></html>`
-        : previewContent;
-    const url = URL.createObjectURL(new Blob([body], { type: `${mime};charset=utf-8` }));
-    window.open(url, '_blank');
-    window.setTimeout(() => URL.revokeObjectURL(url), 15000);
+  const startPanelResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    panelDraggingRef.current = true;
+    panelDragStartXRef.current = event.clientX;
+    panelDragStartWidthRef.current = panelWidth;
+    document.body.classList.add('is-resizing-artifact-panel');
   };
 
-  const supportsPreview =
-    active?.type === 'html' ||
-    active?.type === 'svg' ||
-    active?.type === 'mermaid' ||
-    active?.type === 'markdown';
+  const movePanelResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!panelDraggingRef.current) return;
+    const next =
+      panelDragStartWidthRef.current + (panelDragStartXRef.current - event.clientX);
+    setPanelWidth(clampPanelWidth(next));
+  };
 
-  const renderPreview = () => {
-    if (!active) return null;
-
-    // Code view (either the artifact has no preview, or the user toggled it).
-    if (!supportsPreview || viewMode === 'code') {
-      const language = active.type === 'react' ? 'jsx' : active.language || 'text';
-      return <HighlightedCode code={previewContent} language={language} />;
+  const endPanelResize = () => {
+    if (!panelDraggingRef.current) return;
+    panelDraggingRef.current = false;
+    document.body.classList.remove('is-resizing-artifact-panel');
+    try {
+      window.localStorage.setItem(PANEL_WIDTH_KEY, String(panelWidth));
+    } catch {
+      // ignore unavailable storage
     }
+  };
 
-    switch (active.type) {
-      case 'html':
-        return (
-          <iframe
-            className="artifact-frame"
-            title={active.title}
-            sandbox="allow-scripts allow-forms allow-modals allow-popups"
-            srcDoc={previewContent}
-          />
-        );
-      case 'svg':
-        return (
-          <iframe
-            className="artifact-frame"
-            title={active.title}
-            sandbox=""
-            srcDoc={`<!doctype html><html><body style="margin:0;padding:12px;display:flex;align-items:center;justify-content:center;min-height:100%">${previewContent}</body></html>`}
-          />
-        );
-      case 'mermaid':
-        return <MermaidPreview code={previewContent} />;
-      case 'markdown':
-        return (
-          <div
-            className="artifact-markdown"
-            dangerouslySetInnerHTML={{ __html: formatMarkdown(previewContent) }}
-          />
-        );
-      default:
-        return <HighlightedCode code={previewContent} language={active.language || 'text'} />;
+  const nudgePanelWidth = (delta: number) => {
+    setPanelWidth(value => {
+      const next = clampPanelWidth(value + delta);
+      try {
+        window.localStorage.setItem(PANEL_WIDTH_KEY, String(next));
+      } catch {
+        // ignore unavailable storage
+      }
+      return next;
+    });
+  };
+
+  const resetPanelWidth = () => {
+    const next = clampPanelWidth(PANEL_DEFAULT_WIDTH);
+    setPanelWidth(next);
+    try {
+      window.localStorage.setItem(PANEL_WIDTH_KEY, String(next));
+    } catch {
+      // ignore unavailable storage
     }
   };
+
+  const moveResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!draggingRef.current) return;
+    const container = splitContainerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const percent = ((event.clientX - rect.left) / rect.width) * 100;
+    setSplitPercent(Math.max(25, Math.min(75, percent)));
+  };
+
+  const endResize = () => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    document.body.classList.remove('is-resizing-artifact');
+    try {
+      window.localStorage.setItem(SPLIT_KEY, String(splitPercent));
+    } catch {
+      // ignore unavailable storage
+    }
+  };
+
+  const nudgeSplit = (delta: number) => {
+    setSplitPercent(value => {
+      const next = Math.max(25, Math.min(75, value + delta));
+      try {
+        window.localStorage.setItem(SPLIT_KEY, String(next));
+      } catch {
+        // ignore unavailable storage
+      }
+      return next;
+    });
+  };
+
+  const resetSplit = () => {
+    setSplitPercent(48);
+    try {
+      window.localStorage.setItem(SPLIT_KEY, '48');
+    } catch {
+      // ignore unavailable storage
+    }
+  };
+
+  if (!artifactPanelOpen && !artifactLibraryOpen && !forceVisible) return null;
 
   return (
-    <aside className="artifact-panel" aria-label="Artifacts panel">
-      <header className="artifact-panel-head">
-        <div className="artifact-panel-heading">
-          <Code2 size={15} />
-          <span>Artifacts</span>
-        </div>
-        <div className="artifact-panel-head-actions">
-          <button
-            type="button"
-            className="ui-icon-btn"
-            title="Artifact Vault"
-            aria-label="Open artifact vault"
-            onClick={() => setVaultOpen(true)}
-          >
-            <Package size={15} />
-          </button>
-          <button
-            type="button"
-            className="ui-icon-btn"
-            title="Close panel"
-            aria-label="Close artifacts panel"
-            onClick={() => setArtifactPanelOpen(false)}
-          >
-            <X size={15} />
-          </button>
-        </div>
-      </header>
+    <aside
+      className="artifact-panel artp"
+      aria-label="Artifacts panel"
+      aria-busy={streaming}
+      tabIndex={-1}
+      ref={panelRef}
+      style={{ width: panelWidth }}
+    >
+      <LiveArtifactFeed messages={messages} onChange={setArtifactFeed} />
+      <div
+        className="artp-resizer"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize artifacts panel"
+        aria-valuemin={PANEL_MIN_WIDTH}
+        aria-valuemax={PANEL_MAX_WIDTH}
+        aria-valuenow={Math.round(panelWidth)}
+        tabIndex={0}
+        onPointerDown={startPanelResize}
+        onPointerMove={movePanelResize}
+        onPointerUp={endPanelResize}
+        onPointerCancel={endPanelResize}
+        onDoubleClick={resetPanelWidth}
+        title="Drag to resize · double-click to reset"
+        onKeyDown={event => {
+          if (event.key === 'ArrowLeft') {
+            event.preventDefault();
+            nudgePanelWidth(30);
+          } else if (event.key === 'ArrowRight') {
+            event.preventDefault();
+            nudgePanelWidth(-30);
+          }
+        }}
+      >
+        <span className="artp-resizer-grip" aria-hidden="true" />
+      </div>
+
+      <ArtifactPanelHeader
+        count={external ? 0 : sessionArtifacts.length}
+        external={Boolean(external)}
+        streaming={streaming}
+        onBack={() => setExternal(null)}
+        onOpenLibrary={() => setArtifactLibraryOpen(true)}
+        onClose={() => {
+          setArtifactLibraryOpen(false);
+          setArtifactPanelOpen(false);
+        }}
+      />
 
       {!active ? (
-        <EmptyState
-          className="artifact-empty"
-          icon={<Code2 size={24} />}
-          title="No artifacts yet"
-          description="Ask for HTML, an SVG, a Mermaid diagram, or a React component and it will appear here."
-        />
+        <div className="artp-empty">
+          <EmptyState
+            icon={<Code2 size={22} />}
+            title="No artifacts yet"
+            description="Ask for HTML, code, a diagram, or a document. It will appear here, ready to preview, edit and save."
+            action={
+              <button
+                type="button"
+                className="artp-empty-action"
+                onClick={() => setArtifactLibraryOpen(true)}
+              >
+                <Package size={14} />
+                Browse saved artifacts
+              </button>
+            }
+          >
+            <div className="artp-empty-chips">
+              <span>HTML</span>
+              <span>Diagrams</span>
+              <span>Documents</span>
+              <span>Slides</span>
+            </div>
+          </EmptyState>
+        </div>
       ) : (
-        <>
-          {sessionArtifacts.length > 1 && !vaultArtifact && (
-            <div className="artifact-tabs" role="tablist">
-              {sessionArtifacts.map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={a.id === active.id}
-                  className={`artifact-tab${a.id === active.id ? ' is-active' : ''}`}
-                  onClick={() => selectSessionArtifact(a.id)}
-                  title={a.title}
-                >
-                  {ARTIFACT_TYPE_LABEL[a.type]}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div className="artifact-toolbar">
-            <div className="artifact-toolbar-info">
-              <span className="artifact-type-badge">{ARTIFACT_TYPE_LABEL[active.type]}</span>
-              <span className="artifact-title" title={active.title}>
-                {active.title}
-              </span>
-            </div>
-            <div className="artifact-toolbar-actions">
-              {supportsPreview && (
-                <div className="artifact-view-toggle" role="group" aria-label="View mode">
-                  <button
-                    type="button"
-                    className={viewMode === 'preview' ? 'is-active' : ''}
-                    title="Preview"
-                    aria-label="Preview"
-                    onClick={() => setViewMode('preview')}
-                  >
-                    <Eye size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className={viewMode === 'code' ? 'is-active' : ''}
-                    title="Code"
-                    aria-label="Code"
-                    onClick={() => setViewMode('code')}
-                  >
-                    <Code2 size={14} />
-                  </button>
-                </div>
-              )}
-              {(active.type === 'html' || active.type === 'svg') && (
-                <button
-                  type="button"
-                  className="ui-icon-btn"
-                  title="Open preview in a new tab"
-                  aria-label="Open preview in a new tab"
-                  onClick={openInNewTab}
-                >
-                  <ExternalLink size={15} />
-                </button>
-              )}
-              <button
-                type="button"
-                className={`ui-icon-btn${editing ? ' is-active' : ''}`}
-                title={editing ? 'Close editor' : 'Open in Editor'}
-                aria-label={editing ? 'Close editor' : 'Open in editor'}
-                onClick={() => {
-                  setEditing((v) => !v);
-                  setDraft(active.content);
-                }}
-              >
-                <Pencil size={15} />
-              </button>
-              <button
-                type="button"
-                className={`ui-icon-btn${savedIds.has(active.id) ? ' is-active' : ''}`}
-                title="Save to Vault"
-                aria-label="Save artifact to vault"
-                onClick={save}
-              >
-                <Save size={15} />
-              </button>
-              <button type="button" className="ui-icon-btn" title="Copy" aria-label="Copy artifact" onClick={copy}>
-                <Copy size={15} />
-              </button>
-              <button
-                type="button"
-                className="ui-icon-btn"
-                title="Download"
-                aria-label="Download artifact"
-                onClick={() => downloadArtifact(active)}
-              >
-                <Download size={15} />
-              </button>
-              <button type="button" className="ui-icon-btn" title="Share" aria-label="Share artifact" onClick={share}>
-                <Share2 size={15} />
-              </button>
-            </div>
-          </div>
-
-          <div className={`artifact-preview artifact-preview--${active.type}`}>{renderPreview()}</div>
-
-          {editing && (
-            <textarea
-              className="artifact-editor"
-              value={draft}
-              spellCheck={false}
-              onChange={(e) => setDraft(e.target.value)}
-              aria-label="Artifact editor"
+        <div className="artp-doc">
+          {!external && (sessionArtifacts.length > 1 || streaming || newIds.size > 0) && (
+            <ArtifactTabs
+              artifacts={sessionArtifacts}
+              activeId={active.id}
+              newIds={newIds}
+              onSelect={selectSessionArtifact}
             />
           )}
-        </>
+
+          <ArtifactToolbar
+            active={active}
+            content={content}
+            saved={Boolean(saved)}
+            versionCount={saved?.versions.length ?? 0}
+            editing={editing}
+            viewMode={viewMode}
+            exporting={exporting}
+            pinBusy={pinBusy}
+            onToggleView={setViewMode}
+            onToggleEdit={toggleEditing}
+            onSave={() => void saveToVaultNow()}
+            onExport={format => void exportAs(format)}
+            onCopy={copy}
+            onDownload={download}
+            onShare={() => void share()}
+            onOpenHistory={() => {
+              void refreshVault();
+              void refreshProject();
+              setHistoryOpen(true);
+            }}
+            onOpenProject={openPicker}
+            onSaveKnowledge={() => void saveToKnowledge()}
+            onOpenInNewTab={() => void openInNewTab()}
+          />
+
+          <div
+            ref={splitContainerRef}
+            className={`artp-content${editing ? ' is-editing' : ''}`}
+          >
+            {editing && (
+              <div
+                key="editor"
+                className="artp-edit"
+                style={{ width: `${splitPercent}%` }}
+              >
+                <ArtifactEditor
+                  value={content}
+                  language={sourceLanguage(active.type, active.language)}
+                  onChange={updateContent}
+                />
+              </div>
+            )}
+            {editing && (
+              <div
+                key="resizer"
+                className="artp-split"
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize editor and preview"
+                aria-valuemin={25}
+                aria-valuemax={75}
+                aria-valuenow={Math.round(splitPercent)}
+                tabIndex={0}
+                onPointerDown={startResize}
+                onPointerMove={moveResize}
+                onPointerUp={endResize}
+                onPointerCancel={endResize}
+                onDoubleClick={resetSplit}
+                title="Drag to resize · double-click to reset"
+                onKeyDown={event => {
+                  if (event.key === 'ArrowLeft') {
+                    event.preventDefault();
+                    nudgeSplit(-5);
+                  } else if (event.key === 'ArrowRight') {
+                    event.preventDefault();
+                    nudgeSplit(5);
+                  }
+                }}
+              >
+                <span className="artp-split-grip" aria-hidden="true" />
+              </div>
+            )}
+            <div key="preview" className="artp-preview-pane">
+              <ArtifactPreview
+                key={active.id}
+                artifact={active}
+                content={content}
+                viewMode={viewMode}
+                scrollRef={previewScrollRef}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
-      <ArtifactVault
-        open={vaultOpen}
-        onClose={() => setVaultOpen(false)}
-        onOpen={(artifact) => {
-          setVaultArtifact(artifact);
-          setSelectedId(null);
+      <ArtifactLibrary
+        open={artifactLibraryOpen}
+        onClose={() => {
+          setArtifactLibraryOpen(false);
+          void refreshVault();
         }}
+        onOpen={opened => {
+          setExternal(toActive(opened));
+          setEdits(prev => ({ ...prev, [opened.id]: opened.content }));
+          setEditing(false);
+          if (opened.projectId) setActiveProjectId(opened.projectId);
+        }}
+      />
+
+      <ArtifactVersionDialog
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        title={active?.title}
+        currentContent={content}
+        dirty={dirty}
+        saved={saved}
+        projectArtifact={projectArtifact}
+        projectLoading={projectLoading}
+        onRestoreLocal={restore}
+        onRestoreProject={restoreProjectVersion}
+        onLoadLocalVersion={getLocalVersionContent}
+        onLoadProjectVersion={getProjectVersionContent}
+      />
+
+      <ArtifactProjectDialog
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        projects={projects}
+        activeProjectId={activeProjectId}
+        pinBusy={pinBusy}
+        newProjectName={newProjectName}
+        creatingProject={creatingProject}
+        onNameChange={setNewProjectName}
+        onCreate={() => void createProject()}
+        onPin={projectId => void pinToProject(projectId)}
       />
     </aside>
   );

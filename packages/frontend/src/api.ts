@@ -1,4 +1,4 @@
-import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, Approval, BackgroundTask, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, MarketplaceSkill, MemoryEntry, ModelItem, PlanTemplate, Project, ProjectArtifact, ProjectKbStatus, ProjectScope, RecentRun, Recommendation, ResearchFinding, ResearchProject, ResearchProjectSummary, RunRecord, SetupTask, SkillCommand, SkillMeta, SocialSignal, ToolMeta, TreeNode, VerificationReport } from './types';
+import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, Approval, BackgroundTask, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, LibraryArtifact, MarketplaceSkill, MemoryEntry, ModelItem, PlanTemplate, Project, ProjectArtifact, ProjectKbStatus, ProjectScope, RecentRun, Recommendation, ResearchFinding, ResearchProject, ResearchProjectSummary, RunRecord, SetupTask, SkillCommand, SkillMeta, SocialSignal, ToolMeta, TreeNode, VerificationReport } from './types';
 
 const BASE = '/api';
 
@@ -308,13 +308,6 @@ export const api = {
   fs: {
     list: (path?: string) => get<{ current_path: string; parent_path?: string; items: DirItem[]; error?: string }>(`/fs/list${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   },
-  canvas: {
-    list: () => get<{ canvases: { id: string; title: string; updated_at: number; created_at: number }[] }>('/canvas'),
-    get: (canvasId: string) => get<{ id: string; title: string; content: string; created_at?: number; updated_at?: number; error?: string }>(`/canvas/${encodeURIComponent(canvasId)}`),
-    save: (canvasId: string, title: string, content: string) =>
-      put<{ id: string; title: string; content: string; updated_at: number; error?: string }>(`/canvas/${encodeURIComponent(canvasId)}`, { title, content }),
-    remove: (canvasId: string) => del<{ status?: string; error?: string }>(`/canvas/${encodeURIComponent(canvasId)}`),
-  },
   projects: {
     scope: (projectId: string): ProjectScope => `project:${projectId}`,
     list: (query = '') =>
@@ -379,13 +372,17 @@ export const api = {
     },
     artifacts: {
       /** Project artifact library, newest first. */
-      library: (projectId: string) =>
+      library: (projectId: string, includeContent = false) =>
         get<{ artifacts: ProjectArtifact[]; error?: string }>(
-          `/projects/${encodeURIComponent(projectId)}/artifacts`,
+          `/projects/${encodeURIComponent(projectId)}/artifacts${
+            includeContent ? '?include_content=true' : ''
+          }`,
         ),
-      list: (projectId: string) =>
+      list: (projectId: string, includeContent = false) =>
         get<{ artifacts: ProjectArtifact[]; error?: string }>(
-          `/projects/${encodeURIComponent(projectId)}/artifacts`,
+          `/projects/${encodeURIComponent(projectId)}/artifacts${
+            includeContent ? '?include_content=true' : ''
+          }`,
         ),
       get: (projectId: string, artifactId: string, version?: number) =>
         get<ProjectArtifact & { error?: string }>(
@@ -438,7 +435,85 @@ export const api = {
         `${BASE}/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(artifactId)}/export${
           version != null ? `?version=${version}` : ''
         }`,
+      exportAs: async (
+        projectId: string,
+        artifactId: string,
+        format: string,
+        version?: number,
+      ) => {
+        const res = await fetch(
+          `${BASE}/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(artifactId)}/export`,
+          {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ format, version }),
+          },
+        );
+        if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+        const blob = await res.blob();
+        const disposition = res.headers.get('content-disposition') || '';
+        const match = /filename="?([^"]+)"?/.exec(disposition);
+        return { blob, filename: match?.[1] || `artifact.${format}` };
+      },
     },
+  },
+  artifacts: {
+    list: (q = '', projectId = '', includeContent = false) => {
+      const params = new URLSearchParams();
+      if (q) params.set('q', q);
+      if (projectId) params.set('project_id', projectId);
+      if (includeContent) params.set('include_content', 'true');
+      const suffix = params.toString();
+      return get<{ artifacts: LibraryArtifact[] }>(`/artifacts${suffix ? `?${suffix}` : ''}`);
+    },
+    get: (artifactId: string) =>
+      get<LibraryArtifact & { error?: string }>(
+        `/artifacts/${encodeURIComponent(artifactId)}`,
+      ),
+    save: (data: {
+      id?: string;
+      title: string;
+      type: string;
+      language?: string;
+      description?: string;
+      content: string;
+      project_id?: string;
+      source?: string;
+      session_id?: string;
+      message_id?: string;
+    }) => post<LibraryArtifact & { error?: string }>('/artifacts', data),
+    remove: (artifactId: string) =>
+      del<{ status?: string; deleted?: boolean; error?: string }>(
+        `/artifacts/${encodeURIComponent(artifactId)}`,
+      ),
+    saveToKnowledge: (data: {
+      title: string;
+      content: string;
+      project_id?: string;
+    }) =>
+      post<{
+        status?: string;
+        path?: string;
+        indexed_files?: number | null;
+        message?: string;
+        error?: string;
+      }>('/artifacts/save-to-knowledge', data),
+    export: async (artifactId: string, format: string) => {
+      const res = await fetch(`${BASE}/artifacts/${encodeURIComponent(artifactId)}/export`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ format }),
+      });
+      if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+      const blob = await res.blob();
+      const disposition = res.headers.get('content-disposition') || '';
+      const match = /filename="?([^"]+)"?/.exec(disposition);
+      return { blob, filename: match?.[1] || `artifact.${format}` };
+    },
+    exportUrl: (artifactId: string) =>
+      `${BASE}/artifacts/${encodeURIComponent(artifactId)}/export`,
   },
   research: {
     approve: (planId: string, plan: unknown[]) =>

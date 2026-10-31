@@ -12,9 +12,13 @@ import type { StreamState, VideoTarget } from './types';
  */
 export default function StreamingMessage({
   state,
+  messageIndex,
+  onOpenArtifact,
   onOpenVideo,
 }: {
   state: StreamState;
+  messageIndex: number;
+  onOpenArtifact: (artifactId: string) => void;
   onOpenVideo: (target: VideoTarget) => void;
 }) {
   const hasAnswer = Boolean(state.answer || state.error);
@@ -48,6 +52,9 @@ export default function StreamingMessage({
               <MessageContent
                 content={content}
                 citations={state.citations ?? undefined}
+                messageIndex={messageIndex}
+                streaming={state.status === 'streaming'}
+                onOpenArtifact={onOpenArtifact}
               />
             )}
             {state.approval && <ApprovalCard prompt={state.approval} />}

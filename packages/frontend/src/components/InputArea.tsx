@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { memo, useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { ArrowUp, Loader2, Mic, Square } from "lucide-react";
 import ModelSwitcher from "./ModelSwitcher";
@@ -21,7 +21,7 @@ import {
 } from "./prompt-kit/prompt-input";
 import { Button } from "./ui/button";
 
-export default function InputArea() {
+function InputArea() {
   const {
     chatMode,
     setChatMode,
@@ -395,6 +395,11 @@ export default function InputArea() {
         }
       : null;
 
+    // The avatar shown while the agent answers: the selected agent in the
+    // Agents view, or the @mentioned agent in other views.
+    const activityAgent =
+      actMode === "agent" && agentInfo ? agentInfo : mentionedAgent;
+
     const mode = isChatView ? "llm" : chatMode;
 
     sendMessage({
@@ -409,10 +414,16 @@ export default function InputArea() {
         mode: actMode,
         title: actTitle,
         subtitle: actMode === "agent" ? "agent" : undefined,
-        seed:
-          actMode === "agent" && agentInfo
-            ? agentInfo.color_seed || agentInfo.id + agentInfo.name
-            : undefined,
+        seed: activityAgent
+          ? activityAgent.color_seed || activityAgent.id + activityAgent.name
+          : undefined,
+        agentAvatar: activityAgent
+          ? {
+              config: activityAgent.avatar_config,
+              type: activityAgent.avatar_type,
+              upload: activityAgent.avatar_upload,
+            }
+          : undefined,
       },
       agentLoading,
     });
@@ -951,3 +962,7 @@ export default function InputArea() {
     </div>
   );
 }
+
+// No props: memo keeps the composer from re-rendering when ChatArea re-renders
+// on every streamed token. It still updates from AppContext on its own.
+export default memo(InputArea);

@@ -27,9 +27,7 @@ export default function ChatArea() {
     setActiveSessionId,
     refreshSessions,
     addToast,
-    setCanvasOpen,
-    setArtifactPanelOpen,
-    canvasEnabled,
+    openArtifact,
   } = useApp();
   const messagesRef = useRef<HTMLDivElement>(null);
   const { state: streamState } = useChatStreamContext();
@@ -151,24 +149,6 @@ export default function ChatArea() {
       .catch(() => addToast('Could not access the clipboard'));
   }, [currentSess, addToast]);
 
-  const handleOpenCanvas = useCallback(
-    (content: string) => {
-      if (!canvasEnabled) {
-        addToast('Canvas is disabled in Settings.');
-        return;
-      }
-      const titleLine = content.match(/^\s*#{1,6}\s+(.+)$/m)?.[1]?.trim();
-      window.dispatchEvent(
-        new CustomEvent('palimind:canvas-open', {
-          detail: { title: titleLine?.slice(0, 60) || 'Canvas', content },
-        }),
-      );
-      setArtifactPanelOpen(false);
-      setCanvasOpen(true);
-    },
-    [canvasEnabled, addToast, setArtifactPanelOpen, setCanvasOpen],
-  );
-
   const handleSaveResearch = useCallback((content: string, sources: unknown[]) => {
     window.dispatchEvent(
       new CustomEvent('palimind:save-research', { detail: { content, sources } }),
@@ -220,7 +200,7 @@ export default function ChatArea() {
               onSaveEdit={handleSaveEdit}
               onDelete={handleDelete}
               onShare={handleShare}
-              onOpenCanvas={handleOpenCanvas}
+              onOpenArtifact={openArtifact}
               onSaveResearch={handleSaveResearch}
               onToggleBookmark={toggleBookmark}
             />
@@ -242,7 +222,7 @@ interface MessageComponentProps {
   onSaveEdit: (index: number, content: string) => void;
   onDelete: (index: number) => void;
   onShare: () => void;
-  onOpenCanvas: (content: string) => void;
+  onOpenArtifact: (artifactId: string) => void;
   onSaveResearch: (content: string, sources: unknown[]) => void;
   onToggleBookmark: (msg: ChatMessage) => void;
 }
@@ -255,7 +235,7 @@ const MessageComponent = memo(function MessageComponent({
   onSaveEdit,
   onDelete,
   onShare,
-  onOpenCanvas,
+  onOpenArtifact,
   onSaveResearch,
   onToggleBookmark,
 }: MessageComponentProps) {
@@ -315,14 +295,19 @@ const MessageComponent = memo(function MessageComponent({
   return (
     <div className={`message ${isUser ? 'user-message' : 'system-message'}`}>
       <div className="message-wrapper">
-        <MessageContent content={msg.content} citations={msg.citations} sources={msg.sources} />
+        <MessageContent
+          content={msg.content}
+          citations={msg.citations}
+          sources={msg.sources}
+          messageIndex={isUser ? undefined : index}
+          onOpenArtifact={onOpenArtifact}
+        />
         <MessageActions
           content={msg.content}
           isUser={isUser}
           bookmarked={bookmarked}
           onRegenerate={!isUser ? () => onRegenerate(index) : undefined}
           onEdit={isUser ? () => setEditing(true) : undefined}
-          onOpenCanvas={!isUser ? () => onOpenCanvas(msg.content) : undefined}
           onSaveResearch={!isUser ? () => onSaveResearch(msg.content, msg.citations?.sources ?? []) : undefined}
           onDelete={() => onDelete(index)}
           onShare={onShare}

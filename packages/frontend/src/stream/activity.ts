@@ -6,6 +6,7 @@ export interface ActivityInfo {
   title: string;
   subtitle?: string;
   seed?: string;
+  agentAvatar?: ActivityState['agentAvatar'];
 }
 
 /**

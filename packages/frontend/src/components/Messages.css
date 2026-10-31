@@ -170,9 +170,9 @@
     letter-spacing: 0.5px;
 }
 .code-box-copy {
-    background: var(--input-bg);
+    background: var(--surface-raised);
     border: 1px solid var(--border-color);
-    color: var(--text-muted);
+    color: var(--text-main);
     padding: 5px 10px;
     border-radius: var(--radius-sm);
     font-size: 0.75rem;
@@ -188,6 +188,119 @@
     background: var(--primary-color);
     color: var(--primary-text);
 }
+
+.artifact-block {
+    --artifact-accent: var(--text-secondary);
+    box-shadow: inset 2px 0 0 var(--artifact-accent), var(--shadow-soft);
+}
+.artifact-block--html { --artifact-accent: #60a5fa; }
+.artifact-block--svg,
+.artifact-block--mermaid { --artifact-accent: #2dd4bf; }
+.artifact-block--react,
+.artifact-block--code,
+.artifact-block--code-file,
+.artifact-block--multi-file { --artifact-accent: #a78bfa; }
+.artifact-block--document,
+.artifact-block--markdown,
+.artifact-block--slide-outline { --artifact-accent: #fbbf24; }
+.artifact-block--table { --artifact-accent: #4ade80; }
+.light-mode .artifact-block--html { --artifact-accent: #1d4ed8; }
+.light-mode .artifact-block--svg,
+.light-mode .artifact-block--mermaid { --artifact-accent: #0f766e; }
+.light-mode .artifact-block--react,
+.light-mode .artifact-block--code,
+.light-mode .artifact-block--code-file,
+.light-mode .artifact-block--multi-file { --artifact-accent: #6d28d9; }
+.light-mode .artifact-block--document,
+.light-mode .artifact-block--markdown,
+.light-mode .artifact-block--slide-outline { --artifact-accent: #b45309; }
+.light-mode .artifact-block--table { --artifact-accent: #15803d; }
+.artifact-block-head { gap: 12px; }
+.artifact-block .code-box-lang { color: var(--artifact-accent); }
+.artifact-block-meta {
+    flex: 0 0 auto;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    white-space: nowrap;
+}
+.artifact-block-live {
+    flex: 0 0 auto;
+    padding: 1px 6px;
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--artifact-accent) 14%, transparent);
+    color: var(--artifact-accent);
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.artifact-block-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    text-align: left;
+    cursor: pointer;
+}
+.artifact-block-toggle:hover { color: var(--text-main); }
+.artifact-block-chevron {
+    flex: 0 0 auto;
+    width: 0;
+    height: 0;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    border-left: 5px solid currentColor;
+    transform: rotate(90deg);
+    transition: transform 0.16s ease;
+}
+.artifact-block.is-collapsed .artifact-block-chevron { transform: rotate(0deg); }
+.artifact-block-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+.artifact-block-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+}
+.artifact-block-open {
+    min-height: 28px;
+    padding: 5px 10px;
+    border: 1px solid var(--primary-color);
+    border-radius: var(--radius-sm);
+    background: var(--primary-color);
+    color: var(--primary-text);
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.16s ease, border-color 0.16s ease;
+}
+.artifact-block-open:hover {
+    background: var(--primary-hover);
+    border-color: var(--primary-hover);
+}
+.artifact-block-body {
+    display: grid;
+    grid-template-rows: 1fr;
+    min-width: 0;
+    overflow: hidden;
+    transition: grid-template-rows 0.18s ease;
+}
+.artifact-block-body > pre { min-height: 0; }
+.artifact-block.is-collapsed .artifact-block-body { grid-template-rows: 0fr; }
 .code-box pre {
     overflow-x: auto;
     margin: 0 !important;
@@ -348,4 +461,9 @@ summary.thinking-toggle:hover {
     .user-message .message-content {
         max-width: 94%;
     }
+}
+
+@media (max-width: 700px) {
+    .artifact-block-meta { display: none; }
+    .artifact-block-open { padding-inline: 8px; }
 }

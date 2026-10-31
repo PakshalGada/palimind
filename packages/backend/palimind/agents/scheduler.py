@@ -10,8 +10,6 @@ from typing import Any
 from palimind.agents.service import is_running, run_agent
 from palimind.settings import AGENT_SCHEDULER_TICK
 
-RESULTS_SESSION_NAME = "_agent_results"
-
 _loop: asyncio.AbstractEventLoop | None = None
 _scheduler_task: asyncio.Task | None = None
 _fired_keys: deque[str] = deque(maxlen=2000)
@@ -83,64 +81,52 @@ def cron_matches(expr: str, dt: datetime | None = None) -> bool:
     return _field_matches(parts[4], dow, 0, 7)
 
 
-# ── results session ───────────────────────────────────────────────────────
+# ── results ───────────────────────────────────────────────────────────────
 
 
-def ensure_results_session(field_root: Path) -> str:
-    from palimind.memory.session_store import add_new_session, load_sessions
-
-    try:
-        data = load_sessions(field_root)
-        for sess in data.get("sessions", []):
-            if sess.get("name") == RESULTS_SESSION_NAME or sess.get("id") == RESULTS_SESSION_NAME:
-                return sess["id"]
-        data = add_new_session(field_root, RESULTS_SESSION_NAME)
-        return data["active_session_id"]
-    except Exception as e:
-        print(f"[agents] ensure results session failed: {e}")
-        return RESULTS_SESSION_NAME
-
-
-async def post_result(
-    field_root: Path, defn_name: str, input: str, output: str, status: str
-) -> None:
-    """Post a run's result into the field's _agent_results session."""
-    from palimind.memory.session_store import append_message_to_session
+async def post_result(defn: Any, output: str, status: str, source: str) -> None:
+    """Append an automated run's output to the agent's own chat session."""
+    from palimind.agents.chat import agent_session_root
+    from palimind.memory.session_store import append_message_to_session, load_sessions
 
     try:
-        session_id = ensure_results_session(field_root)
+        root = agent_session_root(defn.id)
+        data = await asyncio.to_thread(load_sessions, root)
+        session_id = data.get("active_session_id")
+        if not session_id:
+            return
+        label = {"scheduled": "Scheduled run", "watcher": "Watcher run"}.get(
+            source, "Automated run"
+        )
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        suffix = "" if status == "success" else f" · {status}"
+        content = f"*{label} · {stamp}{suffix}*\n\n{output}"
         await asyncio.to_thread(
             append_message_to_session,
-            field_root,
+            root,
             session_id,
             "system",
-            f"**[Agent {defn_name}]** {input[:200]}\n\n{output}",
+            content,
             mode="agent",
-            mode_params={"agent_name": defn_name, "status": status},
+            mode_params={"agent_id": defn.id, "source": source, "status": status},
         )
     except Exception as e:
-        print(f"[agents] failed to post result: {e}")
+        print(f"[agents] failed to post {source} result for {defn.name}: {e}")
 
 
 # ── firing ────────────────────────────────────────────────────────────────
 
 
 async def _fire_agent(defn: Any, input: str, source: str) -> None:
-    from palimind.agents.registry import get_registry
-
-    field_root = get_registry().field_root
     try:
         output = await run_agent(defn, input, session_id=f"_{source}")
-        if field_root is not None:
-            await post_result(field_root, defn.name, input, output, "success")
+        await post_result(defn, output, "success", source)
     except asyncio.CancelledError:
-        if field_root is not None:
-            await post_result(field_root, defn.name, input, "[cancelled]", "cancelled")
+        await post_result(defn, "[cancelled]", "cancelled", source)
         raise
     except Exception as e:
         print(f"[agents] scheduled run for {defn.name} failed: {e}")
-        if field_root is not None:
-            await post_result(field_root, defn.name, input, f"[error] {e}", "error")
+        await post_result(defn, f"[error] {e}", "error", source)
 
 
 async def _tick_scheduled() -> None:

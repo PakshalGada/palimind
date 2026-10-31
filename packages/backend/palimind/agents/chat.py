@@ -25,6 +25,19 @@ def chat_path(agent_id: str) -> Path:
     return _chat_dir() / f"{agent_id}.json"
 
 
+def agent_session_root(agent_id: str) -> Path:
+    """Root of an agent's private session/config store.
+
+    This is the same root the ``agent:<id>`` chat scope resolves to, so
+    scheduled and watcher runs land in the agent's own conversation.
+    """
+    import re
+
+    if not re.match(r"^[\w-]{1,64}$", agent_id):
+        raise ValueError(f"Invalid agent_id: {agent_id!r}")
+    return Path.home() / ".palimind" / "agents" / agent_id
+
+
 def _migrate(agent_id: str) -> None:
     path = chat_path(agent_id)
     if not path.exists():
