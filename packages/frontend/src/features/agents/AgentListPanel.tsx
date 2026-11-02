@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
@@ -6,6 +6,7 @@ import AgentAvatar from '../../components/AgentAvatar';
 import { botStateFor } from '../../bots/config';
 import ContextMenu from '../../components/ContextMenu';
 import { useConfirm } from '../../components/ConfirmDialog';
+import { TextInput } from '../../ui/primitives';
 import type { AgentListItem } from '../../types';
 import './AgentListPanel.css';
 
@@ -24,6 +25,7 @@ export default function AgentListPanel() {
   const confirm = useConfirm();
   const [agents, setAgents] = useState<AgentListItem[]>([]);
   const [menu, setMenu] = useState<MenuState | null>(null);
+  const [query, setQuery] = useState('');
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -40,14 +42,27 @@ export default function AgentListPanel() {
   useEffect(() => {
     void fetchAgents();
     const onChanged = () => void fetchAgents();
+    const timer = window.setInterval(() => void fetchAgents(), 15000);
     window.addEventListener('palimind:agents-changed', onChanged);
-    return () => window.removeEventListener('palimind:agents-changed', onChanged);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('palimind:agents-changed', onChanged);
+    };
   }, [fetchAgents]);
 
   const openConfig = (agent: AgentListItem) => {
     setSelectedAgentId(agent.id);
     window.dispatchEvent(new CustomEvent('palimind:open-agent-config', { detail: { agentId: agent.id } }));
   };
+
+  const visibleAgents = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return agents;
+    return agents.filter((a) => {
+      const label = `${a.display_name || ''} ${a.name} ${a.title || ''}`.toLowerCase();
+      return label.includes(q);
+    });
+  }, [agents, query]);
 
   const deleteAgent = async (agent: AgentListItem) => {
     const ok = await confirm(`Delete agent "${agent.name}"? This cannot be undone.`, {
@@ -68,7 +83,7 @@ export default function AgentListPanel() {
 
   const deleteAll = async () => {
     const ok = await confirm(
-      `Delete all ${agents.length} agents? This removes every bot along with its memory and chat history. This cannot be undone.`,
+      `Delete all ${agents.length} agents? This removes every bot along with its memory, chats, sessions and run history. This cannot be undone.`,
       { title: 'Delete all agents', confirmLabel: 'Delete all', danger: true },
     );
     if (!ok) return;
@@ -82,6 +97,35 @@ export default function AgentListPanel() {
     }
   };
 
+  const runNow = async (agent: AgentListItem) => {
+    try {
+      await api.agents.runNow(agent.id);
+      window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+    } catch {
+      // ignore
+    }
+  };
+
+  const duplicate = async (agent: AgentListItem) => {
+    try {
+      const res = await api.agents.duplicate(agent);
+      if (res.error) return;
+      if (res.id) setSelectedAgentId(res.id);
+      window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+    } catch {
+      // ignore
+    }
+  };
+
+  const toggleEnabled = async (agent: AgentListItem) => {
+    try {
+      await api.agents.update(agent.id, { enabled: !agent.enabled });
+      window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+    } catch {
+      // ignore
+    }
+  };
+
   const showMenu = (e: React.MouseEvent, agent: AgentListItem) => {
     e.preventDefault();
     e.stopPropagation();
@@ -89,8 +133,14 @@ export default function AgentListPanel() {
       x: e.clientX,
       y: e.clientY,
       items: [
-        { label: 'Info', action: () => openConfig(agent) },
-        { label: 'Delete Agent', action: () => void deleteAgent(agent), isDanger: true },
+        { label: 'Settings', action: () => openConfig(agent) },
+        { label: 'Run now', action: () => void runNow(agent) },
+        { label: 'Duplicate', action: () => void duplicate(agent) },
+        {
+          label: agent.enabled ? 'Disable' : 'Enable',
+          action: () => void toggleEnabled(agent),
+        },
+        { label: 'Delete agent', action: () => void deleteAgent(agent), isDanger: true },
       ],
     });
   };
@@ -120,8 +170,17 @@ export default function AgentListPanel() {
           </button>
         </div>
       </div>
+      {agents.length > 0 && (
+        <div className="aw-agent-panel__search">
+          <TextInput
+            placeholder="Search agents…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      )}
       <div className="aw-agent-panel__list">
-        {agents.map((a) => (
+        {visibleAgents.map((a) => (
           <div
             key={a.id}
             className={`aw-agent-item${a.id === selectedAgentId ? ' active' : ''}`}
@@ -136,8 +195,16 @@ export default function AgentListPanel() {
               size={26}
             />
             <span className="aw-agent-item__text">
-              <span className="aw-agent-item__name">{a.name}</span>
-              {a.title && <span className="aw-agent-item__title">{a.title}</span>}
+              <span className="aw-agent-item__name">
+                {a.display_name || a.name}
+                {!a.enabled && <span className="aw-agent-item__off">off</span>}
+                {(a.active_runs || 0) > 0 && (
+                  <span className="aw-agent-item__runs">{a.active_runs}</span>
+                )}
+              </span>
+              <span className="aw-agent-item__title">
+                {a.title ? `${a.title} · @${a.name}` : `@${a.name}`}
+              </span>
             </span>
             <button
               className="icon-btn aw-agent-item__menu"
@@ -153,7 +220,21 @@ export default function AgentListPanel() {
             </button>
           </div>
         ))}
-        {agents.length === 0 && <div className="aw-agent-panel__empty">No agents yet.</div>}
+        {agents.length === 0 && (
+          <div className="aw-agent-panel__empty">
+            <p>No agents yet.</p>
+            <button
+              type="button"
+              className="aw-agent-panel__empty-cta"
+              onClick={() => window.dispatchEvent(new CustomEvent('palimind:new-agent'))}
+            >
+              Create your first agent
+            </button>
+          </div>
+        )}
+        {agents.length > 0 && visibleAgents.length === 0 && (
+          <div className="aw-agent-panel__empty">No agents match “{query}”.</div>
+        )}
       </div>
       {menu && (
         <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />

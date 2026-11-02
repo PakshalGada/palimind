@@ -140,7 +140,7 @@ export default function AvatarCustomizer({
 
   const config = value.avatar_config || {};
   const type = config.type || 'clover';
-  const color = config.color || BOT_PALETTE[type] || '#41C4FF';
+  const color = config.color || BOT_PALETTE[type] || '#a1a1a1';
   const shading = config.shading || 'fabric';
   const hat = config.hat || 'none';
   const glasses = config.glasses || 'none';

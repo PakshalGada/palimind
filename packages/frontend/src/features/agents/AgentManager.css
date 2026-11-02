@@ -23,6 +23,5 @@
 .am-panel .ax-inspector {
   flex: 1;
   min-height: 0;
-  border-left: none;
   border-radius: 0;
 }

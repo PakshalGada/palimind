@@ -59,14 +59,15 @@ def _tokens(text: str) -> set[str]:
 
 
 def _memory_path(agent_id: str) -> Path | None:
-    """Resolve the agent's memory file from its definition."""
+    """Resolve the agent's memory store from its mode + knowledge scope."""
     from palimind.agents.registry import get_registry
+    from palimind.agents.scope import memory_file_for
 
-    defn = get_registry().get_by_id(agent_id)
-    if defn is None or not defn.memory_file:
+    registry = get_registry()
+    defn = registry.get_by_id(agent_id)
+    if defn is None:
         return None
-    p = Path(defn.memory_file).expanduser()
-    return p
+    return memory_file_for(defn, getattr(registry, "field_root", None))
 
 
 def _now_iso() -> str:
@@ -81,8 +82,8 @@ def read_memory(agent_id: str) -> list[dict[str, Any]]:
     """Return the agent's memory entries as a list of
     {timestamp, type, content} dicts, oldest first.
 
-    The file path comes from the agent's definition (memory_file); agents
-    with memory_scope 'none' have no memory file and return [].
+    The store is resolved from the agent's ``memory_mode`` (off/private/
+    shared/project); shared mode reads the cross-agent pool.
     """
     path = _memory_path(agent_id)
     if path is None:

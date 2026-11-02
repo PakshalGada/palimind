@@ -7,12 +7,14 @@ export interface Field {
 export interface Session {
   id: string;
   name: string;
+  created_at?: number;
   messages: Message[];
 }
 
 export interface Message {
   role: 'user' | 'system';
   content: string;
+  timestamp?: number;
   sources?: string[];
   citations?: CitationPayload;
 }
@@ -304,9 +306,20 @@ export type Theme = 'dark' | 'light';
 
 export type AppView = 'chat' | 'fields' | 'agents';
 
+export type AutonomyLevel = 'off' | 'supervised' | 'semi' | 'high';
+export type MemoryMode = 'off' | 'private' | 'shared' | 'project';
+export type KnowledgeMode = 'all' | 'personal' | 'project';
+
+export interface KnowledgeScope {
+  mode: KnowledgeMode;
+  primary_field: string;
+  extra_fields: string[];
+}
+
 export interface AgentDefinition {
   id: string;
   name: string;
+  display_name: string;
   created_at: string;
   system_prompt: string;
   model: string;
@@ -314,22 +327,16 @@ export interface AgentDefinition {
   context_budget: number;
   tools: string[];
   tier_policy: 'tier1' | 'tier1+2' | 'all';
-  memory_scope: 'none' | 'session' | 'field';
-  memory_file: string;
-  visibility: 'field' | 'global';
   run_mode: 'on_demand' | 'scheduled' | 'watcher' | 'webhook';
   schedule: string | null;
   watcher_pattern: string | null;
   max_iterations: number;
-  human_in_loop_threshold: number;
   write_access: boolean;
   shell_access: boolean;
   enabled: boolean;
   self_critique: boolean;
   skills: string[];
   webhook_token: string;
-  context_fields?: string[];
-  color_seed?: string;
   // Phase 4 — adaptive reasoning, orchestration, planning & verification.
   reasoning_effort: ReasoningEffort;
   planning_mode: PlanningMode;
@@ -337,24 +344,23 @@ export interface AgentDefinition {
   orchestration_agents: number;
   verify_confidence_threshold: number;
   success_criteria: string;
-  // ── Agent creation workflow (Identity / Purpose / Autonomy / Scope) ──
-  title?: string;
-  description?: string;
+  // ── Identity / onboarding ───────────────────────────────────────────
+  title: string;
+  description: string;
   avatar_type?: 'bot' | 'upload';
   avatar_upload?: string;
   avatar_config?: BotAvatarConfig;
-  personality_style?: string;
-  goal?: string;
-  custom_instructions?: string;
-  memory_mode?: 'shared' | 'private' | 'project';
-  autonomy_level?: 'supervised' | 'semi' | 'high';
-  proactive_message_first?: boolean;
-  morning_brief?: boolean;
-  watch_sources?: string[];
-  working_hours?: string;
-  max_concurrent_runs?: number;
-  knowledge_access?: 'personal' | 'project' | 'shared';
-  can_create_knowledge?: boolean;
+  goal: string;
+  custom_instructions: string;
+  personality_style: string;
+  // ── Autonomy / memory / scope ───────────────────────────────────────
+  autonomy_level: AutonomyLevel;
+  memory_mode: MemoryMode;
+  knowledge_scope: KnowledgeScope;
+  max_concurrent_runs: number;
+  // Legacy field kept for older definitions.
+  human_in_loop_threshold?: number;
+  schema_version?: number;
 }
 
 export type ReasoningEffort = 'off' | 'auto' | 'minimal' | 'standard' | 'high' | 'max';
@@ -551,6 +557,7 @@ export interface AgentChatMessage {
 
 export interface AgentListItem extends AgentDefinition {
   running: boolean;
+  active_runs?: number;
   last_run_status: string | null;
   last_run_at?: number | null;
 }

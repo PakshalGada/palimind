@@ -32,6 +32,7 @@ async def run_agent(
     session_id: str = "",
     working_root: Path | None = None,
     emit: Callable[[str, dict], Awaitable[None]] | None = None,
+    interactive: bool = True,
 ) -> str:
     """Run an agent to completion, returning its final output.
 
@@ -46,7 +47,9 @@ async def run_agent(
     reasoning chain (agent:thought / tool_call / tool_result /
     waiting_for_human / completed).
     """
-    return await run_with_definition(defn, input, session_id, emit=emit, calling_root=working_root)
+    return await run_with_definition(
+        defn, input, session_id, emit=emit, calling_root=working_root, interactive=interactive
+    )
 
 
 async def stream_agent(
@@ -54,6 +57,7 @@ async def stream_agent(
     input: str,
     session_id: str = "",
     working_root: Path | None = None,
+    interactive: bool = True,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Run an agent and stream reasoning-chain events as dicts.
 
@@ -73,7 +77,7 @@ async def stream_agent(
         await queue.put({"type": etype, **payload})
 
     task = asyncio.create_task(
-        run_agent(defn, input, session_id, working_root=working_root, emit=emit_event)
+        run_agent(defn, input, session_id, working_root=working_root, emit=emit_event, interactive=interactive)
     )
     try:
         while True:

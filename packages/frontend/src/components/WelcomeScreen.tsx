@@ -1,7 +1,13 @@
+import { useMemo } from 'react';
 import { CloudOff, FileText, FolderPlus, Sparkles, Waypoints } from 'lucide-react';
 import { Button, EmptyState } from '../ui/primitives';
+import { useUserName } from '../hooks/useUserName';
+import { getGreeting } from '../utils/greeting';
 
 export default function WelcomeScreen() {
+  const name = useUserName();
+  const greeting = useMemo(() => getGreeting(name), [name]);
+
   const openPicker = () => {
     const modal = document.getElementById('dir-picker-modal');
     if (modal) {
@@ -21,7 +27,7 @@ export default function WelcomeScreen() {
               Local-First Intelligence OS
             </span>
           }
-          title="Welcome to Palimind"
+          title={greeting}
           description="Index documents, chat with local LLMs, and explore knowledge graphs — 100% offline and private."
           action={
             <Button variant="primary" size="md" className="welcome-cta" onClick={openPicker}>

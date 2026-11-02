@@ -10,24 +10,29 @@ export interface ChatMessage {
   timestamp: number;
 }
 
-export type InspectorTab = 'definition' | 'tools' | 'memory' | 'history';
+export type InspectorSection =
+  | 'identity'
+  | 'instructions'
+  | 'capabilities'
+  | 'autonomy'
+  | 'schedule'
+  | 'knowledge'
+  | 'runs'
+  | 'danger';
 
 export const EMPTY_DEF: Partial<AgentDefinition> = {
   name: '',
+  display_name: '',
   system_prompt: '',
   model: '',
   temperature: 0.2,
   context_budget: 8000,
   tools: [],
   tier_policy: 'tier1+2',
-  memory_scope: 'field',
-  context_fields: [],
-  visibility: 'global',
   run_mode: 'on_demand',
   schedule: '',
   watcher_pattern: '',
   max_iterations: 15,
-  human_in_loop_threshold: 0.0,
   write_access: false,
   shell_access: false,
   enabled: true,
@@ -48,15 +53,10 @@ export const EMPTY_DEF: Partial<AgentDefinition> = {
   personality_style: '',
   goal: '',
   custom_instructions: '',
-  memory_mode: 'shared',
   autonomy_level: 'semi',
-  proactive_message_first: false,
-  morning_brief: false,
-  watch_sources: [],
-  working_hours: '',
+  memory_mode: 'private',
+  knowledge_scope: { mode: 'all', primary_field: '', extra_fields: [] },
   max_concurrent_runs: 1,
-  knowledge_access: 'personal',
-  can_create_knowledge: false,
 };
 
 export function fmtTime(ts?: number | null): string {

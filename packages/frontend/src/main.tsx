@@ -1,4 +1,4 @@
-import { StrictMode } from 'react'
+import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AppProvider } from './AppContext'
 import { ThemeProvider } from './design/ThemeProvider'
@@ -6,6 +6,11 @@ import { ConfirmProvider } from './components/ConfirmDialog'
 import ErrorBoundary from './components/ErrorBoundary'
 import App from './App'
 import './App.css'
+import './index.css'
+import './components/activity/activity.css'
+
+const ActivityPlayground = lazy(() => import('./components/activity/playground/Playground'))
+const playground = import.meta.env.DEV && window.location.hash.startsWith('#/activity')
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -13,7 +18,13 @@ createRoot(document.getElementById('root')!).render(
       <AppProvider>
         <ConfirmProvider>
           <ErrorBoundary>
-            <App />
+            {playground ? (
+              <Suspense fallback={null}>
+                <ActivityPlayground />
+              </Suspense>
+            ) : (
+              <App />
+            )}
           </ErrorBoundary>
         </ConfirmProvider>
       </AppProvider>

@@ -160,3 +160,11 @@
     animation: none !important;
   }
 }
+
+/* Palimind does not use pulsating dots. Keep the icon geometry and the
+   non-dot motion (arcs, bars, orbit) but rest the dot/ring marks. */
+.tk-dot,
+.tk-halo,
+.tk-ring {
+  animation: none !important;
+}

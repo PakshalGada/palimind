@@ -28,6 +28,10 @@ from palimind.settings import (
 # ── RunningAgents registry ────────────────────────────────────────────────
 
 
+class AgentBusyError(RuntimeError):
+    """Raised when an agent has reached its concurrent-run limit."""
+
+
 class RunningAgent:
     def __init__(self, agent_id: str, run_id: str, loop: asyncio.AbstractEventLoop) -> None:
         self.agent_id = agent_id
@@ -39,43 +43,83 @@ class RunningAgent:
         self.pending: dict | None = None
 
 
-_running: dict[str, RunningAgent] = {}
+# agent_id -> run_id -> RunningAgent (true N concurrent runs)
+_running: dict[str, dict[str, RunningAgent]] = {}
 _running_lock = asyncio.Lock()
 
 
-async def register_running(agent_id: str, run_id: str) -> RunningAgent:
+async def register_running(
+    agent_id: str, run_id: str, max_concurrent: int = 1
+) -> RunningAgent:
     loop = asyncio.get_running_loop()
     ra = RunningAgent(agent_id, run_id, loop)
     ra.task = asyncio.current_task()
     async with _running_lock:
-        _running[agent_id] = ra
+        runs = _running.setdefault(agent_id, {})
+        limit = max(1, int(max_concurrent or 1))
+        if len(runs) >= limit:
+            raise AgentBusyError(
+                f"Agent is already running ({len(runs)}/{limit}). "
+                "Wait for a run to finish or raise the concurrency limit."
+            )
+        runs[run_id] = ra
     return ra
 
 
-async def unregister_running(agent_id: str) -> None:
+async def unregister_running(agent_id: str, run_id: str | None = None) -> None:
     async with _running_lock:
-        _running.pop(agent_id, None)
+        runs = _running.get(agent_id)
+        if not runs:
+            return
+        if run_id is None:
+            runs.clear()
+        else:
+            runs.pop(run_id, None)
+        if not runs:
+            _running.pop(agent_id, None)
+
+
+def running_runs(agent_id: str) -> list[RunningAgent]:
+    return list((_running.get(agent_id) or {}).values())
+
+
+def running_count(agent_id: str) -> int:
+    return len(_running.get(agent_id) or {})
 
 
 def get_running(agent_id: str) -> RunningAgent | None:
-    return _running.get(agent_id)
+    runs = _running.get(agent_id)
+    if not runs:
+        return None
+    return next(reversed(list(runs.values())))
 
 
 def is_running(agent_id: str) -> bool:
-    return agent_id in _running
+    return bool(_running.get(agent_id))
 
 
-def cancel_agent(agent_id: str) -> bool:
-    ra = _running.get(agent_id)
-    if ra is not None and ra.task is not None:
-        ra.task.cancel()
-        return True
-    return False
+def cancel_agent(agent_id: str, run_id: str | None = None) -> int:
+    runs = _running.get(agent_id) or {}
+    targets = [runs[run_id]] if run_id and run_id in runs else list(runs.values())
+    cancelled = 0
+    for ra in targets:
+        if ra.task is not None:
+            ra.task.cancel()
+            cancelled += 1
+    return cancelled
 
 
-async def resolve_approval(agent_id: str, approved: bool, correction: str = "") -> bool:
+async def resolve_approval(
+    agent_id: str,
+    approved: bool,
+    correction: str = "",
+    run_id: str | None = None,
+) -> bool:
     """Called by the frontend approve/reject endpoint to unblock a waiting agent."""
-    ra = _running.get(agent_id)
+    runs = _running.get(agent_id) or {}
+    if not runs:
+        return False
+    ra = runs.get(run_id) if run_id else next(reversed(list(runs.values())))
     if ra is None or ra.pending is None:
         return False
     ra.approval_result = {"approved": approved, "correction": correction}
@@ -87,44 +131,45 @@ async def resolve_approval(agent_id: str, approved: bool, correction: str = "") 
 
 
 def clear_agent_memory(agent_id: str) -> None:
-    """Clear an agent's memory file (resolved from its definition).
-
-    Kept here (rather than in palimind.agents.memory) so that memory.py exposes
-    only its two documented functions.
-    """
+    """Clear the memory store resolved from the agent's memory mode."""
+    from palimind.agents.memory import _memory_namespace
     from palimind.agents.registry import get_registry
+    from palimind.agents.scope import memory_file_for
+    from palimind.storage import state_store
 
-    defn = get_registry().get_by_id(agent_id)
-    if defn is None or not defn.memory_file:
+    registry = get_registry()
+    defn = registry.get_by_id(agent_id)
+    if defn is None:
+        return
+    path = memory_file_for(defn, getattr(registry, "field_root", None))
+    if path is None:
         return
     try:
-        from palimind.agents.memory import _memory_namespace
-        from palimind.storage import state_store
-
-        p = Path(defn.memory_file).expanduser()
-        state_store.set_json(_memory_namespace(p), "entries", [])
+        state_store.set_json(_memory_namespace(path), "entries", [])
     except Exception as e:
         print(f"[agents] failed to clear memory for {agent_id}: {e}")
 
 
 def delete_memory_entry(agent_id: str, index: int) -> None:
     """Remove a single memory entry by its (sorted) index."""
-    from palimind.agents.memory import read_memory
+    from palimind.agents.memory import _memory_namespace, read_memory
     from palimind.agents.registry import get_registry
+    from palimind.agents.scope import memory_file_for
+    from palimind.storage import state_store
 
-    defn = get_registry().get_by_id(agent_id)
-    if defn is None or not defn.memory_file:
+    registry = get_registry()
+    defn = registry.get_by_id(agent_id)
+    if defn is None:
+        return
+    path = memory_file_for(defn, getattr(registry, "field_root", None))
+    if path is None:
         return
     entries = read_memory(agent_id)
     if not (0 <= index < len(entries)):
         return
     entries.pop(index)
     try:
-        from palimind.agents.memory import _memory_namespace
-        from palimind.storage import state_store
-
-        p = Path(defn.memory_file).expanduser()
-        state_store.set_json(_memory_namespace(p), "entries", entries)
+        state_store.set_json(_memory_namespace(path), "entries", entries)
     except Exception as e:
         print(f"[agents] failed to delete memory entry for {agent_id}: {e}")
 
@@ -277,7 +322,7 @@ def _make_approval_provider(
             )
             await ra.approval_event.wait()
             result = ra.approval_result or {"approved": False}
-            approvals.remove(ra.agent_id)
+            approvals.remove(ra.agent_id, ra.run_id)
             ra.pending = None
             return result
 
@@ -551,6 +596,7 @@ async def run_with_definition(
     session_id: str = "",
     emit: Callable[[str, dict], Awaitable[None]] | None = None,
     calling_root: Path | None = None,
+    interactive: bool = True,
 ) -> str:
     """Run an agent from its definition.
 
@@ -558,7 +604,7 @@ async def run_with_definition(
     [AGENT MEMORY] block, enforces the definition's tool allowlist, sets
     max iterations from the definition, runs the existing agent loop, and
     on completion appends a result entry to agent memory when
-    memory_scope is not "none".
+    memory mode is not "off".
 
     ``calling_root`` is the calling knowledge base — the agent's tools are
     sandboxed to it. When omitted it defaults to the active field, and when
@@ -569,7 +615,7 @@ async def run_with_definition(
     waiting_for_human / completed).
     """
     run_id = str(uuid.uuid4())
-    ra = await register_running(definition.id, run_id)
+    ra = await register_running(definition.id, run_id, definition.max_concurrent_runs)
     loop = asyncio.get_running_loop()
     append_chat(definition.id, "user", input)
     activity.start(definition.id, definition.name, run_id, session_id)
@@ -616,7 +662,7 @@ async def run_with_definition(
         if emit is not None:
             await emit("agent:completed", {"output": output, "status": status})
 
-    approval_provider = _make_approval_provider(ra, emit)
+    approval_provider = _make_approval_provider(ra, emit) if interactive else None
 
     chat_model, ollama_url, light_model = _field_models(calling_root)
     requested_model = definition.model or chat_model or "llama3"
@@ -630,12 +676,16 @@ async def run_with_definition(
     from palimind.agents.registry import get_registry
 
     working_root = calling_root if calling_root is not None else get_registry().field_root
+    from palimind.agents.scope import resolve_scope
+
+    primary_root, extra_roots = resolve_scope(definition, working_root)
     set_tool_context(
-        working_root,
+        primary_root,
         ollama_url,
         model,
         light_model,
-        extra_roots=[],
+        extra_roots=extra_roots,
+        read_only_roots=extra_roots,
         agent_id=definition.id,
         session_id=session_id,
         write_access=bool(definition.write_access),
@@ -681,7 +731,7 @@ async def run_with_definition(
     run_definition = replace(definition, context_budget=effective_context)
 
     memory_block = ""
-    if definition.memory_scope != "none":
+    if definition.memory_mode != "off":
         # Pre-run recall: surface the memory entries most relevant to this
         # input rather than just the most recent ones.
         mem = recall_memory(definition.id, input, k=AGENT_MEMORY_RECALL_LIMIT)
@@ -839,8 +889,8 @@ async def run_with_definition(
                 )
                 verification_holder = report
     finally:
-        await unregister_running(definition.id)
-        approvals.remove(definition.id)
+        await unregister_running(definition.id, run_id)
+        approvals.remove(definition.id, run_id)
 
     if fallback_note and status == "success":
         output = f"**Note:** {fallback_note}\n\n{output}"
@@ -867,7 +917,7 @@ async def run_with_definition(
     activity.finish(definition.id, status, output)
     run_journal.finish(run_id, definition.id, status, output)
 
-    if definition.memory_scope != "none":
+    if definition.memory_mode != "off":
         try:
             append_memory(
                 definition.id,

@@ -13,26 +13,32 @@ from typing import Any
 GLOBAL_AGENTS_DIR = Path.home() / ".palimind" / "agents"
 
 TIER_POLICIES = ("tier1", "tier1+2", "all")
-MEMORY_SCOPES = ("none", "session", "field")
-VISIBILITIES = ("field", "global")
 RUN_MODES = ("on_demand", "scheduled", "watcher", "webhook")
+AUTONOMY_CHOICES = ("off", "supervised", "semi", "high")
+MEMORY_MODES = ("off", "private", "shared", "project")
+KNOWLEDGE_MODES = ("all", "personal", "project")
 # Phase 4.1 / 4.2 / 4.4 configuration.
 EFFORT_CHOICES = ("off", "auto", "minimal", "standard", "high", "max")
 PLANNING_CHOICES = ("off", "review", "auto")
 ORCHESTRATION_CHOICES = ("off", "fan_out", "arena")
+
+SCHEMA_VERSION = 2
 
 _NAME_RE = re.compile(r"^[\w-]{1,64}$")
 
 DEFAULT_MAX_ITERATIONS = 15
 
 # Risky tools (write/shell/browser mutations) require human approval by
-# default. A definition can opt out explicitly by setting
-# ``human_in_loop_threshold`` to 0 together with ``approval_explicit: true``.
+# default. Kept for migration; new agents use ``autonomy_level`` instead.
 DEFAULT_HITL_THRESHOLD = 0.5
 
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _default_knowledge_scope() -> dict[str, Any]:
+    return {"mode": "all", "primary_field": "", "extra_fields": []}
 
 
 @dataclass
@@ -46,48 +52,45 @@ class AgentDefinition:
     context_budget: int
     tools: list[str]
     tier_policy: str
-    memory_scope: str
-    memory_file: str
-    visibility: str
     run_mode: str
     schedule: str | None
     watcher_pattern: str | None
     max_iterations: int
-    human_in_loop_threshold: float
     write_access: bool
     shell_access: bool
     enabled: bool
+    # ── Identity / onboarding ───────────────────────────────────────────
+    schema_version: int = SCHEMA_VERSION
+    display_name: str = ""
+    title: str = ""
+    description: str = ""
+    avatar_type: str = "bot"
+    avatar_upload: str = ""
+    avatar_config: dict[str, Any] = field(default_factory=dict)
+    goal: str = ""
+    custom_instructions: str = ""
+    personality_style: str = ""
+    # ── Autonomy / memory / scope ───────────────────────────────────────
+    autonomy_level: str = "semi"
+    memory_mode: str = "private"
+    knowledge_scope: dict[str, Any] = field(default_factory=_default_knowledge_scope)
+    max_concurrent_runs: int = 1
+    # ── Legacy / advanced ───────────────────────────────────────────────
+    human_in_loop_threshold: float = DEFAULT_HITL_THRESHOLD
     approval_explicit: bool = False
     self_critique: bool = False
     skills: list[str] = field(default_factory=list)
     webhook_token: str = ""
-    context_fields: list[str] = field(default_factory=list)
-    color_seed: str = ""
-    # Phase 4 — adaptive reasoning, orchestration, planning & verification.
     reasoning_effort: str = "auto"
     planning_mode: str = "off"
     orchestration: str = "off"
     orchestration_agents: int = 0
     verify_confidence_threshold: float = 0.0
     success_criteria: str = ""
-    # ── Agent creation workflow (Identity / Purpose / Autonomy / Scope) ──
-    title: str = ""
-    description: str = ""
-    avatar_type: str = "bot"
-    avatar_upload: str = ""
-    avatar_config: dict[str, Any] = field(default_factory=dict)
-    personality_style: str = ""
-    goal: str = ""
-    custom_instructions: str = ""
-    memory_mode: str = "shared"
-    autonomy_level: str = "semi"
-    proactive_message_first: bool = False
-    morning_brief: bool = False
-    watch_sources: list[str] = field(default_factory=list)
-    working_hours: str = ""
-    max_concurrent_runs: int = 1
-    knowledge_access: str = "personal"
-    can_create_knowledge: bool = False
+
+    @property
+    def label(self) -> str:
+        return self.display_name or self.title or self.name
 
     # ── construction helpers ────────────────────────────────────────────
 
@@ -96,14 +99,15 @@ class AgentDefinition:
         cls,
         name: str,
         *,
+        display_name: str = "",
+        title: str = "",
+        description: str = "",
         system_prompt: str = "",
         model: str = "",
         temperature: float = 0.2,
         context_budget: int = 8000,
         tools: list[str] | None = None,
         tier_policy: str = "tier1+2",
-        memory_scope: str = "field",
-        visibility: str = "field",
         run_mode: str = "on_demand",
         schedule: str | None = None,
         watcher_pattern: str | None = None,
@@ -115,30 +119,34 @@ class AgentDefinition:
         self_critique: bool = False,
         skills: list[str] | None = None,
         webhook_token: str = "",
-        context_fields: list[str] | None = None,
-        field_root: Path | None = None,
-        color_seed: str = "",
+        field_root: Path | None = None,  # kept for callers; scope is resolved at runtime
         reasoning_effort: str = "auto",
         planning_mode: str = "off",
         orchestration: str = "off",
         orchestration_agents: int = 0,
         verify_confidence_threshold: float = 0.0,
         success_criteria: str = "",
+        goal: str = "",
+        custom_instructions: str = "",
+        personality_style: str = "",
+        autonomy_level: str = "semi",
+        memory_mode: str = "private",
+        knowledge_scope: dict[str, Any] | None = None,
+        max_concurrent_runs: int = 1,
+        avatar_type: str = "bot",
+        avatar_upload: str = "",
+        avatar_config: dict[str, Any] | None = None,
     ) -> AgentDefinition:
-        created_at = _now_iso()
-        defn = cls(
+        return cls(
             id=str(uuid.uuid4()),
             name=name,
-            created_at=created_at,
+            created_at=_now_iso(),
             system_prompt=system_prompt,
             model=model,
             temperature=temperature,
             context_budget=context_budget,
             tools=list(tools or []),
             tier_policy=tier_policy,
-            memory_scope=memory_scope,
-            memory_file="",
-            visibility=visibility,
             run_mode=run_mode,
             schedule=schedule,
             watcher_pattern=watcher_pattern,
@@ -147,11 +155,22 @@ class AgentDefinition:
             write_access=write_access,
             shell_access=shell_access,
             enabled=enabled,
+            display_name=display_name or title or name,
+            title=title,
+            description=description,
+            avatar_type=avatar_type,
+            avatar_upload=avatar_upload,
+            avatar_config=dict(avatar_config or {}),
+            goal=goal,
+            custom_instructions=custom_instructions,
+            personality_style=personality_style,
+            autonomy_level=autonomy_level,
+            memory_mode=memory_mode,
+            knowledge_scope=dict(knowledge_scope or _default_knowledge_scope()),
+            max_concurrent_runs=max_concurrent_runs,
             self_critique=self_critique,
             skills=list(skills or []),
             webhook_token=webhook_token or secrets.token_urlsafe(24),
-            context_fields=list(context_fields or []),
-            color_seed=color_seed,
             reasoning_effort=reasoning_effort,
             planning_mode=planning_mode,
             orchestration=orchestration,
@@ -159,8 +178,6 @@ class AgentDefinition:
             verify_confidence_threshold=verify_confidence_threshold,
             success_criteria=success_criteria,
         )
-        defn.set_memory_file(field_root)
-        return defn
 
     # ── serialization ───────────────────────────────────────────────────
 
@@ -171,6 +188,7 @@ class AgentDefinition:
     def from_dict(cls, data: dict[str, Any]) -> AgentDefinition:
         known = {f.name for f in fields(cls)}
         cleaned = {k: v for k, v in data.items() if k in known}
+
         cleaned.setdefault("id", str(uuid.uuid4()))
         cleaned.setdefault("created_at", _now_iso())
         cleaned.setdefault("system_prompt", "")
@@ -179,9 +197,6 @@ class AgentDefinition:
         cleaned.setdefault("context_budget", 8000)
         cleaned.setdefault("tools", [])
         cleaned.setdefault("tier_policy", "tier1+2")
-        cleaned.setdefault("memory_scope", "field")
-        cleaned.setdefault("memory_file", "")
-        cleaned.setdefault("visibility", "field")
         cleaned.setdefault("run_mode", "on_demand")
         cleaned.setdefault("schedule", None)
         cleaned.setdefault("watcher_pattern", None)
@@ -191,58 +206,123 @@ class AgentDefinition:
         cleaned.setdefault("shell_access", False)
         cleaned.setdefault("enabled", True)
         cleaned.setdefault("approval_explicit", False)
-        # Upgrade pre-existing definitions that used the old implicit 0.0
-        # default. Only an explicit opt-out (approval_explicit=true) keeps the
-        # gate disabled.
-        if not cleaned.get("approval_explicit"):
-            try:
-                if float(cleaned.get("human_in_loop_threshold") or 0.0) <= 0.0:
-                    cleaned["human_in_loop_threshold"] = DEFAULT_HITL_THRESHOLD
-            except (TypeError, ValueError):
-                cleaned["human_in_loop_threshold"] = DEFAULT_HITL_THRESHOLD
         cleaned.setdefault("self_critique", False)
         cleaned.setdefault("skills", [])
         cleaned.setdefault("webhook_token", "")
-        cleaned.setdefault("context_fields", [])
-        cleaned.setdefault("color_seed", "")
         cleaned.setdefault("reasoning_effort", "auto")
         cleaned.setdefault("planning_mode", "off")
         cleaned.setdefault("orchestration", "off")
         cleaned.setdefault("orchestration_agents", 0)
         cleaned.setdefault("verify_confidence_threshold", 0.0)
         cleaned.setdefault("success_criteria", "")
+
+        try:
+            schema = int(cleaned.get("schema_version") or 1)
+        except (TypeError, ValueError):
+            schema = 1
+        raw_memory_mode = str(data.get("memory_mode") or "")
+        raw_scope = str(data.get("memory_scope") or "field")
+
+        # Identity: the display name falls back to title/handle.
+        cleaned.setdefault("title", "")
+        cleaned.setdefault("description", "")
+        if not str(cleaned.get("display_name") or "").strip():
+            cleaned["display_name"] = str(
+                cleaned.get("title") or cleaned.get("name") or ""
+            )
+        cleaned.setdefault("avatar_type", "bot")
+        if cleaned.get("avatar_type") not in ("bot", "upload"):
+            cleaned["avatar_type"] = "bot"
+        cleaned.setdefault("avatar_upload", "")
+        avatar_config = cleaned.get("avatar_config")
+        cleaned["avatar_config"] = (
+            dict(avatar_config) if isinstance(avatar_config, dict) else {}
+        )
+        cleaned.setdefault("goal", "")
+        cleaned.setdefault("custom_instructions", "")
+        cleaned.setdefault("personality_style", "")
+
+        # Autonomy: map the legacy threshold onto the new levels.
+        if schema < 2 or not cleaned.get("autonomy_level"):
+            try:
+                threshold = float(cleaned.get("human_in_loop_threshold") or 0.0)
+            except (TypeError, ValueError):
+                threshold = DEFAULT_HITL_THRESHOLD
+            cleaned["autonomy_level"] = "off" if threshold <= 0 else "semi"
+        if cleaned.get("autonomy_level") not in AUTONOMY_CHOICES:
+            cleaned["autonomy_level"] = "semi"
+
+        # Memory: the old "shared" label meant per-agent global memory.
+        if schema < 2 or raw_memory_mode not in MEMORY_MODES:
+            cleaned["memory_mode"] = "off" if raw_scope == "none" else "private"
+        elif cleaned["memory_mode"] not in MEMORY_MODES:
+            cleaned["memory_mode"] = "private"
+
+        # Knowledge scope: default to all known bases.
+        scope = cleaned.get("knowledge_scope")
+        if not isinstance(scope, dict) or not scope.get("mode"):
+            legacy_fields = data.get("context_fields") or []
+            scope = {
+                "mode": "all",
+                "primary_field": "",
+                "extra_fields": [str(p) for p in legacy_fields if p],
+            }
+        mode = scope.get("mode")
+        if mode not in KNOWLEDGE_MODES:
+            mode = "all"
+        cleaned["knowledge_scope"] = {
+            "mode": mode,
+            "primary_field": str(scope.get("primary_field") or ""),
+            "extra_fields": [str(p) for p in (scope.get("extra_fields") or []) if p],
+        }
+        cleaned.setdefault("max_concurrent_runs", 1)
+
+        cleaned["schema_version"] = SCHEMA_VERSION
         if not cleaned.get("webhook_token"):
             cleaned["webhook_token"] = secrets.token_urlsafe(24)
         return cls(**cleaned)
-
-    # ── memory file ─────────────────────────────────────────────────────
-
-    def set_memory_file(self, field_root: Path | None = None) -> str:
-        """Compute and persist the memory file path (global for all agents)."""
-        if self.memory_scope == "none":
-            self.memory_file = ""
-        else:
-            self.memory_file = str(GLOBAL_AGENTS_DIR / "memory" / f"{self.id}.json")
-        return self.memory_file
 
 
 def validate_definition(defn: AgentDefinition) -> str | None:
     """Return an error string for an invalid definition, else None."""
     if not _NAME_RE.match(defn.name):
         return "name must be 1-64 chars of letters, digits, underscore or dash (no spaces)"
+    if len(defn.display_name or "") > 120:
+        return "display name must be 120 characters or fewer"
     if defn.tier_policy not in TIER_POLICIES:
         return f"tier_policy must be one of {TIER_POLICIES}"
-    if defn.memory_scope not in MEMORY_SCOPES:
-        return f"memory_scope must be one of {MEMORY_SCOPES}"
-    if defn.visibility not in VISIBILITIES:
-        return f"visibility must be one of {VISIBILITIES}"
+    if defn.autonomy_level not in AUTONOMY_CHOICES:
+        return f"autonomy_level must be one of {AUTONOMY_CHOICES}"
+    if defn.memory_mode not in MEMORY_MODES:
+        return f"memory_mode must be one of {MEMORY_MODES}"
+    scope = defn.knowledge_scope or {}
+    if scope.get("mode") not in KNOWLEDGE_MODES:
+        return f"knowledge_scope.mode must be one of {KNOWLEDGE_MODES}"
+    if scope.get("mode") == "project" and not str(scope.get("primary_field") or "").strip():
+        return "Project knowledge scope requires a primary knowledge base"
     if defn.run_mode not in RUN_MODES:
         return f"run_mode must be one of {RUN_MODES}"
-    if defn.run_mode == "scheduled" and not defn.schedule:
-        return "run_mode 'scheduled' requires a cron schedule"
+    if defn.run_mode == "scheduled":
+        if not defn.schedule:
+            return "run_mode 'scheduled' requires a cron schedule"
+        cron_error = validate_cron(defn.schedule)
+        if cron_error:
+            return cron_error
     if defn.run_mode == "watcher" and not defn.watcher_pattern:
         return "run_mode 'watcher' requires a watcher_pattern glob"
-    if not (0.0 <= defn.human_in_loop_threshold <= 1.0):
+    if not (1 <= int(defn.max_iterations or 0) <= 200):
+        return "max_iterations must be between 1 and 200"
+    if not (1000 <= int(defn.context_budget or 0) <= 200_000):
+        return "context_budget must be between 1000 and 200000"
+    try:
+        concurrency = int(defn.max_concurrent_runs)
+    except (TypeError, ValueError):
+        concurrency = 0
+    if not (1 <= concurrency <= 16):
+        return "max_concurrent_runs must be between 1 and 16"
+    if len(defn.avatar_upload or "") > 800_000:
+        return "avatar image is too large (max ~512 KB)"
+    if not (0.0 <= float(defn.human_in_loop_threshold or 0.0) <= 1.0):
         return "human_in_loop_threshold must be in [0.0, 1.0]"
     if defn.reasoning_effort not in EFFORT_CHOICES:
         return f"reasoning_effort must be one of {EFFORT_CHOICES}"
@@ -381,7 +461,6 @@ class AgentCatalog:
         with self._lock:
             if defn.name in self._by_name:
                 raise ValueError(f"An agent named '{defn.name}' already exists")
-            defn.set_memory_file(self.field_root)
             self._write(defn)
             self._by_name[defn.name] = defn
             self._by_id[defn.id] = defn
@@ -406,7 +485,6 @@ class AgentCatalog:
                 raise ValueError(error)
             if new_defn.name != existing.name and new_defn.name in self._by_name:
                 raise ValueError(f"An agent named '{new_defn.name}' already exists")
-            new_defn.set_memory_file(self.field_root)
             # remove old file if name changed
             old_path = self._dir_for(existing) / f"{existing.name}.json"
             new_path = self._dir_for(new_defn) / f"{new_defn.name}.json"
@@ -434,26 +512,21 @@ class AgentCatalog:
                     raise OSError(f"Failed to delete agent file {path}: {e}") from e
             self._by_name.pop(existing.name, None)
             self._by_id.pop(agent_id, None)
+        try:
+            from palimind.agents.lifecycle import purge_agent_data
+
+            purge_agent_data(agent_id)
+        except Exception as e:
+            print(f"[agents] cleanup failed for {agent_id}: {e}")
 
     def delete_all(self) -> int:
-        """Delete every agent definition.
-
-        Memory and chat files are removed too so a wipe leaves no orphaned
-        state behind. Returns the number of agents deleted.
-        """
+        """Delete every agent definition and all of its on-disk data."""
         with self._lock:
             ids = list(self._by_id.keys())
         deleted = 0
         for agent_id in ids:
             try:
                 self.delete(agent_id)
-                for sub in ("memory", "chats"):
-                    p = GLOBAL_AGENTS_DIR / sub / f"{agent_id}.json"
-                    if p.exists():
-                        try:
-                            p.unlink()
-                        except OSError:
-                            pass
                 deleted += 1
             except Exception:
                 continue
@@ -492,8 +565,7 @@ def migrate_field_agents(field_roots: list[Path]) -> int:
                     name = defn.name
                 if name in seen_global:
                     continue
-                defn.visibility = "global"
-                defn.set_memory_file()
+                defn.schema_version = 2
                 target = GLOBAL_AGENTS_DIR / f"{defn.name}.json"
                 if target.exists():
                     continue

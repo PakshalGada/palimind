@@ -323,6 +323,19 @@ def list_runs(agent_id: str, limit: int = 50) -> list[dict[str, Any]]:
     return out
 
 
+def delete_runs(agent_id: str) -> None:
+    """Remove every persisted run record for *agent_id*."""
+    conn = _connect()
+    try:
+        conn.execute("DELETE FROM runs WHERE agent_id=?", (agent_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def get_run(agent_id: str, run_id: str) -> dict[str, Any] | None:
     conn = _connect()
     try:

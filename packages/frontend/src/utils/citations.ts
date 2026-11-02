@@ -46,7 +46,7 @@ export function annotateCitationMarkers(markdown: string, payload?: CitationPayl
     const { start, end, marker } = inserts[i];
     const source = sources.get(marker);
     const title = escapeAttr(source?.title || `Source ${marker}`);
-    const sup = `<sup class="citation-ref" data-citation="${marker}" title="${title}">[${marker}]</sup>`;
+    const sup = `<sup class="citation-ref" role="button" tabindex="0" data-citation="${marker}" title="${title}">[${marker}]</sup>`;
     out = out.slice(0, start) + sup + out.slice(end);
   }
   return out;

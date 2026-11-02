@@ -18,7 +18,7 @@ def _isolate(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_add_list_remove(monkeypatch) -> None:
-    monkeypatch.setattr(approvals, "_is_running", lambda _id: True)
+    monkeypatch.setattr(approvals, "_entry_is_live", lambda _entry: True)
     approvals.add("a1", "r1", "write_file", {"path": "x", "content": "y"}, 0.2, "why")
     pending = approvals.list_pending()
     assert len(pending) == 1
@@ -29,11 +29,11 @@ def test_add_list_remove(monkeypatch) -> None:
 
 
 def test_stale_entries_are_pruned(monkeypatch) -> None:
-    monkeypatch.setattr(approvals, "_is_running", lambda _id: True)
+    monkeypatch.setattr(approvals, "_entry_is_live", lambda _entry: True)
     approvals.add("a1", "r1", "run_shell", {"command": "ls"}, 0.0, "")
     assert len(approvals.list_pending()) == 1
     # Agent is no longer running → entry is dropped on read.
-    monkeypatch.setattr(approvals, "_is_running", lambda _id: False)
+    monkeypatch.setattr(approvals, "_entry_is_live", lambda _entry: False)
     assert approvals.list_pending() == []
 
 

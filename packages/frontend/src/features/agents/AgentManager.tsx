@@ -3,22 +3,22 @@ import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import { useCommandHandler } from '../../commands/useCommand';
 import type { AgentListItem } from '../../types';
-import type { InspectorTab } from './types';
+import type { InspectorSection } from './types';
 import AgentWizard from './AgentWizard';
 import Inspector from './Inspector';
 import './agents.css';
 import './AgentManager.css';
 
 /**
- * Hosts the agent create wizard and the settings inspector as modals. The
- * main Agents area is the shared ChatArea; this component only exists so the
- * sidebar's "New Agent" / "Info" actions still have somewhere to go.
+ * Hosts the agent create wizard and the settings inspector. The main Agents
+ * area is the shared ChatArea; this component only exists so the sidebar's
+ * "New Agent" / settings actions still have somewhere to go.
  */
 export default function AgentManager() {
-  const { setSelectedAgentId, selectedAgentId, addToast } = useApp();
+  const { setSelectedAgentId, selectedAgentId, addToast, setActiveView } = useApp();
   const [creating, setCreating] = useState(false);
   const [configId, setConfigId] = useState<string | null>(null);
-  const [configTab, setConfigTab] = useState<InspectorTab>('definition');
+  const [configSection, setConfigSection] = useState<InspectorSection>('identity');
   const [agents, setAgents] = useState<AgentListItem[]>([]);
 
   const refresh = useCallback(async () => {
@@ -38,11 +38,11 @@ export default function AgentManager() {
     const onChanged = () => void refresh();
     const onNew = () => setCreating(true);
     const onConfig = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { agentId?: string; tab?: InspectorTab } | undefined;
+      const detail = (e as CustomEvent).detail as { agentId?: string; tab?: InspectorSection } | undefined;
       const agentId = detail?.agentId;
       if (agentId) {
         setConfigId(agentId);
-        setConfigTab(detail?.tab ?? 'definition');
+        setConfigSection(detail?.tab ?? 'identity');
         void refresh();
       }
     };
@@ -62,7 +62,7 @@ export default function AgentManager() {
       return;
     }
     setConfigId(selectedAgentId);
-    setConfigTab('memory');
+    setConfigSection('runs');
     void refresh();
   });
 
@@ -75,30 +75,28 @@ export default function AgentManager() {
         onClose={() => setCreating(false)}
         onCreated={(id) => {
           setCreating(false);
+          setActiveView('agents');
           if (id) setSelectedAgentId(id);
+          addToast('Agent created');
           window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
         }}
       />
 
       {configAgent && (
-        <div className="am-overlay" onMouseDown={() => setConfigId(null)}>
-          <div className="am-panel" onMouseDown={(e) => e.stopPropagation()}>
-            <Inspector
-              agent={configAgent}
-              initialTab={configTab}
-              onSaved={() => {
-                void refresh();
-                window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
-              }}
-              onDeleted={() => {
-                setConfigId(null);
-                setSelectedAgentId(null);
-                window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
-              }}
-              onClose={() => setConfigId(null)}
-            />
-          </div>
-        </div>
+        <Inspector
+          agent={configAgent}
+          initialSection={configSection}
+          onSaved={() => {
+            void refresh();
+            window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+          }}
+          onDeleted={() => {
+            setConfigId(null);
+            setSelectedAgentId(null);
+            window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+          }}
+          onClose={() => setConfigId(null)}
+        />
       )}
     </>
   );

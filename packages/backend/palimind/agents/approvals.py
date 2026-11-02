@@ -23,13 +23,28 @@ _lock = threading.Lock()
 _pending: dict[str, dict[str, Any]] = {}
 
 
-def _is_running(agent_id: str) -> bool:
+def _entry_is_live(entry: dict[str, Any]) -> bool:
+    agent_id = str(entry.get("agent_id") or "")
     try:
-        from palimind.agents.runtime import is_running
+        from palimind.agents.runtime import running_runs
 
-        return is_running(agent_id)
+        runs = running_runs(agent_id)
+        if not runs:
+            return False
+        run_id = entry.get("run_id")
+        if not run_id:
+            return True
+        return any(run.run_id == run_id for run in runs)
     except Exception:
         return True  # unknown → keep rather than silently drop
+
+
+def _key(agent_id: str, run_id: str | None = None) -> str:
+    return f"{agent_id}:{run_id}" if run_id else agent_id
+
+
+def _strip_key(key: str) -> str:
+    return key.rsplit(":", 1)[0] if ":" in key else key
 
 
 def _write_locked() -> None:
@@ -41,10 +56,10 @@ def _write_locked() -> None:
 
 
 def _prune_locked() -> None:
-    stale = [aid for aid in _pending if not _is_running(aid)]
+    stale = [key for key, entry in _pending.items() if not _entry_is_live(entry)]
     if stale:
-        for aid in stale:
-            _pending.pop(aid, None)
+        for key in stale:
+            _pending.pop(key, None)
         _write_locked()
 
 
@@ -56,7 +71,7 @@ def _load() -> None:
         if isinstance(data, list):
             for entry in data:
                 if isinstance(entry, dict) and entry.get("agent_id"):
-                    _pending[entry["agent_id"]] = entry
+                    _pending[_key(str(entry["agent_id"]), entry.get("run_id"))] = entry
     except Exception:
         pass
 
@@ -73,7 +88,7 @@ def add(
     reasoning: str = "",
 ) -> None:
     with _lock:
-        _pending[agent_id] = {
+        _pending[_key(agent_id, run_id)] = {
             "agent_id": agent_id,
             "run_id": run_id,
             "tool": tool,
@@ -85,9 +100,17 @@ def add(
         _write_locked()
 
 
-def remove(agent_id: str) -> None:
+def remove(agent_id: str, run_id: str | None = None) -> None:
     with _lock:
-        if _pending.pop(agent_id, None) is not None:
+        changed = False
+        if run_id:
+            if _pending.pop(_key(agent_id, run_id), None) is not None:
+                changed = True
+        else:
+            for key in [k for k in _pending if _strip_key(k) == agent_id]:
+                _pending.pop(key, None)
+                changed = True
+        if changed:
             _write_locked()
 
 

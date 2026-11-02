@@ -182,7 +182,7 @@
     min-width: 0;
     max-height: none;
     height: 100dvh;
-    border-right: 1px solid var(--color-border);
+    border-right: none;
     border-bottom: 0;
     padding: 0;
   }

@@ -65,10 +65,10 @@
   border: 1px solid transparent;
 }
 .ui-chip--muted { color: var(--text-muted); }
-.ui-chip--success { color: var(--text-main); background: var(--accent-bg); }
-.ui-chip--warn { color: var(--text-secondary); background: var(--accent-bg); }
-.ui-chip--danger { color: var(--danger-strong); background: var(--danger-soft); }
-.ui-chip--accent { color: var(--text-main); background: var(--accent-bg); }
+.ui-chip--success { color: var(--color-success); background: var(--color-success-soft); }
+.ui-chip--warn { color: var(--color-warning); background: var(--color-warning-soft); }
+.ui-chip--danger { color: var(--color-error); background: var(--color-error-soft); }
+.ui-chip--accent { color: var(--color-brand); background: var(--color-brand-soft); }
 
 .ui-badge {
   display: inline-flex;
@@ -83,10 +83,10 @@
   background: var(--accent-bg);
   color: var(--text-secondary);
 }
-.ui-badge--success { color: var(--text-main); background: var(--accent-bg); }
-.ui-badge--warn { color: var(--text-secondary); background: var(--accent-bg); }
-.ui-badge--danger { color: var(--danger-strong); background: var(--danger-soft); }
-.ui-badge--accent { color: var(--text-main); background: var(--accent-bg); }
+.ui-badge--success { color: var(--color-success); background: var(--color-success-soft); }
+.ui-badge--warn { color: var(--color-warning); background: var(--color-warning-soft); }
+.ui-badge--danger { color: var(--color-error); background: var(--color-error-soft); }
+.ui-badge--accent { color: var(--color-brand); background: var(--color-brand-soft); }
 
 /* ── form fields ─────────────────────────────────────────────────────── */
 .ui-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -369,7 +369,7 @@
   position: fixed;
   inset: 0;
   z-index: 9000;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--color-scrim);
   backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
@@ -425,7 +425,7 @@
 .ui-error-banner__retry:focus-visible,
 .ui-error-banner__dismiss:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-focus-ring);
+  box-shadow: none;
 }
 
 .ui-btn:active:not(:disabled) {
@@ -649,7 +649,6 @@
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--color-border);
-  border-left: 2px solid var(--color-error);
   background: var(--color-error-soft);
   border-radius: var(--radius-md);
   color: var(--color-text-primary);

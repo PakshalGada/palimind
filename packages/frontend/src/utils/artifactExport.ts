@@ -59,14 +59,14 @@ function pageShell(title: string, body: string, dark: boolean): string {
     margin: 0;
     padding: 40px;
     font: 15px/1.65 Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
-    background: ${dark ? '#09090b' : '#ffffff'};
-    color: ${dark ? '#f4f4f5' : '#18181b'};
+    background: ${dark ? '#090909' : '#ffffff'};
+    color: ${dark ? '#f4f4f4' : '#181818'};
   }
   main { max-width: 860px; margin: 0 auto; }
-  pre { padding: 16px; border-radius: 10px; overflow: auto; background: ${dark ? '#18181b' : '#f4f4f5'}; }
+  pre { padding: 16px; border-radius: 10px; overflow: auto; background: ${dark ? '#181818' : '#f4f4f4'}; }
   code { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.9em; }
   table { border-collapse: collapse; width: 100%; }
-  th, td { border: 1px solid ${dark ? '#3f3f46' : '#d4d4d8'}; padding: 7px 10px; text-align: left; }
+  th, td { border: 1px solid ${dark ? '#404040' : '#d4d4d4'}; padding: 7px 10px; text-align: left; }
   h1, h2, h3 { line-height: 1.25; }
   img, svg { max-width: 100%; height: auto; }
 </style>
@@ -364,14 +364,14 @@ async function textToPng(artifact: ExportableArtifact): Promise<Blob> {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas is not available');
   ctx.scale(scale, scale);
-  ctx.fillStyle = dark ? '#09090b' : '#ffffff';
+  ctx.fillStyle = dark ? '#090909' : '#ffffff';
   ctx.fillRect(0, 0, width, 1600);
 
-  ctx.fillStyle = dark ? '#f4f4f5' : '#18181b';
+  ctx.fillStyle = dark ? '#f4f4f4' : '#181818';
   ctx.font = '600 30px Inter, ui-sans-serif, system-ui, sans-serif';
   ctx.fillText(artifact.title || 'Artifact', padding, padding + 20);
 
-  ctx.fillStyle = dark ? '#a1a1aa' : '#52525b';
+  ctx.fillStyle = dark ? '#a2a2a2' : '#535353';
   ctx.font = '16px "IBM Plex Mono", ui-monospace, monospace';
   const lines = wrapText(ctx, artifact.content, width - padding * 2);
   let y = padding + 70;
@@ -410,7 +410,7 @@ async function svgToPng(svg: string): Promise<Blob> {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas is not available');
   ctx.scale(scale, scale);
-  ctx.fillStyle = dark ? '#09090b' : '#ffffff';
+  ctx.fillStyle = dark ? '#090909' : '#ffffff';
   ctx.fillRect(0, 0, width, height);
   ctx.drawImage(image, 0, 0, width, height);
   return new Promise((resolve, reject) => {

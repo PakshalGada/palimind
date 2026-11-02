@@ -14,11 +14,10 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  border-left: 1px solid var(--color-border);
   /* A slightly elevated surface plus a soft left-edge shadow lifts the panel
      off the chat instead of flatly sitting on the same background. */
   background: var(--color-bg-elevated);
-  box-shadow: -24px 0 48px -32px rgba(0, 0, 0, 0.45);
+  box-shadow: -32px 0 64px -40px rgba(0, 0, 0, 0.55);
   container-type: inline-size;
 }
 .artifact-panel:focus { outline: none; }
@@ -274,11 +273,11 @@ body.is-resizing-artifact-panel * { cursor: col-resize !important; }
 /* Shared artifact-type accents (used by the tabs and the type badge).
    Keep --artp-accent on both element kinds so any new type only needs one row. */
 .artp-type.type-html,
-.artp-tab.type-html { --artp-accent: #60a5fa; }
+.artp-tab.type-html { --artp-accent: #a2a2a2; }
 .artp-type.type-svg,
 .artp-type.type-mermaid,
 .artp-tab.type-svg,
-.artp-tab.type-mermaid { --artp-accent: #2dd4bf; }
+.artp-tab.type-mermaid { --artp-accent: #8c8c8c; }
 .artp-type.type-react,
 .artp-type.type-code,
 .artp-type.type-code-file,
@@ -286,21 +285,21 @@ body.is-resizing-artifact-panel * { cursor: col-resize !important; }
 .artp-tab.type-react,
 .artp-tab.type-code,
 .artp-tab.type-code-file,
-.artp-tab.type-multi-file { --artp-accent: #a78bfa; }
+.artp-tab.type-multi-file { --artp-accent: #c5c5c5; }
 .artp-type.type-document,
 .artp-type.type-markdown,
 .artp-type.type-slide-outline,
 .artp-tab.type-document,
 .artp-tab.type-markdown,
-.artp-tab.type-slide-outline { --artp-accent: #fbbf24; }
+.artp-tab.type-slide-outline { --artp-accent: #d4d4d4; }
 .artp-type.type-table,
-.artp-tab.type-table { --artp-accent: #4ade80; }
+.artp-tab.type-table { --artp-accent: #b5b5b5; }
 .light-mode .artp-type.type-html,
-.light-mode .artp-tab.type-html { --artp-accent: #1d4ed8; }
+.light-mode .artp-tab.type-html { --artp-accent: #535353; }
 .light-mode .artp-type.type-svg,
 .light-mode .artp-type.type-mermaid,
 .light-mode .artp-tab.type-svg,
-.light-mode .artp-tab.type-mermaid { --artp-accent: #0f766e; }
+.light-mode .artp-tab.type-mermaid { --artp-accent: #404040; }
 .light-mode .artp-type.type-react,
 .light-mode .artp-type.type-code,
 .light-mode .artp-type.type-code-file,
@@ -308,15 +307,15 @@ body.is-resizing-artifact-panel * { cursor: col-resize !important; }
 .light-mode .artp-tab.type-react,
 .light-mode .artp-tab.type-code,
 .light-mode .artp-tab.type-code-file,
-.light-mode .artp-tab.type-multi-file { --artp-accent: #6d28d9; }
+.light-mode .artp-tab.type-multi-file { --artp-accent: #404040; }
 .light-mode .artp-type.type-document,
 .light-mode .artp-type.type-markdown,
 .light-mode .artp-type.type-slide-outline,
 .light-mode .artp-tab.type-document,
 .light-mode .artp-tab.type-markdown,
-.light-mode .artp-tab.type-slide-outline { --artp-accent: #b45309; }
+.light-mode .artp-tab.type-slide-outline { --artp-accent: #535353; }
 .light-mode .artp-type.type-table,
-.light-mode .artp-tab.type-table { --artp-accent: #15803d; }
+.light-mode .artp-tab.type-table { --artp-accent: #404040; }
 
 .artp-title {
   min-width: 0;
@@ -1150,7 +1149,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
 .artifact-diff-no.is-add,
 .artifact-diff-code.is-add { background: color-mix(in srgb, var(--color-success) 14%, transparent); }
 .artifact-diff-no.is-remove,
-.artifact-diff-code.is-remove { background: color-mix(in srgb, #ef4444 14%, transparent); }
+.artifact-diff-code.is-remove { background: color-mix(in srgb, #727272 14%, transparent); }
 
 /* project dialog */
 .artifact-project-list {

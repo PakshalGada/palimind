@@ -79,8 +79,8 @@
 .pr-pending {
   padding: 8px 12px;
   border-radius: 8px;
-  background: color-mix(in srgb, #d29922 18%, transparent);
-  border: 1px solid color-mix(in srgb, #d29922 45%, transparent);
+  background: color-mix(in srgb, var(--color-text-primary) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-text-primary) 45%, transparent);
   font-size: 0.8rem;
 }
 
@@ -116,11 +116,9 @@
 }
 
 .pr-step--done {
-  border-left: 3px solid #3fb950;
 }
 
 .pr-step--failed {
-  border-left: 3px solid #f85149;
 }
 
 .pr-step__num {

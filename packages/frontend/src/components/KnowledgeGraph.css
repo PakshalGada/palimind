@@ -79,7 +79,7 @@
     overflow: hidden;
     background-color: var(--color-bg);
     background-image:
-        radial-gradient(circle at 50% 42%, rgba(20, 184, 166, 0.06), transparent 58%),
+        radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.04), transparent 58%),
         radial-gradient(circle, var(--color-border-subtle) 1px, transparent 1px);
     background-size: auto, 28px 28px;
 }
@@ -185,13 +185,13 @@
     box-shadow: 0 0 6px rgba(0, 0, 0, 0.25);
 }
 .graph-legend-dot--file {
-    background: radial-gradient(circle at 32% 30%, #dbeafe, #60a5fa 46%, #1d4ed8);
+    background: radial-gradient(circle at 32% 30%, #f4f4f4, #a2a2a2 46%, #535353);
 }
 .graph-legend-dot--entity {
-    background: radial-gradient(circle at 32% 30%, #ccfbf1, #2dd4bf 46%, #0f766e);
+    background: radial-gradient(circle at 32% 30%, #e4e4e4, #8c8c8c 46%, #404040);
 }
 .graph-legend-dot--section {
-    background: radial-gradient(circle at 32% 30%, #fef3c7, #fbbf24 46%, #b45309);
+    background: radial-gradient(circle at 32% 30%, #d4d4d4, #a2a2a2 46%, #535353);
 }
 
 /* ── selection card ───────────────────────────────────────────────────── */
@@ -228,13 +228,13 @@
     border-radius: 50%;
 }
 .graph-selection-dot--file {
-    background: radial-gradient(circle at 32% 30%, #dbeafe, #60a5fa 46%, #1d4ed8);
+    background: radial-gradient(circle at 32% 30%, #f4f4f4, #a2a2a2 46%, #535353);
 }
 .graph-selection-dot--entity {
-    background: radial-gradient(circle at 32% 30%, #ccfbf1, #2dd4bf 46%, #0f766e);
+    background: radial-gradient(circle at 32% 30%, #e4e4e4, #8c8c8c 46%, #404040);
 }
 .graph-selection-dot--section {
-    background: radial-gradient(circle at 32% 30%, #fef3c7, #fbbf24 46%, #b45309);
+    background: radial-gradient(circle at 32% 30%, #d4d4d4, #a2a2a2 46%, #535353);
 }
 .graph-selection-title {
     min-width: 0;

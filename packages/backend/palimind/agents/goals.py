@@ -462,7 +462,9 @@ async def _default_run(task: dict[str, Any]) -> tuple[str, str]:
     if defn is None:
         return "error", f"Agent not found: {task.get('agent_id')}"
     prompt = str(task.get("prompt") or "Run your task.")
-    output = await run_agent(defn, prompt, session_id=f"_task:{task.get('id', '')}")
+    output = await run_agent(
+        defn, prompt, session_id=f"_task:{task.get('id', '')}", interactive=False
+    )
     return "success", output
 
 

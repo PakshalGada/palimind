@@ -53,60 +53,60 @@ function paletteFor(kind: GraphKind, isDark: boolean): Palette {
   if (isDark) {
     if (kind === 'file') {
       return {
-        light: '#dbeafe',
-        mid: '#60a5fa',
-        dark: '#1d4ed8',
-        rim: '#93c5fd',
-        glow: 'rgba(96, 165, 250, 0.34)',
-        label: '#dbeafe',
+        light: '#f4f4f4',
+        mid: '#a2a2a2',
+        dark: '#535353',
+        rim: '#d4d4d4',
+        glow: 'rgba(255, 255, 255, 0.22)',
+        label: '#f4f4f4',
       };
     }
     if (kind === 'section') {
       return {
-        light: '#fef3c7',
-        mid: '#fbbf24',
-        dark: '#b45309',
-        rim: '#fcd34d',
-        glow: 'rgba(251, 191, 36, 0.3)',
-        label: '#fde68a',
+        light: '#d4d4d4',
+        mid: '#8c8c8c',
+        dark: '#404040',
+        rim: '#b5b5b5',
+        glow: 'rgba(255, 255, 255, 0.16)',
+        label: '#e4e4e4',
       };
     }
     return {
-      light: '#ccfbf1',
-      mid: '#2dd4bf',
-      dark: '#0f766e',
-      rim: '#5eead4',
-      glow: 'rgba(45, 212, 191, 0.34)',
-      label: '#ccfbf1',
+      light: '#e4e4e4',
+      mid: '#727272',
+      dark: '#272727',
+      rim: '#a2a2a2',
+      glow: 'rgba(255, 255, 255, 0.14)',
+      label: '#e4e4e4',
     };
   }
   if (kind === 'file') {
     return {
-      light: '#eff6ff',
-      mid: '#3b82f6',
-      dark: '#1e40af',
-      rim: '#1d4ed8',
-      glow: 'rgba(37, 99, 235, 0.22)',
-      label: '#1e3a8a',
+      light: '#f4f4f4',
+      mid: '#727272',
+      dark: '#181818',
+      rim: '#404040',
+      glow: 'rgba(0, 0, 0, 0.14)',
+      label: '#181818',
     };
   }
   if (kind === 'section') {
     return {
-      light: '#fffbeb',
-      mid: '#f59e0b',
-      dark: '#b45309',
-      rim: '#b45309',
-      glow: 'rgba(245, 158, 11, 0.2)',
-      label: '#92400e',
+      light: '#e4e4e4',
+      mid: '#535353',
+      dark: '#272727',
+      rim: '#404040',
+      glow: 'rgba(0, 0, 0, 0.12)',
+      label: '#272727',
     };
   }
   return {
-    light: '#f0fdfa',
-    mid: '#14b8a6',
-    dark: '#0f766e',
-    rim: '#0f766e',
-    glow: 'rgba(20, 184, 166, 0.22)',
-    label: '#115e59',
+    light: '#efefef',
+    mid: '#8c8c8c',
+    dark: '#404040',
+    rim: '#727272',
+    glow: 'rgba(0, 0, 0, 0.1)',
+    label: '#404040',
   };
 }
 
@@ -226,13 +226,13 @@ function sphereRenderer(kind: GraphKind, isDark: boolean) {
       const boxX = x - boxWidth / 2;
       const boxY = y + size + 5;
       roundRect(ctx, boxX, boxY, boxWidth, boxHeight, 5);
-      ctx.fillStyle = isDark ? 'rgba(9, 9, 11, 0.82)' : 'rgba(255, 255, 255, 0.9)';
+      ctx.fillStyle = isDark ? 'rgba(9, 9, 9, 0.82)' : 'rgba(255, 255, 255, 0.9)';
       ctx.fill();
       ctx.strokeStyle = state.selected
         ? palette.rim
         : isDark
           ? 'rgba(255, 255, 255, 0.1)'
-          : 'rgba(9, 9, 11, 0.08)';
+          : 'rgba(9, 9, 9, 0.08)';
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.fillStyle = palette.label;
@@ -412,9 +412,9 @@ export default function KnowledgeGraph() {
         })),
       );
 
-      const highlightEdgeColor = isDark ? '#5eead4' : '#0f766e';
-      const highlightFont = isDark ? '#ccfbf1' : '#115e59';
-      const dimFont = isDark ? 'rgba(161, 161, 170, 0.14)' : 'rgba(82, 82, 91, 0.12)';
+      const highlightEdgeColor = isDark ? '#e4e4e4' : '#404040';
+      const highlightFont = isDark ? '#f4f4f4' : '#181818';
+      const dimFont = isDark ? 'rgba(161, 161, 161, 0.14)' : 'rgba(82, 82, 82, 0.12)';
 
       edgesDS.update(
         baseEdgesRef.current.map(edge => {
@@ -497,10 +497,10 @@ export default function KnowledgeGraph() {
       degree.set(edge.target, (degree.get(edge.target) || 0) + 1);
     }
 
-    const background = isDark ? '#09090b' : '#ffffff';
-    const baseEdgeColor = isDark ? 'rgba(161, 161, 170, 0.36)' : 'rgba(82, 82, 91, 0.34)';
-    const hoverEdgeColor = isDark ? '#5eead4' : '#0f766e';
-    const edgeFontColor = isDark ? '#a1a1aa' : '#52525b';
+    const background = isDark ? '#090909' : '#ffffff';
+    const baseEdgeColor = isDark ? 'rgba(161, 161, 161, 0.36)' : 'rgba(82, 82, 82, 0.34)';
+    const hoverEdgeColor = isDark ? '#e4e4e4' : '#404040';
+    const edgeFontColor = isDark ? '#a2a2a2' : '#535353';
 
     const visNodes = searchFiltered.nodes.map(n => {
       const kind = kindOf(n.type);

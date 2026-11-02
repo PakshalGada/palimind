@@ -1,5 +1,7 @@
 import { useRef, useEffect, useMemo, useState, useCallback, memo } from 'react';
 import { useApp } from '../AppContext';
+import { useUserName } from '../hooks/useUserName';
+import { getGreeting } from '../utils/greeting';
 import { api } from '../api';
 import { useBookmarks } from '../hooks/useBookmarks';
 import IndexingProgress from './IndexingProgress';
@@ -8,6 +10,12 @@ import MessageActions from './MessageActions';
 import MessageContent from './MessageContent';
 import { useChatStreamContext } from '../stream/context';
 import StreamingTurn from '../stream/StreamingTurn';
+import { HistoryActivity } from '@/components/activity/shell/HistoryActivity';
+import { SourcesList } from '@/components/activity/citations/SourcesList';
+import { resultsFromSources } from '@/components/activity/recorder';
+import { isTerminal } from '@/components/activity/model';
+import { persistActivity } from '@/components/activity/store';
+import type { ActivityMode } from '../AppContext';
 import type { CitationPayload } from '../types';
 
 interface ChatMessage {
@@ -23,6 +31,8 @@ export default function ChatArea() {
     activeSessionId,
     activeView,
     selectedAgentId,
+    chatMode,
+    llmSubMode,
     setSessions,
     setActiveSessionId,
     refreshSessions,
@@ -30,7 +40,10 @@ export default function ChatArea() {
     openArtifact,
   } = useApp();
   const messagesRef = useRef<HTMLDivElement>(null);
-  const { state: streamState } = useChatStreamContext();
+  const [scrollbarVisible, setScrollbarVisible] = useState(false);
+  const { state: streamState, activityStore } = useChatStreamContext();
+  const persistedKey = useRef('');
+  const finalRunRef = useRef('');
 
   const currentSess = sessions.find(s => s.id === activeSessionId);
   // A live turn belongs to the session it was started from. New sessions have
@@ -40,6 +53,42 @@ export default function ChatArea() {
     (streamState.sessionId === null || streamState.sessionId === activeSessionId);
   const isEmpty =
     !isStreaming && (!currentSess || !currentSess.messages || currentSess.messages.length === 0);
+
+  // Remember the run that just settled, before the stream state resets.
+  useEffect(() => {
+    if (streamState.status === 'idle') return;
+    const act = activityStore.getState();
+    if (act && isTerminal(act.status)) finalRunRef.current = act.runId;
+  }, [streamState.status, activityStore, streamState.revision]);
+
+  // Persist the settled run once the refreshed session exists. This also
+  // covers first messages, whose session id is only assigned by the backend.
+  useEffect(() => {
+    if (!activeSessionId || !finalRunRef.current) return;
+    if (streamState.sessionId !== null && streamState.sessionId !== activeSessionId) return;
+    const act = activityStore.getState();
+    if (!act || act.runId !== finalRunRef.current) return;
+    const messages = currentSess?.messages ?? [];
+    const last = messages[messages.length - 1];
+    if (!last || last.role === 'user') return;
+    const index = messages.length - 1;
+    const key = `${activeSessionId}:${index}:${act.runId}`;
+    if (persistedKey.current === key) return;
+    persistedKey.current = key;
+    const reasoningText = activityStore.buffers.get('reasoning').getSnapshot().text;
+    const persisted =
+      act.reasoning && reasoningText
+        ? { ...act, reasoning: { ...act.reasoning, text: reasoningText } }
+        : act;
+    persistActivity(activeSessionId, index, persisted);
+    finalRunRef.current = '';
+  }, [
+    activeSessionId,
+    currentSess?.messages,
+    activityStore,
+    streamState.sessionId,
+    streamState.status,
+  ]);
 
   const { isBookmarked, toggle: toggleBookmark } = useBookmarks(activeSessionId);
 
@@ -51,6 +100,17 @@ export default function ChatArea() {
       : activeView === 'chat'
         ? 'chat'
         : 'field';
+
+  const activityMode: ActivityMode =
+    activeView === 'agents'
+      ? 'agent'
+      : chatMode === 'document'
+        ? 'document'
+        : llmSubMode === 'moe'
+          ? 'moe'
+          : llmSubMode === 'deep_research'
+            ? 'deep_research'
+            : 'llm';
 
   const applySessions = useCallback(
     (data: { sessions?: unknown[]; active_session_id?: string; error?: string }) => {
@@ -184,12 +244,27 @@ export default function ChatArea() {
     }
   }, [messagesKey, streamState.revision]);
 
+  const showScrollbarNearEdge = (event: React.MouseEvent<HTMLElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setScrollbarVisible(event.clientX >= rect.right - 28);
+  };
+
   return (
-    <main className="chat-area" id="main-area">
-      <div id="chat-interface" className={`chat-interface${isEmpty ? ' empty-chat' : ''}`}>
+    <main
+      className="chat-area"
+      id="main-area"
+      onMouseMove={showScrollbarNearEdge}
+      onMouseLeave={() => setScrollbarVisible(false)}
+    >
+      <div id="chat-interface" className={`chat-interface${isEmpty ? ' empty-chat' : ''}`} aria-busy={isStreaming}>
         {activeView !== 'chat' && activeView !== 'agents' && <IndexingProgress />}
 
-        <div id="messages-scroll-area" className="messages" ref={messagesRef} onScroll={handleScroll}>
+        <div
+          id="messages-scroll-area"
+          className={`messages${scrollbarVisible ? ' is-scrollbar-visible' : ''}`}
+          ref={messagesRef}
+          onScroll={handleScroll}
+        >
           {!isEmpty && currentSess?.messages.map((msg, i) => (
             <MessageComponent
               key={`${i}-${msg.role}`}
@@ -203,14 +278,28 @@ export default function ChatArea() {
               onOpenArtifact={openArtifact}
               onSaveResearch={handleSaveResearch}
               onToggleBookmark={toggleBookmark}
+              activityMode={activityMode}
+              sessionId={activeSessionId}
             />
           ))}
           <StreamingTurn activeSessionId={activeSessionId} />
         </div>
 
+        {isEmpty && <ChatHero />}
         <InputArea />
       </div>
     </main>
+  );
+}
+
+function ChatHero() {
+  const name = useUserName();
+  const greeting = useMemo(() => getGreeting(name), [name]);
+
+  return (
+    <div className="chat-hero">
+      <h1 className="chat-hero-title">{greeting}</h1>
+    </div>
   );
 }
 
@@ -225,6 +314,8 @@ interface MessageComponentProps {
   onOpenArtifact: (artifactId: string) => void;
   onSaveResearch: (content: string, sources: unknown[]) => void;
   onToggleBookmark: (msg: ChatMessage) => void;
+  activityMode: ActivityMode;
+  sessionId: string | null;
 }
 
 const MessageComponent = memo(function MessageComponent({
@@ -238,6 +329,8 @@ const MessageComponent = memo(function MessageComponent({
   onOpenArtifact,
   onSaveResearch,
   onToggleBookmark,
+  activityMode,
+  sessionId,
 }: MessageComponentProps) {
   const isUser = msg.role === 'user';
   const [editing, setEditing] = useState(false);
@@ -292,16 +385,30 @@ const MessageComponent = memo(function MessageComponent({
     );
   }
 
+  const historySources = !isUser
+    ? resultsFromSources(msg.citations ?? null, [], [])
+    : { sources: [], passages: [] };
+
   return (
-    <div className={`message ${isUser ? 'user-message' : 'system-message'}`}>
+    <div className={`message ${isUser ? 'user-message' : 'system-message'} history-message`}>
       <div className="message-wrapper">
+        {!isUser && (
+          <HistoryActivity
+            sessionId={sessionId}
+            messageIndex={index}
+            mode={activityMode}
+            citations={msg.citations}
+          />
+        )}
         <MessageContent
           content={msg.content}
           citations={msg.citations}
-          sources={msg.sources}
           messageIndex={isUser ? undefined : index}
           onOpenArtifact={onOpenArtifact}
         />
+        {!isUser && (
+          <SourcesList sources={historySources.sources} passages={historySources.passages} />
+        )}
         <MessageActions
           content={msg.content}
           isUser={isUser}

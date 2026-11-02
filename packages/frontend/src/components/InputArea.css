@@ -4,33 +4,57 @@
 
 /* ── input-area, ai-command-center, prompt-input ── */
 .input-area {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 6;
     width: 100%;
-    padding: 12px 24px 20px;
+    padding: 0 24px 18px;
     background: transparent;
     border-top: none;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 8px;
+    pointer-events: none;
+}
+
+/* The shell floats over the transcript; only the controls capture the pointer
+   so wheel/touch scrolling still passes through the empty space around them. */
+.input-area > * {
+    pointer-events: auto;
 }
 .ai-command-center {
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    background: var(--glass-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 24px;
-    padding: 8px 12px;
+    gap: 6px;
+    background: var(--color-surface-raised);
+    border: none;
+    border-radius: var(--radius-2xl);
+    padding: 10px 14px 8px;
     width: 100%;
     max-width: 760px;
     margin: 0 auto;
     transition:
-        border-color 0.2s,
-        box-shadow 0.2s;
-    box-shadow: var(--shadow-sm);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+        border-color var(--transition-base),
+        box-shadow var(--transition-base),
+        background var(--transition-base);
+    box-shadow:
+        0 1px 0 var(--color-hairline) inset,
+        var(--shadow-lg);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+}
+.ai-command-center:hover {
+    background: var(--color-surface-overlay);
+}
+.ai-command-center:focus-within {
+    box-shadow:
+        0 1px 0 var(--color-hairline) inset,
+        0 0 0 3px var(--color-brand-soft),
+        var(--shadow-lg);
 }
 .prompt-input {
     box-sizing: border-box;
@@ -49,15 +73,6 @@
 .prompt-composer-actions {
     margin-left: auto;
     flex-shrink: 0;
-}
-.ui-button {
-    font: inherit;
-}
-.ui-button-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
 }
 
 /* ── drag-over, attachment chips ── */
@@ -78,12 +93,12 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    background: var(--bg-active);
-    border: 1px solid var(--border-color);
+    background: var(--color-surface-hover);
+    border: 1px solid var(--color-border-subtle);
     padding: 4px 8px;
-    border-radius: var(--radius-sm);
-    font-size: 0.8rem;
-    animation: chip-in 0.2s ease-out forwards;
+    border-radius: var(--radius-full);
+    font-size: 0.78rem;
+    animation: chip-in 0.2s var(--ease-out) forwards;
 }
 @keyframes chip-in {
     from {
@@ -132,8 +147,8 @@
 .composer-footer {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding-top: 8px;
+    gap: 8px;
+    padding-top: 4px;
 }
 .composer-footer .moe-toggle-wrapper {
     margin-right: auto;
@@ -143,78 +158,58 @@
     border: none;
     color: var(--text-main);
     font-family: inherit;
-    font-size: 0.95rem;
-    padding: 10px 4px 0;
+    font-size: 1rem;
+    padding: 8px 2px 2px;
     resize: none;
     outline: none;
-    min-height: 26px;
+    min-height: 28px;
     max-height: 280px;
-    line-height: 1.5;
+    line-height: 1.55;
     overflow-y: auto;
     transition: opacity 0.3s;
 }
-#chat-input::-webkit-scrollbar {
-    width: 4px;
-}
-#chat-input::-webkit-scrollbar-thumb {
-    background: var(--border-color);
-    border-radius: 2px;
-}
 #chat-input::placeholder {
-    color: var(--text-muted);
+    color: var(--color-text-muted);
     transition: opacity 0.3s;
 }
 
-/* ── pulse keyframes, send-btn ── */
-@keyframes pulse {
-    0% {
-        transform: scale(1);
-        box-shadow: 0 0 0 0 var(--focus-ring);
-        border-radius: 50%;
-    }
-    70% {
-        transform: scale(1.1);
-        box-shadow: 0 0 0 6px transparent;
-        border-radius: 50%;
-    }
-    100% {
-        transform: scale(1);
-        box-shadow: 0 0 0 0 transparent;
-        border-radius: 50%;
-    }
-}
 .send-btn {
-    background: var(--primary-color);
-    color: var(--primary-text);
+    background: var(--color-accent);
+    color: var(--color-accent-contrast);
     border: none;
     padding: 0;
-    border-radius: 9999px;
+    border-radius: var(--radius-full);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition:
-        background 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-        color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-        opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-        transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        background var(--transition-fast),
+        color var(--transition-fast),
+        opacity var(--transition-fast),
+        transform 0.15s var(--ease-out),
+        box-shadow var(--transition-fast);
     flex-shrink: 0;
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
 }
 .send-btn:hover:not(:disabled) {
-    transform: scale(1.05);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px var(--color-accent-soft), 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 .send-btn:disabled {
-    opacity: 0.45;
+    opacity: 0.38;
     cursor: not-allowed;
-    background: var(--border-color);
+    background: var(--color-surface-active);
+    color: var(--color-text-muted);
+    box-shadow: none;
 }
 .send-btn.animating-stop {
-    background: var(--panel-bg-2);
-    border: 1px solid var(--border-color);
-    color: var(--text-main);
+    background: var(--color-surface-active);
+    border: 1px solid var(--color-border-strong);
+    color: var(--color-text-primary);
 }
 .send-btn .send-icon {
     width: 18px;
@@ -273,6 +268,13 @@
     white-space: nowrap;
 }
 
+.agent-mention-handle {
+    margin-left: 6px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+}
+
 /* ── mic-btn, mic waves, spin ── */
 .mic-btn {
     width: 36px;
@@ -303,7 +305,6 @@
     background: var(--accent-bg);
     color: var(--text-main);
     border-radius: 50%;
-    animation: pulse 1.5s infinite;
 }
 .mic-btn:disabled {
     opacity: 0.6;

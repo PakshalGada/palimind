@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { ActivityStore } from '@/components/activity/store';
 import type { ChatStream } from './useChatStream';
 import type { StreamState, VideoTarget } from './types';
 
@@ -9,12 +10,14 @@ export interface ChatStreamStateValue {
   /** Current assistant text (throttled) — artifacts read this live. */
   liveText: string;
   openVideo: (target: VideoTarget) => void;
+  activityStore: ActivityStore;
 }
 
 /** Stable actions — consumed by the composer (never re-renders per token). */
 export interface ChatStreamActions {
   send: ChatStream['send'];
   stop: () => void;
+  retry: () => void;
 }
 
 export const ChatStreamContext = createContext<ChatStreamStateValue | null>(null);

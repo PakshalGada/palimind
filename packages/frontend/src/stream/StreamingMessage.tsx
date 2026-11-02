@@ -1,14 +1,12 @@
 import MessageContent from '../components/MessageContent';
-import ApprovalCard from './ApprovalCard';
-import { MediaCitations, TextCitations } from './StreamCitations';
-import ThinkingBlock from './ThinkingBlock';
-import ThoughtDurationBadge from './ThoughtDurationBadge';
+import { SourcesList } from '@/components/activity/citations/SourcesList';
+import { MediaCitations } from '@/components/activity/citations/MediaCitations';
+import { resultsFromSources } from '@/components/activity/recorder';
 import type { StreamState, VideoTarget } from './types';
 
 /**
- * Assistant half of the live turn: thinking, citation chips, the streamed
- * answer and the approval prompt. Markdown goes through the same
- * <MessageContent> used for history.
+ * The answer half of the live turn. Sources sit under the answer; the activity
+ * panel above owns process, approvals and tool detail.
  */
 export default function StreamingMessage({
   state,
@@ -19,48 +17,33 @@ export default function StreamingMessage({
   state: StreamState;
   messageIndex: number;
   onOpenArtifact: (artifactId: string) => void;
-  onOpenVideo: (target: VideoTarget) => void;
+  onOpenVideo?: (target: VideoTarget) => void;
 }) {
   const hasAnswer = Boolean(state.answer || state.error);
-  const hasCitations = state.mediaCitations.length > 0 || state.textCitations.length > 0;
   const content = state.error
     ? `${state.answer}${state.answer ? '\n\n' : ''}**Error:** ${state.error}`
     : state.answer;
+  const { sources, passages } = resultsFromSources(
+    state.citations,
+    state.textCitations,
+    state.mediaCitations,
+  );
 
   return (
-    <>
-      {hasCitations && (
-        <div className="stream-citations-block">
-          <MediaCitations citations={state.mediaCitations} onOpen={onOpenVideo} />
-          <TextCitations citations={state.textCitations} />
-        </div>
+    <div className="live-answer">
+      {hasAnswer && (
+        <MessageContent
+          content={content}
+          citations={state.citations ?? undefined}
+          messageIndex={messageIndex}
+          streaming={state.status === 'streaming'}
+          onOpenArtifact={onOpenArtifact}
+        />
       )}
-
-      {state.thinking && (
-        <div className="message system-message">
-          <div className="message-wrapper">
-            <ThinkingBlock text={state.thinking} />
-          </div>
-        </div>
+      <SourcesList sources={sources} passages={passages} />
+      {onOpenVideo && (
+        <MediaCitations citations={state.mediaCitations} onOpen={onOpenVideo} />
       )}
-
-      {(hasAnswer || state.approval) && (
-        <div className="message system-message">
-          <div className="message-wrapper">
-            {state.thoughtDuration && <ThoughtDurationBadge duration={state.thoughtDuration} />}
-            {hasAnswer && (
-              <MessageContent
-                content={content}
-                citations={state.citations ?? undefined}
-                messageIndex={messageIndex}
-                streaming={state.status === 'streaming'}
-                onOpenArtifact={onOpenArtifact}
-              />
-            )}
-            {state.approval && <ApprovalCard prompt={state.approval} />}
-          </div>
-        </div>
-      )}
-    </>
+    </div>
   );
 }

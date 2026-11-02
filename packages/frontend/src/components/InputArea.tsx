@@ -19,7 +19,7 @@ import {
   PromptInputActions,
   PromptInputTextarea,
 } from "./prompt-kit/prompt-input";
-import { Button } from "./ui/button";
+import { Button } from "../ui/primitives";
 
 function InputArea() {
   const {
@@ -370,7 +370,7 @@ function InputArea() {
     let actTitle = "LLM";
     if (activeView === "agents") {
       actMode = "agent";
-      actTitle = agentInfo?.name || "Agent";
+      actTitle = agentInfo?.display_name || agentInfo?.name || "Agent";
     } else if (chatMode === "document") {
       actMode = "document";
       actTitle = "Document";
@@ -390,7 +390,7 @@ function InputArea() {
       : undefined;
     const agentLoading = mentionedAgent
       ? {
-          seed: mentionedAgent.color_seed || mentionedAgent.id + mentionedAgent.name,
+          seed: mentionedAgent.id,
           name: mentionedAgent.name,
         }
       : null;
@@ -414,9 +414,7 @@ function InputArea() {
         mode: actMode,
         title: actTitle,
         subtitle: actMode === "agent" ? "agent" : undefined,
-        seed: activityAgent
-          ? activityAgent.color_seed || activityAgent.id + activityAgent.name
-          : undefined,
+        seed: activityAgent ? activityAgent.id : undefined,
         agentAvatar: activityAgent
           ? {
               config: activityAgent.avatar_config,
@@ -681,7 +679,10 @@ function InputArea() {
                   state={botStateFor(a)}
                   size={20}
                 />
-                <span className="agent-mention-name">@{a.name}</span>
+                <span className="agent-mention-name">
+                  {a.display_name || a.name}
+                  <span className="agent-mention-handle">@{a.name}</span>
+                </span>
               </div>
             ))}
           </div>
@@ -936,8 +937,9 @@ function InputArea() {
               <Button
                 id="btn-send"
                 type="button"
-                variant="default"
+                variant="ghost"
                 size="icon"
+                aria-label={isGenerating ? "Stop generating" : "Send message"}
                 className={`send-btn${isGenerating ? " animating-stop" : ""}`}
                 disabled={!isGenerating && isEmpty}
                 onClick={() => {

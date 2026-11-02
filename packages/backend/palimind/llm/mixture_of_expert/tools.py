@@ -66,6 +66,7 @@ def make_tool_context(
     extra_roots: list[Path] | None = None,
     source_collector: list[dict] | None = None,
     *,
+    read_only_roots: list[Path] | None = None,
     agent_id: str = "",
     session_id: str = "",
     write_access: bool = False,
@@ -76,6 +77,7 @@ def make_tool_context(
     return {
         "root": root,
         "extra_roots": list(extra_roots or []),
+        "read_only_roots": list(read_only_roots or []),
         "ollama_url": ollama_url,
         "chat_model": chat_model,
         "light_model": light_model,
@@ -98,6 +100,7 @@ def set_tool_context(
     extra_roots: list[Path] | None = None,
     source_collector: list[dict] | None = None,
     *,
+    read_only_roots: list[Path] | None = None,
     agent_id: str = "",
     session_id: str = "",
     write_access: bool = False,
@@ -116,6 +119,7 @@ def set_tool_context(
         light_model,
         extra_roots,
         source_collector,
+        read_only_roots=read_only_roots,
         agent_id=agent_id,
         session_id=session_id,
         write_access=write_access,
@@ -180,6 +184,10 @@ def _extra_roots() -> list[Path]:
     return list(_get_context().get("extra_roots") or [])
 
 
+def _read_only_roots() -> list[Path]:
+    return list(_get_context().get("read_only_roots") or [])
+
+
 # ── sandbox helpers ───────────────────────────────────────────────────────
 
 MAX_READ_BYTES = 256_000  # 256 KB per file read
@@ -197,20 +205,33 @@ _SKIP_DIRS = {
 }
 
 
-def _resolve_in_workspace(path: str) -> Path | None:
-    """Resolve *path* and confine it to the workspace root(s); None if outside."""
-    roots = [r for r in [_workspace_root(), *_extra_roots()] if r is not None]
+def _resolve_in_workspace(path: str, *, write: bool = False) -> Path | None:
+    """Resolve *path* and confine it to the workspace root(s); None if outside.
+
+    Extra knowledge roots are readable; writes are limited to the primary
+    root (and any extra root not marked read-only).
+    """
+    primary = _workspace_root()
+    extra = _extra_roots()
+    readonly = _read_only_roots()
+    roots = [r for r in [primary, *extra] if r is not None]
     if not roots:
-        p = Path(path).resolve()
-        return p  # no workspace configured — allow (legacy behaviour)
+        return Path(path).resolve()  # no workspace configured — legacy behaviour
     p = (roots[0] / path).resolve() if not Path(path).is_absolute() else Path(path).resolve()
+    inside: Path | None = None
     for root in roots:
         try:
             p.relative_to(root.resolve())
-            return p
+            inside = root.resolve()
+            break
         except ValueError:
             continue
-    return None
+    if inside is None:
+        return None
+    if write and primary is not None and inside != primary.resolve():
+        if any(inside == r.resolve() for r in readonly):
+            return None
+    return p
 
 
 def _is_skipped(p: Path, base: Path) -> bool:
@@ -446,7 +467,7 @@ def read_file(path: str) -> str:
 
 
 def write_file(path: str, content: str) -> str:
-    p = _resolve_in_workspace(path)
+    p = _resolve_in_workspace(path, write=True)
     if p is None:
         return f"Error: access denied — '{path}' is outside the workspace"
     if len(content.encode("utf-8")) > MAX_WRITE_BYTES:
@@ -543,7 +564,7 @@ def grep_files(pattern: str, path: str = ".", max_results: int = 50) -> str:
 
 def search_replace(path: str, old_string: str, new_string: str, count: int = 1) -> str:
     """Surgical in-file replacement (surgical edits instead of full overwrite)."""
-    p = _resolve_in_workspace(path)
+    p = _resolve_in_workspace(path, write=True)
     if p is None:
         return f"Error: access denied — '{path}' is outside the workspace"
     if not p.is_file():

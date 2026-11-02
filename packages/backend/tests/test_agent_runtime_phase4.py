@@ -23,10 +23,10 @@ class _FakeRunning:
 
 @pytest.fixture(autouse=True)
 def _stub_runtime(monkeypatch):
-    async def fake_register(agent_id, run_id):
+    async def fake_register(agent_id, run_id, max_concurrent=1):
         return _FakeRunning()
 
-    async def fake_unregister(agent_id):
+    async def fake_unregister(agent_id, run_id=None):
         return None
 
     monkeypatch.setattr(rt, "register_running", fake_register)

@@ -34,8 +34,8 @@
   border: 1px solid var(--border-color);
   background: var(--panel-bg-2);
 }
-.social-sentiment.is-positive { border-color: #2ea04366; background: #2ea0431a; }
-.social-sentiment.is-negative { border-color: #f8514966; background: #f851491a; }
+.social-sentiment.is-positive { border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.07); }
+.social-sentiment.is-negative { border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); }
 .social-sentiment-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); }
 .social-sentiment-score { font-size: 1.3rem; font-weight: 600; color: var(--text-main); font-family: var(--font-mono); }
 .social-summary-meta { display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; color: var(--text-muted); }
@@ -62,7 +62,7 @@
   font-size: 0.74rem;
 }
 .social-chip em { font-style: normal; color: var(--text-muted); font-size: 0.68rem; }
-.social-chip.is-cashtag { color: #3fb950; }
+.social-chip.is-cashtag { color: #d4d4d4; }
 .social-chip.is-keyword { background: transparent; border: 1px solid var(--border-color); }
 
 .social-posts { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
@@ -91,8 +91,8 @@
   background: var(--accent-bg);
   color: var(--text-secondary);
 }
-.social-post-badge.is-positive { color: #3fb950; }
-.social-post-badge.is-negative { color: #f85149; }
+.social-post-badge.is-positive { color: #d4d4d4; }
+.social-post-badge.is-negative { color: #8c8c8c; }
 .social-post-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .social-post-author { font-size: 0.72rem; color: var(--text-muted); }
 .social-post-text { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.45; }

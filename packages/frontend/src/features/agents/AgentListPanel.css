@@ -38,6 +38,16 @@
   gap: 2px;
 }
 
+.aw-agent-panel__search {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.aw-agent-panel__search .ui-input {
+  height: 28px;
+  font-size: 11.5px;
+}
+
 .aw-agent-panel__list {
   flex: 1;
   overflow-y: auto;

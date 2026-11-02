@@ -18,6 +18,7 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
         status: 'streaming',
         userText: action.userText,
         sessionId: action.sessionId,
+        startedAt: Date.now(),
         revision: state.revision + 1,
       };
     case 'reset':

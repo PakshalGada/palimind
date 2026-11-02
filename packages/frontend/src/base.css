@@ -9,10 +9,40 @@
     margin: 0;
     padding: 0;
     scrollbar-width: thin;
-    scrollbar-color: var(--border-color) var(--panel-bg);
+    scrollbar-color: var(--color-scrollbar, var(--border-color)) transparent;
+}
+
+/* Thin, fading overlay scrollbars — a disproportionate amount of "polish"
+   comes from these matching the elevation system rather than the OS chrome. */
+*::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+    background: var(--color-scrollbar, var(--border-color));
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: var(--radius-full);
+    transition: background-color var(--transition-fast);
+}
+*::-webkit-scrollbar-thumb:hover {
+    background: var(--color-scrollbar-hover, var(--color-border-strong));
+    border: 3px solid transparent;
+    background-clip: content-box;
+}
+*::-webkit-scrollbar-corner {
+    background: transparent;
 }
 
 /* ── app shell ──────────────────────────────────────────────────────────── */
+html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
 body {
     font-family: var(--font-sans);
     font-size: var(--text-body);
@@ -22,9 +52,10 @@ body {
     width: 100vw;
     overflow: hidden;
     display: flex;
+    -webkit-tap-highlight-color: transparent;
     transition:
-        background-color 0.3s,
-        color 0.3s;
+        background-color var(--duration-base) var(--ease-out),
+        color var(--duration-base) var(--ease-out);
 }
 #root {
     width: 100vw;
@@ -39,6 +70,7 @@ body {
     background: var(--bg-color);
     min-height: 0;
     min-width: 0;
+    transition: background-color var(--duration-base) var(--ease-out);
 }
 
 /* ── typography baseline ───────────────────────────────────────────────── */
@@ -48,13 +80,15 @@ button {
     background: var(--primary-color);
     color: var(--primary-text);
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius-control);
     padding: 8px 16px;
     font-size: 0.88rem;
     font-weight: 500;
     cursor: pointer;
     transition:
-        background-color 0.2s,
+        background-color var(--transition-fast),
+        border-color var(--transition-fast),
+        color var(--transition-fast),
         transform 0.1s;
 }
 button:active {
@@ -122,8 +156,15 @@ select {
 
 /* ── focus ─────────────────────────────────────────────────────────────── */
 :focus-visible {
-    outline: 2px solid var(--focus-ring);
+    outline: 2px solid var(--color-brand);
     outline-offset: 2px;
+}
+
+/* Buttons should not draw an external focus outline/ring beside them. */
+button:focus,
+button:focus-visible {
+    outline: none;
+    box-shadow: none;
 }
 button:disabled,
 textarea:disabled,
@@ -157,7 +198,7 @@ input:disabled {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(0, 0, 0, 0.65);
+    background: var(--color-scrim);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -168,12 +209,12 @@ input:disabled {
 }
 .modal-content {
     background: var(--panel-bg);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-panel);
+    border: none;
+    border-radius: var(--radius-xl);
     width: 90%;
     max-width: 650px;
     overflow: hidden;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--shadow-float);
     animation: modalFadeIn 0.2s ease-out;
     max-height: calc(100vh - 40px);
 }
@@ -195,8 +236,10 @@ input:disabled {
     border-bottom: 1px solid var(--border-color);
 }
 .modal-header h2 {
-    font-size: 1.15rem;
-    font-weight: 600;
+    font-family: var(--font-heading);
+    font-size: 1.12rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
     color: var(--text-main);
 }
 .modal-body {

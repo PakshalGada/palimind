@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   BookOpen,
   Bot,
@@ -407,6 +407,18 @@ export default function Sidebar() {
     });
   };
 
+  const orderedSessions = useMemo(
+    () =>
+      [...sessions].sort((a, b) => {
+        const aLast = a.messages[a.messages.length - 1]?.timestamp;
+        const bLast = b.messages[b.messages.length - 1]?.timestamp;
+        const aTime = aLast ?? a.created_at ?? 0;
+        const bTime = bLast ?? b.created_at ?? 0;
+        return bTime - aTime;
+      }),
+    [sessions],
+  );
+
   const sessionsSection = (
     <div className="sb-section">
       <div className="sb-section-head">
@@ -432,7 +444,7 @@ export default function Sidebar() {
         />
       ) : (
         <div className="sb-list">
-          {sessions.map((sess) => (
+          {orderedSessions.map((sess) => (
             <button
               key={sess.id}
               type="button"

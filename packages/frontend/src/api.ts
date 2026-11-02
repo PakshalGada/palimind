@@ -127,13 +127,44 @@ export const api = {
       ),
     chat: (agentId: string) => get<{ messages?: AgentChatMessage[] }>(`/agents/${agentId}/chat`),
     clearChat: (agentId: string) => del<{ error?: string; status?: string }>(`/agents/${agentId}/chat`),
+    clearSessions: (agentId: string) =>
+      del<{ error?: string; status?: string }>(`/agents/${agentId}/sessions`),
     deleteMemoryEntry: (agentId: string, index: number) =>
       del<{ error?: string; status?: string }>(`/agents/${agentId}/memory?index=${index}`),
     clearMemory: (agentId: string) => post<{ error?: string; status?: string }>(`/agents/${agentId}/memory/clear`),
     history: (agentId: string) => get<{ history: RunRecord[] }>(`/agents/${agentId}/history`),
-    cancel: (agentId: string) => post<{ error?: string; status?: string }>(`/agents/${agentId}/cancel`),
-    approve: (agentId: string, approved: boolean, correction = '') =>
-      post<{ error?: string; status?: string }>(`/agents/${agentId}/approve`, { approved, correction }),
+    clearHistory: (agentId: string) =>
+      del<{ error?: string; status?: string }>(`/agents/${agentId}/runs`),
+    cancel: (agentId: string, runId = '') =>
+      post<{ error?: string; status?: string; cancelled?: number }>(
+        `/agents/${agentId}/cancel`,
+        runId ? { run_id: runId } : undefined,
+      ),
+    approve: (agentId: string, approved: boolean, correction = '', runId = '') =>
+      post<{ error?: string; status?: string }>(`/agents/${agentId}/approve`, {
+        approved,
+        correction,
+        run_id: runId,
+      }),
+    runNow: (agentId: string, input = 'Run your task.') =>
+      post<{ status?: string; error?: string }>(`/agents/${agentId}/run-now`, { input }),
+    duplicate: async (agent: AgentListItem) => {
+      const payload: Record<string, unknown> = { ...agent };
+      for (const key of [
+        'id',
+        'created_at',
+        'running',
+        'active_runs',
+        'last_run_status',
+        'last_run_at',
+      ]) {
+        delete payload[key];
+      }
+      payload.name = `${agent.name}-copy`.slice(0, 64);
+      payload.display_name = `${agent.display_name || agent.name} copy`;
+      payload.webhook_token = '';
+      return post<AgentListItem & { error?: string }>('/agents/create', payload);
+    },
     effortLevels: () => get<{ levels: EffortLevel[] }>('/agents/effort-levels'),
     classifyEffort: (task: string, model = '') =>
       post<{ level: string; score: number; indicator: string; reasoning?: string; source: string }>(

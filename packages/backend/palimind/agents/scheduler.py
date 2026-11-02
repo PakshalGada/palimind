@@ -95,9 +95,11 @@ async def post_result(defn: Any, output: str, status: str, source: str) -> None:
         session_id = data.get("active_session_id")
         if not session_id:
             return
-        label = {"scheduled": "Scheduled run", "watcher": "Watcher run"}.get(
-            source, "Automated run"
-        )
+        label = {
+            "scheduled": "Scheduled run",
+            "watcher": "Watcher run",
+            "manual": "Manual run",
+        }.get(source, "Automated run")
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
         suffix = "" if status == "success" else f" · {status}"
         content = f"*{label} · {stamp}{suffix}*\n\n{output}"
@@ -110,6 +112,21 @@ async def post_result(defn: Any, output: str, status: str, source: str) -> None:
             mode="agent",
             mode_params={"agent_id": defn.id, "source": source, "status": status},
         )
+        try:
+            from palimind.agents import goals
+
+            title = getattr(defn, "display_name", "") or getattr(defn, "name", "Agent")
+            if status == "success":
+                text = f"{title} finished a {label.lower()}."
+            else:
+                text = f"{title}'s {label.lower()} ended with {status}."
+            goals.notify(
+                "agent_run",
+                text,
+                {"agent_id": defn.id, "source": source, "status": status},
+            )
+        except Exception:
+            pass
     except Exception as e:
         print(f"[agents] failed to post {source} result for {defn.name}: {e}")
 
@@ -119,7 +136,7 @@ async def post_result(defn: Any, output: str, status: str, source: str) -> None:
 
 async def _fire_agent(defn: Any, input: str, source: str) -> None:
     try:
-        output = await run_agent(defn, input, session_id=f"_{source}")
+        output = await run_agent(defn, input, session_id=f"_{source}", interactive=False)
         await post_result(defn, output, "success", source)
     except asyncio.CancelledError:
         await post_result(defn, "[cancelled]", "cancelled", source)
@@ -143,7 +160,10 @@ async def _tick_scheduled() -> None:
             continue
         _fired_keys.append(key)
         if is_running(defn.id):
-            continue
+            from palimind.agents.runtime import running_count
+
+            if running_count(defn.id) >= max(1, int(defn.max_concurrent_runs or 1)):
+                continue
         input = f"[Scheduled trigger at {now.isoformat()}]\nExecute your scheduled task now."
         asyncio.create_task(_fire_agent(defn, input, source="scheduled"))
 
@@ -200,7 +220,10 @@ def check_watcher_triggers(root: Path, changed_path: str = "") -> None:
         if not matched:
             continue
         if is_running(defn.id):
-            continue
+            from palimind.agents.runtime import running_count
+
+            if running_count(defn.id) >= max(1, int(defn.max_concurrent_runs or 1)):
+                continue
         input = (
             f"[Watcher trigger] File changed: {rel}\nInvestigate the change and act accordingly."
         )

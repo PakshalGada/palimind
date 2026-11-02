@@ -30,6 +30,8 @@ export default function AgentHeader() {
 
   useEffect(() => {
     void refresh();
+    const timer = window.setInterval(() => void refresh(), 15000);
+    return () => window.clearInterval(timer);
   }, [refresh]);
 
   useEffect(() => {
@@ -46,15 +48,43 @@ export default function AgentHeader() {
     );
 
   const deleteAgent = async () => {
-    const ok = await confirm(`Delete agent "${agent.name}"? This cannot be undone.`, {
-      title: 'Delete Agent',
-      confirmLabel: 'Delete',
-      danger: true,
-    });
+    const ok = await confirm(
+      `Delete agent "${agent.display_name || agent.name}"? This removes its memory, chats and runs.`,
+      { title: 'Delete agent', confirmLabel: 'Delete', danger: true },
+    );
     if (!ok) return;
     try {
       await api.agents.remove(agent.id);
       setSelectedAgentId(null);
+      window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+    } catch {
+      // ignore
+    }
+  };
+
+  const runNow = async () => {
+    try {
+      await api.agents.runNow(agent.id);
+      window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+    } catch {
+      // ignore
+    }
+  };
+
+  const duplicate = async () => {
+    try {
+      const res = await api.agents.duplicate(agent);
+      if (res.error) return;
+      window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+      if (res.id) setSelectedAgentId(res.id);
+    } catch {
+      // ignore
+    }
+  };
+
+  const toggleEnabled = async () => {
+    try {
+      await api.agents.update(agent.id, { enabled: !agent.enabled });
       window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
     } catch {
       // ignore
@@ -76,11 +106,13 @@ export default function AgentHeader() {
         size={30}
       />
       <div className="agents-topbar__id">
-        <span className="agents-topbar__name">{agent.name}</span>
+        <span className="agents-topbar__name">{agent.display_name || agent.name}</span>
         <span className="agents-topbar__meta">
-          {agent.title ? `${agent.title} · ` : ''}
-          {agent.model || 'default model'} · {agent.tools.length} tools
+          @{agent.name}
+          {agent.title ? ` · ${agent.title}` : ''}
+          {` · ${agent.model || 'default model'} · ${agent.tools.length} tools`}
           {!agent.enabled ? ' · disabled' : ''}
+          {(agent.active_runs || 0) > 0 ? ` · ${agent.active_runs} running` : ''}
         </span>
       </div>
       <button
@@ -98,8 +130,11 @@ export default function AgentHeader() {
           y={menu.y}
           onClose={() => setMenu(null)}
           items={[
-            { label: 'Info', action: openSettings },
-            { label: 'Delete Agent', action: deleteAgent, isDanger: true },
+            { label: 'Settings', action: openSettings },
+            { label: 'Run now', action: () => void runNow() },
+            { label: 'Duplicate', action: () => void duplicate() },
+            { label: agent.enabled ? 'Disable' : 'Enable', action: () => void toggleEnabled() },
+            { label: 'Delete agent', action: () => void deleteAgent(), isDanger: true },
           ]}
         />
       )}

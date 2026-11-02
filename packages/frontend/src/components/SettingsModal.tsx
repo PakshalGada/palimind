@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useApp } from '../AppContext';
 import { api } from '../api';
 import type { Theme } from '../types';
+import { getUserName, setUserName } from '../utils/userName';
 import SettingsSelect from './SettingsSelect';
 
 type SectionKey = 'appearance' | 'opencode' | 'models';
@@ -84,6 +85,7 @@ export default function SettingsModal() {
   const [embedModelMsg, setEmbedModelMsg] = useState('');
   const [embedModelError, setEmbedModelError] = useState(false);
   const [embedModelBusy, setEmbedModelBusy] = useState(false);
+  const [profileName, setProfileName] = useState(getUserName);
 
   useEffect(() => {
     api.settings.opencodeKey.status().then((s) => {
@@ -305,6 +307,29 @@ export default function SettingsModal() {
                       </span>
                     </button>
                   ))}
+                </div>
+              </div>
+              <div className="settings-card">
+                <div className="settings-card-title">Your name</div>
+                <p className="settings-hint">
+                  Used to personalise the greeting on the start screen. Stored only
+                  on this device.
+                </p>
+                <div className="settings-field">
+                  <label htmlFor="settings-user-name">What should we call you?</label>
+                  <input
+                    id="settings-user-name"
+                    className="settings-input"
+                    type="text"
+                    placeholder="e.g. Pakshal"
+                    value={profileName}
+                    maxLength={40}
+                    autoComplete="given-name"
+                    onChange={(e) => {
+                      setProfileName(e.target.value);
+                      setUserName(e.target.value);
+                    }}
+                  />
                 </div>
               </div>
               <div className="settings-card">

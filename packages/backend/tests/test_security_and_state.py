@@ -126,14 +126,14 @@ def test_tool_audit_records_agent_and_session(tmp_path: Path) -> None:
 
 
 def test_risky_tools_require_approval_by_default() -> None:
-    from palimind.agents.catalog import DEFAULT_HITL_THRESHOLD, AgentDefinition
+    from palimind.agents.catalog import AgentDefinition
 
     defn = AgentDefinition.new("approval-default")
-    assert defn.human_in_loop_threshold == DEFAULT_HITL_THRESHOLD
+    assert defn.autonomy_level == "semi"
 
-    # A legacy definition saved with the old implicit 0.0 is upgraded.
+    # A legacy definition saved with the old implicit 0.0 maps to "off".
     legacy = AgentDefinition.from_dict({"name": "legacy", "human_in_loop_threshold": 0.0})
-    assert legacy.human_in_loop_threshold == DEFAULT_HITL_THRESHOLD
+    assert legacy.autonomy_level == "off"
 
     # Explicit opt-out is respected.
     opted_out = AgentDefinition.from_dict(
@@ -143,7 +143,11 @@ def test_risky_tools_require_approval_by_default() -> None:
             "approval_explicit": True,
         }
     )
-    assert opted_out.human_in_loop_threshold == 0.0
+    assert opted_out.autonomy_level == "off"
+
+    # A legacy non-zero threshold maps to semi-autonomous.
+    semi = AgentDefinition.from_dict({"name": "legacy-semi", "human_in_loop_threshold": 0.5})
+    assert semi.autonomy_level == "semi"
 
 
 # ── SQLite state stores ───────────────────────────────────────────────────

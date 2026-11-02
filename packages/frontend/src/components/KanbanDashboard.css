@@ -259,7 +259,6 @@
   background: var(--input-bg);
   border-radius: 3px;
   margin-bottom: 2px;
-  border-left: 2px solid var(--text-muted);
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
@@ -325,7 +324,6 @@
   bottom: 0;
   width: 350px;
   background: var(--panel-bg);
-  border-left: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   z-index: 100;

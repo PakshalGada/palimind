@@ -13,7 +13,7 @@
     padding: 0;
     gap: 0;
     background: var(--sidebar-bg);
-    border-right: 1px solid var(--color-border);
+    border-right: none;
     overflow: hidden;
     font-size: var(--text-base);
     color: var(--color-text-secondary);
@@ -38,10 +38,10 @@
     min-width: 0;
 }
 .sb-wordmark {
-    font-family: var(--font-display);
-    font-size: 0.95rem;
-    font-weight: var(--font-weight-semibold);
-    letter-spacing: -0.02em;
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
     color: var(--color-text-primary);
     white-space: nowrap;
 }
@@ -86,7 +86,7 @@
     margin: 2px 10px 6px;
     padding: 0 8px 0 10px;
     flex: 0 0 auto;
-    border: 1px solid var(--color-border);
+    border: none;
     border-radius: var(--radius-md);
     background: var(--color-surface-raised);
     color: var(--color-text-muted);
@@ -100,7 +100,6 @@
 }
 .sb-search:hover {
     background: var(--color-surface-hover);
-    border-color: var(--color-border-strong);
     color: var(--color-text-primary);
 }
 .sb-search:focus-visible {
@@ -159,7 +158,7 @@
     transform: scale(0.992);
 }
 .sb-nav-item.is-active {
-    background: var(--color-surface-active);
+    background: var(--color-surface-hover);
     color: var(--color-text-primary);
 }
 .sb-nav-item:focus-visible {
@@ -229,12 +228,13 @@
 .sb-section-title {
     font-size: 10px;
     font-weight: var(--font-weight-semibold);
-    letter-spacing: 0.08em;
+    letter-spacing: 0.11em;
     text-transform: uppercase;
     color: var(--color-text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    opacity: 0.9;
 }
 .sb-list {
     display: flex;
@@ -242,6 +242,7 @@
     gap: 1px;
 }
 .sb-row {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -265,7 +266,7 @@
     color: var(--color-text-primary);
 }
 .sb-row.is-active {
-    background: var(--color-surface-active);
+    background: var(--color-surface-hover);
     color: var(--color-text-primary);
     font-weight: var(--font-weight-medium);
 }
@@ -296,7 +297,7 @@
     min-height: 30px;
     margin-top: 4px;
     padding: 5px 9px;
-    border: 1px solid var(--color-border);
+    border: none;
     border-radius: var(--radius-sm);
     background: var(--color-surface-raised);
     color: var(--color-text-secondary);
@@ -341,8 +342,8 @@
     flex: 0 0 auto;
     margin-top: auto;
     padding: 8px;
-    border-top: 1px solid var(--color-border-subtle);
-    background: var(--sidebar-bg);
+    border-top: none;
+    background: transparent;
 }
 .sb-user {
     display: flex;
@@ -490,7 +491,6 @@
     display: flex;
     flex-direction: column;
     padding-left: 12px;
-    border-left: 1px solid var(--color-border);
     margin-left: 4px;
     gap: 1px;
 }

@@ -5,10 +5,19 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+import pytest
+
 from palimind.agents import chat as chatmod
 from palimind.agents import scheduler
 from palimind.agents.catalog import AgentDefinition
 from palimind.memory import session_store
+
+
+@pytest.fixture(autouse=True)
+def _quiet_notifications(monkeypatch) -> None:
+    from palimind.agents import goals
+
+    monkeypatch.setattr(goals, "notify", lambda *_args, **_kwargs: None)
 
 
 def test_post_result_writes_to_agent_session(tmp_path: Path, monkeypatch) -> None:

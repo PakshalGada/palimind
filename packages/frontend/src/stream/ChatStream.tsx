@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { ActivityStore } from '@/components/activity/store';
 import {
   ChatStreamActionsContext,
   ChatStreamContext,
@@ -17,17 +18,18 @@ import './stream.css';
  * just because a token arrived.
  */
 export function ChatStreamProvider({ children }: { children: ReactNode }) {
-  const stream = useChatStream();
+  const activityStore = useMemo(() => new ActivityStore(), []);
+  const stream = useChatStream(activityStore);
   const [videoTarget, setVideoTarget] = useState<VideoTarget | null>(null);
   const openVideo = useCallback((target: VideoTarget) => setVideoTarget(target), []);
   const closeVideo = useCallback(() => setVideoTarget(null), []);
 
-  const { state, send, stop, isStreaming, liveText } = stream;
+  const { state, send, stop, retry, isStreaming, liveText } = stream;
   const stateValue = useMemo<ChatStreamStateValue>(
-    () => ({ state, isStreaming, liveText, openVideo }),
-    [state, isStreaming, liveText, openVideo],
+    () => ({ state, isStreaming, liveText, openVideo, activityStore }),
+    [state, isStreaming, liveText, openVideo, activityStore],
   );
-  const actionsValue = useMemo<ChatStreamActions>(() => ({ send, stop }), [send, stop]);
+  const actionsValue = useMemo<ChatStreamActions>(() => ({ send, stop, retry }), [send, stop, retry]);
 
   return (
     <ChatStreamActionsContext.Provider value={actionsValue}>

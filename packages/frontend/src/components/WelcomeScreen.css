@@ -3,6 +3,7 @@
    ========================================================================== */
 
 .welcome-screen {
+    position: relative;
     flex: 1;
     display: flex;
     align-items: center;
@@ -10,8 +11,22 @@
     text-align: center;
     padding: 40px 24px;
     background: var(--bg-color);
+    overflow: hidden;
+}
+.welcome-screen::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(
+        600px 340px at 50% 38%,
+        var(--color-brand-soft),
+        transparent 72%
+    );
+    opacity: 0.7;
 }
 .welcome-content {
+    position: relative;
     max-width: 680px;
     display: flex;
     flex-direction: column;
@@ -34,10 +49,11 @@
     margin-bottom: 20px;
 }
 .welcome-content h1 {
-    font-size: 2.2rem;
+    font-family: var(--font-heading);
+    font-size: 2rem;
     font-weight: 700;
     margin-bottom: 12px;
-    letter-spacing: -0.03em;
+    letter-spacing: -0.01em;
     color: var(--text-main);
 }
 .welcome-content p {
@@ -56,7 +72,7 @@
 }
 .welcome-feature-card {
     background: var(--panel-bg-2);
-    border: 1px solid var(--border-color);
+    border: none;
     border-radius: var(--radius-lg);
     padding: 18px 16px;
     transition: all 0.2s ease;
@@ -66,8 +82,9 @@
     gap: 8px;
 }
 .welcome-feature-card:hover {
-    border-color: var(--text-main);
+    background: var(--color-surface-hover);
     box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
 }
 .welcome-feature-icon {
     color: var(--text-main);
@@ -141,12 +158,12 @@
     margin-bottom: 2px;
 }
 .welcome-empty .ui-empty__title {
-    font-family: var(--font-display);
-    font-size: clamp(1.9rem, 4vw, 2.5rem);
-    font-weight: var(--font-weight-bold);
-    letter-spacing: -0.035em;
+    font-family: var(--font-heading);
+    font-size: clamp(1.6rem, 3.4vw, 2.15rem);
+    font-weight: 700;
+    letter-spacing: -0.01em;
     color: var(--color-text-primary);
-    line-height: var(--leading-tight);
+    line-height: 1.25;
 }
 .welcome-empty .ui-empty__desc {
     margin-top: -2px;
@@ -179,7 +196,6 @@
 }
 .welcome-feature-card:hover {
     background: var(--color-surface-hover);
-    border-color: var(--color-border-strong);
     box-shadow: var(--shadow-md);
     transform: translateY(-2px);
 }

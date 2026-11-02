@@ -56,7 +56,6 @@
 
 .ag-node {
   border: 1px solid var(--border-color);
-  border-left: 3px solid var(--border-color);
   border-radius: 10px;
   padding: 10px 12px;
   background: var(--bg-color);
@@ -64,16 +63,13 @@
 }
 
 .ag-node--working {
-  border-left-color: var(--accent-color);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-color) 35%, transparent);
 }
 
 .ag-node--complete {
-  border-left-color: #3fb950;
 }
 
 .ag-node--failed {
-  border-left-color: #f85149;
 }
 
 .ag-node__head {

@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BookOpen, ExternalLink, FileText, ShieldCheck } from 'lucide-react';
+import { ExternalLink, FileText } from 'lucide-react';
 import { formatMarkdown } from '../utils/markdown';
 import { annotateCitationMarkers, sourceMap } from '../utils/citations';
 import type { CitationPayload, CitationSource } from '../types';
@@ -20,14 +20,12 @@ function findCitationRef(target: EventTarget | null): HTMLElement | null {
 export default function MessageContent({
   content,
   citations,
-  sources,
   messageIndex,
   streaming = false,
   onOpenArtifact,
 }: {
   content: string;
   citations?: CitationPayload;
-  sources?: string[];
   messageIndex?: number;
   streaming?: boolean;
   onOpenArtifact?: (artifactId: string) => void;
@@ -78,12 +76,10 @@ export default function MessageContent({
         window.open(source.url, '_blank', 'noopener,noreferrer');
         return;
       }
-      const el = document.getElementById(`citation-source-${marker}`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.add('citation-source-flash');
-        window.setTimeout(() => el.classList.remove('citation-source-flash'), 1400);
-      }
+      // The sources list owns the expanded passage; ask it to reveal the row.
+      window.dispatchEvent(
+        new CustomEvent('palimind:focus-citation', { detail: { marker } }),
+      );
     },
     [sourceLookup],
   );
@@ -145,6 +141,15 @@ export default function MessageContent({
     if (Number.isFinite(marker)) activate(marker);
   };
 
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const ref = findCitationRef(e.target);
+    if (!ref) return;
+    e.preventDefault();
+    const marker = Number(ref.getAttribute('data-citation'));
+    if (Number.isFinite(marker)) activate(marker);
+  };
+
   const onMouseOver = (e: React.MouseEvent) => {
     const ref = findCitationRef(e.target);
     if (!ref) return;
@@ -152,21 +157,25 @@ export default function MessageContent({
     if (!Number.isFinite(marker) || !sourceLookup.has(marker)) return;
     const rect = ref.getBoundingClientRect();
     setHover({ marker, x: rect.left, y: rect.bottom + 8 });
+    window.dispatchEvent(new CustomEvent('palimind:hover-citation', { detail: { marker } }));
   };
 
   const onMouseOut = (e: React.MouseEvent) => {
-    if (findCitationRef(e.target)) setHover(null);
+    if (findCitationRef(e.target)) {
+      setHover(null);
+      window.dispatchEvent(new CustomEvent('palimind:hover-citation', { detail: { marker: null } }));
+    }
   };
 
   const hoverSource: CitationSource | undefined = hover ? sourceLookup.get(hover.marker) : undefined;
-  const citedSources = citations?.sources ?? [];
 
   return (
     <>
       <div
         ref={contentRef}
-        className="message-content"
+        className={`message-content${streaming ? ' is-streaming' : ''}`}
         onClick={onClick}
+        onKeyDown={onKeyDown}
         onMouseOver={onMouseOver}
         onMouseOut={onMouseOut}
         dangerouslySetInnerHTML={{ __html: html }}
@@ -190,7 +199,7 @@ export default function MessageContent({
             {!hoverSource.url && hoverSource.file && (
               <div className="citation-popover-url">
                 {hoverSource.file}
-                {hoverSource.section ? ` → ${hoverSource.section}` : ''}
+                {hoverSource.section ? ` / ${hoverSource.section}` : ''}
               </div>
             )}
             {hoverSource.snippet && (
@@ -199,67 +208,6 @@ export default function MessageContent({
           </div>,
           document.body,
         )}
-
-      {citations && citedSources.length > 0 && (
-        <details className="citation-bibliography" open>
-          <summary className="citation-bibliography-summary">
-            <BookOpen size={13} />
-            <span>
-              Sources ({citedSources.length})
-            </span>
-            {typeof citations.accuracy === 'number' && (
-              <span
-                className="citation-accuracy"
-                title="How well the answer is grounded in the cited sources"
-              >
-                <ShieldCheck size={12} /> {Math.round(citations.accuracy * 100)}% grounded
-              </span>
-            )}
-          </summary>
-          <ol className="citation-source-list">
-            {citedSources.map((source) => {
-              const cited = citations.cited_markers?.includes(source.marker);
-              return (
-                <li
-                  key={source.marker}
-                  id={`citation-source-${source.marker}`}
-                  className={`citation-source-item${cited ? ' is-cited' : ''}`}
-                >
-                  <span className="citation-source-marker">[{source.marker}]</span>
-                  <span className="citation-source-body">
-                    {source.url ? (
-                      <a href={source.url} target="_blank" rel="noopener noreferrer">
-                        {source.title}
-                      </a>
-                    ) : (
-                      <span className="citation-source-title">{source.title}</span>
-                    )}
-                    {!source.url && source.file && (
-                      <span className="citation-source-path">
-                        {source.file}
-                        {source.section ? ` → ${source.section}` : ''}
-                      </span>
-                    )}
-                    {source.snippet && (
-                      <span className="citation-source-snippet">{source.snippet}</span>
-                    )}
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
-        </details>
-      )}
-
-      {!citations && sources && sources.length > 0 && (
-        <div className="legacy-sources">
-          {sources.map((s) => (
-            <span key={s} className="legacy-source-chip" title={s}>
-              {s.split(/[\\/]/).pop()}
-            </span>
-          ))}
-        </div>
-      )}
     </>
   );
 }

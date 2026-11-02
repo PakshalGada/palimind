@@ -1,6 +1,9 @@
 import { startTransition, useCallback, useEffect, useReducer, useRef } from 'react';
-import { useActivity, useApp } from '../AppContext';
-import { createActivityTracker, type ActivityInfo } from './activity';
+import { useApp } from '../AppContext';
+import { modeFromActivityMode } from '@/components/activity/adaptRun';
+import { RunRecorder } from '@/components/activity/recorder';
+import type { ActivityStore } from '@/components/activity/store';
+import type { ActivityInfo } from './activity';
 import { streamReducer } from './reducer';
 import {
   citationPayloadFromEvent,
@@ -14,11 +17,6 @@ import {
 const FLUSH_MS = 64;
 const FLUSH_TOKENS = 4;
 
-/**
- * Re-parsing markdown is linear in the answer length, so a fixed 64ms cadence
- * makes a long answer quadratic over the course of the stream. Slow the flush
- * as the buffer grows: short answers stay smooth, long ones stop janking.
- */
 function flushIntervalFor(length: number): number {
   if (length > 12_000) return 220;
   if (length > 4_000) return 130;
@@ -26,9 +24,7 @@ function flushIntervalFor(length: number): number {
 }
 
 export interface SendRequest {
-  /** Query sent to the backend (may be empty for attachments-only sends). */
   text: string;
-  /** Text echoed in the live user bubble (defaults to `text`). */
   userText?: string;
   mode: 'llm' | 'document';
   scope: string;
@@ -43,25 +39,18 @@ export interface ChatStream {
   state: StreamState;
   send: (request: SendRequest) => void;
   stop: () => void;
+  retry: () => void;
   isStreaming: boolean;
-  /** Current assistant text (throttled) — used by the artifact panel. */
   liveText: string;
 }
 
 /**
  * Owns the chat EventSource, the accumulated stream state and the throttled
- * markdown flush. Rendering lives in the stream components; this hook only
- * turns events into state.
+ * markdown flush. Activity events are forwarded to the shared normalized store;
+ * rendering lives in the activity surface.
  */
-export function useChatStream(): ChatStream {
+export function useChatStream(activityStore: ActivityStore): ChatStream {
   const { setIsGenerating, refreshSessions } = useApp();
-  const {
-    setThinkingText,
-    setAgentStates,
-    setAgentLoading,
-    setActivity,
-  } = useActivity();
-
   const [state, dispatch] = useReducer(streamReducer, initialStreamState);
 
   const sourceRef = useRef<EventSource | null>(null);
@@ -71,8 +60,8 @@ export function useChatStream(): ChatStream {
   const rawRef = useRef('');
   const lastFlushAt = useRef(0);
   const tokensSinceFlush = useRef(0);
-  /** Bumped per send so stale refresh callbacks cannot reset a newer stream. */
   const streamIdRef = useRef(0);
+  const lastRequestRef = useRef<SendRequest | null>(null);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -93,7 +82,6 @@ export function useChatStream(): ChatStream {
     sourceRef.current = null;
   }, []);
 
-  /** Push the accumulated raw text into React state, throttled. */
   const flushAnswer = useCallback(
     (force = false) => {
       tokensSinceFlush.current += 1;
@@ -104,10 +92,6 @@ export function useChatStream(): ChatStream {
         now - lastFlushAt.current >= interval ||
         tokensSinceFlush.current >= FLUSH_TOKENS;
 
-      // Markdown render is expensive, so keep it interruptible: typing in the
-      // composer must stay responsive even while a long answer re-parses.
-      // The stream id guard stops a queued transition from an old turn from
-      // overwriting the next turn's answer.
       const scheduledFor = streamIdRef.current;
       const commit = () => {
         if (streamIdRef.current !== scheduledFor) return;
@@ -136,7 +120,6 @@ export function useChatStream(): ChatStream {
     [clearFlushTimer],
   );
 
-  // Close any connection on unmount.
   useEffect(() => {
     return () => {
       sourceRef.current?.close();
@@ -152,6 +135,7 @@ export function useChatStream(): ChatStream {
 
   const send = useCallback(
     (request: SendRequest) => {
+      lastRequestRef.current = request;
       closeSource();
       clearTimer();
       clearFlushTimer();
@@ -160,6 +144,12 @@ export function useChatStream(): ChatStream {
       const resetIfCurrent = () => {
         if (streamIdRef.current === streamId) dispatch({ type: 'reset' });
       };
+
+      const mode = modeFromActivityMode(request.activity.mode);
+      const runId = `run-${streamId}`;
+      const recorder = new RunRecorder(activityStore, mode);
+      activityStore.reset(null);
+      recorder.start(runId, request.activity.title);
 
       rawRef.current = '';
       lastFlushAt.current = 0;
@@ -170,48 +160,22 @@ export function useChatStream(): ChatStream {
         sessionId: request.sessionId,
       });
       setIsGenerating(true);
-      setThinkingText('Analyzing your request...');
-      setAgentStates([]);
-      setAgentLoading(null);
 
-      const tracker = createActivityTracker(setActivity);
-      tracker.reset(request.activity);
-      if (request.agentLoading) setAgentLoading(request.agentLoading);
-
-      let thinkingBase = 'Analyzing your request';
-      let reasoningStarted = false;
-      let agentsStarted = false;
-      const startedAgents = new Set<number>();
       let answerStarted = false;
       let thoughtDuration: string | null = null;
       const startTime = Date.now();
 
-      const addStep = (kind: string, title: string, detail = '') => {
-        thinkingBase = title;
-        tracker.addStep(kind, title, detail);
-      };
-      const addAgentStep = (aid: number, title: string, detail = '') => {
-        thinkingBase = title;
-        tracker.addAgentStep(aid, title, detail);
-      };
       const beginAnswer = () => {
         if (answerStarted) return;
         answerStarted = true;
-        tracker.completeActive();
-        addStep('answer', 'Answer');
+        recorder.beginAnswer();
         clearTimer();
-        setThinkingText('');
         if (thoughtDuration === null) {
           thoughtDuration = `${((Date.now() - startTime) / 1000).toFixed(1)}s`;
           dispatch({ type: 'setDuration', duration: thoughtDuration });
         }
         dispatch({ type: 'answerStarted' });
       };
-
-      timerRef.current = setInterval(() => {
-        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-        setThinkingText(`${thinkingBase} ${elapsed}s`);
-      }, 500);
 
       const params = new URLSearchParams({
         q: request.text,
@@ -222,7 +186,9 @@ export function useChatStream(): ChatStream {
       if (request.sessionId) params.set('session_id', request.sessionId);
       if (request.files?.length) params.set('files', request.files.join(','));
 
-      const eventSource = new EventSource(`/api/chat?${params.toString()}`, { withCredentials: true });
+      const eventSource = new EventSource(`/api/chat?${params.toString()}`, {
+        withCredentials: true,
+      });
       sourceRef.current = eventSource;
 
       let finalized = false;
@@ -235,12 +201,10 @@ export function useChatStream(): ChatStream {
         closeSource();
         clearTimer();
         clearFlushTimer();
-        setThinkingText('');
-        setAgentStates([]);
-        setAgentLoading(null);
-        setActivity(null);
+        flushAnswer(true);
         setIsGenerating(false);
-        dispatch({ type: 'reset' });
+        recorder.end('stopped');
+        dispatch({ type: 'finish', status: 'done' });
         void refreshSessions().then(resetIfCurrent);
       });
 
@@ -251,16 +215,14 @@ export function useChatStream(): ChatStream {
         clearFlushTimer();
         flushAnswer(true);
         closeSource();
-        setThinkingText('');
-        setAgentStates([]);
-        setAgentLoading(null);
-        setActivity(null);
         setIsGenerating(false);
+        recorder.end(status);
         dispatch({ type: 'finish', status });
         void refreshSessions().then(resetIfCurrent);
       };
 
       const handleEvent = (event: StreamEvent) => {
+        recorder.observe(event);
         switch (event.type) {
           case 'research_plan':
             window.dispatchEvent(
@@ -298,131 +260,8 @@ export function useChatStream(): ChatStream {
             break;
           }
 
-          case 'reasoning': {
-            const text = String(event.text ?? '').replace(/[>*_]/g, '').trim();
-            setThinkingText(text);
-            tracker.completeActive();
-            addStep(tracker.reasonKind(text), text);
-            break;
-          }
-
-          case 'thinking': {
-            const text = String(event.text ?? '').trim();
-            if (!text) break;
-            dispatch({ type: 'appendThinking', text });
-            if (!reasoningStarted) {
-              tracker.completeActive();
-              addStep('reason', 'Reasoning');
-              reasoningStarted = true;
-            }
-            tracker.setActiveDetail(text);
-            break;
-          }
-
-          case 'progress':
-            setThinkingText(String(event.text ?? ''));
-            break;
-
-          case 'agent_progress': {
-            const aid = event.agent_id;
-            setAgentStates((prev) => {
-              const existing = prev.find((a) => a.agent_id === aid);
-              if (existing) {
-                return prev.map((a) =>
-                  a.agent_id === aid
-                    ? {
-                        ...a,
-                        status: event.status || a.status,
-                        task: event.task || a.task,
-                      }
-                    : a,
-                );
-              }
-              return [
-                ...prev,
-                {
-                  agent_id: aid,
-                  label: event.label || `Agent ${aid}`,
-                  task: event.task || '',
-                  status: event.status || 'working',
-                  steps: [],
-                },
-              ];
-            });
-            if ((event.status || 'working') === 'complete') {
-              tracker.completeAgentStep(aid);
-            } else if (!startedAgents.has(aid)) {
-              startedAgents.add(aid);
-              if (!agentsStarted) {
-                agentsStarted = true;
-                tracker.completeActive();
-              }
-              addAgentStep(aid, event.label || `Agent ${aid}`, event.task || '');
-            }
-            break;
-          }
-
-          case 'agent_thinking': {
-            const aid = event.agent_id;
-            const step = String(event.text ?? '');
-            setAgentStates((prev) =>
-              prev.map((a) =>
-                a.agent_id === aid ? { ...a, steps: [...a.steps, step] } : a,
-              ),
-            );
-            tracker.appendAgentChild(aid, step);
-            break;
-          }
-
-          case 'agent:thought': {
-            const text = String(event.text ?? '').replace(/\s+/g, ' ').trim();
-            if (text && !text.startsWith('FINAL_ANSWER')) {
-              setThinkingText(text.slice(0, 90));
-              tracker.completeActive();
-              addStep('thought', 'Thinking', text.slice(0, 400));
-            }
-            break;
-          }
-
-          case 'agent:tool_call':
-            setThinkingText(`Using tool: ${String(event.tool || '…')}`);
-            tracker.completeActive();
-            addStep(
-              'tool',
-              String(event.tool || 'tool'),
-              event.args != null ? JSON.stringify(event.args) : '',
-            );
-            break;
-
-          case 'agent:effort':
-            if (event.level) {
-              addStep(
-                'effort',
-                'Reasoning effort',
-                `${event.level} ${event.indicator || ''}`.trim(),
-              );
-            }
-            break;
-
           case 'agent:plan':
-            window.dispatchEvent(
-              new CustomEvent('palimind:plan-pending', { detail: event }),
-            );
-            addStep('plan', 'Plan', `${event.steps?.length || 0} steps`);
-            break;
-
-          case 'agent:verification': {
-            const report = event.report || {};
-            addStep(
-              'verification',
-              'Verification',
-              `${report.passed ? 'passed' : 'needs attention'} · ${Math.round((report.confidence || 0) * 100)}%`,
-            );
-            break;
-          }
-
-          case 'agent:needs_review':
-            addStep('review', 'Human review suggested', 'Low-confidence result');
+            window.dispatchEvent(new CustomEvent('palimind:plan-pending', { detail: event }));
             break;
 
           case 'orchestrator':
@@ -434,7 +273,6 @@ export function useChatStream(): ChatStream {
           case 'agent:completed': {
             beginAnswer();
             clearTimer();
-            setThinkingText('');
             const output = String(event.output ?? '').trim();
             if (output) {
               rawRef.current = output;
@@ -442,22 +280,6 @@ export function useChatStream(): ChatStream {
             }
             break;
           }
-
-          case 'agent:waiting_for_human':
-            setThinkingText(`Awaiting approval: ${event.tool || 'action'}`);
-            tracker.completeActive();
-            addStep('approval', 'Approval required', String(event.tool || ''));
-            dispatch({
-              type: 'setApproval',
-              approval: {
-                agentId: String(event.agent_id ?? ''),
-                tool: String(event.tool || 'action'),
-                args: event.args,
-                confidence: event.confidence,
-                reasoning: event.reasoning,
-              },
-            });
-            break;
 
           case 'agent:token':
             if (event.reset) {
@@ -489,11 +311,6 @@ export function useChatStream(): ChatStream {
 
           case 'error':
             clearTimer();
-            setThinkingText('');
-            setAgentStates([]);
-            setAgentLoading(null);
-            setActivity(null);
-            dispatch({ type: 'error', text: String(event.text ?? 'Unknown error') });
             finalize('error');
             break;
 
@@ -521,24 +338,19 @@ export function useChatStream(): ChatStream {
         finalize('error');
       };
     },
-    [
-      closeSource,
-      clearTimer,
-      clearFlushTimer,
-      flushAnswer,
-      refreshSessions,
-      setActivity,
-      setAgentLoading,
-      setAgentStates,
-      setIsGenerating,
-      setThinkingText,
-    ],
+    [activityStore, closeSource, clearTimer, clearFlushTimer, flushAnswer, refreshSessions, setIsGenerating],
   );
+
+  const retry = useCallback(() => {
+    const request = lastRequestRef.current;
+    if (request) send(request);
+  }, [send]);
 
   return {
     state,
     send,
     stop,
+    retry,
     isStreaming: state.status === 'streaming',
     liveText: state.answer,
   };

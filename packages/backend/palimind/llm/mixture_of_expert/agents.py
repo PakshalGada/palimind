@@ -157,6 +157,15 @@ RISKY_TOOLS = {
     "browser_press",
 }
 
+# Irreversible / externally-visible actions used by "high autonomy".
+HIGH_RISK_TOOLS = {
+    "run_shell",
+    "run_python",
+    "browser_click",
+    "browser_type",
+    "browser_press",
+}
+
 # Definition-less (MoE) runs may not silently mutate the workspace: these
 # require an approval flow. Isolated compute (run_python) stays allowed.
 MOE_MUTATION_TOOLS = {"write_file", "search_replace", "run_shell"}
@@ -234,13 +243,32 @@ def _gate_tool(
         ):
             return f"Access denied: this agent does not have shell_access ('{tool_name}' blocked)"
 
-        threshold = float(getattr(definition, "human_in_loop_threshold", 0.0) or 0.0)
-        if threshold > 0 and tool_name in RISKY_TOOLS:
+        # Autonomy gate.
+        autonomy = str(getattr(definition, "autonomy_level", "") or "")
+        if not autonomy:
+            # Backward compatibility for legacy definition-like objects.
+            try:
+                legacy_threshold = float(
+                    getattr(definition, "human_in_loop_threshold", 0.0) or 0.0
+                )
+            except (TypeError, ValueError):
+                legacy_threshold = 0.0
+            autonomy = "off" if legacy_threshold <= 0 else "semi"
+        if autonomy == "off":
+            return None
+        if autonomy == "supervised":
+            needs_approval = True
+        elif autonomy == "high":
+            needs_approval = _tool_tier(tool_name) >= 3 or tool_name in HIGH_RISK_TOOLS
+        else:  # semi-autonomous (default)
+            needs_approval = tool_name in RISKY_TOOLS or _tool_tier(tool_name) >= 2
+
+        if needs_approval:
             if approval_provider is None:
                 return (
-                    f"Access denied: '{tool_name}' is a risky tool and this run has no "
-                    "approval channel. Start it from the UI (or disable the approval "
-                    "gate explicitly on the agent)."
+                    f"Access denied: '{tool_name}' needs human approval under this "
+                    "agent's autonomy level, but this run has no approval channel. "
+                    "Start it from the UI or lower the autonomy requirement."
                 )
             return _request_approval(tool_name, tool_args, approval_provider, response)
         return None

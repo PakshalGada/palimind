@@ -49,6 +49,12 @@ export interface ActivityStep {
   kind: string;
   title: string;
   detail?: string;
+  /** Raw tool name for tool steps, when the backend supplied one. */
+  tool?: string;
+  /** Compact human summary of a tool's output, set by agent:tool_result. */
+  result?: string;
+  startedAt?: number;
+  completedAt?: number;
   status: ActivityStatus;
   children?: ActivityStep[];
 }
@@ -76,7 +82,7 @@ interface AppState {
   activeField: string | null;
   activeProjectId: string | null;
   activeSessionId: string | null;
-  sessions: { id: string; name: string; messages: { role: string; content: string; sources?: string[]; citations?: CitationPayload }[] }[];
+  sessions: { id: string; name: string; created_at?: number; messages: { role: string; content: string; timestamp?: number; sources?: string[]; citations?: CitationPayload }[] }[];
   selectedFiles: Set<string>;
   chatMode: ChatMode;
   isGenerating: boolean;

@@ -120,7 +120,6 @@
 }
 
 .tm-notif.is-unread {
-  border-left: 3px solid var(--accent-color);
 }
 
 .tm-notif__text {

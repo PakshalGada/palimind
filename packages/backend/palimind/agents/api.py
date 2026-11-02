@@ -25,13 +25,16 @@ from palimind.llm.mixture_of_expert.tools import TOOL_REGISTRY, _register_plugin
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
+_background_tasks: set[asyncio.Task] = set()
+
 
 def _agent_item(defn: AgentDefinition) -> dict[str, Any]:
-    from palimind.agents.runtime import is_running
+    from palimind.agents.runtime import is_running, running_count
 
     item = defn.to_dict()
     last = get_last_run(defn.id)
     item["running"] = is_running(defn.id)
+    item["active_runs"] = running_count(defn.id)
     item["last_run_status"] = last.get("status") if last else None
     item["last_run_at"] = last.get("timestamp") if last else None
     return item
@@ -53,8 +56,10 @@ async def create_agent(req: Request):
         defn = AgentDefinition.from_dict(body)
         saved = get_registry().create(defn)
         return _agent_item(saved)
-    except Exception:
-        return {"error": "Failed to create agent"}
+    except ValueError as e:
+        return {"error": str(e) or "Invalid agent definition"}
+    except Exception as e:
+        return {"error": f"Failed to create agent: {e}"}
 
 
 @router.patch("/{agent_id}")
@@ -63,8 +68,12 @@ async def update_agent(agent_id: str, req: Request):
     try:
         saved = get_registry().update(agent_id, changes)
         return _agent_item(saved)
-    except Exception:
-        return {"error": "Failed to update agent"}
+    except ValueError as e:
+        return {"error": str(e) or "Invalid agent definition"}
+    except KeyError:
+        return {"error": "Agent not found"}
+    except Exception as e:
+        return {"error": f"Failed to update agent: {e}"}
 
 
 @router.delete("/all")
@@ -533,7 +542,9 @@ async def agent_webhook(token: str, req: Request):
     payload = str(body.get("input") or body.get("q") or "").strip() or "Run your task."
     from palimind.agents.service import run_agent
 
-    output = await run_agent(defn, payload, session_id="_webhook")
+    output = await run_agent(
+        defn, payload, session_id="_webhook", interactive=False
+    )
     return {"status": "success", "output": output}
 
 
@@ -596,6 +607,17 @@ async def agent_history(agent_id: str, limit: int = 50):
     return {"history": history}
 
 
+@router.delete("/{agent_id}/runs")
+async def clear_agent_runs(agent_id: str):
+    from palimind.storage import state_store
+
+    try:
+        state_store.delete_runs(agent_id)
+        return {"status": "success"}
+    except Exception:
+        return {"error": "Failed to clear run history"}
+
+
 @router.get("/{agent_id}/runs/{run_id}")
 async def agent_run_detail(agent_id: str, run_id: str):
     record = get_run(agent_id, run_id)
@@ -619,6 +641,14 @@ async def run_agent(agent_id: str, req: Request):
 
         return StreamingResponse(err_stream(), media_type="text/event-stream")
 
+    if not defn.enabled:
+
+        async def err_stream():
+            yield 'data: {"type": "error", "text": "Agent is disabled"}\n\n'
+            yield 'data: {"type": "done"}\n\n'
+
+        return StreamingResponse(err_stream(), media_type="text/event-stream")
+
     async def gen():
         import json
 
@@ -627,6 +657,41 @@ async def run_agent(agent_id: str, req: Request):
         yield 'data: {"type": "done"}\n\n'
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@router.post("/{agent_id}/run-now")
+async def run_agent_now(agent_id: str, req: Request):
+    """Start a manual background run (no approval prompts) and return at once."""
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    agent_input = str((body or {}).get("input", "")).strip() or "Run your task."
+    defn = get_registry().get_by_id(agent_id)
+    if defn is None:
+        return {"error": "Agent not found"}
+    if not defn.enabled:
+        return {"error": "Agent is disabled"}
+
+    from palimind.agents.scheduler import post_result
+    from palimind.agents.service import run_agent as run_once
+
+    async def _run():
+        try:
+            output = await run_once(
+                defn, agent_input, session_id="_manual", interactive=False
+            )
+            await post_result(defn, output, "success", "manual")
+        except asyncio.CancelledError:
+            await post_result(defn, "[cancelled]", "cancelled", "manual")
+            raise
+        except Exception as e:
+            await post_result(defn, f"[error] {e}", "error", "manual")
+
+    task = asyncio.create_task(_run())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return {"status": "started"}
 
 
 @router.post("/{agent_id}/orchestrate")
@@ -647,6 +712,14 @@ async def orchestrate_agent(agent_id: str, req: Request):
 
         async def err_stream():
             yield agent_sse("error", {"text": "Agent not found"})
+            yield agent_sse("done", {})
+
+        return StreamingResponse(err_stream(), media_type="text/event-stream")
+
+    if not defn.enabled:
+
+        async def err_stream():
+            yield agent_sse("error", {"text": "Agent is disabled"})
             yield agent_sse("done", {})
 
         return StreamingResponse(err_stream(), media_type="text/event-stream")
@@ -679,10 +752,33 @@ async def delete_agent_chat(agent_id: str):
     return {"status": "success"}
 
 
+@router.delete("/{agent_id}/sessions")
+async def clear_agent_sessions(agent_id: str):
+    """Clear the agent's private conversation store (not its workspace)."""
+    import shutil
+
+    from palimind.agents.chat import agent_session_root
+
+    try:
+        root = agent_session_root(agent_id)
+        shutil.rmtree(root / ".palimind", ignore_errors=True)
+        clear_chat(agent_id)
+        return {"status": "success"}
+    except Exception:
+        return {"error": "Failed to clear agent conversation"}
+
+
 @router.post("/{agent_id}/cancel")
-async def cancel(agent_id: str):
-    ok = cancel_agent(agent_id)
-    return {"status": "cancelled" if ok else "not_running"}
+async def cancel(agent_id: str, req: Request):
+    run_id = ""
+    try:
+        body = await req.json()
+        if isinstance(body, dict):
+            run_id = str(body.get("run_id", "") or "")
+    except Exception:
+        run_id = ""
+    count = cancel_agent(agent_id, run_id or None)
+    return {"status": "cancelled" if count else "not_running", "cancelled": count}
 
 
 @router.post("/{agent_id}/approve")
@@ -690,5 +786,6 @@ async def approve(agent_id: str, req: Request):
     body = await req.json()
     approved = bool(body.get("approved", False))
     correction = str(body.get("correction", ""))
-    ok = await resolve_approval(agent_id, approved, correction)
+    run_id = str(body.get("run_id", "") or "")
+    ok = await resolve_approval(agent_id, approved, correction, run_id or None)
     return {"status": "ok" if ok else "no_pending"}

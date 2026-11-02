@@ -604,6 +604,12 @@ async def startup_event():
         print(f"[startup] canvas → artifact migration failed: {exc}")
 
     set_registry_field(state.active_field)
+    try:
+        from palimind.agents.lifecycle import remove_legacy_presets
+
+        await asyncio.to_thread(remove_legacy_presets)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[startup] preset cleanup failed: {exc}")
     start_scheduler(state.loop)
     start_runner()
 

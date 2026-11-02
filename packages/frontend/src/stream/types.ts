@@ -24,6 +24,7 @@ export interface VerificationReport {
 
 export interface ApprovalPrompt {
   agentId: string;
+  runId?: string;
   tool: string;
   args?: unknown;
   confidence?: number;
@@ -74,6 +75,7 @@ export type StreamEvent =
   | {
       type: 'agent:waiting_for_human';
       agent_id?: number | string;
+      run_id?: string;
       tool?: string;
       args?: unknown;
       confidence?: number;
@@ -97,6 +99,8 @@ export interface StreamState {
   /** Echoed user prompt (also used to hide the live turn on session switch). */
   userText: string;
   sessionId: string | null;
+  /** Epoch ms when this run started; used for live elapsed labels. */
+  startedAt: number | null;
   /** Throttled display buffer; the raw buffer is kept by the stream engine. */
   answer: string;
   thinking: string;
@@ -116,6 +120,7 @@ export const initialStreamState: StreamState = {
   status: 'idle',
   userText: '',
   sessionId: null,
+  startedAt: null,
   answer: '',
   thinking: '',
   sources: [],

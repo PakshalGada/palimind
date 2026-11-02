@@ -63,26 +63,26 @@
 
 :root {
   --hljs-fg: #d4d4d4;
-  --hljs-comment: #6a9955;
-  --hljs-keyword: #569cd6;
-  --hljs-type: #4ec9b0;
-  --hljs-string: #ce9178;
-  --hljs-number: #b5cea8;
-  --hljs-function: #dcdcaa;
-  --hljs-attr: #9cdcfe;
-  --hljs-tag: #569cd6;
-  --hljs-deletion: #f14c4c;
+  --hljs-comment: #727272;
+  --hljs-keyword: #f4f4f4;
+  --hljs-type: #c5c5c5;
+  --hljs-string: #a2a2a2;
+  --hljs-number: #d4d4d4;
+  --hljs-function: #e4e4e4;
+  --hljs-attr: #b5b5b5;
+  --hljs-tag: #d4d4d4;
+  --hljs-deletion: #8c8c8c;
 }
 
 .light-mode {
-  --hljs-fg: #24292e;
-  --hljs-comment: #6a737d;
-  --hljs-keyword: #d73a49;
-  --hljs-type: #22863a;
-  --hljs-string: #032f62;
-  --hljs-number: #005cc5;
-  --hljs-function: #6f42c1;
-  --hljs-attr: #005cc5;
-  --hljs-tag: #22863a;
-  --hljs-deletion: #b31d28;
+  --hljs-fg: #282828;
+  --hljs-comment: #8c8c8c;
+  --hljs-keyword: #090909;
+  --hljs-type: #272727;
+  --hljs-string: #535353;
+  --hljs-number: #181818;
+  --hljs-function: #181818;
+  --hljs-attr: #404040;
+  --hljs-tag: #272727;
+  --hljs-deletion: #727272;
 }
