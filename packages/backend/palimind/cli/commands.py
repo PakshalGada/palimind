@@ -396,20 +396,38 @@ def ui(
         if not port_up(port):
             from palimind.settings import SERVER_HOST
 
+            import tempfile
+
             print_info(f"Starting API server on :{port}...")
-            backend_proc = spawn(
-                [
-                    sys.executable,
-                    "-m",
-                    "palimind.api_server",
-                    "--host",
-                    SERVER_HOST,
-                    "--port",
-                    str(port),
-                ],
-            )
+            # Keep the server's output so a startup failure can be explained
+            # instead of only reporting "failed to start".
+            server_log = Path(tempfile.gettempdir()) / "palimind-api-server.log"
+            server_log_fh = open(server_log, "wb")  # noqa: SIM115 - closed below
+            try:
+                backend_proc = spawn(
+                    [
+                        sys.executable,
+                        "-m",
+                        "palimind.api_server",
+                        "--host",
+                        SERVER_HOST,
+                        "--port",
+                        str(port),
+                    ],
+                    stdout=server_log_fh,
+                    stderr=subprocess.STDOUT,
+                )
+            finally:
+                server_log_fh.close()  # the child keeps its own handle
             if not wait_port(port, 60, backend_proc):
                 print_error(f"API server failed to start on :{port}")
+                try:
+                    tail = server_log.read_text(errors="replace").strip().splitlines()[-20:]
+                except OSError:
+                    tail = []
+                for line in tail:
+                    print_info(f"  {line}")
+                print_info(f"Full server log: {server_log}")
                 raise typer.Exit(1)
             print_success(f"API server running on :{port} ({SERVER_HOST})")
         else:
