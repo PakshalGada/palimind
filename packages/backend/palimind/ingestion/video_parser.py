@@ -20,14 +20,19 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 _ffmpeg_checked = False
+_ffmpeg_found = False
 _whisper_models: dict[str, object] = {}
 
 
 def ffmpeg_available() -> bool:
-    global _ffmpeg_checked
-    if not _ffmpeg_checked:
+    global _ffmpeg_checked, _ffmpeg_found
+    if not _ffmpeg_checked or not _ffmpeg_found:
+        # Cache only a positive result: a cached "checked" flag after a miss
+        # used to make every later call pass, so subprocess then raised
+        # FileNotFoundError and aborted the whole indexing run.
         _ffmpeg_checked = True
-        if shutil.which("ffmpeg") is None:
+        _ffmpeg_found = shutil.which("ffmpeg") is not None
+        if not _ffmpeg_found:
             raise RuntimeError(
                 "ffmpeg not found on PATH. Install it to enable video indexing "
                 "(e.g. 'sudo pacman -S ffmpeg' or 'sudo apt install ffmpeg')."
@@ -72,11 +77,18 @@ def extract_audio(video_path: Path) -> Path:
         tmp.name,
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+        except subprocess.TimeoutExpired as e:
+            raise RuntimeError(f"ffmpeg audio extraction timed out for {video_path}") from e
+        except OSError as e:
+            raise RuntimeError(f"ffmpeg could not be run: {e}") from e
         if result.returncode != 0:
             raise RuntimeError(f"ffmpeg failed: {result.stderr.strip()[:500]}")
-    except subprocess.TimeoutExpired as e:
-        raise RuntimeError(f"ffmpeg audio extraction timed out for {video_path}") from e
+    except RuntimeError:
+        # Don't leak the temp WAV when extraction fails.
+        Path(tmp.name).unlink(missing_ok=True)
+        raise
     return Path(tmp.name)
 
 

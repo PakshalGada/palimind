@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree
 
-from palimind.exceptions import ParseError
+from palimind.exceptions import OCRError, ParseError
 from palimind.ingestion.ocr import extract_text_from_image
 
 
@@ -13,14 +13,20 @@ def parse_pdf(file_path: Path) -> str:
     import pymupdf  # PyMuPDF (heavy; imported lazily)
 
     text_content: list[str] = []
+    doc: Any = None
     try:
-        doc: Any = pymupdf.open(file_path)
+        doc = pymupdf.open(file_path)
         for page_no, page in enumerate(doc, start=1):
             page_text = page.get_text("text").strip()
             if not page_text:
                 pix = page.get_pixmap()
                 image_bytes = pix.tobytes("png")
-                page_text = extract_text_from_image(image_bytes)
+                try:
+                    page_text = extract_text_from_image(image_bytes)
+                except OCRError:
+                    # OCR is optional (easyocr may be missing / failing): skip
+                    # this image-only page rather than dropping the whole PDF.
+                    page_text = ""
 
             if page_text:
                 text_content.append(f"[Page {page_no}]\n{page_text}")
@@ -28,6 +34,9 @@ def parse_pdf(file_path: Path) -> str:
         raise
     except Exception as e:
         raise ParseError(f"Error parsing PDF {file_path}: {e}") from e
+    finally:
+        if doc is not None:
+            doc.close()
 
     return "\n\n".join(text_content)
 

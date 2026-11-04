@@ -117,9 +117,14 @@ def extract_chunks(file_path: Path, root: Path, config: dict) -> list[RichChunk]
             raise ParseError(f"Error parsing document {file_path}: {e}") from e
     elif ext in config["extensions"]:
         try:
-            text = file_path.read_text(encoding="utf-8")
+            raw = file_path.read_bytes()
         except OSError as e:
             raise ParseError(f"Error reading text file {file_path}: {e}") from e
+        # Non-UTF-8 text (latin-1, cp1252, …) must not abort the whole run.
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            text = raw.decode("utf-8", errors="replace")
 
     if not text:
         return []
@@ -344,7 +349,21 @@ def _update_index_locked(
                         future_to_info[fut] = rel_path
 
                     for fut in as_completed(future_to_info):
-                        parse_results.append(fut.result())
+                        try:
+                            parse_results.append(fut.result())
+                        except Exception as e:
+                            # One unparseable file must never abort the whole run.
+                            parse_results.append(
+                                {
+                                    "rel_path": future_to_info[fut],
+                                    "md5": "",
+                                    "error": f"{type(e).__name__}: {e}",
+                                    "no_chunks": False,
+                                    "first": None,
+                                    "rich_chunks": [],
+                                    "summary": "",
+                                }
+                            )
 
                 # Collect all texts for batch embedding
                 all_texts: list[str] = []
@@ -371,9 +390,11 @@ def _update_index_locked(
                             root=root,
                         )
                     except EmbeddingError as e:
+                        # Flag the files as failed so they are neither recorded
+                        # with their new hash (which would skip them forever)
+                        # nor reported twice.
                         for result_idx, _, _ in file_spans:
-                            result = parse_results[result_idx]
-                            file_errors.append(FileIndexError(result["rel_path"], str(e)))
+                            parse_results[result_idx]["error"] = str(e)
                         all_embeddings = []
 
                 if all_embeddings and not detected_dim:
@@ -455,8 +476,18 @@ def _update_index_locked(
                 # Handle no-chunks and error results
                 for result in parse_results:
                     if result["no_chunks"]:
-                        upsert_file(conn, result["rel_path"], result["md5"], time.time())
+                        file_id = upsert_file(conn, result["rel_path"], result["md5"], time.time())
+                        # The file's vectors were dropped above; drop its old
+                        # chunks too so keyword search can't surface stale text.
+                        insert_chunks(conn, file_id, [])
                     elif result["error"]:
+                        # Vectors are already gone; keep the old hash (so the
+                        # file is retried next run) but remove the stale chunks.
+                        conn.execute(
+                            "DELETE FROM chunks WHERE file_id IN "
+                            "(SELECT id FROM files WHERE path = ?)",
+                            (result["rel_path"],),
+                        )
                         file_errors.append(FileIndexError(result["rel_path"], result["error"]))
 
                 # Commit after each batch (streaming — progressive results)

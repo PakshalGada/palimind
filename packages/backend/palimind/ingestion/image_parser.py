@@ -30,3 +30,5 @@ def caption_image(file_path: Path, ollama_url: str, vision_model: str) -> str:
         raise CaptionError(f"Error captioning image {file_path}: {e}") from e
     except OSError as e:
         raise CaptionError(f"Error reading image {file_path}: {e}") from e
+    except ValueError as e:  # non-JSON body from the vision endpoint
+        raise CaptionError(f"Invalid caption response for {file_path}: {e}") from e

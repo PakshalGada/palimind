@@ -271,6 +271,8 @@ def _character_chunk(text: str, chunk_size: int, chunk_overlap: int) -> list[str
     """
     if not text:
         return []
+    # A non-positive size would never advance ``start`` → infinite loop.
+    chunk_size = max(1, chunk_size)
     chunks: list[str] = []
     start = 0
     text_length = len(text)
@@ -286,9 +288,11 @@ def _character_chunk(text: str, chunk_size: int, chunk_overlap: int) -> list[str
             break
 
         # Snap to word boundary within ±50 chars of end
-        m = re.search(r"\s+", text[end - 50 : end + 50])
+        # (clamp at 0: a negative slice start would wrap to the text's tail)
+        lo = max(0, end - 50)
+        m = re.search(r"\s+", text[lo : end + 50])
         if m:
-            boundary = (end - 50) + m.start()
+            boundary = lo + m.start()
             if boundary > start:
                 end = boundary
 

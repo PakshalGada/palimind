@@ -236,12 +236,15 @@ def _build_candidate_ids(root: Path, files_filter: list[str]) -> set[int] | None
     try:
         conn = get_connection(root)
         try:
+            # Every filter counts — matching only the first one silently
+            # excluded all other selected files from semantic/keyword search.
+            where = " OR ".join("f.path LIKE ?" for _ in files_filter)
             rows = conn.execute(
-                """
+                f"""
                 SELECT c.id FROM chunks c JOIN files f ON c.file_id = f.id
-                WHERE f.path LIKE ?
+                WHERE {where}
                 """,
-                (f"%{files_filter[0]}%",),
+                tuple(f"%{f}%" for f in files_filter),
             ).fetchall()
         finally:
             conn.close()
@@ -378,7 +381,13 @@ def hybrid_search(
     try:
         # Semantic cache: key includes embed_model so switching models doesn't
         # serve results computed with the previous one.
-        cache_key = f"{query}:{limit}:{files_filter}:{embed_model}"
+        # The index root is part of the key: without it, the same query in a
+        # different knowledge base / project returned the other index's hits.
+        cache_key = (
+            f"{Path(root).resolve()}:{query}:{limit}:{files_filter}:{embed_model}:"
+            f"{graph is not None}:{rerank_enabled}:{context_token_budget}:"
+            f"{json.dumps(history or [], sort_keys=True, default=str)[-500:]}"
+        )
         cached = _semantic_result_cache.get(cache_key)
         if cached is not None:
             cached_ts = cached.get("_ts", 0)
@@ -640,8 +649,10 @@ def hybrid_search(
             "index_error": index_error,
         }
 
-        # Semantic cache: store result for similar queries
-        _semantic_result_cache[cache_key] = {**result, "_ts": time.time()}
+        # Semantic cache: store result for similar queries. Degraded results
+        # (embedding/search failures) are not cached so recovery is immediate.
+        if not deduped_errors:
+            _semantic_result_cache[cache_key] = {**result, "_ts": time.time()}
         if len(_semantic_result_cache) > _SEMANTIC_CACHE_MAX:
             # Remove oldest entries
             sorted_keys = sorted(

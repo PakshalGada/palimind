@@ -173,7 +173,14 @@ async def document_mode_stream(
                 on_reasoning=on_reasoning,
             )
             emitted_thinking = False
-            for token in stream:
+            # The LLM stream is a blocking (sync httpx) generator: pull each
+            # token in a worker thread so a slow first token doesn't freeze
+            # the event loop (and every other request) during generation.
+            _done = object()
+            while True:
+                token = await asyncio.to_thread(next, stream, _done)
+                if token is _done:
+                    break
                 if not emitted_thinking and reasoning_parts:
                     yield (
                         f"data: {json.dumps({'type': 'thinking', 'text': ''.join(reasoning_parts)})}\n\n"

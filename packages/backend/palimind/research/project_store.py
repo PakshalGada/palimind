@@ -13,7 +13,8 @@ import time
 import uuid
 from pathlib import Path
 
-from palimind.research.sources import dedupe_sources, sources_from_collected
+from palimind.generative.citation import Source
+from palimind.research.sources import dedupe_sources
 
 _ID_RE = re.compile(r"^[\w-]{1,64}$")
 
@@ -135,12 +136,47 @@ def add_finding(project_id: str, title: str, content: str) -> dict | None:
     return finding
 
 
+def _stored_sources(items: list) -> list[Source]:
+    """Rebuild :class:`Source` objects from stored / client-sent dicts.
+
+    Unlike ``sources_from_collected`` (raw web-tool output) this keeps
+    document sources (``file`` without ``url``) plus their kind and score, so
+    saving a document-mode answer doesn't silently drop its citations.
+    """
+    out: list[Source] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get("url") or "").strip()
+        file = str(item.get("file") or "").strip()
+        if not url and not file:
+            continue
+        try:
+            score = float(item.get("score") or 0.0)
+        except (TypeError, ValueError):
+            score = 0.0
+        out.append(
+            Source(
+                marker=0,
+                title=str(item.get("title") or url or file).strip(),
+                kind=str(item.get("kind") or ("web" if url else "document")),
+                url=url,
+                file=file,
+                section=str(item.get("section") or "").strip(),
+                snippet=str(item.get("snippet") or "").strip()[:600],
+                content=str(item.get("content") or "").strip()[:4000],
+                score=score,
+            )
+        )
+    return out
+
+
 def add_sources(project_id: str, raw_sources: list[dict]) -> dict | None:
     project = load_project(project_id)
     if project is None:
         return None
-    existing = sources_from_collected(project.get("sources", []))
-    incoming = sources_from_collected(raw_sources)
+    existing = _stored_sources(project.get("sources", []))
+    incoming = _stored_sources(raw_sources)
     merged = dedupe_sources(existing + incoming)
     project["sources"] = [s.to_dict() for s in merged]
     added = len(merged) - len(existing)
