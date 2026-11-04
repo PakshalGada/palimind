@@ -10,6 +10,8 @@ import App from './App'
 import './index.css'
 import './App.css'
 import './components/activity/activity.css'
+// Last: the pixel interface style overrides geometry/type/motion when active.
+import './design/pixel-theme.css'
 
 const ActivityPlayground = lazy(() => import('./components/activity/playground/Playground'))
 const playground = import.meta.env.DEV && window.location.hash.startsWith('#/activity')

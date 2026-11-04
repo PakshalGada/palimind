@@ -11,6 +11,7 @@ import {
   type MotionSetting,
   type PixelAccents,
 } from '../design/usePixelMotion';
+import { applyUiStyle, readUiStyle, type UiStyle } from '../design/uiStyle';
 import { getUserName, setUserName } from '../utils/userName';
 import SettingsSelect from './SettingsSelect';
 
@@ -100,6 +101,7 @@ export default function SettingsModal() {
   const [profileName, setProfileName] = useState(getUserName);
   const [pixelAccents, setPixelAccents] = useState<PixelAccents>(readPixelAccents);
   const [motion, setMotion] = useState<MotionSetting>(readMotion);
+  const [uiStyle, setUiStyle] = useState<UiStyle>(readUiStyle);
 
   useEffect(() => {
     api.settings.opencodeKey.status().then((s) => {
@@ -354,6 +356,21 @@ export default function SettingsModal() {
                       </span>
                     </button>
                   ))}
+                </div>
+                <div className="settings-field">
+                  <span className="settings-field-label">Interface style</span>
+                  <SegmentedControl<UiStyle>
+                    value={uiStyle}
+                    ariaLabel="Interface style"
+                    options={[
+                      { value: 'pixel', label: 'Pixel' },
+                      { value: 'classic', label: 'Classic' },
+                    ]}
+                    onChange={(next) => {
+                      setUiStyle(next);
+                      applyUiStyle(next);
+                    }}
+                  />
                 </div>
               </div>
               <div className="settings-card">

@@ -20,7 +20,11 @@
           var root = document.documentElement;
           root.classList.add(theme === 'light' ? 'light-mode' : 'dark-mode');
           root.dataset.theme = theme;
+          // Interface style (see src/design/uiStyle.ts); pixel is the default.
+          var style = localStorage.getItem('palimind:ui-style');
+          root.dataset.uiStyle = style === 'classic' ? 'classic' : 'pixel';
         } catch (e) {
+          document.documentElement.dataset.uiStyle = 'pixel';
           /* ignore */
         }
       })();
