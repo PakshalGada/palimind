@@ -31,6 +31,47 @@ from palimind.cli.ui import (
 app = typer.Typer(help="Palimind - Local Multimodal RAG CLI")
 
 
+def _mtime(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def npm_deps_stale(project_dir: Path) -> bool:
+    """True when `npm install` is needed: node_modules is missing, or the
+    manifest/lockfile changed (e.g. after a pull that added a dependency)
+    since npm last wrote its install marker."""
+    marker = project_dir / "node_modules" / ".package-lock.json"
+    if not marker.exists():
+        return True
+    installed = _mtime(marker)
+    return any(
+        _mtime(project_dir / name) > installed for name in ("package.json", "package-lock.json")
+    )
+
+
+_FRONTEND_INPUTS = ("src", "public", "index.html", "package.json", "package-lock.json",
+                    "vite.config.ts")
+
+
+def frontend_build_stale(frontend_dir: Path) -> bool:
+    """True when dist is missing or any frontend source is newer than it, so a
+    pulled UI change is never served from an old build."""
+    built = _mtime(frontend_dir / "dist" / "index.html")
+    if built == 0.0:
+        return True
+    for name in _FRONTEND_INPUTS:
+        target = frontend_dir / name
+        if target.is_dir():
+            for child in target.rglob("*"):
+                if child.is_file() and _mtime(child) > built:
+                    return True
+        elif _mtime(target) > built:
+            return True
+    return False
+
+
 config_app = typer.Typer(help="Manage PaliMind configuration")
 app.add_typer(config_app, name="config")
 
@@ -294,19 +335,19 @@ def ui(
                 )
 
             npm = "npm.cmd" if os.name == "nt" else "npm"
-            if not (repo_root / "node_modules").exists():
+            if npm_deps_stale(repo_root):
                 print_info("Installing root dependencies (npm install)...")
                 subprocess.run([npm, "install"], cwd=str(repo_root), check=True)
             else:
                 print_success("Root dependencies installed")
 
-            if not (frontend_dir / "node_modules").exists():
+            if npm_deps_stale(frontend_dir):
                 print_info("Installing frontend dependencies (npm install)...")
                 subprocess.run([npm, "install"], cwd=str(frontend_dir), check=True)
             else:
                 print_success("Frontend dependencies installed")
 
-        if not (frontend_dir / "dist").exists():
+        if frontend_build_stale(frontend_dir):
             # `--skip-install` skips dependency installation, not the build:
             # Tauri cannot load a UI that was never built. Fail with an
             # actionable message only when npm itself is unavailable.
@@ -317,7 +358,7 @@ def ui(
                     "then run: npm run build --prefix packages/frontend"
                 )
                 raise typer.Exit(1)
-            print_info("Frontend dist missing — building it now...")
+            print_info("Frontend build missing or out of date — building it now...")
             subprocess.run([npm, "run", "build"], cwd=str(frontend_dir), check=True)
         print_success("Frontend ready")
 

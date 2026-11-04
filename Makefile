@@ -14,12 +14,20 @@ endif
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dev build test lint fmt typecheck icons check-imports backend-test frontend-test frontend-build clean
+.PHONY: help dev build test lint fmt typecheck icons check-imports backend-test frontend-test frontend-deps frontend-build clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "\033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
-frontend-build: ## Build the frontend bundle
+# Re-run `npm install` whenever the manifest/lockfile changes (e.g. a pull
+# that adds a dependency), not only when node_modules is missing.
+$(FRONTEND_DIR)/node_modules/.package-lock.json: $(FRONTEND_DIR)/package.json $(FRONTEND_DIR)/package-lock.json
+	npm install --prefix $(FRONTEND_DIR)
+	@touch $@
+
+frontend-deps: $(FRONTEND_DIR)/node_modules/.package-lock.json ## Install frontend deps if package files changed
+
+frontend-build: frontend-deps ## Build the frontend bundle
 	npm run build --prefix $(FRONTEND_DIR)
 
 dev: frontend-build ## Run the desktop app in dev mode (backend must be installed: pip install -e packages/backend)
