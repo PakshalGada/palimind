@@ -315,6 +315,7 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
 
           case 'error':
             clearTimer();
+            dispatch({ type: 'error', text: String(event.text || 'Something went wrong.') });
             finalize('error');
             break;
 
@@ -339,6 +340,7 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
       };
 
       eventSource.onerror = () => {
+        if (!finalized) dispatch({ type: 'error', text: 'Connection to the server was lost.' });
         finalize('error');
       };
     },

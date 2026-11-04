@@ -195,7 +195,11 @@ export default function ModelSwitcher() {
   useEffect(() => {
     if (isOpen) {
       const handler = (e: MouseEvent) => {
-        if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        const target = e.target as Node;
+        // Buttons like Retry / Download re-render away on click; a detached
+        // target is not an outside click.
+        if (!target.isConnected) return;
+        if (dropdownRef.current && !dropdownRef.current.contains(target)) {
           close();
         }
       };
@@ -252,7 +256,7 @@ export default function ModelSwitcher() {
         aria-label="Switch model"
         aria-haspopup="dialog"
         aria-expanded={isOpen}
-        onClick={(e) => { e.stopPropagation(); isOpen ? close() : open(); }}
+        onClick={(e) => { e.stopPropagation(); if (isOpen) close(); else open(); }}
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="3" />

@@ -69,6 +69,8 @@ function InputArea() {
   // When set, the next handleSend() uses this text instead of the composer
   // value. Used by the "regenerate" command to replay a previous message.
   const sendOverrideRef = useRef<string | null>(null);
+  // Guards the async attachment upload window, before isGenerating flips.
+  const sendingRef = useRef(false);
 
   const [moePopupOpen, setMoePopupOpen] = useState(false);
   const [burstNonce, fireBurst] = useOneShot();
@@ -194,6 +196,29 @@ function InputArea() {
     await transcribePcm(merged, sampleRate);
   };
 
+  // Release the microphone if the composer unmounts mid-recording (e.g. the
+  // user switches views), otherwise the input stream stays open.
+  useEffect(() => {
+    return () => {
+      if (!mediaStreamRef.current && !audioCtxRef.current) return;
+      try {
+        processorRef.current?.disconnect();
+        sourceNodeRef.current?.disconnect();
+      } catch {
+        // ignore
+      }
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+      void audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
+      processorRef.current = null;
+      sourceNodeRef.current = null;
+      pcmRef.current = [];
+      levelRef.current = 0;
+      setIsRecording(false);
+    };
+  }, [setIsRecording]);
+
   const mentionMatches = mention
     ? allAgents.filter((a) =>
         a.name.toLowerCase().includes(mention.query.toLowerCase()),
@@ -231,7 +256,7 @@ function InputArea() {
 
   useEffect(() => {
     adjustHeight();
-  }, [value]);
+  }, [value, adjustHeight]);
 
   const updatePopupPos = useCallback(() => {
     if (!moeBtnRef.current) return;
@@ -339,96 +364,107 @@ function InputArea() {
   const isOnline = (m: ModelItem) => !m.parameter_size && !m.size_gb;
 
   const handleSend = useCallback(async () => {
-    if (isGenerating) return;
+    if (isGenerating || sendingRef.current) return;
     const override = sendOverrideRef.current;
     sendOverrideRef.current = null;
+    // A replayed message (regenerate / edit-and-resend) must not consume the
+    // user's in-progress draft or attachments.
+    const fromComposer = override === null;
+    const files = fromComposer ? attachedFiles : [];
     const text = (override ?? value).trim();
-    if (!text && attachedFiles.length === 0) return;
+    if (!text && files.length === 0) return;
 
-    // Index dropped attachments as captures so document-mode RAG can find them.
-    if (attachedFiles.length > 0) {
-      try {
-        await Promise.all(
-          attachedFiles.map(async (file) => {
-            const content = await file.text();
-            await fetch("/api/capture/file", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name: file.name, content }),
-            });
-          }),
-        );
-      } catch (e) {
-        console.error("attachment upload failed:", e);
-      }
-    }
-
-    setValue("");
-    setAttachedFiles([]);
-
-    // ── activity-chain metadata (same shell for every mode) ───────────
-    const agentInfo = selectedAgentId
-      ? allAgents.find((a) => a.id === selectedAgentId)
-      : undefined;
-    let actMode: ActivityMode = "llm";
-    let actTitle = "LLM";
-    if (activeView === "agents") {
-      actMode = "agent";
-      actTitle = agentInfo?.display_name || agentInfo?.name || "Agent";
-    } else if (chatMode === "document") {
-      actMode = "document";
-      actTitle = "Document";
-    } else if (llmSubMode === "moe") {
-      actMode = "moe";
-      actTitle = "Mixture of Experts";
-    } else if (llmSubMode === "deep_research") {
-      actMode = "deep_research";
-      actTitle = "Deep Research";
-    }
-
-    // When an agent is invoked in this PaliSpace, surface the same animated
-    // profile-picture loading the Agents view uses.
-    const mentionAtStart = text.match(/^@([\w-]+)/);
-    const mentionedAgent = mentionAtStart
-      ? allAgents.find((a) => a.name === mentionAtStart[1])
-      : undefined;
-    const agentLoading = mentionedAgent
-      ? {
-          seed: mentionedAgent.id,
-          name: mentionedAgent.name,
+    sendingRef.current = true;
+    try {
+      // Index dropped attachments as captures so document-mode RAG can find them.
+      if (files.length > 0) {
+        try {
+          await Promise.all(
+            files.map(async (file) => {
+              const content = await file.text();
+              await fetch("/api/capture/file", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: file.name, content }),
+              });
+            }),
+          );
+        } catch (e) {
+          console.error("attachment upload failed:", e);
         }
-      : null;
+      }
 
-    // The avatar shown while the agent answers: the selected agent in the
-    // Agents view, or the @mentioned agent in other views.
-    const activityAgent =
-      actMode === "agent" && agentInfo ? agentInfo : mentionedAgent;
+      if (fromComposer) {
+        setValue("");
+        setAttachedFiles([]);
+      }
 
-    const mode = isChatView ? "llm" : chatMode;
+      // ── activity-chain metadata (same shell for every mode) ───────────
+      const agentInfo = selectedAgentId
+        ? allAgents.find((a) => a.id === selectedAgentId)
+        : undefined;
+      let actMode: ActivityMode = "llm";
+      let actTitle = "LLM";
+      if (activeView === "agents") {
+        actMode = "agent";
+        actTitle = agentInfo?.display_name || agentInfo?.name || "Agent";
+      } else if (chatMode === "document") {
+        actMode = "document";
+        actTitle = "Document";
+      } else if (llmSubMode === "moe") {
+        actMode = "moe";
+        actTitle = "Mixture of Experts";
+      } else if (llmSubMode === "deep_research") {
+        actMode = "deep_research";
+        actTitle = "Deep Research";
+      }
 
-    sendMessage({
-      text,
-      userText: text || "Sent attachments.",
-      mode,
-      scope,
-      sessionId: activeSessionId,
-      subMode: mode === "llm" ? llmSubMode : undefined,
-      files: selectedFiles.size > 0 ? Array.from(selectedFiles) : undefined,
-      activity: {
-        mode: actMode,
-        title: actTitle,
-        subtitle: actMode === "agent" ? "agent" : undefined,
-        seed: activityAgent ? activityAgent.id : undefined,
-        agentAvatar: activityAgent
-          ? {
-              config: activityAgent.avatar_config,
-              type: activityAgent.avatar_type,
-              upload: activityAgent.avatar_upload,
-            }
-          : undefined,
-      },
-      agentLoading,
-    });
+      // When an agent is invoked in this PaliSpace, surface the same animated
+      // profile-picture loading the Agents view uses.
+      const mentionAtStart = text.match(/^@([\w-]+)/);
+      const mentionedAgent = mentionAtStart
+        ? allAgents.find((a) => a.name === mentionAtStart[1])
+        : undefined;
+      const agentLoading = mentionedAgent
+        ? {
+            seed: mentionedAgent.id,
+            name: mentionedAgent.name,
+          }
+        : null;
+
+      // The avatar shown while the agent answers: the selected agent in the
+      // Agents view, or the @mentioned agent in other views.
+      const activityAgent =
+        actMode === "agent" && agentInfo ? agentInfo : mentionedAgent;
+
+      const mode = isChatView ? "llm" : chatMode;
+
+      sendMessage({
+        text,
+        userText: text || "Sent attachments.",
+        mode,
+        scope,
+        sessionId: activeSessionId,
+        subMode: mode === "llm" ? llmSubMode : undefined,
+        files: selectedFiles.size > 0 ? Array.from(selectedFiles) : undefined,
+        activity: {
+          mode: actMode,
+          title: actTitle,
+          subtitle: actMode === "agent" ? "agent" : undefined,
+          seed: activityAgent ? activityAgent.id : undefined,
+          agentAvatar: activityAgent
+            ? {
+                config: activityAgent.avatar_config,
+                type: activityAgent.avatar_type,
+                upload: activityAgent.avatar_upload,
+              }
+            : undefined,
+        },
+        agentLoading,
+      });
+    } finally {
+      sendingRef.current = false;
+    }
   }, [
     value,
     isGenerating,
@@ -527,6 +563,8 @@ function InputArea() {
   }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Enter while an IME is composing confirms the candidate; never submit.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (mention && mentionMatches.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();

@@ -145,7 +145,7 @@ export default function ComparisonView() {
           placeholder="Research question to compare…"
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') void run();
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) void run();
           }}
         />
         <div className="compare-model-picker">

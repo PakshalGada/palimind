@@ -251,6 +251,8 @@ export default function CommandPalette() {
   );
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    // Keys pressed while an IME is composing belong to the IME.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       close();

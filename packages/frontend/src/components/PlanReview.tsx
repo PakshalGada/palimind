@@ -127,11 +127,14 @@ export default function PlanReview() {
         await api.agents.plans.approve(selected.id, approved, selected.steps);
         setPendingId(null);
         addToast(approved ? 'Plan approved — the run will continue.' : 'Plan rejected.');
+        const fresh = await api.agents.plans.get(selected.id);
+        if (!fresh.error) setSelected(fresh);
       } else {
-        await api.agents.plans.update(selected.id, {
+        const res = await api.agents.plans.update(selected.id, {
           steps: selected.steps,
           status: approved ? 'approved' : 'rejected',
         });
+        if (!res.error) setSelected(res);
         addToast(approved ? 'Plan approved.' : 'Plan rejected.');
       }
       await refresh();

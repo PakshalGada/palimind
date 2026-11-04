@@ -32,6 +32,7 @@ export default function ChatArea() {
     sessions,
     activeSessionId,
     activeView,
+    isGenerating,
     selectedAgentId,
     chatMode,
     llmSubMode,
@@ -138,6 +139,12 @@ export default function ChatArea() {
   const handleRegenerate = useCallback(
     async (index: number) => {
       if (!currentSess || !activeSessionId) return;
+      // Truncating mid-stream would drop the reply while the resend is
+      // refused by the composer (it ignores sends while generating).
+      if (isGenerating) {
+        addToast('Wait for the current response to finish.');
+        return;
+      }
       const messages = currentSess.messages;
       let userIndex = -1;
       for (let i = index - 1; i >= 0; i--) {
@@ -159,12 +166,16 @@ export default function ChatArea() {
         addToast('Could not regenerate response.');
       }
     },
-    [currentSess, activeSessionId, scope, addToast, applySessions, refreshSessions, triggerRegenerate],
+    [currentSess, activeSessionId, isGenerating, scope, addToast, applySessions, refreshSessions, triggerRegenerate],
   );
 
   const handleSaveEdit = useCallback(
     async (index: number, content: string) => {
       if (!activeSessionId) return;
+      if (isGenerating) {
+        addToast('Wait for the current response to finish.');
+        return;
+      }
       const trimmed = content.trim();
       if (!trimmed) {
         addToast('Message cannot be empty.');
@@ -179,7 +190,7 @@ export default function ChatArea() {
         addToast('Could not edit message.');
       }
     },
-    [activeSessionId, scope, addToast, applySessions, refreshSessions, triggerRegenerate],
+    [activeSessionId, isGenerating, scope, addToast, applySessions, refreshSessions, triggerRegenerate],
   );
 
   const handleDelete = useCallback(
@@ -238,13 +249,19 @@ export default function ChatArea() {
     return `${currentSess.messages.length}-${lastMsg?.content?.length || 0}`;
   }, [currentSess?.messages]);
 
+  // Opening a conversation or sending a new prompt always jumps to the end,
+  // even if the user had scrolled up in the previous view.
+  useEffect(() => {
+    pinnedToBottom.current = true;
+  }, [activeSessionId, streamState.startedAt]);
+
   useEffect(() => {
     const el = messagesRef.current;
     if (!el) return;
     if (pinnedToBottom.current) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [messagesKey, streamState.revision]);
+  }, [messagesKey, streamState.revision, activeSessionId]);
 
   const showScrollbarNearEdge = (event: React.MouseEvent<HTMLElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -267,7 +284,7 @@ export default function ChatArea() {
           ref={messagesRef}
           onScroll={handleScroll}
         >
-          {!isEmpty && currentSess?.messages.map((msg, i) => (
+          {!isEmpty && currentSess?.messages?.map((msg, i) => (
             <MessageComponent
               key={`${i}-${msg.role}`}
               msg={msg}
