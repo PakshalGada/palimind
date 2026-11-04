@@ -2,37 +2,15 @@
    pixel-theme.css — the "Pixel" interface style.
 
    A restrained accent layer, scoped to html[data-ui-style="pixel"] and
-   layered on top of the light/dark palette. The interface itself stays
-   professional — readable type, the normal rounded geometry, normal
-   controls. Pixel character lives in a few deliberate places only:
-   - Pixel type on the brand wordmark and the hero greeting, nowhere else.
+   layered on top of the light/dark palette. The interface itself is
+   untouched — the normal fonts, rounded geometry and controls. Pixel
+   character lives in motion and texture only:
    - A faint dot grid on the canvas and a slow, stepped scan band.
    - Step-timed entrances for overlays, toasts and new transcript turns.
    - A blinking pixel cursor on the active settings section.
    Every loop is decorative, pauses when the tab is hidden or accents are
    off, and the global reduced-motion rules in base.css freeze it.
    ========================================================================== */
-
-@import "@fontsource/silkscreen/400.css";
-@import "@fontsource/silkscreen/700.css";
-
-html[data-ui-style="pixel"] {
-    --font-pixel-display: "Silkscreen", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-}
-
-/* ── pixel type: brand + hero only ─────────────────────────────────────── */
-html[data-ui-style="pixel"] .command-bar__wordmark {
-    font-family: var(--font-pixel-display);
-    font-weight: 700;
-    letter-spacing: 0.04em;
-}
-html[data-ui-style="pixel"] .home-hero__title,
-html[data-ui-style="pixel"] .welcome-empty .ui-empty__title {
-    font-family: var(--font-pixel-display);
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    line-height: 1.15;
-}
 
 html[data-ui-style="pixel"] .pixel-glyph,
 html[data-ui-style="pixel"] canvas {
