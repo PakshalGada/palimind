@@ -48,16 +48,19 @@ def _connect(path: Path | None = None) -> sqlite3.Connection:
         # Re-create the schema if the DB file was deleted while running.
         _initialised.discard(str(db))
     conn = sqlite3.connect(str(db), timeout=30.0)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA busy_timeout=30000")
-    conn.execute("PRAGMA foreign_keys=ON")
     key = str(db)
     if key not in _initialised:
+        # One-time, per-file setup. journal_mode is persistent; switching it
+        # concurrently from many fresh connections fails fast with "database
+        # is locked" (the busy handler is not consulted), dropping writes.
         with _lock:
             if key not in _initialised:
+                conn.execute("PRAGMA journal_mode=WAL")
                 _init_schema(conn)
                 _initialised.add(key)
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 

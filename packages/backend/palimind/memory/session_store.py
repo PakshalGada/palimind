@@ -71,16 +71,18 @@ def _connect(root: Path) -> sqlite3.Connection:
         # failing with "no such table" until the server restarts.
         _INITIALISED.discard(str(path.resolve()))
     conn = sqlite3.connect(str(path), timeout=30.0)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA busy_timeout=30000")
-    conn.execute("PRAGMA foreign_keys=ON")
     key = str(path.resolve())
     if key not in _INITIALISED:
+        # One-time, per-file setup: concurrent journal_mode switches from
+        # fresh connections fail fast with "database is locked".
         with _LOCK:
             if key not in _INITIALISED:
+                conn.execute("PRAGMA journal_mode=WAL")
                 _init_schema(conn)
                 _INITIALISED.add(key)
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
