@@ -3,6 +3,11 @@ import type { ArtifactFile, ArtifactType } from '../../utils/artifacts';
 /** Artifact shape used by the panel, whether it came from the session or the library. */
 export interface ActiveArtifact {
   id: string;
+  /**
+   * Key for edits and the local vault. Fence ids (`fence-1-0`) repeat across
+   * conversations, so session artifacts are scoped by session id here.
+   */
+  vaultId?: string;
   type: ArtifactType;
   language: string;
   title: string;

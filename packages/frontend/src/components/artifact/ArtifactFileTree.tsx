@@ -29,7 +29,9 @@ function buildTree(files: ArtifactFile[]): TreeNode[] {
       if (!node) {
         node = {
           name: part,
-          path: parts.slice(0, index + 1).join('/'),
+          // Files keep their original path: selection is matched against
+          // `ArtifactFile.path`, which may have a leading `/` or backslashes.
+          path: isFile ? file.path : parts.slice(0, index + 1).join('/'),
           isFile,
           children: [],
         };

@@ -1,4 +1,5 @@
 import { formatMarkdown } from './markdown';
+import { renderMermaid } from './artifactMermaid';
 import {
   artifactFilename,
   type ArtifactType,
@@ -86,13 +87,11 @@ async function artifactToHtml(artifact: ExportableArtifact, dark: boolean): Prom
   }
   if (artifact.type === 'mermaid') {
     try {
-      const mermaid = (await import('mermaid')).default;
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: dark ? 'dark' : 'default',
-        securityLevel: 'strict',
-      });
-      const { svg } = await mermaid.render(`export-${Date.now()}-${Math.random().toString(36).slice(2)}`, artifact.content);
+      const svg = await renderMermaid(
+        `export-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        artifact.content,
+        dark ? 'dark' : 'light',
+      );
       return pageShell(artifact.title, svg, dark);
     } catch {
       return pageShell(
@@ -116,6 +115,9 @@ async function artifactToHtml(artifact: ExportableArtifact, dark: boolean): Prom
 }
 
 function textForPdf(artifact: ExportableArtifact): string[] {
+  // Source code must be exported verbatim: stripping `*`, `_`, `#` and list
+  // markers is only meaningful for Markdown.
+  if (!isMarkdownLike(artifact.type)) return artifact.content.split('\n');
   const plain = artifact.content
     .replace(/```[^\n]*\n?/g, '')
     .replace(/```/g, '')
@@ -168,10 +170,12 @@ function markdownParagraphs(
       heading: HeadingLevel.HEADING_1,
     }),
   ];
-  let inCode = false;
+  // Non-Markdown artifacts are source code: every line is a code line.
+  const markdown = isMarkdownLike(artifact.type);
+  let inCode = !markdown;
   for (const raw of artifact.content.split('\n')) {
     const line = raw.replace(/\s+$/, '');
-    if (line.trim().startsWith('```')) {
+    if (markdown && line.trim().startsWith('```')) {
       inCode = !inCode;
       continue;
     }
@@ -239,8 +243,10 @@ function parseSlideOutline(artifact: ExportableArtifact): SlideSpec[] {
       .map(line => line.replace(/^#{1,6}\s*/, '').replace(/^\s*[-*]\s+/, '').trim())
       .filter(Boolean)
       .forEach(line => {
-        if (current && current.bullets.length < 12) current.bullets.push(line.slice(0, 220));
-        else startSlide('Continued');
+        // Overflow starts a new slide; the line that overflowed belongs on it.
+        const target =
+          current && current.bullets.length < 12 ? current : startSlide('Continued');
+        target.bullets.push(line.slice(0, 220));
       });
     return slides;
   }
@@ -388,11 +394,52 @@ async function textToPng(artifact: ExportableArtifact): Promise<Blob> {
   });
 }
 
+/**
+ * Turn SVG markup into a standalone SVG document an <img> can decode.
+ *
+ * Inline SVG (as models usually write it) often has an XML prolog, comments
+ * or no `xmlns`, all of which make an `image/svg+xml` load fail.
+ */
+function standaloneSvg(svg: string): string {
+  const start = svg.search(/<svg[\s>]/i);
+  const end = svg.toLowerCase().lastIndexOf('</svg>');
+  if (start === -1 || end === -1) throw new Error('No <svg> element to export');
+  const source = svg.slice(start, end + '</svg>'.length);
+  const tagEnd = source.indexOf('>') + 1;
+  let openTag = source.slice(0, tagEnd);
+
+  if (!/\sxmlns\s*=/.test(openTag)) {
+    openTag = openTag.replace(/^<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+  }
+  if (/xlink:/.test(source) && !/\sxmlns:xlink\s*=/.test(openTag)) {
+    openTag = openTag.replace(/^<svg/i, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+  }
+
+  // A percentage or missing width (Mermaid emits width="100%") gives the image
+  // no intrinsic size, so it would rasterize at the 300x150 default.
+  const width = openTag.match(/\swidth\s*=\s*["']([^"']*)["']/i)?.[1]?.trim();
+  const viewBox = openTag
+    .match(/\sviewBox\s*=\s*["']([^"']+)["']/i)?.[1]
+    ?.trim()
+    .split(/[\s,]+/)
+    .map(Number);
+  if (
+    (!width || width.endsWith('%')) &&
+    viewBox?.length === 4 &&
+    viewBox[2] > 0 &&
+    viewBox[3] > 0
+  ) {
+    openTag = openTag
+      .replace(/\s(width|height)\s*=\s*["'][^"']*["']/gi, '')
+      .replace(/^<svg/i, `<svg width="${viewBox[2]}" height="${viewBox[3]}"`);
+  }
+
+  return openTag + source.slice(tagEnd);
+}
+
 async function svgToPng(svg: string): Promise<Blob> {
   const dark = !document.documentElement.classList.contains('light-mode');
-  const source = svg.trim().startsWith('<svg')
-    ? svg
-    : `<!doctype html><html><body>${svg}</body></html>`;
+  const source = standaloneSvg(svg);
   const image = new Image();
   image.decoding = 'async';
   const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`;
@@ -425,13 +472,7 @@ async function exportPng(artifact: ExportableArtifact): Promise<Blob> {
   if (artifact.type === 'svg') return svgToPng(artifact.content);
   if (artifact.type === 'mermaid') {
     try {
-      const mermaid = (await import('mermaid')).default;
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: document.documentElement.classList.contains('light-mode') ? 'default' : 'dark',
-        securityLevel: 'strict',
-      });
-      const { svg } = await mermaid.render(
+      const svg = await renderMermaid(
         `png-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         artifact.content,
       );

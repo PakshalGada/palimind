@@ -87,6 +87,7 @@ export function useArtifactVault({
 
   const projectId = active?.projectId ?? null;
   const artifactId = active?.id ?? '';
+  const vaultKey = active ? (active.vaultId ?? active.id) : '';
 
   const loadProjectArtifact = useCallback(async () => {
     const request = projectRequestRef.current + 1;
@@ -97,6 +98,13 @@ export function useArtifactVault({
       setProjectLoading(false);
       return;
     }
+    // Never show (or compare against) the previous artifact's server history
+    // while the newly selected one loads.
+    setProjectArtifact(current =>
+      current && current.id === artifactId && current.project_id === projectId
+        ? current
+        : null,
+    );
     setProjectLoading(true);
     try {
       const result = await api.projects.artifacts.get(projectId, artifactId);
@@ -114,17 +122,17 @@ export function useArtifactVault({
   }, [panelOpen, loadProjectArtifact]);
 
   const saved = active
-    ? vaultItems.find(item => item.id === active.id) || null
+    ? vaultItems.find(item => item.id === vaultKey) || null
     : null;
 
   const saveDraftFor = async (
-    artifact: Pick<ActiveArtifact, 'id' | 'type' | 'language' | 'title'>,
+    artifact: Pick<ActiveArtifact, 'id' | 'vaultId' | 'type' | 'language' | 'title'>,
     value: string,
     note: string,
   ) => {
     const result = await persistDraft(
       {
-        id: artifact.id,
+        id: artifact.vaultId ?? artifact.id,
         type: artifact.type,
         language: artifact.language,
         title: artifact.title,
@@ -158,7 +166,7 @@ export function useArtifactVault({
       if (needLocal) {
         const result = await saveToVault(
           {
-            id: active.id,
+            id: vaultKey,
             type: active.type,
             language: active.language,
             title: active.title,
@@ -194,7 +202,7 @@ export function useArtifactVault({
         // Mirror the save into the optional server-side global library.
         void api.artifacts
           .save({
-            id: active.id,
+            id: vaultKey,
             title: active.title,
             type: active.type,
             language: active.language,
@@ -216,6 +224,10 @@ export function useArtifactVault({
           : 'Saved to artifact vault',
         { tone: 'success' },
       );
+    } catch (error) {
+      addToast(errorMessage(error, 'Could not save the artifact.'), {
+        tone: 'error',
+      });
     } finally {
       savingRef.current = false;
     }
@@ -242,7 +254,7 @@ export function useArtifactVault({
 
   const restore = async (versionId: string) => {
     if (!active) return;
-    const restoredArtifactId = active.id;
+    const restoredArtifactId = vaultKey;
     try {
       // Keep the pre-restore content as a visible autosaved draft.
       const draft = await saveDraftSnapshot('Autosaved before restore');
@@ -348,7 +360,7 @@ export function useArtifactVault({
 
   const getLocalVersionContent = async (versionId: string) => {
     if (!active) return '';
-    return (await getVaultVersionContent(active.id, versionId)) ?? '';
+    return (await getVaultVersionContent(vaultKey, versionId)) ?? '';
   };
 
   const getProjectVersionContent = async (version: number) => {

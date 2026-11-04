@@ -92,17 +92,33 @@ function ArtifactPreview({
     artifact.streaming ? (frameType ? 700 : 400) : 0,
   );
   const debounced = useDebouncedValue(content, frameType ? 420 : 180);
-  const previewContent = artifact.streaming ? throttled : debounced;
+  // Unedited content shows immediately: the debounced copy can be several
+  // stream chunks old when streaming ends, which would flash stale output.
+  const previewContent = artifact.streaming
+    ? throttled
+    : content === artifact.content
+      ? content
+      : debounced;
   const sourceLang = sourceLanguage(artifact.type, artifact.language);
 
   const files = useMemo(() => {
-    if (artifact.type === 'multi-file' || artifact.type === 'code-file') {
+    if (
+      artifact.type === 'multi-file' ||
+      artifact.type === 'code-file' ||
+      artifact.filePaths?.length
+    ) {
       const parsed = parseArtifactFiles(previewContent);
       if (parsed.length) return parsed;
     }
     // Edited content must not fall back to the stale pre-edit file snapshot.
     return previewContent === artifact.content ? (artifact.files ?? []) : [];
-  }, [artifact.content, artifact.type, artifact.files, previewContent]);
+  }, [
+    artifact.content,
+    artifact.type,
+    artifact.files,
+    artifact.filePaths?.length,
+    previewContent,
+  ]);
 
   const singleFile =
     artifact.filePaths?.length === 1 ? files[0]?.content : undefined;

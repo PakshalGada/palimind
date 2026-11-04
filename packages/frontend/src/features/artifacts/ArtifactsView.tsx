@@ -1,12 +1,11 @@
-import { useState } from 'react';
 import PageTitle from '../../components/layout/PageTitle';
-import ArtifactLibrary, { type OpenedArtifact } from '../../components/ArtifactLibrary';
+import ArtifactLibrary from '../../components/ArtifactLibrary';
+import { queueArtifactOpen } from '../../components/artifact/pendingOpen';
 import { useApp } from '../../AppContext';
 import '../view.css';
 
 export default function ArtifactsView() {
-  const { openArtifact } = useApp();
-  const [, setOpened] = useState<OpenedArtifact | null>(null);
+  const { setArtifactPanelOpen, setArtifactLibraryOpen } = useApp();
 
   return (
     <main className="view-frame">
@@ -21,8 +20,11 @@ export default function ArtifactsView() {
           open
           onClose={() => undefined}
           onOpen={(artifact) => {
-            setOpened(artifact);
-            openArtifact(artifact.id);
+            // Library entries are not session artifacts, so they must be
+            // handed to the panel whole rather than selected by id.
+            queueArtifactOpen(artifact);
+            setArtifactLibraryOpen(false);
+            setArtifactPanelOpen(true);
           }}
         />
       </div>

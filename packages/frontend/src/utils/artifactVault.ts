@@ -69,8 +69,9 @@ function readRaw(): unknown {
   }
 }
 
-function persistMeta(items: SavedArtifactMeta[]): void {
-  if (typeof localStorage === 'undefined') return;
+/** Returns false when the metadata could not be written (e.g. quota). */
+function persistMeta(items: SavedArtifactMeta[]): boolean {
+  if (typeof localStorage === 'undefined') return true;
   try {
     // Explicitly strip contents in case a caller passed a hydrated record.
     const meta = items.map(item => ({
@@ -93,10 +94,15 @@ function persistMeta(items: SavedArtifactMeta[]): void {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('palimind:artifact-vault-updated'));
     }
+    return true;
   } catch {
-    // Quota / unavailable storage: the in-memory session still works.
+    // Quota / unavailable storage.
+    return false;
   }
 }
+
+const STORAGE_FULL_MESSAGE =
+  'Local storage is full or unavailable, so the artifact vault was not updated.';
 
 function normalizeMeta(raw: unknown[]): SavedArtifactMeta[] {
   const out: SavedArtifactMeta[] = [];
@@ -394,9 +400,6 @@ async function writeVersion(
   await putVersionContents([
     { id: versionId, artifactId: artifact.id, content: artifact.content },
   ]);
-  if (evicted.length > 0) {
-    await deleteVersionContents(evicted.map(item => item.id));
-  }
 
   const meta: SavedArtifactMeta = {
     id: artifact.id,
@@ -408,7 +411,15 @@ async function writeVersion(
     versions,
   };
   const next = [meta, ...metas.filter(item => item.id !== artifact.id)];
-  persistMeta(next);
+  if (!persistMeta(next)) {
+    // The stored metadata still references the old versions, so keep their
+    // bodies and drop the orphaned new one instead of reporting success.
+    await deleteVersionContents([versionId]);
+    throw new Error(STORAGE_FULL_MESSAGE);
+  }
+  if (evicted.length > 0) {
+    await deleteVersionContents(evicted.map(item => item.id));
+  }
 
   return { metas: next, versionId, created: true };
 }
@@ -453,10 +464,13 @@ export async function removeFromVault(id: string): Promise<SavedArtifact[]> {
   await enqueue(async () => {
     const metas = await loadVaultMeta();
     const target = metas.find(item => item.id === id);
+    // Only drop bodies once the metadata no longer points at them.
+    if (!persistMeta(metas.filter(item => item.id !== id))) {
+      throw new Error(STORAGE_FULL_MESSAGE);
+    }
     if (target) {
       await deleteVersionContents(target.versions.map(version => version.id));
     }
-    persistMeta(metas.filter(item => item.id !== id));
   });
   return loadVault();
 }
@@ -477,7 +491,7 @@ export async function restoreVaultVersion(
         savedAt: Date.now(),
       };
     });
-    persistMeta(next);
+    if (!persistMeta(next)) throw new Error(STORAGE_FULL_MESSAGE);
   });
   return loadVault();
 }

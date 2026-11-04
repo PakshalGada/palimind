@@ -28,7 +28,7 @@ export default function ArtifactVault({
   }, [open]);
 
   const remove = (id: string) => {
-    void removeFromVault(id).then(setItems);
+    void removeFromVault(id).then(setItems).catch(() => undefined);
   };
 
   return (

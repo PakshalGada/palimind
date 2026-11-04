@@ -1,16 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-
-type MermaidApi = typeof import('mermaid').default;
-
-let mermaidPromise: Promise<MermaidApi> | null = null;
-let mermaidTheme: 'dark' | 'light' | null = null;
-
-function loadMermaid(): Promise<MermaidApi> {
-  if (!mermaidPromise) {
-    mermaidPromise = import('mermaid').then(module => module.default);
-  }
-  return mermaidPromise;
-}
+import { renderMermaid } from '../utils/artifactMermaid';
 
 /**
  * Lazily loads Mermaid (kept out of the main bundle via dynamic import) and
@@ -26,21 +15,8 @@ export default function MermaidPreview({ code }: { code: string }) {
     const timer = window.setTimeout(() => {
       (async () => {
         try {
-          const mermaid = await loadMermaid();
-          const theme = document.documentElement.classList.contains('light-mode')
-            ? 'light'
-            : 'dark';
-          if (mermaidTheme !== theme) {
-            mermaid.initialize({
-              startOnLoad: false,
-              theme: theme === 'light' ? 'default' : 'dark',
-              securityLevel: 'strict',
-              fontFamily: 'var(--font-sans)',
-            });
-            mermaidTheme = theme;
-          }
           const id = `mmd-${Math.random().toString(36).slice(2)}`;
-          const { svg } = await mermaid.render(id, code);
+          const svg = await renderMermaid(id, code);
           if (cancelled) return;
           setError('');
           if (containerRef.current) containerRef.current.innerHTML = svg;

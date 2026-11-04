@@ -141,13 +141,20 @@ export default function ArtifactEditor({
           end: start + 2,
         });
       } else {
-        // Indent every line touched by the selection.
-        const before = value.slice(0, start);
-        const range = value.slice(start, end);
-        const after = value.slice(end);
+        // Indent every line touched by the selection, from the start of its
+        // first line. A selection ending right after a newline does not touch
+        // the following line.
+        const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+        const blockEnd = value[end - 1] === '\n' ? end - 1 : end;
+        const before = value.slice(0, lineStart);
+        const range = value.slice(lineStart, blockEnd);
+        const after = value.slice(blockEnd);
         const indented = range.replace(/^/gm, '  ');
         const added = indented.length - range.length;
-        edit(`${before}${indented}${after}`, { start, end: end + added });
+        edit(`${before}${indented}${after}`, {
+          start: start === lineStart ? start : start + 2,
+          end: end + added,
+        });
       }
       return;
     }

@@ -21,6 +21,7 @@ import ArtifactTabs from './artifact/ArtifactTabs';
 import ArtifactToolbar from './artifact/ArtifactToolbar';
 import ArtifactVersionDialog from './artifact/ArtifactVersionDialog';
 import ArtifactEditor from './artifact/ArtifactEditor';
+import { PENDING_OPEN_EVENT, takePendingArtifactOpen } from './artifact/pendingOpen';
 import { sourceLanguage } from './artifact/languages';
 import type { ActiveArtifact, ViewMode } from './artifact/types';
 import { useArtifactExport } from './artifact/useArtifactExport';
@@ -83,6 +84,8 @@ function initialSplit(): number {
 interface ArtifactFeed {
   artifacts: Artifact[];
   status: StreamState['status'];
+  /** Session the artifacts were parsed from (lags a session switch by a render). */
+  sessionId: string | null;
 }
 
 /**
@@ -96,9 +99,11 @@ interface ArtifactFeed {
  */
 function LiveArtifactFeed({
   messages,
+  sessionId,
   onChange,
 }: {
   messages: ArtifactSource[] | undefined;
+  sessionId: string | null;
   onChange: (feed: ArtifactFeed) => void;
 }) {
   const { liveText, state } = useChatStreamContext();
@@ -111,8 +116,8 @@ function LiveArtifactFeed({
   onChangeRef.current = onChange;
 
   useEffect(() => {
-    onChangeRef.current({ artifacts, status: state.status });
-  }, [artifacts, state.status]);
+    onChangeRef.current({ artifacts, status: state.status, sessionId });
+  }, [artifacts, state.status, sessionId]);
 
   return null;
 }
@@ -161,8 +166,13 @@ export default function ArtifactPanel({
   const [artifactFeed, setArtifactFeed] = useState<ArtifactFeed>({
     artifacts: [],
     status: 'idle',
+    sessionId: null,
   });
-  const { artifacts: sessionArtifacts, status: streamStatus } = artifactFeed;
+  const {
+    artifacts: sessionArtifacts,
+    status: streamStatus,
+    sessionId: feedSessionId,
+  } = artifactFeed;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [external, setExternal] = useState<ActiveArtifact | null>(null);
@@ -196,11 +206,18 @@ export default function ArtifactPanel({
 
   const active = useMemo<ActiveArtifact | null>(() => {
     if (external) return external;
-    return selectedSessionArtifact ? toActive(selectedSessionArtifact) : null;
-  }, [external, selectedSessionArtifact]);
+    if (!selectedSessionArtifact) return null;
+    return {
+      ...toActive(selectedSessionArtifact),
+      // Fence ids repeat in every conversation; scope edits and vault saves to
+      // the session so one chat's saved artifact never replaces another's.
+      vaultId: `${feedSessionId || 'draft'}:${selectedSessionArtifact.id}`,
+    };
+  }, [external, selectedSessionArtifact, feedSessionId]);
 
-  const activeId = active?.id ?? '';
-  const content = active ? (edits[activeId] ?? active.content) : '';
+  /** Key for `edits` and the vault; differs from `active.id` for session artifacts. */
+  const activeKey = active ? (active.vaultId ?? active.id) : '';
+  const content = active ? (edits[activeKey] ?? active.content) : '';
   const streaming = sessionArtifacts.some(artifact => artifact.streaming);
 
   const {
@@ -274,7 +291,7 @@ export default function ArtifactPanel({
 
   const autosave = useCallback(() => {
     if (dirtyRef.current && activeRef.current) {
-      void saveDraftRef.current('Autosaved before closing');
+      void saveDraftRef.current('Autosaved before closing').catch(() => undefined);
     }
   }, []);
 
@@ -288,21 +305,19 @@ export default function ArtifactPanel({
   // Flush the artifact we are leaving before switching tabs.
   useLayoutEffect(() => {
     const previous = previousSnapshotRef.current;
-    if (previous && previous.id !== activeId && previous.dirty) {
-      void saveDraftForRef.current(
-        previous.artifact,
-        previous.content,
-        'Autosaved before switching artifacts',
-      );
+    if (previous && previous.id !== activeKey && previous.dirty) {
+      void saveDraftForRef
+        .current(previous.artifact, previous.content, 'Autosaved before switching artifacts')
+        .catch(() => undefined);
     }
-  }, [activeId]);
+  }, [activeKey]);
 
   // Snapshot for the switch handler above. Runs after the layout effect so the
   // previous snapshot is still readable when the active id changes.
   useEffect(() => {
     previousSnapshotRef.current = activeRef.current
       ? {
-          id: activeId,
+          id: activeKey,
           artifact: activeRef.current,
           content,
           dirty,
@@ -323,18 +338,18 @@ export default function ArtifactPanel({
   useEffect(() => {
     setEditing(false);
     setViewMode('preview');
-  }, [activeId]);
+  }, [activeKey]);
 
   // Entering edit mode freezes the current content in the editor draft, so a
   // still-streaming artifact cannot overwrite what the user is typing.
   useEffect(() => {
-    if (!editing || !activeId || !activeRef.current?.streaming) return;
+    if (!editing || !activeKey || !activeRef.current?.streaming) return;
     setEdits(prev => {
-      if (prev[activeId] !== undefined) return prev;
+      if (prev[activeKey] !== undefined) return prev;
       const current = activeRef.current?.content ?? '';
-      return { ...prev, [activeId]: current };
+      return { ...prev, [activeKey]: current };
     });
-  }, [editing, activeId]);
+  }, [editing, activeKey]);
 
   // Keep the selected tab valid as artifacts stream in.
   useEffect(() => {
@@ -351,13 +366,13 @@ export default function ArtifactPanel({
   // Restore a saved draft when reopening, unless the editor already has newer
   // content for this artifact.
   useEffect(() => {
-    if (!activeId || !saved) return;
+    if (!activeKey || !saved) return;
     setEdits(prev => {
-      if (prev[activeId] !== undefined) return prev;
+      if (prev[activeKey] !== undefined) return prev;
       if (saved.content === activeRef.current?.content) return prev;
-      return { ...prev, [activeId]: saved.content };
+      return { ...prev, [activeKey]: saved.content };
     });
-  }, [activeId, saved]);
+  }, [activeKey, saved]);
 
   // Sidebar / command palette can request the library.
   useEffect(() => {
@@ -377,6 +392,27 @@ export default function ArtifactPanel({
     setSelectedId(artifactTarget.id);
     clearArtifactTarget();
   }, [artifactTarget, clearArtifactTarget]);
+
+  const openExternal = useCallback(
+    (opened: OpenedArtifact) => {
+      setExternal(toActive(opened));
+      setEdits(prev => ({ ...prev, [opened.id]: opened.content }));
+      setEditing(false);
+      if (opened.projectId) setActiveProjectId(opened.projectId);
+    },
+    [setActiveProjectId],
+  );
+
+  // The Artifacts page asked to open a library entry.
+  useEffect(() => {
+    const take = () => {
+      const opened = takePendingArtifactOpen();
+      if (opened) openExternal(opened);
+    };
+    take();
+    window.addEventListener(PENDING_OPEN_EVENT, take);
+    return () => window.removeEventListener(PENDING_OPEN_EVENT, take);
+  }, [openExternal]);
 
   // Mark artifacts that appear while streaming.
   useEffect(() => {
@@ -433,10 +469,10 @@ export default function ArtifactPanel({
 
   const updateContent = useCallback(
     (next: string) => {
-      if (!activeId) return;
-      setEdits(prev => ({ ...prev, [activeId]: next }));
+      if (!activeKey) return;
+      setEdits(prev => ({ ...prev, [activeKey]: next }));
     },
-    [activeId],
+    [activeKey],
   );
 
   const selectSessionArtifact = useCallback((id: string) => {
@@ -612,7 +648,11 @@ export default function ArtifactPanel({
       ref={panelRef}
       style={{ width: panelWidth }}
     >
-      <LiveArtifactFeed messages={messages} onChange={setArtifactFeed} />
+      <LiveArtifactFeed
+        messages={messages}
+        sessionId={activeSessionId}
+        onChange={setArtifactFeed}
+      />
       <div
         className="artp-resizer"
         role="separator"
@@ -764,7 +804,7 @@ export default function ArtifactPanel({
             )}
             <div key="preview" className="artp-preview-pane">
               <ArtifactPreview
-                key={active.id}
+                key={activeKey}
                 artifact={active}
                 content={content}
                 viewMode={viewMode}
@@ -781,12 +821,7 @@ export default function ArtifactPanel({
           setArtifactLibraryOpen(false);
           void refreshVault();
         }}
-        onOpen={opened => {
-          setExternal(toActive(opened));
-          setEdits(prev => ({ ...prev, [opened.id]: opened.content }));
-          setEditing(false);
-          if (opened.projectId) setActiveProjectId(opened.projectId);
-        }}
+        onOpen={openExternal}
       />
 
       <ArtifactVersionDialog
