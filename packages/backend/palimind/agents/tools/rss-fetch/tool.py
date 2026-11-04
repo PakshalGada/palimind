@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import ssl
 from typing import Any
 
 
@@ -9,16 +8,48 @@ def fetch_rss(feed_url: str, limit: int = 10) -> str:
     """Fetch and parse an RSS/Atom feed URL, returning a JSON list of
     {title, link, summary, published} entries."""
     import xml.etree.ElementTree as ET
-    from urllib.request import Request, urlopen
+    from urllib.parse import urljoin
+
+    import httpx
+
+    from palimind.core.web_search import _is_safe_url
 
     if not feed_url or not str(feed_url).startswith(("http://", "https://")):
         return "Error: feed_url must be an http(s) URL"
 
-    ctx = ssl.create_default_context()
-    req = Request(feed_url, headers={"User-Agent": "Palimind/2.0"})
+    # This tool runs without approval, so it must not reach loopback/LAN/
+    # cloud-metadata hosts. Redirects are followed manually so every hop is
+    # re-checked (a public feed could otherwise 302 to http://127.0.0.1/...).
+    max_bytes = 3_000_000
+    current = str(feed_url)
+    data = b""
     try:
-        with urlopen(req, timeout=20, context=ctx) as resp:
-            data = resp.read(3_000_000)
+        for _hop in range(6):
+            if not current.startswith(("http://", "https://")) or not _is_safe_url(current):
+                return f"Error: refusing to fetch internal or invalid address: {current}"
+            with httpx.stream(
+                "GET",
+                current,
+                timeout=20,
+                follow_redirects=False,
+                headers={"User-Agent": "Palimind/2.0"},
+            ) as resp:
+                if resp.is_redirect:
+                    current = urljoin(current, resp.headers.get("location", ""))
+                    continue
+                if resp.status_code >= 400:
+                    return f"Error fetching RSS feed: HTTP {resp.status_code}"
+                chunks: list[bytes] = []
+                size = 0
+                for chunk in resp.iter_bytes():
+                    chunks.append(chunk)
+                    size += len(chunk)
+                    if size >= max_bytes:
+                        break
+                data = b"".join(chunks)[:max_bytes]
+                break
+        else:
+            return "Error fetching RSS feed: too many redirects"
     except Exception as e:
         return f"Error fetching RSS feed: {e}"
 

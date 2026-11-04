@@ -172,22 +172,32 @@ async def document_mode_stream(
                 long_term_episodes=long_term_episodes,
                 on_reasoning=on_reasoning,
             )
-            emitted_thinking = False
-            # The LLM stream is a blocking (sync httpx) generator: pull each
-            # token in a worker thread so a slow first token doesn't freeze
-            # the event loop (and every other request) during generation.
-            _done = object()
-            while True:
-                token = await asyncio.to_thread(next, stream, _done)
-                if token is _done:
-                    break
-                if not emitted_thinking and reasoning_parts:
-                    yield (
-                        f"data: {json.dumps({'type': 'thinking', 'text': ''.join(reasoning_parts)})}\n\n"
-                    )
-                    emitted_thinking = True
+            from palimind.generative.responder import aiter_stream
+
+            # The frontend appends every ``thinking`` event, so only send the
+            # reasoning that has not been sent yet (and flush any trailing
+            # reasoning when the model produced no answer tokens after it).
+            thinking_sent = 0
+
+            def pending_thinking() -> str | None:
+                nonlocal thinking_sent
+                if len(reasoning_parts) <= thinking_sent:
+                    return None
+                upto = len(reasoning_parts)
+                text = "".join(reasoning_parts[thinking_sent:upto])
+                thinking_sent = upto
+                return f"data: {json.dumps({'type': 'thinking', 'text': text})}\n\n"
+
+            # The LLM stream is a blocking (sync httpx) generator: pump it from
+            # a worker thread so generation never blocks the event loop, and
+            # close upstream when the client disconnects.
+            async for token in aiter_stream(stream):
+                if (sse := pending_thinking()) is not None:
+                    yield sse
                 full_text += token
                 yield (f"data: {json.dumps({'type': 'token', 'text': token})}\n\n")
+            if (sse := pending_thinking()) is not None:
+                yield sse
         except Exception as e:
             err_msg = f"Generation error: {str(e)}"
             if not full_text:

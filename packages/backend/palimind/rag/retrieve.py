@@ -670,14 +670,17 @@ def hybrid_search(
 def _fts_with_candidates(conn: Any, query: str, candidate_ids: set[int], limit: int) -> list[dict]:
     """FTS search restricted to a candidate set of chunk ids."""
     try:
-        placeholders = ",".join("?" * len(candidate_ids))
-        import re as _re
+        from palimind.storage.db import build_fts_query
 
-        safe_query = _re.sub(r"[^\w\s\-]", " ", query, flags=_re.UNICODE).strip()
-        terms = [f"{w}*" for w in safe_query.split() if len(w) >= 2]
-        if not terms:
+        if not candidate_ids:
             return []
-        fts_query = " OR ".join(terms)
+        placeholders = ",".join("?" * len(candidate_ids))
+        # Quote every term so FTS5 operators in user text ("-", AND/OR/NOT,
+        # quotes, parens, "col:") can't cause a syntax error (which was
+        # swallowed below, silently returning no keyword hits).
+        fts_query = build_fts_query(query)
+        if not fts_query:
+            return []
         cur = conn.execute(
             f"""
             SELECT c.id, f.path, c.chunk_index, c.chunk_type, c.content,

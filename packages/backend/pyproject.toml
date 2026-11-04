@@ -26,6 +26,10 @@ dependencies = [
     "fastapi>=0.110.0",
     "uvicorn>=0.28.0",
     "faster-whisper>=1.0.0",
+    # faster-whisper (<=1.2.1, latest) calls av.open(metadata_errors=...),
+    # removed in PyAV 15 -> TypeError for every non-WAV input. 14.4.0 ships
+    # no cp312 wheels (sdist build fails), so cap below it: resolves to 14.2.0.
+    "av>=12,<14.3",
     "soundfile>=0.12.0",
     "kokoro-onnx>=0.3.0",
     "cryptography>=42.0",

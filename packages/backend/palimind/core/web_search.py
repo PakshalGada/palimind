@@ -134,24 +134,50 @@ def _is_safe_url(url: str) -> bool:
         hostname = parsed.hostname
         if not hostname:
             return False
-        # Resolve hostname to IP and check if it's private
+        # Resolve hostname and check every address it maps to (the HTTP
+        # client may connect to any of them, IPv4 or IPv6).
         import socket
 
         try:
-            ip = ipaddress.ip_address(hostname)
+            ips = [ipaddress.ip_address(hostname)]
         except ValueError:
-            # It's a hostname, resolve it
             try:
-                ip_str = socket.gethostbyname(hostname)
-                ip = ipaddress.ip_address(ip_str)
-            except (socket.gaierror, ValueError):
+                infos = socket.getaddrinfo(hostname, None)
+                ips = [ipaddress.ip_address(info[4][0].split("%", 1)[0]) for info in infos]
+            except (OSError, ValueError):
                 return False
-        # Block private, loopback, reserved, and link-local addresses
-        if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
+        if not ips:
             return False
+        for ip in ips:
+            mapped = getattr(ip, "ipv4_mapped", None)
+            if mapped is not None:
+                ip = mapped
+            # Block private, loopback, reserved, link-local (cloud metadata),
+            # multicast and unspecified (0.0.0.0) addresses
+            if (
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_reserved
+                or ip.is_link_local
+                or ip.is_multicast
+                or ip.is_unspecified
+            ):
+                return False
         return True
     except Exception:
         return False
+
+
+def _header(headers: object, name: str) -> str:
+    """Case-insensitive header lookup on a dict-like headers object."""
+    try:
+        items = headers.items()  # type: ignore[attr-defined]
+    except AttributeError:
+        return ""
+    for k, v in items:
+        if str(k).lower() == name:
+            return str(v or "")
+    return ""
 
 
 def _fetch_page_content(url: str) -> str:
@@ -161,8 +187,23 @@ def _fetch_page_content(url: str) -> str:
     try:
         from scrapling import Fetcher
 
-        page = Fetcher().get(url, timeout=FETCH_TIMEOUT_SECONDS)
-        if page.status >= 400:
+        # Scrapling (curl_cffi) follows redirects itself, which would let a
+        # public page bounce the request to loopback/LAN/metadata hosts
+        # without our SSRF check. Disable auto-redirects and follow each hop
+        # manually, re-checking it.
+        page = None
+        current = url
+        for _hop in range(6):
+            if not _is_safe_url(current):
+                return ""
+            page = Fetcher().get(current, timeout=FETCH_TIMEOUT_SECONDS, follow_redirects=False)
+            location = _header(page.headers, "location")
+            if not (300 <= page.status < 400 and location):
+                break
+            current = urljoin(current, location)
+        else:
+            return ""
+        if page is None or page.status >= 300:
             return ""
         text = page.get_all_text() or ""
     except Exception as e:
