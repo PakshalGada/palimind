@@ -1,7 +1,49 @@
 from __future__ import annotations
 
+import ast
+import re
 from pathlib import Path
 from typing import Any
+
+# ``DataFrame.query`` evaluates its string: ``@name`` reaches the caller's
+# locals (``@pd.io.common.os.system(...)`` runs a host command) and method
+# calls reach ``to_csv``/``to_pickle``. Only plain filter expressions over
+# columns are accepted, with a small set of side-effect-free methods.
+_SAFE_METHODS = frozenset(
+    {
+        "str", "dt", "contains", "startswith", "endswith", "match", "fullmatch",
+        "lower", "upper", "strip", "len", "isin", "between", "isna", "notna",
+        "isnull", "notnull", "abs", "round", "year", "month", "day",
+    }
+)  # fmt: skip
+_SAFE_NODES = (
+    ast.Expression, ast.BoolOp, ast.And, ast.Or, ast.UnaryOp, ast.Not, ast.USub,
+    ast.UAdd, ast.Invert, ast.BinOp, ast.Add, ast.Sub, ast.Mult, ast.Div,
+    ast.FloorDiv, ast.Mod, ast.Pow, ast.BitAnd, ast.BitOr, ast.Compare, ast.Eq,
+    ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE, ast.In, ast.NotIn, ast.Is,
+    ast.IsNot, ast.Name, ast.Load, ast.Constant, ast.List, ast.Tuple,
+    ast.Attribute, ast.Call, ast.keyword,
+)  # fmt: skip
+
+
+def _unsafe_query(query: str) -> str | None:
+    """Return why *query* is not a plain filter expression, else None."""
+    # Backtick-quoted column names may contain anything; mask them.
+    masked = re.sub(r"`[^`]*`", "_col", query)
+    try:
+        tree = ast.parse(masked.strip(), mode="eval")
+    except SyntaxError:
+        return "not a valid filter expression ('@' variables are not allowed)"
+    for node in ast.walk(tree):
+        if not isinstance(node, _SAFE_NODES):
+            return f"'{type(node).__name__}' is not allowed"
+        if isinstance(node, ast.Name) and node.id.startswith("__"):
+            return f"name '{node.id}' is not allowed"
+        if isinstance(node, ast.Attribute) and node.attr not in _SAFE_METHODS:
+            return f"attribute '{node.attr}' is not allowed"
+        if isinstance(node, ast.Call) and not isinstance(node.func, ast.Attribute):
+            return "only column methods such as .str.contains() may be called"
+    return None
 
 
 def csv_query(file_path: str, query: str = "") -> str:
@@ -33,6 +75,9 @@ def csv_query(file_path: str, query: str = "") -> str:
         return "[]"
 
     if query:
+        reason = _unsafe_query(str(query))
+        if reason:
+            return f"Error in pandas query: {reason}"
         try:
             df = df.query(query)
         except Exception as e:

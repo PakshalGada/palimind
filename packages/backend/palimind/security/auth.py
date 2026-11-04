@@ -82,6 +82,36 @@ def _is_loopback(scope: dict[str, Any]) -> bool:
         return False
 
 
+def _is_in_process(scope: dict[str, Any]) -> bool:
+    client = scope.get("client")
+    return not client or str(client[0]) == "testclient"
+
+
+def _host_is_local(scope: dict[str, Any]) -> bool:
+    """Whether the ``Host`` header names this machine.
+
+    A loopback *client* is not enough: with DNS rebinding a malicious website
+    (``http://evil.example:8000``) re-resolves its own name to 127.0.0.1, so
+    the victim's browser talks to us from a loopback socket while treating
+    the page as same-origin with the API. The ``Host`` header still carries
+    the attacker's name, so only accept names that can only mean "this host".
+    """
+    host = _header(scope, "host").strip().lower()
+    if not host:
+        return True  # HTTP/1.0 clients; browsers always send Host
+    if host.startswith("["):
+        name = host[1 : host.find("]")] if "]" in host else host[1:]
+    else:
+        name = host.rsplit(":", 1)[0] if host.count(":") == 1 else host
+    name = name.rstrip(".")
+    if name == "localhost" or name.endswith(".localhost"):
+        return True
+    try:
+        return ipaddress.ip_address(name).is_loopback
+    except ValueError:
+        return False
+
+
 def _constant_time_match(candidate: str, expected: str) -> bool:
     if not candidate or not expected:
         return False
@@ -129,6 +159,12 @@ class AuthMiddleware:
 
         if auth_disabled():
             await self.app(scope, receive, send)
+            return
+
+        if not allow_remote() and not _is_in_process(scope) and not _host_is_local(scope):
+            # DNS-rebinding guard: refuse before any cookie is issued or any
+            # route runs.
+            await _json_response(send, 403, "Invalid Host header for a local-only server.")
             return
 
         path = scope.get("path", "")

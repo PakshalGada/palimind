@@ -18,6 +18,7 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -315,17 +316,25 @@ async def api_chat(req: ChatRequest, request: Request):
                     json=payload,
                     headers=_upstream_headers(request.headers),
                 ) as response:
-                    # Checked before entering the stream loop: once streaming has
-                    # started we can no longer change the HTTP status code.
+                    # Our 200 response has already started by the time this
+                    # generator runs, so an HTTPException here would only abort
+                    # the body (the client then sees a dropped connection and
+                    # retries). Report the rejection as an NDJSON error line.
                     if response.status_code in (401, 403, 429):
                         await response.aread()
-                        raise HTTPException(
-                            status_code=response.status_code,
-                            detail=(
-                                "OpenCode rejected the request "
-                                f"({response.status_code}): {_upstream_error_msg(response)}"
-                            ),
+                        yield (
+                            json.dumps(
+                                {
+                                    "error": (
+                                        "OpenCode rejected the request "
+                                        f"({response.status_code}): "
+                                        f"{_upstream_error_msg(response)}"
+                                    )
+                                }
+                            )
+                            + "\n"
                         )
+                        return
                     response.raise_for_status()
                     async for line in response.aiter_lines():
                         line = line.strip()
@@ -432,10 +441,16 @@ async def api_chat(req: ChatRequest, request: Request):
 @app.post("/api/embed")
 async def api_embed(req: EmbedRequest):
     inputs = req.input if isinstance(req.input, list) else [req.input]
-    try:
+
+    def _encode() -> list[list[float]]:
         embedder = _get_embedder()
         vectors = embedder.encode(inputs, show_progress_bar=False)
-        embeddings = [[float(x) for x in vec] for vec in vectors]
+        return [[float(x) for x in vec] for vec in vectors]
+
+    try:
+        # Model loading and encoding are CPU-bound; keep them off the event
+        # loop so concurrent chat streams are not frozen.
+        embeddings = await run_in_threadpool(_encode)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Embedding error: {e}") from e
     return {"model": req.model, "embeddings": embeddings}

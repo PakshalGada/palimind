@@ -176,10 +176,29 @@ class _BrowserWorker:
         self._thread.join(timeout=10)
 
     # ── operations (execute on the worker thread) ──────────────────────
+    def _guard(self) -> None:
+        """Refuse to expose a page that ended up on a blocked address.
+
+        Only the requested URL is vetted up front; HTTP redirects, page
+        scripts (``location = 'http://127.0.0.1:…'``), clicks and history
+        navigation can all land the session on a loopback/private host.
+        """
+        url = str(self._page.url or "")
+        if not url or url.startswith(("about:", "data:")):
+            return
+        err = _check_url(url)
+        if err:
+            try:
+                self._page.goto("about:blank")
+            except Exception:  # noqa: BLE001 - best effort reset
+                pass
+            raise PermissionError(f"navigation to {url} refused: {err}")
+
     def op_goto(self, url: str, wait_until: str) -> dict[str, Any]:
         from palimind.settings import BROWSER_TIMEOUT_MS
 
         resp = self._page.goto(url, wait_until=wait_until, timeout=BROWSER_TIMEOUT_MS)
+        self._guard()
         return {
             "title": self._page.title(),
             "url": self._page.url,
@@ -187,6 +206,7 @@ class _BrowserWorker:
         }
 
     def op_snapshot(self) -> list[dict[str, Any]]:
+        self._guard()
         return self._page.evaluate(_SNAPSHOT_JS) or []
 
     def op_click(self, ref: int) -> None:
@@ -207,16 +227,20 @@ class _BrowserWorker:
 
     def op_back(self) -> dict[str, Any]:
         self._page.go_back(timeout=15000)
+        self._guard()
         return {"title": self._page.title(), "url": self._page.url}
 
     def op_forward(self) -> dict[str, Any]:
         self._page.go_forward(timeout=15000)
+        self._guard()
         return {"title": self._page.title(), "url": self._page.url}
 
     def op_extract(self, max_chars: int) -> str:
+        self._guard()
         return (self._page.inner_text("body") or "")[:max_chars]
 
     def op_screenshot(self, path: str) -> str:
+        self._guard()
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self._page.screenshot(path=path, full_page=False)
         return path

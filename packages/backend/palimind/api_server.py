@@ -1498,7 +1498,7 @@ async def _agent_scope_chat(scope: str, q: str, session_id: str | None) -> Strea
         defn.name,
         q,
         session_id,
-        resolve_model_url(model, ollama_url),
+        await asyncio.to_thread(resolve_model_url, model, ollama_url),
         model,
         working_root=None,
         prefix_mention=False,
@@ -1597,8 +1597,8 @@ async def chat_stream(
     if chat_mode == "document":
         from palimind.opencode.router import resolve_model
 
-        resolved_model, resolved_url, model_note = resolve_model(
-            chat_model, ollama_url, fallback_model=chat_model
+        resolved_model, resolved_url, model_note = await asyncio.to_thread(
+            resolve_model, chat_model, ollama_url, fallback_model=chat_model
         )
         if model_note:
             print(f"[chat] {model_note}")
@@ -1628,11 +1628,13 @@ async def chat_stream(
 
         orchestrator_model = config.get("moe_orchestrator_model", "") or chat_model
         worker_model = config.get("moe_worker_model", "") or chat_model
-        orchestrator_model, orch_url, orch_note = resolve_model(
-            orchestrator_model, ollama_url, fallback_model=chat_model
+        # resolve_model does blocking HTTP (up to several seconds when a
+        # backend is down); keep it off the event loop.
+        orchestrator_model, orch_url, orch_note = await asyncio.to_thread(
+            resolve_model, orchestrator_model, ollama_url, fallback_model=chat_model
         )
-        worker_model, work_url, work_note = resolve_model(
-            worker_model, ollama_url, fallback_model=chat_model
+        worker_model, work_url, work_note = await asyncio.to_thread(
+            resolve_model, worker_model, ollama_url, fallback_model=chat_model
         )
         for note in (orch_note, work_note):
             if note:
@@ -1658,7 +1660,9 @@ async def chat_stream(
         from palimind.opencode.router import resolve_model
 
         dr_model = config.get("deep_research_model", "") or chat_model
-        dr_model, dr_url, dr_note = resolve_model(dr_model, ollama_url, fallback_model=chat_model)
+        dr_model, dr_url, dr_note = await asyncio.to_thread(
+            resolve_model, dr_model, ollama_url, fallback_model=chat_model
+        )
         if dr_note:
             print(f"[chat] {dr_note}")
         return await deep_research_mode_stream(
@@ -1680,8 +1684,8 @@ async def chat_stream(
 
     from palimind.opencode.router import resolve_model
 
-    resolved_model, resolved_url, model_note = resolve_model(
-        chat_model, ollama_url, fallback_model=chat_model
+    resolved_model, resolved_url, model_note = await asyncio.to_thread(
+        resolve_model, chat_model, ollama_url, fallback_model=chat_model
     )
     if model_note:
         print(f"[chat] {model_note}")
@@ -1761,17 +1765,26 @@ async def media_stream(request: Request, path: str):
     if range_header:
         range_val = range_header.strip().lower()
         if range_val.startswith("bytes="):
-            parts = range_val[6:].split("-", 1)
-            start = int(parts[0]) if parts[0].isdigit() else 0
-            end = (
-                int(parts[1])
-                if len(parts) > 1 and parts[1].isdigit()
-                else min(start + 4 * 1024 * 1024 - 1, file_size - 1)
-            )
+            parts = range_val[6:].split(",", 1)[0].strip().split("-", 1)
+            if not parts[0].strip() and len(parts) > 1 and parts[1].strip().isdigit():
+                # Suffix range ("bytes=-500"): the last N bytes.
+                start = max(0, file_size - int(parts[1].strip()))
+                end = file_size - 1
+            else:
+                start = int(parts[0]) if parts[0].strip().isdigit() else 0
+                end = (
+                    int(parts[1])
+                    if len(parts) > 1 and parts[1].strip().isdigit()
+                    else min(start + 4 * 1024 * 1024 - 1, file_size - 1)
+                )
             end = min(end, file_size - 1)
+            if start >= file_size or end < start:
+                # Unsatisfiable: a negative Content-Length would crash the
+                # response mid-flight instead of telling the player.
+                return Response(status_code=416, headers={"Content-Range": f"bytes */{file_size}"})
             content_len = end - start + 1
 
-            async def _range_gen():
+            def _range_gen():
                 with resolved.open("rb") as f:
                     f.seek(start)
                     remaining = content_len

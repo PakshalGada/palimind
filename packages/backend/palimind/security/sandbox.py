@@ -26,8 +26,10 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from palimind.settings import (
     PYTHON_EXEC_CPU_TIME,
@@ -255,15 +257,34 @@ def run_command(
             "code directly on the host."
         )
 
-    return subprocess.run(  # noqa: S603 - argv is constructed here, no shell
-        argv,
-        cwd=str(root),
-        capture_output=True,
-        text=True,
-        timeout=timeout_s,
-        env=env,
-        preexec_fn=_preexec(limits),
-    )
+    # Output goes to temp files rather than pipes: the child's RLIMIT_FSIZE
+    # then caps it (``yes`` cannot balloon this process's memory), and bytes
+    # are decoded leniently so binary output cannot raise UnicodeDecodeError.
+    # stdin is closed so ``cat``/``read`` cannot block on the server's stdin.
+    with tempfile.TemporaryFile() as out_f, tempfile.TemporaryFile() as err_f:
+        proc = subprocess.run(  # noqa: S603 - argv is constructed here, no shell
+            argv,
+            cwd=str(root),
+            stdin=subprocess.DEVNULL,
+            stdout=out_f,
+            stderr=err_f,
+            timeout=timeout_s,
+            env=env,
+            preexec_fn=_preexec(limits),
+        )
+        return subprocess.CompletedProcess(
+            argv, proc.returncode, _read_tail(out_f), _read_tail(err_f)
+        )
+
+
+_MAX_CAPTURE_BYTES = 256 * 1024
+
+
+def _read_tail(fh: Any) -> str:
+    """Return (at most) the last ``_MAX_CAPTURE_BYTES`` written to *fh*."""
+    size = fh.seek(0, os.SEEK_END)
+    fh.seek(max(0, size - _MAX_CAPTURE_BYTES))
+    return fh.read().decode("utf-8", errors="replace")
 
 
 def _format_result(proc: subprocess.CompletedProcess[str]) -> str:

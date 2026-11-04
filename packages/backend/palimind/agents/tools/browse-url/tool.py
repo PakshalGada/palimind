@@ -22,6 +22,12 @@ def _playwright_fetch(url: str, max_chars: int) -> tuple[str, str, str | None]:
         try:
             page = browser.new_page()
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            # Redirects are followed by the browser; re-check where we landed
+            # so an external URL cannot bounce us onto a loopback/LAN service.
+            if not _is_safe_url(page.url):
+                raise PermissionError(
+                    f"redirected to {page.url}: internal/private network addresses are blocked"
+                )
             title = page.title()
             text = page.inner_text("body")[:max_chars]
             screenshot_path = None
