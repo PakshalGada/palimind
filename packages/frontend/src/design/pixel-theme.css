@@ -1,171 +1,42 @@
 /* ==========================================================================
    pixel-theme.css — the "Pixel" interface style.
 
-   Scoped to html[data-ui-style="pixel"] and layered on top of the light/dark
-   palette, so both palettes get the skin. Rules this file keeps:
-   - Monochrome, like the rest of the system: ink, paper and greys only.
-   - Hard geometry: square corners, 2px borders, offset shadows with no blur.
-   - Motion is step-timed (steps()) and animates transform/opacity/clip only.
-   - Every loop is decorative, pauses when the tab is hidden or accents are
-     off, and the global reduced-motion rules in base.css freeze it.
-   - Long-form reading text (chat answers, code) keeps the readable faces;
-     the pixel faces carry the interface chrome.
+   A restrained accent layer, scoped to html[data-ui-style="pixel"] and
+   layered on top of the light/dark palette. The interface itself stays
+   professional — readable type, the normal rounded geometry, normal
+   controls. Pixel character lives in a few deliberate places only:
+   - Pixel type on the brand wordmark and the hero greeting, nowhere else.
+   - A faint dot grid on the canvas and a slow, stepped scan band.
+   - Step-timed entrances for overlays, toasts and new transcript turns.
+   - A blinking pixel cursor on the active settings section.
+   Every loop is decorative, pauses when the tab is hidden or accents are
+   off, and the global reduced-motion rules in base.css freeze it.
    ========================================================================== */
 
-@import "@fontsource/geist-pixel/400.css";
 @import "@fontsource/silkscreen/400.css";
 @import "@fontsource/silkscreen/700.css";
 
-/* ── tokens ─────────────────────────────────────────────────────────────── */
 html[data-ui-style="pixel"] {
-    --px: 2px;
-
-    --font-pixel: "Geist Pixel", "Universal Sans", ui-sans-serif, system-ui, sans-serif;
-    --font-pixel-display: "Silkscreen", "Geist Pixel", ui-sans-serif, system-ui, sans-serif;
-    /* Captured before the override so reading surfaces can opt back in. */
-    --font-reading:
-        "Inter", "Universal Sans", ui-sans-serif, system-ui, -apple-system,
-        BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-
-    --font-sans: var(--font-pixel);
-    --font-display: var(--font-pixel-display);
-    --font-heading: var(--font-pixel-display);
-    --font-serif: var(--font-pixel-display);
-
-    /* Hard offset shadows: the extruded "sprite" look. Light lines read as
-       depth on the dark palette; the light palette overrides below. */
-    --px-shadow-color: var(--line-strong);
-    --shadow-xs: var(--px) var(--px) 0 0 var(--px-shadow-color);
-    --shadow-sm: 3px 3px 0 0 var(--px-shadow-color);
-    --shadow-md: 4px 4px 0 0 var(--px-shadow-color);
-    --shadow-lg: 6px 6px 0 0 var(--px-shadow-color);
-    --shadow-xl: 8px 8px 0 0 var(--px-shadow-color);
-    --shadow-card: var(--shadow-xs);
-    --shadow-soft: var(--shadow-sm);
-    --shadow-menu: var(--shadow-md);
-    --shadow-float: var(--shadow-lg);
-    --shadow-overlay: var(--shadow-lg);
-
-    /* Every UI transition snaps in a few frames instead of gliding. */
-    --ease-out: steps(3, end);
-    --ease-in-out: steps(4, end);
-    --ease-spring: var(--ease-out);
-    --ease-entrance: var(--ease-out);
-}
-html[data-ui-style="pixel"].light-mode,
-html[data-ui-style="pixel"][data-theme="light"] {
-    --px-shadow-color: var(--ink);
+    --font-pixel-display: "Silkscreen", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
 }
 
-/* ── geometry: square everything ────────────────────────────────────────── */
-html[data-ui-style="pixel"] *,
-html[data-ui-style="pixel"] *::before,
-html[data-ui-style="pixel"] *::after {
-    border-radius: 0 !important;
+/* ── pixel type: brand + hero only ─────────────────────────────────────── */
+html[data-ui-style="pixel"] .command-bar__wordmark {
+    font-family: var(--font-pixel-display);
+    font-weight: 700;
+    letter-spacing: 0.04em;
 }
-
-html[data-ui-style="pixel"] img,
-html[data-ui-style="pixel"] canvas,
-html[data-ui-style="pixel"] .pixel-glyph {
-    image-rendering: pixelated;
-}
-
-/* Readable faces for long-form content. */
-html[data-ui-style="pixel"] .message-content,
-html[data-ui-style="pixel"] .message-content p,
-html[data-ui-style="pixel"] .message-content li,
-html[data-ui-style="pixel"] .message-content td,
-html[data-ui-style="pixel"] textarea,
-html[data-ui-style="pixel"] .ProseMirror {
-    font-family: var(--font-reading);
-}
-html[data-ui-style="pixel"] code,
-html[data-ui-style="pixel"] pre,
-html[data-ui-style="pixel"] kbd {
-    font-family: var(--font-mono);
-}
-/* Headings inside answers stay pixel, which keeps the transcript on-brand. */
-html[data-ui-style="pixel"] .message-content h1,
-html[data-ui-style="pixel"] .message-content h2,
-html[data-ui-style="pixel"] .message-content h3 {
-    font-family: var(--font-pixel);
-    letter-spacing: 0.01em;
-}
-html[data-ui-style="pixel"] h1,
-html[data-ui-style="pixel"] h2 {
+html[data-ui-style="pixel"] .home-hero__title,
+html[data-ui-style="pixel"] .welcome-empty .ui-empty__title {
+    font-family: var(--font-pixel-display);
+    font-weight: 700;
     letter-spacing: 0.02em;
+    line-height: 1.15;
 }
 
-/* ── chunky outlines on the main surfaces ───────────────────────────────── */
-html[data-ui-style="pixel"] .ui-card,
-html[data-ui-style="pixel"] .settings-card,
-html[data-ui-style="pixel"] .ai-command-center,
-html[data-ui-style="pixel"] .modal-content,
-html[data-ui-style="pixel"] .ui-modal,
-html[data-ui-style="pixel"] .ui-popover,
-html[data-ui-style="pixel"] .ui-picker-menu,
-html[data-ui-style="pixel"] .ui-toast {
-    border: var(--px) solid var(--line-strong);
-}
-html[data-ui-style="pixel"] .ai-command-center {
-    box-shadow: var(--shadow-md);
-}
-html[data-ui-style="pixel"] .ai-command-center:focus-within {
-    border-color: var(--ink);
-    box-shadow: 4px 4px 0 0 var(--ink);
-}
-html[data-ui-style="pixel"] .user-message .message-content {
-    box-shadow: 3px 3px 0 0 var(--line-strong);
-}
-
-/* ── buttons: lift on hover, press into the shadow ──────────────────────── */
-html[data-ui-style="pixel"] .ui-btn,
-html[data-ui-style="pixel"] .settings-theme-card {
-    border-width: var(--px);
-    transition:
-        transform 90ms steps(2, end),
-        box-shadow 90ms steps(2, end),
-        background-color 90ms steps(2, end);
-}
-html[data-ui-style="pixel"] .ui-btn:not(:disabled):hover,
-html[data-ui-style="pixel"] .settings-theme-card:hover {
-    transform: translate(-1px, -1px);
-    box-shadow: 3px 3px 0 0 var(--px-shadow-color);
-}
-html[data-ui-style="pixel"] .ui-btn:not(:disabled):active,
-html[data-ui-style="pixel"] .settings-theme-card:active,
-html[data-ui-style="pixel"] .icon-btn:not(:disabled):active,
-html[data-ui-style="pixel"] .ui-icon-btn:not(:disabled):active {
-    transform: translate(var(--px), var(--px));
-    box-shadow: none;
-}
-
-/* ── inputs ─────────────────────────────────────────────────────────────── */
-html[data-ui-style="pixel"] .ui-input,
-html[data-ui-style="pixel"] .ui-textarea,
-html[data-ui-style="pixel"] .ui-select,
-html[data-ui-style="pixel"] .settings-input {
-    border: var(--px) solid var(--line-strong);
-    box-shadow: inset var(--px) var(--px) 0 0 var(--wash-strong);
-}
-
-/* ── focus: a dashed pixel outline ──────────────────────────────────────── */
-html[data-ui-style="pixel"] :focus-visible {
-    outline: var(--px) dashed var(--focus) !important;
-    outline-offset: var(--px);
-}
-
-/* ── scrollbars ─────────────────────────────────────────────────────────── */
-html[data-ui-style="pixel"] ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-}
-html[data-ui-style="pixel"] ::-webkit-scrollbar-thumb {
-    background: var(--color-scrollbar);
-    border: var(--px) solid var(--bg);
-}
-html[data-ui-style="pixel"] ::-webkit-scrollbar-thumb:hover {
-    background: var(--color-scrollbar-hover);
+html[data-ui-style="pixel"] .pixel-glyph,
+html[data-ui-style="pixel"] canvas {
+    image-rendering: pixelated;
 }
 
 /* ── background: a dot grid on the canvas + a slow scan band ────────────── */
@@ -191,9 +62,9 @@ html[data-ui-style="pixel"] .app-container::after {
         transparent 0 3px,
         var(--wash) 3px 4px
     );
-    opacity: 0.55;
+    opacity: 0.4;
     transform: translateY(-96px);
-    animation: pixel-scan 14s steps(70, end) infinite;
+    animation: pixel-scan 16s steps(80, end) infinite;
     will-change: transform;
 }
 @keyframes pixel-scan {
@@ -201,45 +72,42 @@ html[data-ui-style="pixel"] .app-container::after {
     100% { transform: translateY(100vh); }
 }
 
-/* ── entrances: overlays assemble row by row ────────────────────────────── */
+/* ── entrances: overlays assemble in a few stepped frames ───────────────── */
 html[data-ui-style="pixel"] .modal-content,
-html[data-ui-style="pixel"] .ui-modal,
-html[data-ui-style="pixel"] .ui-popover,
-html[data-ui-style="pixel"] .ui-picker-menu {
-    animation: pixel-materialize 200ms steps(5, end) both;
+html[data-ui-style="pixel"] .ui-modal {
+    animation: pixel-materialize 180ms steps(4, end) both;
 }
 html[data-ui-style="pixel"] .ui-toast {
-    animation: pixel-slide-in 200ms steps(4, end) both;
+    animation: pixel-slide-in 180ms steps(4, end) both;
 }
 @keyframes pixel-materialize {
-    0% { clip-path: inset(0 0 100% 0); opacity: 0.4; }
-    100% { clip-path: inset(0 0 -16px 0); opacity: 1; }
+    0% { opacity: 0; transform: translateY(6px) scale(0.985); }
+    100% { opacity: 1; transform: none; }
 }
 @keyframes pixel-slide-in {
-    0% { transform: translateX(16px); opacity: 0; }
+    0% { transform: translateX(12px); opacity: 0; }
     100% { transform: none; opacity: 1; }
 }
 
 /* New transcript turns pop in a couple of pixels. */
 html[data-ui-style="pixel"] .message-wrapper {
-    animation: pixel-rise 180ms steps(3, end) both;
+    animation: pixel-rise 160ms steps(3, end) both;
 }
 @keyframes pixel-rise {
-    0% { transform: translateY(6px); opacity: 0; }
+    0% { transform: translateY(4px); opacity: 0; }
     100% { transform: none; opacity: 1; }
 }
 
-/* Selected nav rows get a blinking pixel cursor at the left edge. */
-html[data-ui-style="pixel"] .settings-nav-item.active,
-html[data-ui-style="pixel"] .ui-tab[aria-selected="true"] {
+/* The active settings section gets a blinking pixel cursor. */
+html[data-ui-style="pixel"] .settings-nav-item.active {
     position: relative;
 }
 html[data-ui-style="pixel"] .settings-nav-item.active::before {
     content: "";
     position: absolute;
-    left: 2px;
+    left: 3px;
     top: 50%;
-    width: 4px;
+    width: 3px;
     height: 8px;
     margin-top: -4px;
     background: currentColor;
@@ -251,8 +119,6 @@ html[data-ui-style="pixel"] .settings-nav-item.active::before {
 }
 
 /* ── rest states ────────────────────────────────────────────────────────── */
-/* Hidden tab or accents off: loops stop on a static frame. Reduced motion is
-   handled globally in base.css. */
 html[data-ui-style="pixel"][data-pixel-paused="true"] .app-container::after,
 html[data-ui-style="pixel"][data-pixel-paused="true"] .settings-nav-item.active::before {
     animation-play-state: paused;
