@@ -5,18 +5,15 @@ import { DiffView } from '../primitives/DiffView';
 import { CodeView } from '../primitives/CodeView';
 import { diffFromStep, parseOutput, textOf } from '../toolOutput';
 import { previewForTool } from '../toolRegistry';
+import {
+  destructiveReason,
+  grantDecisionForKey,
+  maskSecrets,
+  plainAction,
+  type GrantDecision,
+} from '../grant';
 
-export type GrantDecision = 'once' | 'run' | 'deny';
-
-const DESTRUCTIVE = [
-  /\brm\s+-[a-z]*[rf]/i,
-  /\bsudo\b/i,
-  /\bmkfs\b/i,
-  /\bdd\s+if=/i,
-  /curl[^|]*\|\s*(sh|bash|zsh)/i,
-  /wget[^|]*\|\s*(sh|bash|zsh)/i,
-  />\s*\/(etc|usr|bin|var)\//i,
-];
+export type { GrantDecision };
 
 function argString(args: unknown, keys: string[]): string {
   if (!args || typeof args !== 'object') return '';
@@ -28,21 +25,29 @@ function argString(args: unknown, keys: string[]): string {
   return '';
 }
 
-function isDestructive(command: string): boolean {
-  return DESTRUCTIVE.some((pattern) => pattern.test(command));
+function toolLabel(name: string): string {
+  return name.replace(/_/g, ' ');
 }
 
-function Reach({ step }: { step: ToolStep }) {
+function Domain({ url }: { url: string }) {
+  try {
+    return <>{new URL(url).host.replace(/^www\./, '')}</>;
+  } catch {
+    return <>{url}</>;
+  }
+}
+
+function Payload({ step }: { step: ToolStep }) {
   const name = step.name;
+
   if (name === 'write_file' || name === 'search_replace') {
     const diff = diffFromStep(step.output, step.args);
     return (
       <div className="act-grant__reach">
-        <span className="act-row__label act-mono">{diff.path}</span>
         {diff.before || diff.after ? (
           <DiffView before={diff.before ?? ''} after={diff.after ?? ''} path={diff.path} />
         ) : (
-          <span className="act-muted act-mono">{previewForTool(name, step.args)}</span>
+          <span className="act-grant__reach-item act-mono">{previewForTool(name, step.args)}</span>
         )}
       </div>
     );
@@ -51,33 +56,34 @@ function Reach({ step }: { step: ToolStep }) {
   if (name === 'run_python' || name === 'run_shell') {
     const code = argString(step.args, ['code', 'source', 'script']);
     const command = argString(step.args, ['command', 'cmd', 'shell']);
-    const destructive = command ? isDestructive(command) : false;
     return (
       <div className="act-grant__reach">
         <CodeView
-          code={code || command}
+          code={maskSecrets(code || command)}
           language={code ? 'python' : 'bash'}
           title={code ? 'Python' : 'Command'}
           maxLines={30}
           copy={false}
         />
-        {destructive && (
-          <span className="act-grant__warning">
-            <Icon name="triangle-alert" size={13} />
-            Review carefully
-          </span>
-        )}
       </div>
     );
   }
 
   if (name.startsWith('browser_')) {
-    const label = previewForTool(name, step.args);
-    const action = name.replace('browser_', '');
+    const label = argString(step.args, ['label', 'element', 'selector', 'name', 'ref']);
+    const url = argString(step.args, ['url', 'domain', 'page']);
+    const action = name.replace('browser_', '').replace(/_/g, ' ');
     return (
       <div className="act-grant__reach">
-        <span className="act-grant__reach-item">{action}</span>
-        {label && <span className="act-grant__reach-item act-mono">{label}</span>}
+        <span className="act-grant__reach-item">
+          <span className="act-mono">{action}</span>
+          {label && <span>"{maskSecrets(label)}"</span>}
+          {url && (
+            <span className="act-muted">
+              on <Domain url={url} />
+            </span>
+          )}
+        </span>
       </div>
     );
   }
@@ -86,7 +92,7 @@ function Reach({ step }: { step: ToolStep }) {
   return (
     <div className="act-grant__reach">
       <span className="act-grant__reach-item act-mono">
-        {previewForTool(name, step.args) || textOf(output).slice(0, 80)}
+        {maskSecrets(previewForTool(name, step.args) || textOf(output).slice(0, 120))}
       </span>
     </div>
   );
@@ -95,18 +101,23 @@ function Reach({ step }: { step: ToolStep }) {
 export function PermissionGrant({
   step,
   allowedForRun,
+  restored,
   onResolve,
 }: {
   step: ToolStep;
   allowedForRun: boolean;
+  /** True when the run was restored from persisted history. */
+  restored?: boolean;
   onResolve: (decision: GrantDecision) => void;
 }) {
   const primary = useRef<HTMLButtonElement>(null);
   const pending = step.status === 'awaiting_approval';
-
+  const action = plainAction(step);
+  const safeAction = maskSecrets(action);
+  const destructive = destructiveReason(step);
   useEffect(() => {
-    if (pending) primary.current?.focus();
-  }, [pending]);
+    if (pending && !restored) primary.current?.focus();
+  }, [pending, restored]);
 
   if (!pending) {
     const label =
@@ -117,48 +128,76 @@ export function PermissionGrant({
           : 'Allowed';
     return (
       <div className="act-grant__resolved">
-        <Icon name={label === 'Denied' || label === 'Cancelled' ? 'x' : 'check'} size={13} />
-        {label}
+        <Icon name={label === 'Allowed' ? 'check' : 'x'} size={13} />
+        <span>{label}</span>
+        {label === 'Allowed' && allowedForRun && (
+          <span className="act-grant__note">Allowed for this run</span>
+        )}
       </div>
     );
   }
 
   return (
     <div
-      className="act-grant act-attention"
+      className={`act-grant${restored ? '' : ' act-attention'}`}
       role="group"
-      aria-label="Tool approval required"
+      aria-label={`Needs approval: ${safeAction}`}
+      data-pending-approval={step.id}
       onKeyDown={(event) => {
-        if (event.key === 'Escape') {
+        const target = event.target as HTMLElement;
+        const decision = grantDecisionForKey({
+          key: event.key,
+          targetIsButton: target.closest('button') != null,
+        });
+        if (decision) {
           event.preventDefault();
-          onResolve('deny');
-        } else if (event.key === 'Enter' && event.target === event.currentTarget) {
-          event.preventDefault();
-          onResolve('once');
+          onResolve(decision);
         }
       }}
     >
+      <span className="act-visually-hidden" aria-live="assertive">
+        Approval requested: {safeAction}
+      </span>
+
       <div className="act-grant__head">
-        <Icon name="lock" size={14} />
+        <Icon name="lock" size={15} />
         <span className="act-grant__title">Needs approval</span>
-        {allowedForRun && <span className="act-grant__note">Allowed for this run</span>}
+        <code className="act-grant__tool act-mono">{toolLabel(step.name)}</code>
+        {restored && <span className="act-grant__note">Requested earlier</span>}
       </div>
-      <Reach step={step} />
-      <div className="act-grant__actions">
-        <button type="button" className="act-btn" onClick={() => onResolve('deny')}>
-          Deny
-        </button>
-        <button type="button" className="act-btn" onClick={() => onResolve('run')}>
-          Allow for this run
-        </button>
-        <button
-          type="button"
-          ref={primary}
-          className="act-btn act-btn--primary"
-          onClick={() => onResolve('once')}
-        >
-          Allow once
-        </button>
+
+      <div className="act-grant__action">{safeAction}</div>
+
+      <Payload step={step} />
+
+      {destructive && (
+        <div className="act-grant__warning">
+          <Icon name="triangle-alert" size={13} />
+          <span>Review carefully</span>
+        </div>
+      )}
+
+      <div className="act-grant__foot">
+        <div className="act-grant__actions">
+          <button type="button" className="act-btn act-btn--danger-ghost" onClick={() => onResolve('deny')}>
+            Deny
+          </button>
+          <span className="act-grant__scope">
+            <button type="button" className="act-btn act-btn--ghost" onClick={() => onResolve('run')}>
+              Allow for this run
+            </button>
+            <span className="act-grant__scope-note">Per tool name · this run only</span>
+          </span>
+          <button
+            type="button"
+            ref={primary}
+            className="act-btn act-btn--primary"
+            onClick={() => onResolve('once')}
+          >
+            Allow once
+          </button>
+        </div>
+        <p className="act-grant__hint">Enter allow once · A allow for this run · Esc deny</p>
       </div>
     </div>
   );

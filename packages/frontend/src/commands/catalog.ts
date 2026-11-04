@@ -30,7 +30,9 @@ export type CommandIcon =
   | 'network'
   | 'sun'
   | 'sync'
-  | 'model';
+  | 'model'
+  | 'home'
+  | 'package';
 
 export interface CommandDef {
   /** Stable identifier, also used as the key for shortcut overrides. */
@@ -114,6 +116,13 @@ export const COMMANDS: CommandDef[] = [
 
   // ── Navigation ──────────────────────────────────────────────────────
   {
+    id: 'nav.home',
+    title: 'Go to Home',
+    category: 'Navigation',
+    icon: 'home',
+    keywords: ['start', 'overview', 'recent'],
+  },
+  {
     id: 'nav.chat',
     title: 'Go to Chat',
     category: 'Navigation',
@@ -164,12 +173,28 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     id: 'research.projects',
-    title: 'Research Projects',
+    title: 'Go to Research',
     category: 'Navigation',
     icon: 'brain',
     description: 'Persistent research workspaces with notes, findings and sources',
     keywords: ['projects', 'findings', 'sources', 'library', 'timeline'],
     defaultShortcut: 'Mod+Shift+P',
+  },
+  {
+    id: 'nav.projects',
+    title: 'Go to Projects',
+    category: 'Navigation',
+    icon: 'folder',
+    description: 'Workspaces with isolated sessions, knowledge and artifacts',
+    keywords: ['workspace', 'folder', 'scope'],
+  },
+  {
+    id: 'nav.artifacts',
+    title: 'Go to Artifacts',
+    category: 'Navigation',
+    icon: 'package',
+    description: 'Browse and preview everything you have saved',
+    keywords: ['library', 'documents', 'download'],
   },
   {
     id: 'research.compare',

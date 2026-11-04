@@ -22,7 +22,7 @@
     border-bottom: none;
 }
 #settings-modal .modal-header h2 {
-    font-size: 1.05rem;
+    font-size: var(--type-md);
 }
 #settings-modal .modal-body {
     padding: 22px 24px 26px;
@@ -34,7 +34,7 @@
 #settings-modal .settings-input,
 #settings-modal .settings-textarea {
     padding: 10px 12px;
-    font-size: 0.85rem;
+    font-size: var(--type-base);
 }
 /* Settings buttons — neutral PaliSpace style, never a white accent */
 #settings-modal .action-btn.primary {
@@ -53,7 +53,7 @@
 
 /* ── settings additions ── */
 .settings-hint {
-  font-size: 0.78rem;
+  font-size: var(--type-sm);
   color: var(--text-muted);
   margin: 6px 0 8px;
 }
@@ -65,7 +65,7 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg, 10px);
   color: var(--text-main);
-  font-size: 0.85rem;
+  font-size: var(--type-base);
   padding: 8px 10px;
   margin-bottom: 8px;
 }
@@ -75,7 +75,7 @@
   font-family: inherit;
 }
 .settings-status {
-  font-size: 0.78rem;
+  font-size: var(--type-sm);
   color: var(--text-secondary);
 }
 
@@ -100,7 +100,7 @@
 }
 #settings-modal .modal-header h2 {
     font-family: var(--font-heading);
-    font-size: 1.08rem;
+    font-size: var(--type-md);
     font-weight: 700;
     letter-spacing: 0.01em;
 }
@@ -135,8 +135,8 @@
     background: transparent;
     color: var(--text-secondary);
     font-family: inherit;
-    font-size: 0.85rem;
-    font-weight: 500;
+    font-size: var(--type-base);
+    font-weight: 550;
     text-align: left;
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
@@ -149,7 +149,7 @@
     background: var(--bg-active);
     color: var(--text-main);
     border-color: transparent;
-    font-weight: 600;
+    font-weight: 550;
 }
 .settings-nav-item svg {
     flex: 0 0 auto;
@@ -170,7 +170,7 @@
 .settings-nav-status.on {
     background: var(--text-main);
     opacity: 1;
-    box-shadow: 0 0 0 3px var(--accent-soft);
+    box-shadow: none;
 }
 
 /* Right content pane */
@@ -194,7 +194,7 @@
 .settings-section-header h3 {
     margin: 0 0 5px;
     font-family: var(--font-heading);
-    font-size: 1.05rem;
+    font-size: var(--type-md);
     font-weight: 700;
     letter-spacing: -0.01em;
     color: var(--text-main);
@@ -202,7 +202,7 @@
 .settings-section-header p {
     margin: 0;
     max-width: 52ch;
-    font-size: 0.82rem;
+    font-size: var(--type-sm);
     line-height: 1.55;
     color: var(--text-muted);
 }
@@ -211,14 +211,14 @@
     flex-direction: column;
     gap: 13px;
     padding: 18px;
-    background: var(--surface-raised);
+    background: var(--surface);
     border: none;
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-xs);
 }
 .settings-card-title {
-    font-size: 0.72rem;
-    font-weight: 600;
+    font-size: var(--type-xs);
+    font-weight: 550;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-muted);
@@ -229,8 +229,8 @@
     gap: 6px;
 }
 .settings-field > label {
-    font-size: 0.8rem;
-    font-weight: 500;
+    font-size: var(--type-sm);
+    font-weight: 550;
     color: var(--text-secondary);
 }
 #settings-modal .settings-input,
@@ -243,7 +243,7 @@
     border-radius: var(--radius-md);
     color: var(--text-main);
     font-family: inherit;
-    font-size: 0.85rem;
+    font-size: var(--type-base);
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 #settings-modal .settings-input:focus,
@@ -267,7 +267,7 @@
     border-radius: var(--radius-md);
     color: var(--text-main);
     font-family: inherit;
-    font-size: 0.85rem;
+    font-size: var(--type-base);
     cursor: pointer;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
     text-align: left;
@@ -277,7 +277,7 @@
 }
 .settings-select-trigger:focus {
     outline: none;
-    box-shadow: 0 0 0 3px var(--focus-ring);
+    box-shadow: none;
 }
 .settings-select-value {
     flex: 1;
@@ -308,7 +308,7 @@
     border: none;
     color: var(--text-main);
     font-family: inherit;
-    font-size: 0.85rem;
+    font-size: var(--type-base);
     text-align: left;
     cursor: pointer;
     transition: background 0.12s ease;
@@ -320,10 +320,10 @@
     background: var(--accent-soft);
 }
 .settings-select-option-label {
-    font-weight: 500;
+    font-weight: 550;
 }
 .settings-select-option-desc {
-    font-size: 0.75rem;
+    font-size: var(--type-sm);
     color: var(--text-muted);
 }
 #settings-modal .settings-textarea {
@@ -380,17 +380,17 @@
 }
 .settings-dot.on {
     background: var(--text-main);
-    box-shadow: 0 0 0 3px var(--accent-soft);
+    box-shadow: none;
 }
 .settings-status-text {
-    font-size: 0.84rem;
-    font-weight: 500;
+    font-size: var(--type-base);
+    font-weight: 550;
     color: var(--text-main);
 }
 .settings-masked {
     margin-left: auto;
     font-family: var(--font-mono);
-    font-size: 0.76rem;
+    font-size: var(--type-sm);
     color: var(--text-muted);
 }
 
@@ -437,11 +437,11 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 0.82rem;
-    font-weight: 500;
+    font-size: var(--type-sm);
+    font-weight: 550;
 }
 .settings-theme-hint {
-    font-size: 0.72rem;
+    font-size: var(--type-xs);
     color: var(--text-muted);
 }
 
@@ -457,10 +457,10 @@
     margin-top: 0;
     padding: 8px 16px;
     border-radius: var(--radius-md);
-    font-weight: 500;
+    font-weight: 550;
 }
 .settings-feedback {
-    font-size: 0.78rem;
+    font-size: var(--type-sm);
     color: var(--text-secondary);
 }
 .settings-feedback.error {
@@ -468,7 +468,7 @@
 }
 .settings-hint-inline {
     margin: 0;
-    font-size: 0.75rem;
+    font-size: var(--type-sm);
     line-height: 1.55;
     color: var(--text-muted);
 }
@@ -502,3 +502,18 @@
     }
 }
 
+
+/* ── appearance: motion controls ─────────────────────────────────────── */
+.settings-field-label {
+  display: block;
+  font-size: var(--type-xs);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+  margin-bottom: 6px;
+}
+.settings-card .ui-toggle {
+  margin-top: 10px;
+}
+.settings-card .ui-segmented {
+  margin-top: 2px;
+}

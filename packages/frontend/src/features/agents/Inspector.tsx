@@ -333,6 +333,11 @@ export default function Inspector({
     return byTier;
   }, [tools, toolQuery]);
 
+  const selectedTools = useMemo(
+    () => (draft.tools || []).map((id) => tools[id]).filter(Boolean),
+    [draft.tools, tools],
+  );
+
   const approvalTools = useMemo(() => {
     if (autonomy === 'off') return [];
     return (draft.tools || [])
@@ -788,6 +793,20 @@ export default function Inspector({
             {section === 'capabilities' && (
               <div className="ax-tools">
                 <section className="ax-form__section">
+                  <h4 className="ax-form__title">Tool pack</h4>
+                  <Field label="Pack" hint="Narrows which tools this agent may call. Auto allows every tier-appropriate tool.">
+                    <Select
+                      value={draft.tool_pack || 'auto'}
+                      onChange={(e) => patch({ tool_pack: e.target.value as AgentDefinition['tool_pack'] })}
+                    >
+                      <option value="auto">Auto — all tier-appropriate tools</option>
+                      <option value="research">Research</option>
+                      <option value="code">Code</option>
+                      <option value="data">Data</option>
+                      <option value="web">Web</option>
+                      <option value="custom">Custom — only pinned tools</option>
+                    </Select>
+                  </Field>
                   <h4 className="ax-form__title">Access gates</h4>
                   <Toggle
                     title="Write access"
@@ -825,6 +844,33 @@ export default function Inspector({
                         blocked by the current gates: {blockedTools.map((t) => t.id).join(', ')}
                       </span>
                     </div>
+                  )}
+                  {selectedTools.length > 0 && (
+                    <Field
+                      label="Always allow"
+                      hint="These tools skip the approval prompt. Tier and access gates still apply."
+                    >
+                      <div className="ax-chips">
+                        {selectedTools.map((t) => {
+                          const on = (draft.always_allow_tools || []).includes(t.id);
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              className={`ax-pickchip${on ? ' is-on' : ''}`}
+                              onClick={() => {
+                                const cur = new Set(draft.always_allow_tools || []);
+                                if (cur.has(t.id)) cur.delete(t.id);
+                                else cur.add(t.id);
+                                patch({ always_allow_tools: Array.from(cur) });
+                              }}
+                            >
+                              {t.id}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </Field>
                   )}
                 </section>
 

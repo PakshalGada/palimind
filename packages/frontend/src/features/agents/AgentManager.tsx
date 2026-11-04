@@ -4,7 +4,7 @@ import { useApp } from '../../AppContext';
 import { useCommandHandler } from '../../commands/useCommand';
 import type { AgentListItem } from '../../types';
 import type { InspectorSection } from './types';
-import AgentWizard from './AgentWizard';
+import AgentOnboarding from './AgentOnboarding';
 import Inspector from './Inspector';
 import './agents.css';
 import './AgentManager.css';
@@ -70,7 +70,7 @@ export default function AgentManager() {
 
   return (
     <>
-      <AgentWizard
+      <AgentOnboarding
         open={creating}
         onClose={() => setCreating(false)}
         onCreated={(id) => {

@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { useApp } from './AppContext';
 import { api } from './api';
 import Sidebar from './components/Sidebar';
-import WelcomeScreen from './components/WelcomeScreen';
 import ChatArea from './components/ChatArea';
 import SettingsModal from './components/SettingsModal';
 import DirectoryPicker from './components/DirectoryPicker';
@@ -28,7 +27,13 @@ import ResponsiveSidebar from './components/layout/ResponsiveSidebar';
 import SidePanel from './components/layout/SidePanel';
 import { useCommandHandlers } from './commands/useCommand';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { usePixelMotion } from './design/usePixelMotion';
 import { ChatStreamProvider } from './stream/ChatStream';
+import HomeView from './features/home/HomeView';
+import ProjectsView from './features/projects/ProjectsView';
+import ArtifactsView from './features/artifacts/ArtifactsView';
+import ResearchView from './features/research/ResearchView';
+import KnowledgeView from './features/knowledge/KnowledgeView';
 
 export default function App() {
   const {
@@ -41,45 +46,65 @@ export default function App() {
     setActiveView, setAgentsView, setChatMode, theme, setTheme,
     chatMode,
     setCommandPaletteOpen, setShortcutsModalOpen,
-    toggleSidebar, setArtifactPanelOpen, openArtifactLibrary,
+    toggleSidebar, setArtifactPanelOpen,
     artifactPanelOpen,
     shortcutOverrides, commandPaletteOpen,
   } = useApp();
 
   useKeyboardShortcuts({ overrides: shortcutOverrides, disabled: commandPaletteOpen });
+  usePixelMotion();
+
+  // Deep links: #home, #chat, #agents, #knowledge, #projects, #artifacts,
+  // #research. The view is reflected in the hash so a reload keeps context.
+  useEffect(() => {
+    const fromHash = () => {
+      const value = window.location.hash.replace(/^#\/?/, '');
+      const views = ['home', 'chat', 'agents', 'knowledge', 'projects', 'artifacts', 'research'];
+      if (views.includes(value)) setActiveView(value as typeof activeView);
+    };
+    fromHash();
+    window.addEventListener('hashchange', fromHash);
+    return () => window.removeEventListener('hashchange', fromHash);
+  }, [setActiveView]);
+
+  useEffect(() => {
+    if (window.location.hash.replace(/^#\/?/, '') !== activeView) {
+      window.history.replaceState(null, '', `#${activeView}`);
+    }
+  }, [activeView]);
 
   // App-level commands: navigation, view toggles and global modals.
   useCommandHandlers({
     'general.palette': () => setCommandPaletteOpen(true),
     'general.shortcuts': () => setShortcutsModalOpen(true),
     'general.settings': () => {
-      const modal = document.getElementById('settings-modal');
-      if (modal) modal.style.display = 'flex';
+      window.dispatchEvent(new CustomEvent('palimind:open-settings'));
     },
     'view.toggle-sidebar': toggleSidebar,
     'view.toggle-theme': () => setTheme(theme === 'dark' ? 'light' : 'dark'),
     'view.toggle-artifacts': () => {
       setArtifactPanelOpen(!artifactPanelOpen);
     },
-    'view.browse-artifacts': openArtifactLibrary,
+    'view.browse-artifacts': () => setActiveView('artifacts'),
     'nav.chat': () => {
       setActiveView('chat');
       setChatMode('llm');
     },
     'nav.knowledge': () => {
-      setActiveView('fields');
+      setActiveView('knowledge');
       setChatMode('document');
     },
     'nav.agents': () => setActiveView('agents'),
+    'nav.home': () => setActiveView('home'),
+    'nav.projects': () => setActiveView('projects'),
+    'nav.artifacts': () => setActiveView('artifacts'),
     'nav.graph': () => {
       const modal = document.getElementById('graph-modal');
       if (modal) modal.style.display = 'flex';
       window.dispatchEvent(new CustomEvent('palimind:open-graph'));
     },
     'nav.search': () => setCommandPaletteOpen(true),
-    'research.projects': () => {
-      window.dispatchEvent(new CustomEvent('palimind:open-research'));
-    },
+    'research.projects': () => setActiveView('research'),
     'research.compare': () => {
       window.dispatchEvent(new CustomEvent('palimind:open-compare'));
     },
@@ -117,9 +142,11 @@ export default function App() {
       ? selectedAgentId
         ? `agent:${selectedAgentId}`
         : ''
-      : activeView === 'chat'
+      : activeView === 'chat' || activeView === 'home'
         ? 'chat'
-        : 'field';
+        : activeView === 'knowledge'
+          ? 'field'
+          : '';
 
   useEffect(() => {
     async function init() {
@@ -192,13 +219,13 @@ export default function App() {
         sidePanel={<SidePanel />}
       >
         <SetupProgress />
-        {activeView === "agents" ? (
-          <AgentsWorkspace />
-        ) : activeView === "chat" || activeField ? (
-          <ChatArea />
-        ) : (
-          <WelcomeScreen />
-        )}
+        {activeView === 'home' && <HomeView />}
+        {activeView === 'chat' && <ChatArea />}
+        {activeView === 'agents' && <AgentsWorkspace />}
+        {activeView === 'knowledge' && <KnowledgeView />}
+        {activeView === 'projects' && <ProjectsView />}
+        {activeView === 'artifacts' && <ArtifactsView />}
+        {activeView === 'research' && <ResearchView />}
         <AgentManager />
         <SettingsModal />
         <DirectoryPicker />

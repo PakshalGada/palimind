@@ -29,11 +29,11 @@ test('run.start initializes the run and is idempotent', () => {
   }), state);
 });
 
-test('reasoning deltas accumulate and end records a duration', () => {
+test('reasoning deltas only track lifecycle; text lives in the buffer', () => {
   let state = start();
   state = reduceActivity(state, { type: 'reasoning.delta', text: 'first ', at: 1000 });
   state = reduceActivity(state, { type: 'reasoning.delta', text: 'second', at: 1200 });
-  assert.equal(state.reasoning.text, 'first second');
+  assert.equal(state.reasoning.text, '');
   assert.equal(state.reasoning.startedAt, 1000);
   state = reduceActivity(state, { type: 'reasoning.end', at: 8000 });
   assert.equal(state.reasoning.done, true);
@@ -42,11 +42,11 @@ test('reasoning deltas accumulate and end records a duration', () => {
 
 test('reasoning delta seq drops duplicates', () => {
   let state = start();
-  state = reduceActivity(state, { type: 'reasoning.delta', text: 'a', seq: 2 });
-  const same = reduceActivity(state, { type: 'reasoning.delta', text: 'a', seq: 2 });
+  state = reduceActivity(state, { type: 'reasoning.delta', text: 'a', seq: 2, at: 1000 });
+  const same = reduceActivity(state, { type: 'reasoning.delta', text: 'a', seq: 2, at: 1000 });
   assert.equal(same, state);
-  state = reduceActivity(state, { type: 'reasoning.delta', text: 'b', seq: 3 });
-  assert.equal(state.reasoning.text, 'ab');
+  state = reduceActivity(state, { type: 'reasoning.delta', text: 'b', seq: 3, at: 1100 });
+  assert.equal(state.reasoning.seq, 3);
 });
 
 test('tool.end before tool.start creates the step', () => {

@@ -18,13 +18,13 @@
 }
 
 .ag-hint {
-  font-size: 0.78rem;
+  font-size: var(--type-sm);
   color: var(--text-secondary);
 }
 
 .ag-graph {
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 14px;
   background: var(--panel-bg);
 }
@@ -37,13 +37,13 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--accent-color) 16%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent-color) 45%, transparent);
-  font-weight: 600;
-  font-size: 0.85rem;
+  font-weight: 550;
+  font-size: var(--type-base);
 }
 
 .ag-empty {
   margin-top: 12px;
-  font-size: 0.82rem;
+  font-size: var(--type-sm);
   color: var(--text-secondary);
 }
 
@@ -56,14 +56,14 @@
 
 .ag-node {
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px 12px;
   background: var(--bg-color);
   transition: border-color 0.2s ease;
 }
 
 .ag-node--working {
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-color) 35%, transparent);
+  box-shadow: none;
 }
 
 .ag-node--complete {
@@ -80,13 +80,13 @@
 }
 
 .ag-node__label {
-  font-weight: 600;
-  font-size: 0.84rem;
+  font-weight: 550;
+  font-size: var(--type-base);
 }
 
 .ag-node__task {
   margin-top: 6px;
-  font-size: 0.75rem;
+  font-size: var(--type-sm);
   color: var(--text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -102,7 +102,7 @@
 }
 
 .ag-node__step {
-  font-size: 0.72rem;
+  font-size: var(--type-xs);
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
@@ -111,7 +111,7 @@
 
 .ag-synthesis {
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
 }
 
@@ -127,6 +127,6 @@
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 0.82rem;
+  font-size: var(--type-sm);
   line-height: 1.5;
 }

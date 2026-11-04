@@ -203,3 +203,24 @@ export function botStateFor(agent: { running?: boolean; enabled?: boolean }): Bo
   if (agent.enabled === false) return 'sleeping';
   return 'default';
 }
+
+/**
+ * Map a run's status to a bot state for the chat assistant avatar.
+ * reasoning → thinking · awaiting approval → waiting · steps running → working · done → default.
+ */
+export function botStateForRun(run: {
+  status: 'idle' | 'thinking' | 'working' | 'awaiting_approval' | 'done' | 'stopped' | 'error';
+}): BotState {
+  switch (run.status) {
+    case 'thinking':
+      return 'thinking';
+    case 'working':
+      return 'working';
+    case 'awaiting_approval':
+      return 'waiting';
+    case 'error':
+      return 'default';
+    default:
+      return 'default';
+  }
+}

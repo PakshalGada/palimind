@@ -3,7 +3,7 @@
 // produces a pose every frame. Switching state cross-fades the two behaviours
 // over a timed ease, so nothing ever snaps.
 
-export const STATES = ['default', 'working', 'sleeping'];
+export const STATES = ['default', 'working', 'sleeping', 'thinking', 'waiting'];
 
 export const REST = Object.freeze({
   yaw: 0, pitch: 0, roll: 0, x: 0, y: 0, sx: 1, sy: 1,
@@ -182,6 +182,71 @@ class Working {
   }
 }
 
+class Thinking {
+  constructor(rand, opts) {
+    this.rand = rand;
+    this.opts = opts;
+    this.blink = new Blinker(rand, 4.5, 9); // long, slow blinks
+    this.phase = rand() * Math.PI * 2;
+  }
+  poke() { this.phase += 0.6; }
+  update(dt, t, pointer) {
+    const o = this.opts;
+    const turn = o.turn ?? 1;
+    const lx = pointer ? pointer.x : Math.sin(t * 0.42 + this.phase) * 0.45;
+    const ly = pointer ? pointer.y : -0.36 + Math.sin(t * 0.29 + this.phase) * 0.09; // face lifted
+    const breath = Math.sin(t * 1.6);
+    return {
+      ...REST,
+      yaw: lx * 0.55 * turn,
+      pitch: ly * 0.32 - 0.09,
+      roll: Math.sin(t * 0.42 + this.phase) * 0.025,
+      y: -0.015 + 0.008 * breath,
+      sx: 1,
+      sy: 1 + 0.012 * breath,
+      lookX: lx,
+      lookY: ly,
+      eyeOpen: this.blink.update(dt),
+      smile: 0.18,
+      mouthOpen: 0.17 + 0.05 * Math.sin(t * 0.9 + this.phase),
+    };
+  }
+}
+
+class Waiting {
+  constructor(rand, opts) {
+    this.rand = rand;
+    this.opts = opts;
+    this.blink = new Blinker(rand, 3, 6.5);
+    this.nod = -1;
+    this.nodWait = 2.5 + rand() * 3;
+  }
+  poke() { if (this.nod < 0) this.nod = 0; }
+  update(dt, t, pointer) {
+    let nod = 0;
+    if (this.nod >= 0) {
+      this.nod += dt / 1.7; // tiny, slow nod
+      nod = Math.sin(Math.min(1, this.nod) * Math.PI);
+      if (this.nod >= 1) { this.nod = -1; this.nodWait = 4 + this.rand() * 4; }
+    } else if ((this.nodWait -= dt) <= 0) this.nod = 0;
+    const breath = Math.sin(t * 1.4);
+    return {
+      ...REST,
+      yaw: pointer ? pointer.x * 0.12 : Math.sin(t * 0.5) * 0.04, // turned to the viewer
+      pitch: 0.1 + nod * 0.085 + breath * 0.015,
+      roll: 0,
+      y: nod * 0.018,
+      sx: 1 - 0.005 * breath,
+      sy: 1 + 0.012 * breath,
+      lookX: 0,
+      lookY: 0.12,
+      eyeOpen: this.blink.update(dt),
+      smile: 0.26,
+      mouthOpen: 0.07 + nod * 0.06,
+    };
+  }
+}
+
 class Sleeping {
   constructor(rand) {
     this.rand = rand;
@@ -215,7 +280,7 @@ class Sleeping {
   }
 }
 
-const BEHAVIOURS = { default: Idle, working: Working, sleeping: Sleeping };
+const BEHAVIOURS = { default: Idle, working: Working, sleeping: Sleeping, thinking: Thinking, waiting: Waiting };
 
 function blend(a, b, t) {
   const out = {};
@@ -227,6 +292,8 @@ function blend(a, b, t) {
 export function restPose(state) {
   if (state === 'working') return { ...REST, smile: 1, mouthOpen: 0.45, lookY: 0.1 };
   if (state === 'sleeping') return { ...REST, pitch: 0.3, roll: 0.08, y: 0.05, eyeOpen: 0, smile: 0, mouthOpen: 0.25, lookY: 0.35, sleep: 1 };
+  if (state === 'thinking') return { ...REST, pitch: -0.17, lookY: -0.36, y: -0.015, smile: 0.18, mouthOpen: 0.17 };
+  if (state === 'waiting') return { ...REST, pitch: 0.12, lookY: 0.12, smile: 0.26, mouthOpen: 0.07 };
   return { ...REST };
 }
 

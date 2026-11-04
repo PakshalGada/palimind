@@ -51,7 +51,7 @@ function projectToMarkdown(project: ResearchProject): string {
   return lines.join('\n');
 }
 
-export default function ResearchManager() {
+export default function ResearchManager({ embedded = false }: { embedded?: boolean } = {}) {
   const { addToast } = useApp();
   const confirm = useConfirm();
   const [open, setOpen] = useState(false);
@@ -101,6 +101,12 @@ export default function ResearchManager() {
     window.addEventListener('palimind:open-research', handler);
     return () => window.removeEventListener('palimind:open-research', handler);
   }, [loadProjects]);
+
+  // Embedded as a view: no modal event will fire, so load on mount.
+  useEffect(() => {
+    if (!embedded) return;
+    void loadProjects();
+  }, [embedded, loadProjects]);
 
   // Let the sidebar reflect an active Projects state while this modal is open.
   useEffect(() => {
@@ -192,14 +198,8 @@ export default function ResearchManager() {
     [project],
   );
 
-  return (
-    <Modal
-      open={open}
-      onClose={() => setOpen(false)}
-      title="Research Projects"
-      subtitle="Persistent workspaces that build on previous findings."
-      width={900}
-    >
+  const body = (
+    <>
       <div className="research-manager">
         <aside className="research-manager-list">
           <div className="research-new">
@@ -398,6 +398,20 @@ export default function ResearchManager() {
       <div className="research-manager-footer">
         <BookOpen size={13} /> Projects are stored locally on this device.
       </div>
+    </>
+  );
+
+  if (embedded) return <div className="research-embedded">{body}</div>;
+
+  return (
+    <Modal
+      open={open}
+      onClose={() => setOpen(false)}
+      title="Research Projects"
+      subtitle="Persistent workspaces that build on previous findings."
+      width={900}
+    >
+      {body}
     </Modal>
   );
 }

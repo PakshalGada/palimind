@@ -11,14 +11,13 @@
     align-items: center;
     justify-content: center;
     background: var(--color-scrim);
-    backdrop-filter: blur(4px);
 }
 .confirm-dialog {
     width: min(380px, 90vw);
     padding: 20px 22px;
-    background: var(--panel-bg);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
+    background: var(--surface-2);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg);
     display: flex;
     flex-direction: column;
@@ -26,13 +25,13 @@
 }
 .confirm-title {
     margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
+    font-size: var(--type-md);
+    font-weight: 550;
     color: var(--text-main);
 }
 .confirm-message {
     margin: 0;
-    font-size: 0.85rem;
+    font-size: var(--type-base);
     line-height: 1.5;
     color: var(--text-secondary);
     word-break: break-word;
@@ -48,7 +47,7 @@
     margin-top: 0;
     padding: 8px 16px;
     border-radius: 8px;
-    font-weight: 500;
+    font-weight: 550;
 }
 .confirm-actions .action-btn.primary {
     background: var(--bg-active);

@@ -1,0 +1,351 @@
+/* ==========================================================================
+   pixel.css — the pixel accent layer.
+
+   Rules this file must keep:
+   - Monochrome only, always `currentColor`.
+   - Step-timed: `steps()` on every loop, never a smooth interpolation.
+   - One looping pixel element per panel, never in body copy or long lists.
+   - Everything is decorative: no layout shift, no flashing above 3 Hz.
+   - Reduced motion / accents-off / hidden tab resolve to a static frame.
+   ========================================================================== */
+
+.pixel-glyph {
+  display: block;
+  color: currentColor;
+  flex: 0 0 auto;
+}
+
+/* ── streaming caret ─────────────────────────────────────────────────────── */
+.pixel-caret {
+  display: inline-block;
+  width: 6px;
+  height: 10px;
+  margin-left: 2px;
+  background: currentColor;
+  vertical-align: text-bottom;
+  animation: pixel-caret-blink 1s steps(2, end) infinite;
+}
+@keyframes pixel-caret-blink {
+  0%,
+  49.99% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ── live loader (2×2 checker walking the corners) ───────────────────────── */
+.pixel-loader {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+.pixel-loader__frame {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  animation: pixel-frame 800ms steps(1, end) infinite;
+}
+.pixel-loader__frame--0 {
+  animation-delay: 0ms;
+}
+.pixel-loader__frame--1 {
+  animation-delay: 200ms;
+}
+.pixel-loader__frame--2 {
+  animation-delay: 400ms;
+}
+.pixel-loader__frame--3 {
+  animation-delay: 600ms;
+}
+@keyframes pixel-frame {
+  0%,
+  24.99% {
+    opacity: 1;
+  }
+  25%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ── progress meter ──────────────────────────────────────────────────────── */
+.pixel-meter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.pixel-meter__label {
+  font-family: var(--font-mono);
+  font-size: var(--type-2xs);
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.pixel-meter__cells {
+  display: flex;
+  gap: 2px;
+}
+.pixel-meter__cell {
+  width: 10px;
+  height: 8px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+}
+.pixel-meter__cell.is-on {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.pixel-meter__cell.is-latest {
+  animation: pixel-cell-in 320ms steps(2, end) 1;
+}
+@keyframes pixel-cell-in {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.pixel-meter__value {
+  font-family: var(--font-mono);
+  font-size: var(--type-2xs);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Indeterminate: one cell lit at a time, marching left to right. */
+.pixel-meter.is-indeterminate .pixel-meter__cell {
+  animation: pixel-cell-march 800ms steps(1, end) infinite;
+  border-color: var(--line);
+}
+.pixel-meter.is-indeterminate .pixel-meter__cell:nth-child(1) { animation-delay: 0ms; }
+.pixel-meter.is-indeterminate .pixel-meter__cell:nth-child(2) { animation-delay: 100ms; }
+.pixel-meter.is-indeterminate .pixel-meter__cell:nth-child(3) { animation-delay: 200ms; }
+.pixel-meter.is-indeterminate .pixel-meter__cell:nth-child(4) { animation-delay: 300ms; }
+.pixel-meter.is-indeterminate .pixel-meter__cell:nth-child(5) { animation-delay: 400ms; }
+.pixel-meter.is-indeterminate .pixel-meter__cell:nth-child(6) { animation-delay: 500ms; }
+.pixel-meter.is-indeterminate .pixel-meter__cell:nth-child(7) { animation-delay: 600ms; }
+.pixel-meter.is-indeterminate .pixel-meter__cell:nth-child(8) { animation-delay: 700ms; }
+@keyframes pixel-cell-march {
+  0%,
+  12.49% {
+    background: var(--ink);
+    border-color: var(--ink);
+  }
+  12.5%,
+  100% {
+    background: transparent;
+    border-color: var(--line);
+  }
+}
+
+/* ── one-shot stamp ──────────────────────────────────────────────────────── */
+.pixel-stamp {
+  display: inline-flex;
+  animation: pixel-stamp-in 240ms steps(3, end) both;
+}
+@keyframes pixel-stamp-in {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0.4;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+/* ── pause conditions ────────────────────────────────────────────────────── */
+html[data-pixel-paused="true"] .pixel-caret,
+html[data-pixel-paused="true"] .pixel-loader__frame,
+html[data-pixel-paused="true"] .pixel-meter.is-indeterminate .pixel-meter__cell {
+  animation-play-state: paused;
+}
+
+html[data-pixel-accents="off"] .pixel-caret,
+html[data-pixel-accents="off"] .pixel-stamp,
+html[data-pixel-accents="off"] .pixel-meter.is-indeterminate .pixel-meter__cell {
+  animation: none !important;
+}
+html[data-pixel-accents="off"] .pixel-caret {
+  opacity: 1;
+}
+html[data-pixel-accents="off"] .pixel-loader__frame {
+  animation: none !important;
+  opacity: 0;
+}
+html[data-pixel-accents="off"] .pixel-loader__frame--0 {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pixel-caret {
+    animation: none !important;
+    opacity: 1;
+  }
+  .pixel-loader__frame {
+    animation: none !important;
+    opacity: 0;
+  }
+  .pixel-loader__frame--0 {
+    opacity: 1;
+  }
+  .pixel-stamp {
+    animation: none !important;
+  }
+  .pixel-meter__cell.is-latest,
+  .pixel-meter.is-indeterminate .pixel-meter__cell {
+    animation: none !important;
+  }
+  .pixel-meter.is-indeterminate .pixel-meter__cell:nth-child(1) {
+    background: var(--ink);
+    border-color: var(--ink);
+  }
+}
+
+/* ── ticker (thinking) ───────────────────────────────────────────────────── */
+.pixel-ticker {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.pixel-ticker__block {
+  width: 4px;
+  height: 4px;
+  background: currentColor;
+  opacity: 0.25;
+  animation: pixel-tick 900ms steps(1, end) infinite;
+}
+@keyframes pixel-tick {
+  0%,
+  24.99% {
+    opacity: 1;
+  }
+  25%,
+  100% {
+    opacity: 0.25;
+  }
+}
+
+/* ── sweep (indexing, syncing) ───────────────────────────────────────────── */
+.pixel-sweep {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pixel-sweep__rail {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: 4px;
+}
+.pixel-sweep__cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: currentColor;
+  opacity: 0.6;
+  animation: pixel-sweep 1s steps(4, end) infinite;
+}
+@keyframes pixel-sweep {
+  0% {
+    left: 0;
+  }
+  100% {
+    left: calc(100% - 4px);
+  }
+}
+
+/* ── burst (agent created, task done) ────────────────────────────────────── */
+.pixel-burst {
+  position: relative;
+  display: inline-flex;
+  width: 4px;
+  height: 4px;
+}
+.pixel-burst__bit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  background: currentColor;
+  animation: pixel-burst 360ms steps(3, end) both;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes pixel-burst {
+  from {
+    transform: translate(-50%, -50%);
+    opacity: 1;
+  }
+  to {
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy)));
+    opacity: 0;
+  }
+}
+
+/* ── assemble (brand boot) ───────────────────────────────────────────────── */
+.pixel-assemble {
+  display: inline-flex;
+  animation: pixel-assemble 480ms steps(4, end) both;
+}
+@keyframes pixel-assemble {
+  from {
+    clip-path: inset(100% 0 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* ── pause conditions for the new motion ─────────────────────────────────── */
+html[data-pixel-paused="true"] .pixel-ticker__block,
+html[data-pixel-paused="true"] .pixel-sweep__cursor {
+  animation-play-state: paused;
+}
+
+html[data-pixel-accents="off"] .pixel-ticker__block,
+html[data-pixel-accents="off"] .pixel-sweep__cursor,
+html[data-pixel-accents="off"] .pixel-burst__bit,
+html[data-pixel-accents="off"] .pixel-assemble {
+  animation: none !important;
+}
+html[data-pixel-accents="off"] .pixel-ticker__block {
+  opacity: 0.6;
+}
+html[data-pixel-accents="off"] .pixel-burst__bit {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pixel-ticker__block,
+  .pixel-sweep__cursor,
+  .pixel-burst__bit,
+  .pixel-assemble {
+    animation: none !important;
+  }
+  .pixel-ticker__block {
+    opacity: 0.6;
+  }
+  .pixel-burst__bit {
+    opacity: 0;
+  }
+}
+
+html[data-motion="reduced"] .pixel-ticker__block,
+html[data-motion="reduced"] .pixel-sweep__cursor,
+html[data-motion="reduced"] .pixel-burst__bit,
+html[data-motion="reduced"] .pixel-assemble {
+  animation: none !important;
+}
+html[data-motion="reduced"] .pixel-ticker__block {
+  opacity: 0.6;
+}
+html[data-motion="reduced"] .pixel-burst__bit {
+  opacity: 0;
+}

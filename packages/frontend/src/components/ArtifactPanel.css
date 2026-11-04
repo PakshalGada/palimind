@@ -17,7 +17,7 @@
   /* A slightly elevated surface plus a soft left-edge shadow lifts the panel
      off the chat instead of flatly sitting on the same background. */
   background: var(--color-bg-elevated);
-  box-shadow: -32px 0 64px -40px rgba(0, 0, 0, 0.55);
+  box-shadow: none;
   container-type: inline-size;
 }
 .artifact-panel:focus { outline: none; }
@@ -41,7 +41,7 @@
 .artp-resizer-grip {
   width: 2px;
   height: 40px;
-  border-radius: 2px;
+  border-radius: 4px;
   background: var(--color-border);
   opacity: 0.7;
   transition: height 120ms ease, background 120ms ease, opacity 120ms ease;
@@ -83,7 +83,7 @@ body.is-resizing-artifact-panel * { cursor: col-resize !important; }
   color: var(--color-text-primary);
 }
 .artp-head-label {
-  font-size: 13.5px;
+  font-size: var(--type-base);
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.01em;
   color: var(--color-text-primary);
@@ -100,7 +100,7 @@ body.is-resizing-artifact-panel * { cursor: col-resize !important; }
   background: var(--color-surface-raised);
   color: var(--color-text-secondary);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--type-2xs);
 }
 .artp-live {
   display: inline-flex;
@@ -110,7 +110,7 @@ body.is-resizing-artifact-panel * { cursor: col-resize !important; }
   border-radius: var(--radius-full);
   background: var(--color-accent-soft);
   color: var(--color-text-secondary);
-  font-size: 9px;
+  font-size: var(--type-2xs);
   font-weight: var(--font-weight-medium);
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -173,7 +173,7 @@ body.is-resizing-artifact-panel * { cursor: col-resize !important; }
   background: transparent;
   color: var(--color-text-muted);
   font-family: var(--font-sans);
-  font-size: 11.5px;
+  font-size: var(--type-xs);
   cursor: pointer;
   white-space: nowrap;
   transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
@@ -264,7 +264,7 @@ body.is-resizing-artifact-panel * { cursor: col-resize !important; }
   border-radius: var(--radius-full);
   background: var(--color-surface-raised);
   color: var(--color-text-secondary);
-  font-size: 9.5px;
+  font-size: var(--type-2xs);
   font-weight: var(--font-weight-medium);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -322,7 +322,7 @@ body.is-resizing-artifact-panel * { cursor: col-resize !important; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13.5px;
+  font-size: var(--type-base);
   font-weight: var(--font-weight-semibold);
   line-height: 1.25;
   color: var(--color-text-primary);
@@ -333,7 +333,7 @@ body.is-resizing-artifact-panel * { cursor: col-resize !important; }
   border-radius: var(--radius-full);
   background: var(--color-surface-raised);
   color: var(--color-text-muted);
-  font-size: 9.5px;
+  font-size: var(--type-2xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -342,7 +342,7 @@ body.is-resizing-artifact-panel * { cursor: col-resize !important; }
   align-items: center;
   gap: 7px;
   flex-wrap: wrap;
-  font-size: 11px;
+  font-size: var(--type-xs);
   color: var(--color-text-muted);
 }
 .artp-sub-sep {
@@ -360,7 +360,7 @@ body.is-resizing-artifact-panel * { cursor: col-resize !important; }
   font-weight: var(--font-weight-medium);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  font-size: 9.5px;
+  font-size: var(--type-2xs);
 }
 .artp-status-dot {
   width: 5px;
@@ -408,14 +408,14 @@ body.is-resizing-artifact-panel * { cursor: col-resize !important; }
   background: transparent;
   color: var(--color-text-secondary);
   font-family: var(--font-sans);
-  font-size: 11.5px;
+  font-size: var(--type-xs);
   cursor: pointer;
 }
 .artp-seg button:hover { color: var(--color-text-primary); }
 .artp-seg button.is-active {
   background: var(--color-surface);
   color: var(--color-text-primary);
-  box-shadow: inset 0 0 0 1px var(--color-border-subtle);
+  box-shadow: none;
 }
 .artp-seg button:focus-visible {
   outline: 2px solid var(--color-focus-ring);
@@ -433,7 +433,7 @@ body.is-resizing-artifact-panel * { cursor: col-resize !important; }
   background: var(--color-surface-raised);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--type-sm);
   font-weight: var(--font-weight-medium);
   white-space: nowrap;
   cursor: pointer;
@@ -516,7 +516,7 @@ body.is-resizing-artifact-panel * { cursor: col-resize !important; }
 .artp-split-grip {
   width: 2px;
   height: 36px;
-  border-radius: 2px;
+  border-radius: 4px;
   background: var(--color-border);
   transition: background 120ms ease, height 120ms ease;
 }
@@ -537,7 +537,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
   background: var(--color-surface-raised);
-  box-shadow: var(--shadow-xs);
+  box-shadow: none;
   color: var(--color-text-primary);
   contain: layout paint;
   overscroll-behavior: contain;
@@ -564,7 +564,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
 .artifact-preview .artifact-markdown {
   max-width: 760px;
   margin: 0 auto;
-  font-size: 13.5px;
+  font-size: var(--type-base);
   line-height: 1.7;
   color: var(--color-text-primary);
 }
@@ -593,7 +593,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   border-radius: 0;
   background: transparent;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--type-sm);
   line-height: 1.62;
   tab-size: 2;
   overflow: visible;
@@ -606,13 +606,13 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface-raised);
-  font-size: 11.5px;
+  font-size: var(--type-xs);
 }
 .artifact-preview .artifact-error pre {
   margin: 6px 0 0;
   white-space: pre-wrap;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--type-xs);
   color: var(--color-text-muted);
 }
 
@@ -655,7 +655,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   background: transparent;
   color: var(--color-text-secondary);
   font-family: var(--font-sans);
-  font-size: 11.5px;
+  font-size: var(--type-xs);
   text-align: left;
   cursor: pointer;
   white-space: nowrap;
@@ -679,7 +679,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   height: 100%;
   min-height: 200px;
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: var(--type-sm);
 }
 .artp-skeleton {
   display: flex;
@@ -693,7 +693,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
-  font-size: 11.5px;
+  font-size: var(--type-xs);
   color: var(--color-text-secondary);
 }
 .artp-skeleton-pulse {
@@ -744,7 +744,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   background: var(--color-bg-elevated);
   color: var(--color-text-muted);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--type-sm);
   line-height: 1.6;
   text-align: right;
   user-select: none;
@@ -773,7 +773,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   padding: 12px 14px;
   border: 0;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--type-sm);
   line-height: 1.6;
   tab-size: 2;
   white-space: pre;
@@ -812,7 +812,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   background: var(--color-bg-elevated);
   color: var(--color-text-muted);
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--type-2xs);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -837,7 +837,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   background: transparent;
   color: var(--color-text-primary);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--type-sm);
   text-align: left;
   cursor: pointer;
 }
@@ -853,7 +853,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   flex: 0 0 auto;
   color: var(--color-text-muted);
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--type-2xs);
 }
 .artp-menu-sep {
   height: 1px;
@@ -894,7 +894,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   background: var(--color-surface-raised);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
-  font-size: 11.5px;
+  font-size: var(--type-xs);
   cursor: pointer;
 }
 .artp-empty-action:hover { background: var(--color-surface-hover); }
@@ -910,7 +910,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-full);
   color: var(--color-text-muted);
-  font-size: 9.5px;
+  font-size: var(--type-2xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -965,7 +965,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   gap: 8px;
   padding: 18px 4px;
   color: var(--color-text-secondary);
-  font-size: 12px;
+  font-size: var(--type-sm);
 }
 .artifact-version-spinner { animation: artp-spin 0.8s linear infinite; }
 .artifact-version-dirty {
@@ -974,7 +974,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   border-radius: var(--radius-md);
   background: var(--color-surface-raised);
   color: var(--color-text-secondary);
-  font-size: 11.5px;
+  font-size: var(--type-xs);
 }
 .artifact-timeline {
   display: flex;
@@ -987,7 +987,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   gap: 6px;
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-size: var(--type-2xs);
   font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1031,7 +1031,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
 }
 .artifact-version-time {
   color: var(--color-text-primary);
-  font-size: 12px;
+  font-size: var(--type-sm);
   font-weight: var(--font-weight-medium);
 }
 .artifact-version-current,
@@ -1040,7 +1040,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   border-radius: var(--radius-full);
   background: var(--color-success-soft);
   color: var(--color-success);
-  font-size: 8.5px;
+  font-size: var(--type-2xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -1050,7 +1050,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
 }
 .artifact-version-note {
   color: var(--color-text-muted);
-  font-size: 10.5px;
+  font-size: var(--type-xs);
 }
 .artifact-version-actions {
   display: flex;
@@ -1066,7 +1066,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   background: var(--color-surface-raised);
   color: var(--color-text-secondary);
   font-family: var(--font-sans);
-  font-size: 10.5px;
+  font-size: var(--type-xs);
   cursor: pointer;
 }
 .artifact-version-action:hover {
@@ -1104,7 +1104,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
 }
 .artifact-diff-heading strong {
   color: var(--color-text-primary);
-  font-size: 10px;
+  font-size: var(--type-2xs);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -1112,7 +1112,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--color-text-muted);
-  font-size: 10.5px;
+  font-size: var(--type-xs);
   white-space: nowrap;
 }
 .artifact-diff-summary {
@@ -1120,7 +1120,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   border-bottom: 1px solid var(--color-border-subtle);
   color: var(--color-text-muted);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--type-2xs);
 }
 .artifact-diff-body {
   max-height: 380px;
@@ -1132,7 +1132,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   grid-template-columns: 42px 1fr 42px 1fr;
   min-height: 18px;
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: var(--type-xs);
   line-height: 1.55;
 }
 .artifact-diff-no {
@@ -1173,12 +1173,12 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
 .artifact-project-item:hover { background: var(--color-surface-hover); }
 .artifact-project-name {
   color: var(--color-text-primary);
-  font-size: 12.5px;
+  font-size: var(--type-sm);
   font-weight: var(--font-weight-medium);
 }
 .artifact-project-desc {
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: var(--type-xs);
 }
 .artifact-project-active {
   align-self: flex-start;
@@ -1187,7 +1187,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   border-radius: var(--radius-full);
   background: var(--color-success-soft);
   color: var(--color-success);
-  font-size: 8.5px;
+  font-size: var(--type-2xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -1206,12 +1206,12 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   background: var(--color-surface);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--type-sm);
 }
 .artifact-project-create input:focus {
   outline: none;
   border-color: var(--color-border-strong);
-  box-shadow: 0 0 0 2px var(--color-accent-soft);
+  box-shadow: none;
 }
 .artifact-project-create-btn {
   height: 30px;
@@ -1221,7 +1221,7 @@ body.is-resizing-artifact * { cursor: col-resize !important; }
   background: var(--color-accent);
   color: var(--color-accent-contrast);
   font-family: var(--font-sans);
-  font-size: 11.5px;
+  font-size: var(--type-xs);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
 }

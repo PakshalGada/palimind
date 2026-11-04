@@ -167,6 +167,56 @@ async def _tick_scheduled() -> None:
         input = f"[Scheduled trigger at {now.isoformat()}]\nExecute your scheduled task now."
         asyncio.create_task(_fire_agent(defn, input, source="scheduled"))
 
+    await _tick_routines(now)
+
+
+async def _tick_routines(now: datetime) -> None:
+    from palimind.agents import routines
+
+    for routine in routines.due_routines(now):
+        key = f"routine:{routine.get('id')}:{now.strftime('%Y%m%d%H%M')}"
+        if key in _fired_keys:
+            continue
+        _fired_keys.append(key)
+
+        async def _run(r: dict[str, Any] = routine) -> None:
+            try:
+                await routines.run_routine(str(r.get("id")))
+                await post_routine_notification(r, "success")
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001
+                print(f"[agents] routine {r.get('id')} failed: {exc}")
+                await post_routine_notification(r, "error", str(exc))
+
+        asyncio.create_task(_run())
+
+
+async def post_routine_notification(
+    routine: dict[str, Any], status: str, error: str = ""
+) -> None:
+    try:
+        from palimind.agents import goals
+
+        label = routine.get("name") or "Routine"
+        text = (
+            f"Routine '{label}' finished."
+            if status == "success"
+            else f"Routine '{label}' failed: {error[:300]}"
+        )
+        goals.notify(
+            "routine",
+            text,
+            {
+                "routine_id": routine.get("id"),
+                "target_type": routine.get("target_type"),
+                "target_id": routine.get("target_id"),
+                "status": status,
+            },
+        )
+    except Exception:
+        pass
+
 
 async def _scheduler_loop() -> None:
     while True:
@@ -228,3 +278,26 @@ def check_watcher_triggers(root: Path, changed_path: str = "") -> None:
             f"[Watcher trigger] File changed: {rel}\nInvestigate the change and act accordingly."
         )
         asyncio.run_coroutine_threadsafe(_fire_agent(defn, input, source="watcher"), _loop)
+
+    try:
+        from palimind.agents import routines
+
+        for routine in routines.list_routines(limit=1000):
+            if not routine.get("enabled") or routine.get("run_mode") != "watcher":
+                continue
+            pattern = str(routine.get("watcher_pattern") or "")
+            if not pattern:
+                continue
+            if not (fnmatch.fnmatch(rel, pattern) or fnmatch.fnmatch(Path(rel).name, pattern)):
+                continue
+
+            async def _run_routine(r: dict[str, Any] = routine) -> None:
+                try:
+                    await routines.run_routine(str(r.get("id")))
+                    await post_routine_notification(r, "success")
+                except Exception as exc:  # noqa: BLE001
+                    await post_routine_notification(r, "error", str(exc))
+
+            asyncio.run_coroutine_threadsafe(_run_routine(), _loop)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[agents] watcher routine check failed: {exc}")

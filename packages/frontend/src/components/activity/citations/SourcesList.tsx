@@ -3,6 +3,37 @@ import type { Passage, ResultItem } from '../model';
 import { Icon } from '../icons';
 import { Favicon } from '../primitives/Favicon';
 
+const MAX_FILMSTRIP = 5;
+
+function Filmstrip({
+  sources,
+  passages,
+}: {
+  sources: readonly ResultItem[];
+  passages: readonly Passage[];
+}) {
+  const chips = [
+    ...sources.map((item) => ({ key: item.id, kind: 'web' as const, domain: item.domain, title: item.title })),
+    ...passages.map((item) => ({ key: item.id, kind: 'doc' as const, domain: undefined, title: item.docName })),
+  ];
+  const visible = chips.slice(0, MAX_FILMSTRIP);
+  const extra = chips.length - visible.length;
+  return (
+    <span className="act-srcstrip" aria-hidden="true">
+      {visible.map((chip) => (
+        <span key={chip.key} className="act-srcstrip__item">
+          {chip.kind === 'web' ? (
+            <Favicon domain={chip.domain} title={chip.title} />
+          ) : (
+            <Icon name="file-text" size={13} />
+          )}
+        </span>
+      ))}
+      {extra > 0 && <span className="act-srcstrip__more act-tabular">+{extra}</span>}
+    </span>
+  );
+}
+
 export function SourcesList({
   sources,
   passages,
@@ -26,6 +57,8 @@ export function SourcesList({
           `[data-citation-marker="${detail.marker}"]`,
         );
         target?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        target?.classList.add('is-highlighted');
+        window.setTimeout(() => target?.classList.remove('is-highlighted'), 1600);
       });
     };
     window.addEventListener('palimind:focus-citation', handler);
@@ -51,10 +84,8 @@ export function SourcesList({
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        <Icon name="book-open" size={13} />
-        <span>
-          {items.length} {items.length === 1 ? 'source' : 'sources'}
-        </span>
+        <Filmstrip sources={sources} passages={passages} />
+        <span className="act-sources__label">Sources · {items.length}</span>
         <span className="act-chevron" data-open={open} aria-hidden="true">
           <Icon name="chevron-right" size={13} />
         </span>

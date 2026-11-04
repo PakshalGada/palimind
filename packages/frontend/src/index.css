@@ -72,6 +72,11 @@
     }
 }
 
+/* Cascade contract: this file (Tailwind + shadcn) is imported *before*
+   App.css, so Palimind's tokens win over Tailwind's default `:root` theme
+   variables (--font-sans, --text-*, --radius-*, --shadow-*, --ease-*). Do not
+   reorder these imports without re-checking design/tokens.css. */
+
 :root {
     --background: var(--color-bg);
     --foreground: var(--color-text-primary);
@@ -88,7 +93,7 @@
     --accent: var(--color-surface-hover);
     --accent-foreground: var(--color-text-primary);
     --destructive: var(--color-error);
-    --border: var(--color-border-strong);
+    --border: var(--color-border);
     --input: var(--color-input-bg);
     --ring: var(--color-focus-ring);
     --chart-1: var(--color-text-primary);
@@ -96,14 +101,14 @@
     --chart-3: var(--color-text-muted);
     --chart-4: var(--color-border-strong);
     --chart-5: var(--color-surface-hover);
-    --radius: 14px;
+    --radius: 6px;
     --sidebar: var(--color-surface);
     --sidebar-foreground: var(--color-text-primary);
     --sidebar-primary: var(--color-accent);
     --sidebar-primary-foreground: var(--color-accent-contrast);
     --sidebar-accent: var(--color-surface-hover);
     --sidebar-accent-foreground: var(--color-text-primary);
-    --sidebar-border: var(--color-border-strong);
+    --sidebar-border: var(--color-border);
     --sidebar-ring: var(--color-focus-ring);
 }
 

@@ -91,6 +91,42 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_runs_agent_time
             ON runs(agent_id, timestamp);
 
+        CREATE TABLE IF NOT EXISTS teams (
+            id         TEXT PRIMARY KEY,
+            value      TEXT NOT NULL,
+            updated_at REAL NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS team_messages (
+            team_id    TEXT NOT NULL,
+            seq        INTEGER NOT NULL,
+            value      TEXT NOT NULL,
+            timestamp  REAL NOT NULL,
+            PRIMARY KEY (team_id, seq)
+        );
+        CREATE INDEX IF NOT EXISTS idx_team_messages_team
+            ON team_messages(team_id, seq);
+
+        CREATE TABLE IF NOT EXISTS routines (
+            id         TEXT PRIMARY KEY,
+            value      TEXT NOT NULL,
+            enabled    INTEGER NOT NULL DEFAULT 1,
+            next_run   REAL,
+            updated_at REAL NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS queue_items (
+            id          TEXT PRIMARY KEY,
+            target_type TEXT NOT NULL,
+            target_id   TEXT NOT NULL,
+            status      TEXT NOT NULL,
+            priority    INTEGER NOT NULL DEFAULT 0,
+            value       TEXT NOT NULL,
+            created_at  REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_queue_target
+            ON queue_items(target_type, target_id, status, priority);
+
         CREATE TABLE IF NOT EXISTS schema_version (
             version INTEGER NOT NULL
         );
@@ -353,3 +389,270 @@ def get_run(agent_id: str, run_id: str) -> dict[str, Any] | None:
         logger.error("Corrupt run record %s/%s: %s", agent_id, run_id, exc)
         return None
     return value if isinstance(value, dict) else None
+
+
+# ── teams / routines / queue ─────────────────────────────────────────────
+
+
+def _read_row(raw: str, context: str) -> dict[str, Any] | None:
+    try:
+        value = json.loads(raw)
+    except (TypeError, json.JSONDecodeError) as exc:
+        logger.error("Corrupt state value (%s): %s", context, exc)
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def upsert_team(team: dict[str, Any]) -> None:
+    conn = _connect()
+    try:
+        conn.execute(
+            """
+            INSERT INTO teams(id, value, updated_at) VALUES (?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                value=excluded.value, updated_at=excluded.updated_at
+            """,
+            (str(team["id"]), _json_dumps(team), time.time()),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def get_team_record(team_id: str) -> dict[str, Any] | None:
+    conn = _connect()
+    try:
+        row = conn.execute("SELECT value FROM teams WHERE id=?", (str(team_id),)).fetchone()
+    finally:
+        conn.close()
+    return _read_row(row[0], f"team/{team_id}") if row else None
+
+
+def list_team_records() -> list[dict[str, Any]]:
+    conn = _connect()
+    try:
+        rows = conn.execute("SELECT value FROM teams ORDER BY updated_at ASC").fetchall()
+    finally:
+        conn.close()
+    out = [v for (raw,) in rows if (v := _read_row(raw, "teams"))]
+    return out
+
+
+def delete_team_record(team_id: str) -> None:
+    conn = _connect()
+    try:
+        conn.execute("DELETE FROM teams WHERE id=?", (str(team_id),))
+        conn.execute("DELETE FROM team_messages WHERE team_id=?", (str(team_id),))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def append_team_message(team_id: str, message: dict[str, Any], limit: int = 2000) -> None:
+    conn = _connect()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT COALESCE(MAX(seq), 0) FROM team_messages WHERE team_id=?",
+            (str(team_id),),
+        ).fetchone()
+        next_seq = int(row[0] or 0) + 1
+        message = {**message, "seq": next_seq}
+        conn.execute(
+            "INSERT INTO team_messages(team_id, seq, value, timestamp) VALUES (?, ?, ?, ?)",
+            (str(team_id), next_seq, _json_dumps(message), float(message.get("created_at") or time.time())),
+        )
+        conn.execute(
+            """
+            DELETE FROM team_messages WHERE team_id=? AND seq <= ?
+            """,
+            (str(team_id), max(0, next_seq - int(limit))),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def list_team_messages(
+    team_id: str, limit: int = 100, before_seq: int | None = None
+) -> list[dict[str, Any]]:
+    conn = _connect()
+    try:
+        if before_seq is not None:
+            rows = conn.execute(
+                "SELECT value FROM team_messages WHERE team_id=? AND seq < ? "
+                "ORDER BY seq DESC LIMIT ?",
+                (str(team_id), int(before_seq), int(limit)),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT value FROM team_messages WHERE team_id=? ORDER BY seq DESC LIMIT ?",
+                (str(team_id), int(limit)),
+            ).fetchall()
+    finally:
+        conn.close()
+    out = [v for (raw,) in rows if (v := _read_row(raw, f"team_messages/{team_id}"))]
+    out.reverse()
+    return out
+
+
+def clear_team_messages(team_id: str) -> None:
+    conn = _connect()
+    try:
+        conn.execute("DELETE FROM team_messages WHERE team_id=?", (str(team_id),))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def delete_team_runs(team_id: str) -> None:
+    delete_runs(f"team:{team_id}")
+
+
+def upsert_routine(routine: dict[str, Any]) -> None:
+    conn = _connect()
+    try:
+        conn.execute(
+            """
+            INSERT INTO routines(id, value, enabled, next_run, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                value=excluded.value, enabled=excluded.enabled,
+                next_run=excluded.next_run, updated_at=excluded.updated_at
+            """,
+            (
+                str(routine["id"]),
+                _json_dumps(routine),
+                1 if routine.get("enabled", True) else 0,
+                routine.get("next_run"),
+                time.time(),
+            ),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def get_routine(routine_id: str) -> dict[str, Any] | None:
+    conn = _connect()
+    try:
+        row = conn.execute("SELECT value FROM routines WHERE id=?", (str(routine_id),)).fetchone()
+    finally:
+        conn.close()
+    return _read_row(row[0], f"routines/{routine_id}") if row else None
+
+
+def list_routines(limit: int = 200) -> list[dict[str, Any]]:
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT value FROM routines ORDER BY updated_at DESC LIMIT ?", (int(limit),)
+        ).fetchall()
+    finally:
+        conn.close()
+    return [v for (raw,) in rows if (v := _read_row(raw, "routines"))]
+
+
+def delete_routine(routine_id: str) -> None:
+    conn = _connect()
+    try:
+        conn.execute("DELETE FROM routines WHERE id=?", (str(routine_id),))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def upsert_queue_item(item: dict[str, Any]) -> None:
+    conn = _connect()
+    try:
+        conn.execute(
+            """
+            INSERT INTO queue_items(id, target_type, target_id, status, priority, value, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                status=excluded.status, priority=excluded.priority, value=excluded.value
+            """,
+            (
+                str(item["id"]),
+                str(item.get("target_type", "agent")),
+                str(item.get("target_id", "")),
+                str(item.get("status", "queued")),
+                int(item.get("priority", 0) or 0),
+                _json_dumps(item),
+                float(item.get("created_at") or time.time()),
+            ),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def get_queue_item(item_id: str) -> dict[str, Any] | None:
+    conn = _connect()
+    try:
+        row = conn.execute("SELECT value FROM queue_items WHERE id=?", (str(item_id),)).fetchone()
+    finally:
+        conn.close()
+    return _read_row(row[0], f"queue/{item_id}") if row else None
+
+
+def list_queue_items(
+    target_type: str | None = None,
+    target_id: str | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    sql = "SELECT value FROM queue_items"
+    clauses: list[str] = []
+    params: list[Any] = []
+    if target_type:
+        clauses.append("target_type=?")
+        params.append(target_type)
+    if target_id:
+        clauses.append("target_id=?")
+        params.append(target_id)
+    if clauses:
+        sql += " WHERE " + " AND ".join(clauses)
+    sql += " ORDER BY priority DESC, created_at ASC LIMIT ?"
+    params.append(int(limit))
+    conn = _connect()
+    try:
+        rows = conn.execute(sql, tuple(params)).fetchall()
+    finally:
+        conn.close()
+    return [v for (raw,) in rows if (v := _read_row(raw, "queue"))]
+
+
+def delete_queue_item(item_id: str) -> None:
+    conn = _connect()
+    try:
+        conn.execute("DELETE FROM queue_items WHERE id=?", (str(item_id),))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def delete_target_queue(target_type: str, target_id: str) -> None:
+    conn = _connect()
+    try:
+        conn.execute(
+            "DELETE FROM queue_items WHERE target_type=? AND target_id=?",
+            (target_type, target_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()

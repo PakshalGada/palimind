@@ -4,11 +4,11 @@
   display: inline-block;
   margin: 0 1px;
   padding: 0 4px;
-  border-radius: 5px;
+  border-radius: 4px;
   background: var(--accent-bg);
   color: var(--primary-color, var(--text-main));
   font-size: 0.68em;
-  font-weight: 600;
+  font-weight: 550;
   line-height: 1.5;
   cursor: pointer;
   vertical-align: super;
@@ -26,7 +26,7 @@
   max-width: calc(100vw - 32px);
   padding: 10px 12px;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--panel-bg);
   box-shadow: var(--shadow-lg);
   pointer-events: none;
@@ -36,8 +36,8 @@
   align-items: center;
   gap: 6px;
   color: var(--text-main);
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: var(--type-sm);
+  font-weight: 550;
   margin-bottom: 4px;
 }
 .citation-popover-title {
@@ -46,7 +46,7 @@
   text-overflow: ellipsis;
 }
 .citation-popover-url {
-  font-size: 0.7rem;
+  font-size: var(--type-xs);
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -54,7 +54,7 @@
   margin-bottom: 6px;
 }
 .citation-popover-snippet {
-  font-size: 0.74rem;
+  font-size: var(--type-sm);
   line-height: 1.45;
   color: var(--text-secondary);
   display: -webkit-box;
@@ -73,7 +73,7 @@
   align-items: center;
   gap: 7px;
   cursor: pointer;
-  font-size: 0.74rem;
+  font-size: var(--type-sm);
   color: var(--text-muted);
   list-style: none;
   user-select: none;
@@ -88,7 +88,7 @@
   border-radius: 999px;
   background: var(--accent-bg);
   color: var(--text-secondary);
-  font-size: 0.68rem;
+  font-size: var(--type-xs);
 }
 
 .citation-source-list {
@@ -115,25 +115,25 @@
 .citation-source-marker {
   flex: 0 0 auto;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--type-xs);
   color: var(--text-muted);
 }
 .citation-source-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .citation-source-body a {
   color: var(--text-main);
-  font-size: 0.78rem;
+  font-size: var(--type-sm);
   text-decoration: none;
 }
 .citation-source-body a:hover { text-decoration: underline; }
-.citation-source-title { font-size: 0.78rem; color: var(--text-main); }
+.citation-source-title { font-size: var(--type-sm); color: var(--text-main); }
 .citation-source-path {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: var(--type-xs);
   color: var(--text-muted);
   word-break: break-all;
 }
 .citation-source-snippet {
-  font-size: 0.72rem;
+  font-size: var(--type-xs);
   color: var(--text-secondary);
   line-height: 1.4;
   display: -webkit-box;
@@ -149,7 +149,7 @@
   margin-top: 10px;
 }
 .legacy-source-chip {
-  font-size: 0.72rem;
+  font-size: var(--type-xs);
   color: var(--text-secondary);
   background: var(--accent-bg);
   border-radius: 999px;

@@ -30,7 +30,7 @@ export const SHADINGS = ['fabric', 'plastic', 'smooth', 'crisp', 'flat'];
 export const HATS = ['none', 'beanie', 'party', 'crown', 'beret', 'tophat'];
 export const GLASSES = ['none', 'round', 'square', 'shades'];
 
-const STATE_WORDS = { default: 'idle', working: 'working', sleeping: 'sleeping' };
+const STATE_WORDS = { default: 'idle', working: 'working', sleeping: 'sleeping', thinking: 'thinking', waiting: 'waiting' };
 
 function pageTheme() {
   if (typeof document === 'undefined') return 'light';

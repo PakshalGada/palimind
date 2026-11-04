@@ -58,7 +58,7 @@
   color: var(--hljs-deletion);
 }
 .hljs-emphasis { font-style: italic; }
-.hljs-strong { font-weight: 600; }
+.hljs-strong { font-weight: 550; }
 .hljs-link { text-decoration: underline; }
 
 :root {

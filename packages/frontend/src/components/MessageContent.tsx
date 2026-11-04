@@ -1,8 +1,10 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ExternalLink, FileText } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { formatMarkdown } from '../utils/markdown';
 import { annotateCitationMarkers, sourceMap } from '../utils/citations';
+import { Favicon } from './activity/primitives/Favicon';
+import { hostOf } from './activity/toolRegistry';
 import type { CitationPayload, CitationSource } from '../types';
 import './Citations.css';
 
@@ -192,7 +194,11 @@ export default function MessageContent({
             role="tooltip"
           >
             <div className="citation-popover-head">
-              {hoverSource.url ? <ExternalLink size={13} /> : <FileText size={13} />}
+              {hoverSource.url ? (
+                <Favicon domain={hostOf(hoverSource.url)} title={hoverSource.title} />
+              ) : (
+                <FileText size={13} />
+              )}
               <span className="citation-popover-title">{hoverSource.title}</span>
             </div>
             {hoverSource.url && <div className="citation-popover-url">{hoverSource.url}</div>}

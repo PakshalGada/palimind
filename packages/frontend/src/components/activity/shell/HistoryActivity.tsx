@@ -69,5 +69,5 @@ export function HistoryActivity({
   );
 
   if (!store) return null;
-  return <RunSurface store={store} onResolveApproval={resolveApproval} />;
+  return <RunSurface store={store} history onResolveApproval={resolveApproval} />;
 }

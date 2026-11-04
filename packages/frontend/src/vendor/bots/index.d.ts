@@ -1,7 +1,7 @@
 export type BotType =
   | 'clover' | 'flower' | 'triangle' | 'square' | 'blob' | 'ghost' | 'circle' | 'drop' | 'star'
   | 'droid' | 'mech' | 'alien' | 'hexagon' | 'cat' | 'cloud' | 'pill' | 'pebble' | 'puddle';
-export type BotState = 'default' | 'working' | 'sleeping';
+export type BotState = 'default' | 'working' | 'sleeping' | 'thinking' | 'waiting';
 export type BotShading = 'fabric' | 'plastic' | 'smooth' | 'crisp' | 'flat';
 export type BotHat = 'none' | 'beanie' | 'party' | 'crown' | 'beret' | 'tophat';
 export type BotGlasses = 'none' | 'round' | 'square' | 'shades';

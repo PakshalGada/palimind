@@ -88,7 +88,7 @@
   background: transparent;
   color: var(--text-secondary);
   font-family: var(--font-sans);
-  font-size: 12.5px;
+  font-size: var(--type-sm);
   text-align: left;
   cursor: pointer;
 }
@@ -111,8 +111,8 @@
   background: var(--input-bg);
   color: var(--text-main);
   font-family: var(--font-sans);
-  font-size: 0.9rem;
+  font-size: var(--type-base);
   line-height: 1.5;
 }
-.message-edit textarea:focus { outline: none; box-shadow: 0 0 0 3px var(--color-brand-soft); }
+.message-edit textarea:focus { outline: none; box-shadow: none; }
 .message-edit-actions { display: flex; gap: 8px; }

@@ -28,14 +28,14 @@
 }
 .agents-topbar__name {
   font-weight: 550;
-  font-size: 0.92rem;
+  font-size: var(--type-base);
   color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .agents-topbar__meta {
-  font-size: 0.72rem;
+  font-size: var(--type-xs);
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -48,5 +48,5 @@
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: var(--type-base);
 }

@@ -22,10 +22,14 @@ export class ActivityStore {
   private listeners = new Set<Listener>();
   private stepListeners = new Map<string, Set<Listener>>();
   private allowedForRun = new Set<string>();
+  /** True when the store was built from persisted history (reloads render
+   *  pending approvals as "Requested earlier" instead of pulsing). */
+  readonly restored: boolean;
   readonly buffers = new BufferRegistry();
 
-  constructor(initial: ActivityState | null = null) {
+  constructor(initial: ActivityState | null = null, restored = false) {
     this.state = initial;
+    this.restored = restored;
   }
 
   getState = (): ActivityState | null => this.state;
@@ -115,7 +119,7 @@ export class ActivityStore {
 
   /** Seed a completed run for history without replay animation. */
   static fromState(state: ActivityState): ActivityStore {
-    return new ActivityStore(state);
+    return new ActivityStore(state, true);
   }
 
   private schedule(): void {

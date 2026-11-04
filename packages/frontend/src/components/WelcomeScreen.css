@@ -37,8 +37,8 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    font-size: 0.72rem;
-    font-weight: 600;
+    font-size: var(--type-xs);
+    font-weight: 550;
     text-transform: uppercase;
     letter-spacing: 0.8px;
     padding: 6px 14px;
@@ -50,7 +50,7 @@
 }
 .welcome-content h1 {
     font-family: var(--font-heading);
-    font-size: 2rem;
+    font-size: var(--type-2xl);
     font-weight: 700;
     margin-bottom: 12px;
     letter-spacing: -0.01em;
@@ -59,7 +59,7 @@
 .welcome-content p {
     color: var(--text-secondary);
     margin-bottom: 32px;
-    font-size: 0.96rem;
+    font-size: var(--type-md);
     line-height: 1.6;
     max-width: 520px;
 }
@@ -83,7 +83,7 @@
 }
 .welcome-feature-card:hover {
     background: var(--color-surface-hover);
-    box-shadow: var(--shadow-md);
+    box-shadow: none;
     transform: translateY(-2px);
 }
 .welcome-feature-icon {
@@ -98,20 +98,20 @@
     margin-bottom: 4px;
 }
 .welcome-feature-title {
-    font-size: 0.88rem;
-    font-weight: 600;
+    font-size: var(--type-base);
+    font-weight: 550;
     color: var(--text-main);
 }
 .welcome-feature-desc {
-    font-size: 0.75rem;
+    font-size: var(--type-sm);
     color: var(--text-muted);
     line-height: 1.45;
 }
 
 .welcome-cta {
-    font-size: 0.95rem;
+    font-size: var(--type-md);
     padding: 13px 28px;
-    border-radius: 12px;
+    border-radius: 8px;
     margin-bottom: 40px;
 }
 
@@ -125,10 +125,10 @@
     border: none;
     border-radius: var(--radius-md);
     padding: 11px 22px;
-    font-size: 0.9rem;
-    font-weight: 600;
+    font-size: var(--type-base);
+    font-weight: 550;
     cursor: pointer;
-    box-shadow: var(--shadow-md);
+    box-shadow: none;
     transition: all 0.2s;
 }
 .primary-btn:hover {
@@ -142,7 +142,7 @@
         padding: 24px 16px;
     }
     .welcome-content h1 {
-        font-size: 1.65rem;
+        font-size: var(--type-xl);
     }
 }
 
@@ -185,7 +185,7 @@
     font-size: var(--text-base);
     font-weight: var(--font-weight-semibold);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-md);
+    box-shadow: none;
 }
 .welcome-feature-card {
     font-family: var(--font-sans);
@@ -196,12 +196,12 @@
 }
 .welcome-feature-card:hover {
     background: var(--color-surface-hover);
-    box-shadow: var(--shadow-md);
+    box-shadow: none;
     transform: translateY(-2px);
 }
 .welcome-feature-card:active {
     transform: translateY(0);
-    box-shadow: var(--shadow-xs);
+    box-shadow: none;
 }
 .welcome-feature-title,
 .welcome-feature-desc {

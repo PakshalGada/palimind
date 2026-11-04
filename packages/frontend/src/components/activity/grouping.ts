@@ -1,9 +1,29 @@
 import type { ActivityState, ToolStep } from './model';
+import { getToolDefinition } from './toolRegistry';
+
+export type StepIntent = 'research' | 'writing' | 'running';
 
 export interface TimelineUnit {
   key: string;
-  kind: 'step' | 'browser' | 'parallel';
+  kind: 'step' | 'browser' | 'parallel' | 'cluster';
   steps: ToolStep[];
+  /** Set only on cluster units. */
+  intent?: StepIntent;
+}
+
+/** Main intent of a step, or undefined when it does not cluster. */
+export function intentOf(step: ToolStep): StepIntent | undefined {
+  if (step.groupKey || step.parentId) return undefined;
+  const name = step.name;
+  if (name === 'write_file' || name === 'search_replace') return 'writing';
+  if (name === 'run_python' || name === 'run_shell') return 'running';
+  const family = getToolDefinition(name).family;
+  if (family === 'code-run') return 'running';
+  // Research: searches, fetched pages, feeds and knowledge lookups.
+  if (family === 'search' || family === 'page' || family === 'feed') return 'research';
+  if (family === 'passages' || family === 'graph') return 'research';
+  if (/^(fetch|browse|read_pdf|rss|wikipedia)/.test(name)) return 'research';
+  return undefined;
 }
 
 /** Merge browser steps into one card and completed parallel calls into one row. */
@@ -44,7 +64,74 @@ export function unitsOf(steps: readonly ToolStep[]): TimelineUnit[] {
     consumed.add(step.id);
     units.push({ key: step.id, kind: 'step', steps: [step] });
   }
-  return units;
+  return clusterIntents(units);
+}
+
+/**
+ * Fold consecutive same-intent units into one disclosure row. A parallel unit
+ * counts as its members when every member shares the intent, so a burst of
+ * three searches still reads "Searched 3 sources".
+ */
+function clusterIntents(units: readonly TimelineUnit[]): TimelineUnit[] {
+  const result: TimelineUnit[] = [];
+  let pending: { intent: StepIntent; steps: ToolStep[] } | null = null;
+
+  const flush = () => {
+    if (!pending) return;
+    if (pending.steps.length >= 2) {
+      result.push({
+        key: `cluster-${pending.steps[0].id}`,
+        kind: 'cluster',
+        intent: pending.intent,
+        steps: pending.steps,
+      });
+    } else {
+      result.push({ key: pending.steps[0].id, kind: 'step', steps: pending.steps });
+    }
+    pending = null;
+  };
+
+  const intentOfUnit = (unit: TimelineUnit): StepIntent | undefined => {
+    // Browser cards and "Ran N tools" parallel rows keep their own identity.
+    if (unit.kind !== 'step') return undefined;
+    const intents = unit.steps.map(intentOf);
+    if (intents.some((intent) => intent === undefined)) return undefined;
+    return intents[0];
+  };
+
+  for (const unit of units) {
+    const intent = intentOfUnit(unit);
+    if (intent === undefined) {
+      flush();
+      result.push(unit);
+      continue;
+    }
+    if (pending && pending.intent === intent) {
+      pending.steps = [...pending.steps, ...unit.steps];
+      continue;
+    }
+    flush();
+    pending = { intent, steps: [...unit.steps] };
+  }
+  flush();
+  return result;
+}
+
+/** Wall-clock span of the steps, falling back to the sum of durations. */
+export function spanOf(steps: readonly ToolStep[]): number | undefined {
+  const starts = steps
+    .map((step) => step.startedAt)
+    .filter((value): value is number => value != null);
+  if (starts.length === 0) {
+    const total = steps.reduce((sum, step) => sum + (step.durationMs ?? 0), 0);
+    return total > 0 ? total : undefined;
+  }
+  const ends = steps.map((step) => {
+    if (step.endedAt != null) return step.endedAt;
+    if (step.startedAt != null) return step.startedAt + (step.durationMs ?? 0);
+    return step.startedAt ?? 0;
+  });
+  return Math.max(0, Math.max(...ends) - Math.min(...starts));
 }
 
 export function timelineOverlaps(steps: readonly ToolStep[]): boolean {

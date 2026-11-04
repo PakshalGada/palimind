@@ -16,7 +16,7 @@
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     color: var(--text-main);
-    font-size: 0.78rem;
+    font-size: var(--type-sm);
     padding: 6px 9px;
     outline: none;
 }
@@ -29,7 +29,7 @@
     background: var(--panel-bg-2);
     color: var(--text-main);
     border-radius: var(--radius-sm);
-    font-size: 0.75rem;
+    font-size: var(--type-sm);
     padding: 5px 10px;
     cursor: pointer;
     white-space: nowrap;
@@ -47,14 +47,14 @@
     height: 3px;
     width: 100%;
     background: var(--border-color);
-    border-radius: 2px;
+    border-radius: 4px;
     overflow: hidden;
 }
 .pull-bar-fill {
     height: 100%;
     width: 35%;
     background: var(--primary-color);
-    border-radius: 2px;
+    border-radius: 4px;
     animation: progress-slide 1.5s infinite ease-in-out;
 }
 .rec-pull-btn {
@@ -72,61 +72,62 @@
     height: 4px;
     width: 100%;
     background: var(--border-color);
-    border-radius: 2px;
+    border-radius: 4px;
     overflow: hidden;
 }
 .rec-progress-fill {
     height: 100%;
     width: 35%;
     background: var(--primary-color);
-    border-radius: 2px;
+    border-radius: 4px;
     animation: progress-slide 1.5s infinite ease-in-out;
 }
 .rec-progress-label {
-    font-size: 0.68rem;
+    font-size: var(--type-xs);
     color: var(--text-muted);
     font-family: var(--font-mono);
 }
 .rec-done {
     margin-top: 6px;
-    font-size: 0.72rem;
+    font-size: var(--type-xs);
     color: var(--text-main);
 }
 .rec-error {
     margin-top: 6px;
-    font-size: 0.72rem;
+    font-size: var(--type-xs);
     color: var(--danger-strong);
 }
 
 /* ── model switcher pill/dropdown/list ── */
 .model-switcher-area {
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     position: relative;
-    margin-top: 2px;
-    width: min(100%, 760px);
+    margin-top: 0;
+    width: auto;
+    min-width: 0;
 }
 .model-switcher-pill {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    background: var(--panel-bg-2);
-    border: 1px solid var(--border-color);
-    color: var(--text-secondary);
-    padding: 5px 12px;
-    border-radius: 999px;
-    font-size: 0.72rem;
+    gap: 5px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-size: var(--type-2xs);
     font-family: var(--font-mono);
     cursor: pointer;
-    transition: all 0.15s;
+    transition: background-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
     white-space: nowrap;
-    max-width: min(100%, 420px);
-    min-height: 30px;
+    max-width: 220px;
+    min-height: 24px;
 }
 .model-switcher-pill:hover {
-    background: var(--bg-active);
+    background: var(--surface-hover);
     color: var(--text-main);
-    border-color: var(--text-muted);
+    border-color: transparent;
 }
 .model-switcher-pill.open {
     background: var(--bg-active);
@@ -162,7 +163,7 @@
     padding: 8px 12px;
     border-radius: var(--radius-control);
     font-family: inherit;
-    font-size: 0.85rem;
+    font-size: var(--type-base);
     outline: none;
     transition: border-color 0.2s;
     min-height: 36px;
@@ -183,7 +184,7 @@
 }
 .model-list::-webkit-scrollbar-thumb {
     background: var(--border-color);
-    border-radius: 2px;
+    border-radius: 4px;
 }
 .model-list-item {
     display: flex;
@@ -193,7 +194,7 @@
     border-radius: var(--radius-control);
     cursor: pointer;
     transition: all 0.15s;
-    font-size: 0.8rem;
+    font-size: var(--type-sm);
     color: var(--text-main);
     gap: 8px;
     min-height: 42px;
@@ -216,12 +217,12 @@
     min-width: 0;
 }
 .model-list-item-meta {
-    font-size: 0.65rem;
+    font-size: var(--type-2xs);
     color: var(--text-muted);
     white-space: nowrap;
 }
 .model-provider-badge {
-    font-size: 0.58rem;
+    font-size: var(--type-2xs);
     line-height: 1;
     padding: 3px 6px;
     border-radius: var(--radius-sm);
@@ -235,7 +236,7 @@
     padding: 16px;
     text-align: center;
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: var(--type-sm);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -250,19 +251,19 @@
     text-align: center;
 }
 .model-empty-msg {
-    font-size: 0.8rem;
+    font-size: var(--type-sm);
     color: var(--text-main);
-    font-weight: 500;
+    font-weight: 550;
 }
 .model-empty-hint {
-    font-size: 0.75rem;
+    font-size: var(--type-sm);
     color: var(--text-muted);
     font-family: var(--font-mono);
 }
 .model-retry-btn {
     margin-top: 6px;
     padding: 5px 14px;
-    font-size: 0.75rem;
+    font-size: var(--type-sm);
     font-family: inherit;
     background: var(--bg-active);
     color: var(--text-main);
@@ -280,11 +281,11 @@
     border-radius: 50%;
     background: var(--primary-color);
     flex-shrink: 0;
-    box-shadow: 0 0 6px var(--primary-color);
+    box-shadow: none;
 }
 .fit-badge {
     display: inline-block;
-    font-size: 0.6rem;
+    font-size: var(--type-2xs);
     font-weight: 700;
     padding: 2px 7px;
     border-radius: 4px;
@@ -327,7 +328,7 @@
 }
 .recommendation-grid::-webkit-scrollbar-thumb {
     background: var(--border-color);
-    border-radius: 2px;
+    border-radius: 4px;
 }
 .rec-card {
     display: flex;
@@ -337,7 +338,7 @@
     background: var(--surface-raised);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-control);
-    font-size: 0.75rem;
+    font-size: var(--type-sm);
     gap: 8px;
     cursor: default;
     transition: all 0.2s;
@@ -353,7 +354,7 @@
 }
 .rec-card-name {
     flex: 1;
-    font-weight: 500;
+    font-weight: 550;
     color: var(--text-main);
     white-space: nowrap;
     overflow: hidden;
@@ -362,7 +363,7 @@
 }
 .rec-card-size {
     color: var(--text-muted);
-    font-size: 0.65rem;
+    font-size: var(--type-2xs);
     white-space: nowrap;
 }
 
@@ -379,7 +380,7 @@
     padding: 16px;
     color: var(--text-muted);
     text-align: center;
-    font-size: 0.8rem;
+    font-size: var(--type-sm);
 }
 .model-menu-state.error {
     color: var(--danger-strong);
@@ -398,8 +399,8 @@
     color: var(--text-muted);
     border: 1px solid var(--border-color);
     border-radius: 999px;
-    font-size: 0.72rem;
-    font-weight: 600;
+    font-size: var(--type-xs);
+    font-weight: 550;
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
@@ -425,13 +426,13 @@
     gap: 4px;
     padding: 12px 14px;
     background: var(--input-bg);
-    font-size: 0.75rem;
+    font-size: var(--type-sm);
     color: var(--text-secondary);
     line-height: 1.6;
     border-bottom: 1px solid var(--border-color);
 }
 .hw-gpu-name {
-    font-weight: 600;
+    font-weight: 550;
     color: var(--text-main);
 }
 .hw-vram {
@@ -443,8 +444,8 @@
     border-bottom: 1px solid var(--border-color);
 }
 .ms-rec-title {
-    font-size: 0.72rem;
-    font-weight: 600;
+    font-size: var(--type-xs);
+    font-weight: 550;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.4px;

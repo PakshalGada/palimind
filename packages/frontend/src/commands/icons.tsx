@@ -7,11 +7,13 @@ import {
   Copy,
   Cpu,
   Folder,
+  House,
   Keyboard,
   Layers,
   MessageSquare,
   Network,
   PanelLeft,
+  Package,
   Plus,
   RefreshCw,
   Search,
@@ -43,6 +45,8 @@ const ICONS: Record<CommandIcon, IconComponent> = {
   sun: Sun,
   sync: RefreshCw,
   model: Cpu,
+  home: House,
+  package: Package,
 };
 
 export function CommandIconView({

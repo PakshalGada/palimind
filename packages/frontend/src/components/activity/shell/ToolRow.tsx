@@ -3,6 +3,7 @@ import type { ToolStep } from '../model';
 import { formatToolDuration } from '../model';
 import { useStep } from '../hooks';
 import { Icon } from '../icons';
+import { maskSecrets } from '../grant';
 import { Disclosure } from '../primitives/Disclosure';
 import { CopyButton } from '../primitives/CopyButton';
 import { ShimmerText } from '../primitives/ShimmerText';
@@ -64,6 +65,7 @@ export const ToolRow = memo(function ToolRow({
     (definition.family === 'code-run' && step.status === 'running');
   const open = manual ?? autoOpen;
   const preview = previewForTool(step.name, step.args);
+  const visiblePreview = definition.approval ? maskSecrets(preview) : preview;
   const results =
     definition.family === 'search' && step.output != null ? normalizeResults(step.output) : [];
   const passages =
@@ -96,7 +98,11 @@ export const ToolRow = memo(function ToolRow({
                 <span className={running ? '' : 'act-muted'}>{running ? runningLabel : doneLabel}</span>
               )}
             </span>
-            {preview && <span className="act-row__preview" title={preview}>{preview}</span>}
+            {visiblePreview && (
+              <span className="act-row__preview" title={visiblePreview}>
+                {visiblePreview}
+              </span>
+            )}
             <span className="act-row__trail">
               {results.length > 0 && (
                 <>
@@ -133,8 +139,14 @@ export const ToolRow = memo(function ToolRow({
           <PermissionGrant
             step={step}
             allowedForRun={store.isAllowedForRun(step.name)}
+            restored={store.restored}
             onResolve={(decision) => onResolveApproval(step, decision)}
           />
+        )}
+        {step.status === 'success' && !step.approval && store.isAllowedForRun(step.name) && (
+          <div className="act-grant__resolved act-grant__resolved--soft">
+            <Icon name="check" size={13} /> Allowed for this run
+          </div>
         )}
         {(step.status === 'denied' || step.status === 'cancelled') && (
           <div className="act-row__error" style={{ color: 'var(--act-muted)' }}>
@@ -152,7 +164,7 @@ export const ToolRow = memo(function ToolRow({
         {step.args != null && (
           <details className="act-row__input">
             <summary>Input</summary>
-            <pre>{inputText(step.args)}</pre>
+            <pre>{definition.approval ? maskSecrets(inputText(step.args)) : inputText(step.args)}</pre>
           </details>
         )}
         {step.output != null && (

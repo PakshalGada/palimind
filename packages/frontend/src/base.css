@@ -1,6 +1,9 @@
 /* ==========================================================================
    base.css — app shell, element reset, shared modal chrome, focus rings and
    global motion rules. All colors come from design/tokens.css.
+
+   Construction rule: structure comes from 1px lines and spacing. Shadows are
+   reserved for transient overlays. Emphasis is inversion.
    ========================================================================== */
 
 /* ── reset ──────────────────────────────────────────────────────────────── */
@@ -9,11 +12,10 @@
     margin: 0;
     padding: 0;
     scrollbar-width: thin;
-    scrollbar-color: var(--color-scrollbar, var(--border-color)) transparent;
+    scrollbar-color: var(--color-scrollbar, var(--color-border)) transparent;
 }
 
-/* Thin, fading overlay scrollbars — a disproportionate amount of "polish"
-   comes from these matching the elevation system rather than the OS chrome. */
+/* Thin overlay scrollbars matching the hairline system. */
 *::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -22,7 +24,7 @@
     background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-    background: var(--color-scrollbar, var(--border-color));
+    background: var(--color-scrollbar, var(--color-border));
     border: 3px solid transparent;
     background-clip: content-box;
     border-radius: var(--radius-full);
@@ -45,7 +47,8 @@ html {
 }
 body {
     font-family: var(--font-sans);
-    font-size: var(--text-body);
+    font-size: var(--type-base);
+    line-height: var(--leading-normal);
     background-color: var(--bg-color);
     color: var(--text-main);
     height: 100vh;
@@ -54,8 +57,8 @@ body {
     display: flex;
     -webkit-tap-highlight-color: transparent;
     transition:
-        background-color var(--duration-base) var(--ease-out),
-        color var(--duration-base) var(--ease-out);
+        background-color var(--dur-3) var(--ease-out),
+        color var(--dur-3) var(--ease-out);
 }
 #root {
     width: 100vw;
@@ -70,35 +73,60 @@ body {
     background: var(--bg-color);
     min-height: 0;
     min-width: 0;
-    transition: background-color var(--duration-base) var(--ease-out);
+    transition: background-color var(--dur-3) var(--ease-out);
 }
 
 /* ── typography baseline ───────────────────────────────────────────────── */
+h1,
+h2,
+h3,
+h4 {
+    font-family: var(--font-heading);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: -0.02em;
+    color: var(--ink);
+}
 
 /* ── controls baseline ─────────────────────────────────────────────────── */
+/* The bare <button> is a *secondary* control: bordered, quiet, never a white
+   block. Primary actions opt in explicitly. */
 button {
-    background: var(--primary-color);
-    color: var(--primary-text);
-    border: none;
+    background: var(--surface-2);
+    color: var(--ink);
+    border: 1px solid transparent;
     border-radius: var(--radius-control);
-    padding: 8px 16px;
-    font-size: 0.88rem;
-    font-weight: 500;
+    padding: 0 14px;
+    min-height: 32px;
+    font-family: var(--font-sans);
+    font-size: var(--type-base);
+    font-weight: var(--font-weight-medium);
     cursor: pointer;
     transition:
-        background-color var(--transition-fast),
-        border-color var(--transition-fast),
-        color var(--transition-fast),
-        transform 0.1s;
+        background-color var(--dur-2) var(--ease-out),
+        border-color var(--dur-2) var(--ease-out),
+        color var(--dur-2) var(--ease-out),
+        transform var(--dur-1) var(--ease-out);
 }
-button:active {
-    transform: translateY(0) scale(0.97);
+button:hover:not(:disabled) {
+    background: var(--surface-hover);
+    border-color: transparent;
+}
+button:active:not(:disabled) {
+    transform: translateY(1px) scale(0.99);
 }
 /* consistent typography: form controls must inherit the app font */
 button,
 input,
 textarea {
     font: inherit;
+}
+input,
+textarea,
+select {
+    background: var(--surface-2);
+    color: var(--ink);
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
 }
 select {
     font-family: inherit;
@@ -108,37 +136,50 @@ select {
 .action-btn {
     width: 100%;
     margin-top: 6px;
-    background: var(--input-bg);
-    border: 1px solid var(--border-color);
-    color: var(--text-main);
-    font-size: 0.78rem;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-size: var(--type-sm);
     padding: 7px 12px;
     border-radius: var(--radius-sm);
 }
-.action-btn.primary {
-    background: var(--primary-color);
-    color: var(--primary-text);
+.action-btn:hover:not(:disabled) {
+    background: var(--surface-hover);
+    border-color: var(--line-strong);
 }
-.action-btn.primary:hover {
-    background: var(--primary-hover);
+.action-btn.primary {
+    background: var(--inverse-bg);
+    border-color: var(--inverse-bg);
+    color: var(--inverse-ink);
+}
+.action-btn.primary:hover:not(:disabled) {
+    background: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
 }
 .action-btn.ghost {
     background: transparent;
-    border-color: var(--border-color);
-    color: var(--text-secondary);
+    border-color: transparent;
+    color: var(--ink-secondary);
 }
+.action-btn.ghost:hover:not(:disabled) {
+    background: var(--surface-hover);
+    color: var(--ink);
+}
+
+/* Destructive actions are identified by explicit label + icon, never hue. */
 .danger-btn {
-    color: var(--danger-strong) !important;
-    border-color: var(--danger) !important;
+    color: var(--ink) !important;
+    border-color: var(--line-strong) !important;
     background: transparent !important;
 }
-.danger-btn:hover {
-    border-color: var(--danger-strong) !important;
+.danger-btn:hover:not(:disabled) {
+    background: var(--surface-hover) !important;
+    border-color: var(--ink) !important;
 }
 
 .icon-btn {
     background: transparent;
-    color: var(--text-muted);
+    color: var(--ink-muted);
     border: none;
     padding: 5px;
     border-radius: var(--radius-sm);
@@ -147,24 +188,28 @@ select {
     align-items: center;
     justify-content: center;
     transition:
-        color 0.15s,
-        transform 0.15s ease;
+        color var(--dur-2) var(--ease-out),
+        background-color var(--dur-2) var(--ease-out);
 }
 .icon-btn:hover {
-    color: var(--text-main);
+    color: var(--ink);
+    background: var(--surface-hover);
 }
 
 /* ── focus ─────────────────────────────────────────────────────────────── */
+/* Focus is never removed. Every interactive element gets the same 2px ring,
+   whether or not it paints its own border. */
 :focus-visible {
-    outline: 2px solid var(--color-brand);
+    outline: 2px solid var(--focus);
     outline-offset: 2px;
 }
-
-/* Buttons should not draw an external focus outline/ring beside them. */
-button:focus,
-button:focus-visible {
+/* Mouse focus stays quiet; keyboard focus keeps the ring. */
+button:focus:not(:focus-visible),
+input:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible),
+select:focus:not(:focus-visible),
+[role="button"]:focus:not(:focus-visible) {
     outline: none;
-    box-shadow: none;
 }
 button:disabled,
 textarea:disabled,
@@ -173,22 +218,41 @@ input:disabled {
     opacity: 0.52;
 }
 
-/* ── recording state (mic-driven border pulse on the app frame) ───────── */
+/* ── skip link (keyboard users land here first) ────────────────────────── */
+.skip-link {
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    z-index: var(--z-toast);
+    padding: 8px 12px;
+    background: var(--inverse-bg);
+    color: var(--inverse-ink);
+    border-radius: var(--radius-sm);
+    font-size: var(--type-sm);
+    font-weight: var(--font-weight-medium);
+    transform: translateY(-200%);
+    transition: transform var(--dur-3) var(--ease-out);
+}
+.skip-link:focus-visible {
+    transform: translateY(0);
+}
+
+/* ── recording state (mic-driven hairline pulse on the app frame) ─────── */
 @keyframes border-pulse {
     0% {
-        border-color: var(--border-color);
+        border-color: var(--line);
     }
     50% {
-        border-color: var(--text-main);
+        border-color: var(--ink);
     }
     100% {
-        border-color: var(--border-color);
+        border-color: var(--line);
     }
 }
 .app-container.recording,
 .app-container.transcribing,
 .app-container.speaking {
-    animation: border-pulse 1.5s infinite ease-in-out;
+    animation: border-pulse 1.5s infinite steps(2, end);
 }
 
 /* ── shared modal shell (Settings / Directory picker / Graph) ──────────── */
@@ -202,66 +266,69 @@ input:disabled {
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Legacy overlay stack. Phase 6 unifies every overlay onto --z-overlay;
+       until then this stays below the command palette and context menus. */
     z-index: 1000;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
     padding: 20px;
 }
 .modal-content {
-    background: var(--panel-bg);
-    border: none;
+    background: var(--surface-2);
+    border: 1px solid transparent;
     border-radius: var(--radius-xl);
     width: 90%;
     max-width: 650px;
     overflow: hidden;
-    box-shadow: var(--shadow-float);
-    animation: modalFadeIn 0.2s ease-out;
+    box-shadow: var(--shadow-overlay);
+    animation: modalFadeIn var(--dur-3) var(--ease-out);
     max-height: calc(100vh - 40px);
 }
 @keyframes modalFadeIn {
     from {
-        transform: scale(0.95);
         opacity: 0;
+        transform: scale(0.995);
     }
     to {
-        transform: scale(1);
         opacity: 1;
+        transform: scale(1);
     }
 }
 .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px 24px;
-    border-bottom: 1px solid var(--border-color);
+    padding: 18px 24px 14px;
+    border-bottom: 1px solid var(--line);
 }
 .modal-header h2 {
     font-family: var(--font-heading);
-    font-size: 1.12rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    color: var(--text-main);
+    font-size: var(--type-lg);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: -0.02em;
+    color: var(--ink);
 }
 .modal-body {
-    padding: 32px 28px;
+    padding: 24px;
     display: flex;
     flex-direction: column;
-    gap: 28px;
+    gap: 20px;
     overflow-y: auto;
 }
 
-/* ── motion ────────────────────────────────────────────────────────────── */
-/* Interactive elements use the --transition-* tokens. Decorative motion is
-   disabled wholesale for users who prefer reduced motion. */
+/* ── motion contract ───────────────────────────────────────────────────── */
+/* Interactive elements use the --dur-* / --ease-* tokens. Loops stop for
+   users who prefer reduced motion; they resolve to their final frame rather
+   than disappearing so state is still readable. */
 html {
     scroll-behavior: smooth;
 }
 
+/* System preference, unless the user explicitly asked for full motion. */
 @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
+    html:not([data-motion="full"]) *,
+    html:not([data-motion="full"]) *::before,
+    html:not([data-motion="full"]) *::after {
         animation-duration: 0.001ms !important;
+        animation-delay: 0ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.001ms !important;
         scroll-behavior: auto !important;
@@ -274,6 +341,35 @@ html {
     .loading-spinner-svg {
         animation: none !important;
     }
+}
+
+/* Explicit "Reduced" choice overrides the system preference. */
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+}
+html[data-motion="reduced"] .ui-spinner,
+html[data-motion="reduced"] .pixel-caret {
+    animation: none !important;
+}
+html[data-motion="reduced"] .pixel-caret {
+    opacity: 1;
+}
+html[data-motion="reduced"] .pixel-loader__frame {
+    animation: none !important;
+    opacity: 0;
+}
+html[data-motion="reduced"] .pixel-loader__frame--0 {
+    opacity: 1;
+}
+html[data-motion="reduced"] .pixel-stamp,
+html[data-motion="reduced"] .pixel-meter.is-indeterminate .pixel-meter__cell {
+    animation: none !important;
 }
 
 /* ── responsive ────────────────────────────────────────────────────────── */

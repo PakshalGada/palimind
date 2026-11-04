@@ -1,7 +1,16 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useApp } from '../AppContext';
 import { api } from '../api';
 import type { Theme } from '../types';
+import { SegmentedControl, Toggle } from '../ui/primitives';
+import {
+  applyMotion,
+  applyPixelAccents,
+  readMotion,
+  readPixelAccents,
+  type MotionSetting,
+  type PixelAccents,
+} from '../design/usePixelMotion';
 import { getUserName, setUserName } from '../utils/userName';
 import SettingsSelect from './SettingsSelect';
 
@@ -66,6 +75,9 @@ function Feedback({ message, isError }: { message: string; isError: boolean }) {
 
 export default function SettingsModal() {
   const { theme, setTheme } = useApp();
+  const [open, setOpen] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
   const [section, setSection] = useState<SectionKey>('appearance');
   const [ocKeyConfigured, setOcKeyConfigured] = useState(false);
   const [ocKeyMasked, setOcKeyMasked] = useState<string | null>(null);
@@ -86,6 +98,8 @@ export default function SettingsModal() {
   const [embedModelError, setEmbedModelError] = useState(false);
   const [embedModelBusy, setEmbedModelBusy] = useState(false);
   const [profileName, setProfileName] = useState(getUserName);
+  const [pixelAccents, setPixelAccents] = useState<PixelAccents>(readPixelAccents);
+  const [motion, setMotion] = useState<MotionSetting>(readMotion);
 
   useEffect(() => {
     api.settings.opencodeKey.status().then((s) => {
@@ -102,23 +116,51 @@ export default function SettingsModal() {
   }, []);
 
   const close = () => {
-    const modal = document.getElementById('settings-modal');
-    if (modal) modal.style.display = 'none';
+    setOpen(false);
     setShowKey(false);
   };
 
   useEffect(() => {
-    const modal = document.getElementById('settings-modal');
-    if (!modal) return;
-    const handler = (e: MouseEvent) => {
-      if (e.target === modal) {
-        modal.style.display = 'none';
-        setShowKey(false);
+    const openSettings = () => setOpen(true);
+    window.addEventListener('palimind:open-settings', openSettings);
+    return () => window.removeEventListener('palimind:open-settings', openSettings);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    restoreRef.current = document.activeElement as HTMLElement | null;
+    const focusable = () =>
+      Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      );
+    focusable()[0]?.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        close();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const list = focusable();
+      if (list.length === 0) return;
+      const first = list[0];
+      const last = list[list.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
       }
     };
-    modal.addEventListener('click', handler);
-    return () => modal.removeEventListener('click', handler);
-  }, []);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      restoreRef.current?.focus?.();
+    };
+  }, [open]);
 
   const selectSection = (key: SectionKey) => {
     setSection(key);
@@ -227,14 +269,19 @@ export default function SettingsModal() {
     { value: 'dark', label: 'Night', hint: 'Low-light contrast' },
   ];
 
+  if (!open) return null;
+
   return (
     <div
+      ref={dialogRef}
       id="settings-modal"
       className="modal"
       role="dialog"
       aria-modal="true"
       aria-labelledby="settings-title"
-      style={{ display: 'none' }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
     >
       <div className="modal-content">
         <div className="modal-header">
@@ -307,6 +354,40 @@ export default function SettingsModal() {
                       </span>
                     </button>
                   ))}
+                </div>
+              </div>
+              <div className="settings-card">
+                <div className="settings-card-title">Motion &amp; pixel accents</div>
+                <p className="settings-hint">
+                  Pixel details are small, step-timed marks used for live status,
+                  progress and one-shot success. Motion follows the system setting
+                  unless you choose otherwise.
+                </p>
+                <Toggle
+                  checked={pixelAccents === 'on'}
+                  onChange={(on) => {
+                    const next: PixelAccents = on ? 'on' : 'off';
+                    setPixelAccents(next);
+                    applyPixelAccents(next);
+                  }}
+                  title="Pixel accents"
+                  description="Brand blink, live status, streaming caret and progress meter."
+                />
+                <div className="settings-field">
+                  <span className="settings-field-label">Motion</span>
+                  <SegmentedControl<MotionSetting>
+                    value={motion}
+                    ariaLabel="Motion preference"
+                    options={[
+                      { value: 'system', label: 'System' },
+                      { value: 'full', label: 'Full' },
+                      { value: 'reduced', label: 'Reduced' },
+                    ]}
+                    onChange={(next) => {
+                      setMotion(next);
+                      applyMotion(next);
+                    }}
+                  />
                 </div>
               </div>
               <div className="settings-card">

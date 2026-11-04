@@ -10,7 +10,7 @@ export default function MainPanel({ children }: { children: ReactNode }) {
   const { sidebarCollapsed, toggleSidebar } = useApp();
 
   return (
-    <div className="app-main-panel">
+    <div className="app-main-panel" id="main-content" tabIndex={-1}>
       <button
         type="button"
         className="app-mobile-menu"

@@ -11,6 +11,8 @@ export interface Scenario {
   label: string;
   answer: string;
   steps: PlaygroundStep[];
+  /** Render from a prebuilt persisted state instead of dispatching events. */
+  restored?: boolean;
 }
 
 const web: ResultItem[] = [
@@ -76,9 +78,9 @@ export const SCENARIOS: Scenario[] = [  {
     answer: answerFor('retrieval'),
     steps: [
       { at: 0, event: { type: 'run.start', runId: 'pg-default', mode: 'default', startedAt: 0 } },
-      { at: 200, event: { type: 'reasoning.delta', text: 'The user wants a concise explanation. ' } },
-      { at: 500, event: { type: 'reasoning.delta', text: 'I should mention retrieval depth and reranking.\n' } },
-      { at: 1200, event: { type: 'reasoning.delta', text: 'Check whether a citation would help here. ' } },
+      { at: 200, event: { type: 'reasoning.delta', text: '' }, buffer: { key: 'reasoning', text: 'The user wants a concise explanation. ' } },
+      { at: 500, event: { type: 'reasoning.delta', text: '' }, buffer: { key: 'reasoning', text: 'I should mention retrieval depth and reranking.\n' } },
+      { at: 1200, event: { type: 'reasoning.delta', text: '' }, buffer: { key: 'reasoning', text: 'Check whether a citation would help here. ' } },
       { at: 1600, event: { type: 'reasoning.end' } },
       { at: 2200, event: { type: 'text.delta' } },
       { at: 2600, event: { type: 'run.end', status: 'done' } },
@@ -154,7 +156,7 @@ export const SCENARIOS: Scenario[] = [  {
     answer: answerFor('agent tooling'),
     steps: [
       { at: 0, event: { type: 'run.start', runId: 'pg-agent', mode: 'agent', startedAt: 0 } },
-      { at: 200, event: { type: 'reasoning.delta', text: 'Plan: search three sources in parallel, then read the best page.\n' } },
+      { at: 200, event: { type: 'reasoning.delta', text: '' }, buffer: { key: 'reasoning', text: 'Plan: search three sources in parallel, then read the best page.\n' } },
       {
         at: 400,
         event: { type: 'tool.start', id: 'a1', name: 'web_search', args: { query: 'tool approval patterns' } },
@@ -260,6 +262,13 @@ export const SCENARIOS: Scenario[] = [  {
       { at: 600, event: { type: 'tool.start', id: 's2', name: 'fetch_url', args: { url: 'https://example.com' } } },
       { at: 1400, event: { type: 'run.end', status: 'stopped' } },
     ],
+  },
+  {
+    id: 'reload_approval',
+    label: 'Approval pending on reload',
+    answer: '',
+    steps: [],
+    restored: true,
   },
   {
     id: 'history',

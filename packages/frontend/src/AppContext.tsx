@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import { api } from './api';
-import type { AppView, ChatMode, CitationPayload, LlmSubMode, Theme } from './types';
+import type { AppView, AgentsView, ChatMode, CitationPayload, LlmSubMode, Overview, Approval, Theme } from './types';
 import type { BotAvatarConfig } from './bots/config';
 import type { ShortcutOverrides } from './utils/shortcuts';
 import { loadShortcutOverrides, saveShortcutOverrides } from './utils/shortcuts';
@@ -40,9 +40,6 @@ export interface AgentState {
 
 export type ActivityMode = 'llm' | 'document' | 'moe' | 'deep_research' | 'agent';
 export type ActivityStatus = 'pending' | 'active' | 'done' | 'error';
-
-/** Sub-views inside the Agents workspace. */
-export type AgentsView = 'chat' | 'kanban';
 
 export interface ActivityStep {
   id: string;
@@ -99,6 +96,9 @@ interface AppState {
   isTranscribing: boolean;
   isSpeaking: boolean;
   selectedAgentId: string | null;
+  selectedTeamId: string | null;
+  overview: Overview | null;
+  inbox: Approval[];
   sidebarCollapsed: boolean;
   commandPaletteOpen: boolean;
   shortcutsModalOpen: boolean;
@@ -133,6 +133,9 @@ interface AppContextType extends AppState {
   setIsTranscribing: (v: boolean) => void;
   setIsSpeaking: (v: boolean) => void;
   setSelectedAgentId: (id: string | null) => void;
+  setSelectedTeamId: (id: string | null) => void;
+  refreshOverview: () => Promise<void>;
+  refreshInbox: () => Promise<void>;
   refreshFields: () => Promise<void>;
   refreshSessions: () => Promise<void>;
   refreshFileTree: () => Promise<void>;
@@ -174,8 +177,15 @@ export const AppContext = createContext<AppContextType | null>(null);
 export const ActivityContext = createContext<ActivityContextType | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [activeView, setActiveView] = useState<AppView>('chat');
-  const [agentsView, setAgentsView] = useState<AgentsView>('chat');
+  const [activeView, setActiveView] = useState<AppView>(() => {
+    // Deep link wins over the default so a reload keeps the current view and
+    // there is no flash of Home before the hash effect runs.
+    if (typeof window === 'undefined') return 'home';
+    const value = window.location.hash.replace(/^#\/?/, '');
+    const views = ['home', 'chat', 'agents', 'knowledge', 'projects', 'artifacts', 'research'];
+    return views.includes(value) ? (value as AppView) : 'home';
+  });
+  const [agentsView, setAgentsView] = useState<AgentsView>('home');
   const [activeField, setActiveField] = useState<string | null>(null);
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(
     () => localStorage.getItem('palimind:active-project'),
@@ -200,6 +210,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [thinkingText, setThinkingText] = useState('');
   const [agentStates, setAgentStates] = useState<AgentState[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [overview, setOverview] = useState<Overview | null>(null);
+  const [inbox, setInbox] = useState<Approval[]>([]);
   const [agentLoading, setAgentLoading] = useState<{ seed: string; name: string } | null>(null);
   const [activity, setActivity] = useState<ActivityState | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
@@ -360,6 +373,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // handled in FileTreeView component
   }, []);
 
+  const refreshOverview = useCallback(async () => {
+    try {
+      const data = await api.agents.overview();
+      setOverview(data);
+      setInbox(data.inbox || []);
+    } catch {
+      // best effort
+    }
+  }, []);
+
+  const refreshInbox = useCallback(async () => {
+    try {
+      const data = await api.agents.inbox();
+      setInbox(data.approvals || []);
+    } catch {
+      // best effort
+    }
+  }, []);
+
   useEffect(() => {
     const es = new EventSource('/api/events', { withCredentials: true });
     es.onmessage = (ev) => {
@@ -401,6 +433,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isTranscribing, setIsTranscribing,
     isSpeaking, setIsSpeaking,
     selectedAgentId, setSelectedAgentId,
+    selectedTeamId, setSelectedTeamId,
+    overview, inbox, refreshOverview, refreshInbox,
     refreshFields, refreshSessions, refreshFileTree,
     abortController, setAbortController,
     sidebarCollapsed, setSidebarCollapsed, toggleSidebar,
@@ -416,6 +450,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     orchestratorModel, workerModel, isIndexing, indexingStatus,
     toasts, dismissToast, attachedFiles, isRecording, isTranscribing, isSpeaking,
     selectedAgentId, abortController,
+    selectedTeamId, overview, inbox, refreshOverview, refreshInbox,
     sidebarCollapsed, commandPaletteOpen, shortcutsModalOpen,
     artifactPanelOpen, artifactLibraryOpen, artifactTarget, shortcutOverrides,
     toggleSidebar, setShortcutOverride, resetShortcut, resetAllShortcuts,

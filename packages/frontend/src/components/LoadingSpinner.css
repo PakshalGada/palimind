@@ -32,8 +32,8 @@
     transform-origin: center;
 }
 .loading-spinner-text {
-    font-size: 0.78rem;
-    font-weight: 500;
+    font-size: var(--type-sm);
+    font-weight: 550;
     letter-spacing: 0.2px;
     color: var(--text-muted);
     animation: pulse-text 1.8s ease-in-out infinite alternate !important;

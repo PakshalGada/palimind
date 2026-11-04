@@ -10,7 +10,7 @@
     bottom: 0;
     z-index: 6;
     width: 100%;
-    padding: 0 24px 18px;
+    padding: 0 24px 16px;
     background: transparent;
     border-top: none;
     display: flex;
@@ -30,31 +30,25 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    background: var(--color-surface-raised);
-    border: none;
-    border-radius: var(--radius-2xl);
-    padding: 10px 14px 8px;
+    background: var(--surface-2);
+    border: 1px solid transparent;
+    border-radius: 16px;
+    padding: 12px 14px 10px;
     width: 100%;
-    max-width: 760px;
+    max-width: var(--measure-reading);
     margin: 0 auto;
     transition:
-        border-color var(--transition-base),
-        box-shadow var(--transition-base),
-        background var(--transition-base);
-    box-shadow:
-        0 1px 0 var(--color-hairline) inset,
-        var(--shadow-lg);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+        background-color var(--dur-2) var(--ease-out),
+        box-shadow var(--dur-2) var(--ease-out);
+    box-shadow: var(--shadow-md);
 }
 .ai-command-center:hover {
-    background: var(--color-surface-overlay);
+    background: var(--surface-3);
 }
 .ai-command-center:focus-within {
     box-shadow:
-        0 1px 0 var(--color-hairline) inset,
-        0 0 0 3px var(--color-brand-soft),
-        var(--shadow-lg);
+        0 0 0 1px var(--ink),
+        var(--shadow-md);
 }
 .prompt-input {
     box-sizing: border-box;
@@ -77,8 +71,8 @@
 
 /* ── drag-over, attachment chips ── */
 .ai-command-center.drag-over {
-    border-color: var(--primary-color);
-    background: var(--bg-hover);
+    border-color: var(--ink);
+    background: var(--surface-hover);
 }
 .attachment-chips {
     display: flex;
@@ -95,9 +89,9 @@
     gap: 6px;
     background: var(--color-surface-hover);
     border: 1px solid var(--color-border-subtle);
-    padding: 4px 8px;
-    border-radius: var(--radius-full);
-    font-size: 0.78rem;
+    padding: 3px 7px;
+    border-radius: var(--radius-xs);
+    font-size: var(--type-xs);
     animation: chip-in 0.2s var(--ease-out) forwards;
 }
 @keyframes chip-in {
@@ -123,7 +117,7 @@
 }
 .chip-size {
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: var(--type-sm);
 }
 .chip-remove {
     background: transparent;
@@ -151,15 +145,15 @@
     padding-top: 4px;
 }
 .composer-footer .moe-toggle-wrapper {
-    margin-right: auto;
+    margin-right: 0;
 }
 #chat-input {
     background: transparent;
     border: none;
     color: var(--text-main);
     font-family: inherit;
-    font-size: 1rem;
-    padding: 8px 2px 2px;
+    font-size: var(--type-md);
+    padding: 6px 2px 2px;
     resize: none;
     outline: none;
     min-height: 28px;
@@ -174,9 +168,9 @@
 }
 
 .send-btn {
-    background: var(--color-accent);
-    color: var(--color-accent-contrast);
-    border: none;
+    background: var(--inverse-bg);
+    color: var(--inverse-ink);
+    border: 1px solid var(--inverse-bg);
     padding: 0;
     border-radius: var(--radius-full);
     display: flex;
@@ -184,32 +178,31 @@
     justify-content: center;
     cursor: pointer;
     transition:
-        background var(--transition-fast),
-        color var(--transition-fast),
-        opacity var(--transition-fast),
-        transform 0.15s var(--ease-out),
-        box-shadow var(--transition-fast);
+        background-color var(--dur-2) var(--ease-out),
+        border-color var(--dur-2) var(--ease-out),
+        color var(--dur-2) var(--ease-out),
+        opacity var(--dur-2) var(--ease-out);
     flex-shrink: 0;
     width: 34px;
     height: 34px;
     min-width: 34px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
-}
-.send-btn:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 14px var(--color-accent-soft), 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-.send-btn:disabled {
-    opacity: 0.38;
-    cursor: not-allowed;
-    background: var(--color-surface-active);
-    color: var(--color-text-muted);
     box-shadow: none;
 }
+.send-btn:hover:not(:disabled) {
+    background: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
+}
+.send-btn:disabled {
+    opacity: 1;
+    cursor: not-allowed;
+    background: transparent;
+    border-color: var(--line);
+    color: var(--ink-faint);
+}
 .send-btn.animating-stop {
-    background: var(--color-surface-active);
-    border: 1px solid var(--color-border-strong);
-    color: var(--color-text-primary);
+    background: transparent;
+    border: 1px solid var(--ink);
+    color: var(--ink);
 }
 .send-btn .send-icon {
     width: 18px;
@@ -230,7 +223,7 @@
     background: var(--bg-color);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md, 10px);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    box-shadow: none;
     min-width: 240px;
     max-width: 320px;
     max-height: 220px;
@@ -256,7 +249,7 @@
     padding: 6px 8px;
     border-radius: var(--radius-sm);
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: var(--type-sm);
 }
 .agent-mention-item.selected {
     background: var(--accent-bg);
@@ -272,39 +265,42 @@
     margin-left: 6px;
     color: var(--text-muted);
     font-family: var(--font-mono);
-    font-size: 0.72rem;
+    font-size: var(--type-xs);
 }
 
 /* ── mic-btn, mic waves, spin ── */
 .mic-btn {
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
     padding: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     background: transparent;
-    border: none;
-    border-radius: 50%;
-    color: var(--text-secondary);
+    border: 1px solid transparent;
+    border-radius: var(--radius-full);
+    color: var(--ink-muted);
     cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
+    transition:
+        background-color var(--dur-2) var(--ease-out),
+        border-color var(--dur-2) var(--ease-out),
+        color var(--dur-2) var(--ease-out);
 }
 .mic-btn:hover {
-    background: var(--accent-bg);
-    color: var(--text-main);
+    background: var(--surface-hover);
+    border-color: var(--line);
+    color: var(--ink);
 }
 .mic-btn.active {
-    background: var(--danger-soft);
-    color: var(--danger-strong);
-    border: none;
-    border-radius: 50%;
+    background: var(--surface-active);
+    color: var(--ink);
+    border: 1px solid var(--ink);
 }
 .mic-btn.processing {
-    background: var(--accent-bg);
-    color: var(--text-main);
-    border-radius: 50%;
+    background: var(--surface-hover);
+    color: var(--ink);
+    border-color: var(--line-strong);
 }
 .mic-btn:disabled {
     opacity: 0.6;
@@ -315,7 +311,7 @@
     align-items: center;
     gap: 8px;
     margin-right: 10px;
-    font-size: 0.75rem;
+    font-size: var(--type-sm);
     color: var(--danger-strong);
     white-space: nowrap;
 }
@@ -328,7 +324,7 @@
 .mic-wave-bar {
     width: 3px;
     height: 16px;
-    border-radius: 2px;
+    border-radius: 4px;
     background: var(--danger-strong);
     transform-origin: center;
     transform: scaleY(0.15);
@@ -371,7 +367,7 @@
     background: var(--input-bg);
     border: 1px solid var(--border-color);
     transition: 0.25s;
-    border-radius: 20px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -386,16 +382,16 @@
     bottom: 2px;
     background: var(--primary-color);
     transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    border-radius: 18px;
+    border-radius: 8px;
     z-index: 1;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    box-shadow: none;
 }
 input:checked + .toggle-slider:before {
     transform: translateX(98px);
 }
 .toggle-label {
     font-size: 0.72rem;
-    font-weight: 600;
+    font-weight: 550;
     color: var(--text-muted);
     z-index: 2;
     transition: color 0.25s;
@@ -427,8 +423,8 @@ input:checked + .toggle-slider .llm-mode {
     gap: 4px;
     padding: 4px 10px;
     border-radius: var(--radius-md);
-    font-size: 0.75rem;
-    font-weight: 600;
+    font-size: var(--type-sm);
+    font-weight: 550;
     transition:
         color 0.15s,
         background 0.15s;
@@ -452,7 +448,7 @@ input:checked + .toggle-slider .llm-mode {
     background: var(--panel-bg);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-menu);
+    box-shadow: none;
     padding: 8px;
     z-index: 999999 !important;
 }
@@ -475,7 +471,7 @@ input:checked + .toggle-slider .llm-mode {
 }
 .moe-popup-option-name {
     font-size: 0.8rem;
-    font-weight: 500;
+    font-weight: 550;
     color: var(--text-main);
 }
 .moe-popup-option-desc {
@@ -501,7 +497,7 @@ input:checked + .toggle-slider .llm-mode {
 }
 .moe-popup-models::-webkit-scrollbar-thumb {
     background: var(--border-color);
-    border-radius: 2px;
+    border-radius: 4px;
 }
 .moe-popup-field {
     display: flex;
@@ -510,7 +506,7 @@ input:checked + .toggle-slider .llm-mode {
 }
 .moe-popup-label {
     font-size: 0.72rem;
-    font-weight: 600;
+    font-weight: 550;
     color: var(--text-secondary);
 }
 .moe-popup-hint {
@@ -533,11 +529,11 @@ input:checked + .toggle-slider .llm-mode {
 }
 .moe-popup-model-list::-webkit-scrollbar-thumb {
     background: var(--border-color);
-    border-radius: 2px;
+    border-radius: 4px;
 }
 .moe-popup-loading {
     padding: 10px 10px;
-    font-size: 0.75rem;
+    font-size: var(--type-sm);
     color: var(--text-muted);
     text-align: center;
 }
@@ -548,7 +544,7 @@ input:checked + .toggle-slider .llm-mode {
     padding: 7px 10px;
     cursor: pointer;
     transition: background 0.08s;
-    border-radius: 2px;
+    border-radius: 4px;
 }
 .moe-popup-model-item:hover {
     background: var(--bg-hover);
@@ -562,7 +558,7 @@ input:checked + .toggle-slider .llm-mode {
 }
 .moe-popup-model-name {
     font-size: 0.78rem;
-    font-weight: 500;
+    font-weight: 550;
     color: var(--text-main);
 }
 .moe-popup-model-size {
@@ -588,4 +584,13 @@ input:checked + .toggle-slider .llm-mode {
         height: 34px;
         min-width: 34px;
     }
+}
+
+/* One-shot send spark: 2×2 blocks scatter from the send button. */
+.composer-burst {
+    position: absolute;
+    right: 24px;
+    bottom: 14px;
+    color: var(--ink);
+    pointer-events: none;
 }

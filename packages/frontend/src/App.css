@@ -9,6 +9,7 @@
 @import "./design/tokens.css";
 @import "./base.css";
 @import "./ui/ui.css";
+@import "./components/pixel/pixel.css";
 
 @import "./components/Sidebar.css";
 @import "./components/layout/layout.css";

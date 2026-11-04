@@ -696,7 +696,7 @@ export default function KnowledgeGraph() {
   };
 
   const openSelectedFile = () => {
-    setActiveView('fields');
+    setActiveView('knowledge');
     close();
   };
 

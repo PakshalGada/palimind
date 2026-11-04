@@ -22,11 +22,75 @@ EFFORT_CHOICES = ("off", "auto", "minimal", "standard", "high", "max")
 PLANNING_CHOICES = ("off", "review", "auto")
 ORCHESTRATION_CHOICES = ("off", "fan_out", "arena")
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _NAME_RE = re.compile(r"^[\w-]{1,64}$")
 
 DEFAULT_MAX_ITERATIONS = 15
+
+# Named tool bundles. An agent's ``tool_pack`` narrows (and documents) the
+# tools it may use; ``auto`` means "all tier-appropriate tools".
+TOOL_PACKS: dict[str, list[str]] = {
+    "auto": [],
+    "research": [
+        "web_search",
+        "fetch_url",
+        "browse_url",
+        "browser_navigate",
+        "browser_extract",
+        "browser_screenshot",
+        "document_search",
+        "arxiv_search",
+        "research_search",
+        "research_sources",
+        "summarize",
+        "x_search",
+        "fetch_rss",
+        "read_file",
+        "list_files",
+        "glob_files",
+        "grep_files",
+    ],
+    "code": [
+        "read_file",
+        "list_files",
+        "glob_files",
+        "grep_files",
+        "write_file",
+        "search_replace",
+        "run_shell",
+        "run_python",
+        "summarize",
+    ],
+    "data": [
+        "read_file",
+        "list_files",
+        "glob_files",
+        "grep_files",
+        "csv_query",
+        "sqlite_query",
+        "run_python",
+        "summarize",
+    ],
+    "web": [
+        "web_search",
+        "fetch_url",
+        "browse_url",
+        "browser_navigate",
+        "browser_extract",
+        "browser_screenshot",
+        "x_search",
+        "fetch_rss",
+        "summarize",
+    ],
+    "custom": [],
+}
+TOOL_PACK_CHOICES = tuple(TOOL_PACKS)
+
+
+def resolve_tool_pack(pack: str) -> list[str]:
+    """Return the tool ids for *pack* (empty list means unrestricted)."""
+    return list(TOOL_PACKS.get(pack or "auto", []))
 
 # Risky tools (write/shell/browser mutations) require human approval by
 # default. Kept for migration; new agents use ``autonomy_level`` instead.
@@ -87,6 +151,11 @@ class AgentDefinition:
     orchestration_agents: int = 0
     verify_confidence_threshold: float = 0.0
     success_criteria: str = ""
+    # ── Teams / workspace / reliability ─────────────────────────────────
+    always_allow_tools: list[str] = field(default_factory=list)
+    workspace_dir: str = ""
+    team_ids: list[str] = field(default_factory=list)
+    tool_pack: str = "auto"
 
     @property
     def label(self) -> str:
@@ -136,6 +205,10 @@ class AgentDefinition:
         avatar_type: str = "bot",
         avatar_upload: str = "",
         avatar_config: dict[str, Any] | None = None,
+        always_allow_tools: list[str] | None = None,
+        workspace_dir: str = "",
+        team_ids: list[str] | None = None,
+        tool_pack: str = "auto",
     ) -> AgentDefinition:
         return cls(
             id=str(uuid.uuid4()),
@@ -177,6 +250,10 @@ class AgentDefinition:
             orchestration_agents=orchestration_agents,
             verify_confidence_threshold=verify_confidence_threshold,
             success_criteria=success_criteria,
+            always_allow_tools=list(always_allow_tools or []),
+            workspace_dir=workspace_dir,
+            team_ids=list(team_ids or []),
+            tool_pack=tool_pack,
         )
 
     # ── serialization ───────────────────────────────────────────────────
@@ -215,6 +292,10 @@ class AgentDefinition:
         cleaned.setdefault("orchestration_agents", 0)
         cleaned.setdefault("verify_confidence_threshold", 0.0)
         cleaned.setdefault("success_criteria", "")
+        cleaned.setdefault("always_allow_tools", [])
+        cleaned.setdefault("workspace_dir", "")
+        cleaned.setdefault("team_ids", [])
+        cleaned.setdefault("tool_pack", "auto")
 
         try:
             schema = int(cleaned.get("schema_version") or 1)
@@ -277,6 +358,13 @@ class AgentDefinition:
         }
         cleaned.setdefault("max_concurrent_runs", 1)
 
+        for key in ("always_allow_tools", "team_ids"):
+            value = cleaned.get(key)
+            cleaned[key] = [str(v) for v in value] if isinstance(value, list) else []
+        cleaned["workspace_dir"] = str(cleaned.get("workspace_dir") or "")
+        if cleaned.get("tool_pack") not in TOOL_PACK_CHOICES:
+            cleaned["tool_pack"] = "auto"
+
         cleaned["schema_version"] = SCHEMA_VERSION
         if not cleaned.get("webhook_token"):
             cleaned["webhook_token"] = secrets.token_urlsafe(24)
@@ -334,6 +422,12 @@ def validate_definition(defn: AgentDefinition) -> str | None:
         return "orchestration_agents must be between 0 and 8"
     if not (0.0 <= float(defn.verify_confidence_threshold or 0.0) <= 1.0):
         return "verify_confidence_threshold must be in [0.0, 1.0]"
+    if defn.tool_pack not in TOOL_PACK_CHOICES:
+        return f"tool_pack must be one of {TOOL_PACK_CHOICES}"
+    if len(defn.always_allow_tools or []) > 64:
+        return "too many always-allow tools"
+    if len(str(defn.workspace_dir or "")) > 512:
+        return "workspace_dir is too long"
     return None
 
 
@@ -565,7 +659,7 @@ def migrate_field_agents(field_roots: list[Path]) -> int:
                     name = defn.name
                 if name in seen_global:
                     continue
-                defn.schema_version = 2
+                defn.schema_version = SCHEMA_VERSION
                 target = GLOBAL_AGENTS_DIR / f"{defn.name}.json"
                 if target.exists():
                     continue

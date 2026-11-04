@@ -1,8 +1,10 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { ActivityStore } from '@/components/activity/store';
 import {
+  ActivitySurfaceContext,
   ChatStreamActionsContext,
   ChatStreamContext,
+  type ActivitySurfaceValue,
   type ChatStreamActions,
   type ChatStreamStateValue,
 } from './context';
@@ -24,19 +26,25 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
   const openVideo = useCallback((target: VideoTarget) => setVideoTarget(target), []);
   const closeVideo = useCallback(() => setVideoTarget(null), []);
 
-  const { state, send, stop, retry, isStreaming, liveText } = stream;
+  const { state, send, stop, retry, isStreaming, liveText, lastActivity } = stream;
+  const surfaceValue = useMemo<ActivitySurfaceValue>(
+    () => ({ store: activityStore, lastActivity }),
+    [activityStore, lastActivity],
+  );
   const stateValue = useMemo<ChatStreamStateValue>(
-    () => ({ state, isStreaming, liveText, openVideo, activityStore }),
-    [state, isStreaming, liveText, openVideo, activityStore],
+    () => ({ state, isStreaming, liveText, openVideo, activityStore, lastActivity }),
+    [state, isStreaming, liveText, openVideo, activityStore, lastActivity],
   );
   const actionsValue = useMemo<ChatStreamActions>(() => ({ send, stop, retry }), [send, stop, retry]);
 
   return (
     <ChatStreamActionsContext.Provider value={actionsValue}>
-      <ChatStreamContext.Provider value={stateValue}>
-        {children}
-        <VideoOverlay target={videoTarget} onClose={closeVideo} />
-      </ChatStreamContext.Provider>
+      <ActivitySurfaceContext.Provider value={surfaceValue}>
+        <ChatStreamContext.Provider value={stateValue}>
+          {children}
+          <VideoOverlay target={videoTarget} onClose={closeVideo} />
+        </ChatStreamContext.Provider>
+      </ActivitySurfaceContext.Provider>
     </ChatStreamActionsContext.Provider>
   );
 }

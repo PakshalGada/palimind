@@ -131,6 +131,11 @@ export default function AgentHeader() {
           onClose={() => setMenu(null)}
           items={[
             { label: 'Settings', action: openSettings },
+            {
+              label: 'Files',
+              action: () =>
+                window.dispatchEvent(new CustomEvent('palimind:open-agent-files')),
+            },
             { label: 'Run now', action: () => void runNow() },
             { label: 'Duplicate', action: () => void duplicate() },
             { label: agent.enabled ? 'Disable' : 'Enable', action: () => void toggleEnabled() },

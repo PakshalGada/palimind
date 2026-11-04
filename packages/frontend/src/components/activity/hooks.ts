@@ -16,18 +16,22 @@ export function useActivityState(store: ActivityStore): ActivityState | null {
 
 /** Select a slice; re-renders only when the selected value changes. */
 export function useActivitySelector<T>(
-  store: ActivityStore,
+  store: ActivityStore | null,
   selector: (state: ActivityState | null) => T,
   isEqual: (a: T, b: T) => boolean = Object.is,
 ): T {
   const cache = useRef<{ has: boolean; value: T }>({ has: false, value: undefined as T });
   const getSnapshot = useCallback(() => {
-    const next = selector(store.getState());
+    const next = selector(store?.getState() ?? null);
     if (cache.current.has && isEqual(cache.current.value, next)) return cache.current.value;
     cache.current = { has: true, value: next };
     return next;
   }, [store, selector, isEqual]);
-  return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
+  const subscribe = useCallback(
+    (listener: () => void) => store?.subscribe(listener) ?? (() => undefined),
+    [store],
+  );
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
 export function useStep(store: ActivityStore, id: string): ToolStep | undefined {

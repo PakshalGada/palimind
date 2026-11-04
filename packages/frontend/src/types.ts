@@ -304,7 +304,17 @@ export type ChatMode = 'document' | 'llm';
 export type LlmSubMode = 'default' | 'moe' | 'deep_research';
 export type Theme = 'dark' | 'light';
 
-export type AppView = 'chat' | 'fields' | 'agents';
+export type AppView =
+  | 'home'
+  | 'chat'
+  | 'agents'
+  | 'knowledge'
+  | 'projects'
+  | 'artifacts'
+  | 'research';
+
+/** Sub-views inside the Agents workspace. */
+export type AgentsView = 'home' | 'chat' | 'teams' | 'kanban' | 'runs';
 
 export type AutonomyLevel = 'off' | 'supervised' | 'semi' | 'high';
 export type MemoryMode = 'off' | 'private' | 'shared' | 'project';
@@ -361,7 +371,14 @@ export interface AgentDefinition {
   // Legacy field kept for older definitions.
   human_in_loop_threshold?: number;
   schema_version?: number;
+  // ── Teams / workspace / reliability ─────────────────────────────────
+  always_allow_tools?: string[];
+  workspace_dir?: string;
+  team_ids?: string[];
+  tool_pack?: ToolPack;
 }
+
+export type ToolPack = 'auto' | 'research' | 'code' | 'data' | 'web' | 'custom';
 
 export type ReasoningEffort = 'off' | 'auto' | 'minimal' | 'standard' | 'high' | 'max';
 export type PlanningMode = 'off' | 'review' | 'auto';
@@ -534,6 +551,13 @@ export interface Approval {
   confidence: number;
   reasoning: string;
   created_at: number;
+  agent_label?: string;
+  agent_name?: string;
+  agent_avatar?: { type?: string; upload?: string; config?: BotAvatarConfig };
+  team_id?: string;
+  summary?: string;
+  tier?: number;
+  risk?: string;
 }
 
 export interface RecentRun extends RunRecord {
@@ -676,3 +700,175 @@ export interface KanbanColumn {
 }
 
 
+
+// ─── Teams / routines / queue / overview ───────────────────────────────────
+
+export type TeamMode = 'manager' | 'roundtable' | 'chain';
+
+export interface TeamMember {
+  agent_id: string;
+  role: string;
+  manager: boolean;
+  agent?: AgentDefinition | null;
+  name?: string;
+  enabled?: boolean;
+}
+
+export interface TeamAvatar {
+  type?: string;
+  color?: string;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  display_name: string;
+  description: string;
+  avatar: TeamAvatar;
+  mode: TeamMode;
+  manager_agent_id: string | null;
+  manager_model: string;
+  members: TeamMember[];
+  charter: string;
+  shared_memory: boolean;
+  working_root: string;
+  max_concurrency: number;
+  created_at: string;
+  updated_at: string;
+  running?: boolean;
+  pending_approvals?: number;
+}
+
+export interface TeamMessage {
+  id: string;
+  team_id: string;
+  seq: number;
+  author: string;
+  role: 'user' | 'manager' | 'handoff' | 'result' | 'approval' | 'system' | 'synthesis' | string;
+  content: string;
+  run_id: string | null;
+  meta: Record<string, unknown>;
+  created_at: number;
+}
+
+export interface TeamRun {
+  run_id: string;
+  timestamp?: number;
+  input: string;
+  output: string;
+  status: string;
+  duration?: number;
+  usage?: { prompt_tokens: number; completion_tokens: number };
+  trace?: AgentReasoningEvent[];
+}
+
+export interface TeamNote {
+  id: string;
+  team_id: string;
+  author: string;
+  label: string;
+  content: string;
+  kind: string;
+  created_at: number;
+}
+
+export interface Routine {
+  id: string;
+  name: string;
+  target_type: 'agent' | 'team';
+  target_id: string;
+  input: string;
+  run_mode: 'manual' | 'scheduled' | 'watcher';
+  schedule: string | null;
+  watcher_pattern: string | null;
+  working_root: string;
+  tool_pack: ToolPack;
+  source_run_id: string | null;
+  enabled: boolean;
+  created_at: string;
+  last_run_at: number | null;
+  last_status: string | null;
+  runs?: { run_id: string; status: string; at: number }[];
+}
+
+export interface QueueItem {
+  id: string;
+  target_type: 'agent' | 'team';
+  target_id: string;
+  input: string;
+  priority: number;
+  status: 'queued' | 'running' | 'paused' | 'done' | 'failed' | 'cancelled';
+  created_at: number;
+  started_at: number | null;
+  finished_at: number | null;
+  run_id: string | null;
+  error: string | null;
+}
+
+export type TargetStatus = 'idle' | 'working' | 'waiting' | 'paused' | 'scheduled' | 'error';
+
+export interface OverviewTarget {
+  id: string;
+  target_type: 'agent' | 'team';
+  name: string;
+  display_name: string;
+  title?: string;
+  description?: string;
+  avatar_type?: string;
+  avatar_upload?: string;
+  avatar_config?: BotAvatarConfig;
+  status: TargetStatus;
+  running: boolean;
+  active_runs: number;
+  current_step?: string;
+  last_run_status?: string | null;
+  last_run_at?: number | null;
+  pending_approvals: number;
+  next_run?: number | null;
+  member_count?: number;
+  members?: TeamMember[];
+  enabled?: boolean;
+}
+
+export interface OverviewCounts {
+  agents: number;
+  teams: number;
+  working: number;
+  waiting: number;
+  scheduled: number;
+}
+
+export interface OverviewRun {
+  target_type: 'agent' | 'team';
+  target_id: string;
+  target_name: string;
+  run_id: string;
+  status: string;
+  timestamp: number;
+  input: string;
+  output: string;
+}
+
+export interface Overview {
+  agents: (OverviewTarget & AgentDefinition)[];
+  teams: (OverviewTarget & Team)[];
+  inbox: Approval[];
+  recent: OverviewRun[];
+  upcoming: Routine[];
+  routines: Routine[];
+  counts: OverviewCounts;
+}
+
+export interface WorkspaceFile {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  size: number;
+  modified: number;
+  ext: string;
+}
+
+export interface TeamEvent {
+  type: string;
+  [key: string]: unknown;
+}

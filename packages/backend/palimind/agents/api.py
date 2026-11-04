@@ -514,13 +514,29 @@ async def agent_approvals():
 
 @router.get("/runs/recent")
 async def recent_runs(limit: int = 30):
-    """Recent runs across every agent, newest first (traces stripped)."""
+    """Recent runs across every agent and team, newest first (traces stripped)."""
     cap = max(1, min(int(limit or 30), 100))
     items: list[dict] = []
     for defn in get_registry().all():
         for record in get_run_history(defn.id, limit=cap):
             stripped = {k: v for k, v in record.items() if k != "trace"}
             items.append({"agent_id": defn.id, "agent_name": defn.name, **stripped})
+    try:
+        from palimind.agents import teams
+
+        for team in teams.list_teams():
+            team_key = f"team:{team['id']}"
+            for record in get_run_history(team_key, limit=cap):
+                stripped = {k: v for k, v in record.items() if k != "trace"}
+                items.append(
+                    {
+                        "agent_id": team_key,
+                        "agent_name": team.get("display_name") or team.get("name") or "Team",
+                        **stripped,
+                    }
+                )
+    except Exception:
+        pass
     items.sort(key=lambda r: float(r.get("timestamp", 0) or 0), reverse=True)
     return {"runs": items[:cap]}
 
@@ -675,6 +691,17 @@ async def run_agent_now(agent_id: str, req: Request):
 
     from palimind.agents.scheduler import post_result
     from palimind.agents.service import run_agent as run_once
+
+    from palimind.agents.runtime import running_count
+
+    if running_count(defn.id) >= max(1, int(defn.max_concurrent_runs or 1)):
+        try:
+            from palimind.agents import queue
+
+            item = queue.enqueue("agent", defn.id, agent_input)
+            return {"status": "queued", "item_id": item.get("id")}
+        except Exception:
+            pass
 
     async def _run():
         try:

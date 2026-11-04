@@ -131,25 +131,40 @@
         sans-serif;
     --font-serif: var(--font-heading);
 
-    /* Type scale (xs → 7xl) */
-    --text-xs: 0.75rem;      /* 12px */
-    --text-sm: 0.8125rem;    /* 13px */
-    --text-base: 0.875rem;   /* 14px */
-    --text-md: 1rem;         /* 16px */
-    --text-lg: 1.125rem;     /* 18px */
-    --text-xl: 1.25rem;      /* 20px */
-    --text-2xl: 1.5rem;      /* 24px */
-    --text-3xl: 1.875rem;    /* 30px */
-    --text-4xl: 2.25rem;     /* 36px */
-    --text-5xl: 3rem;        /* 48px */
-    --text-6xl: 3.75rem;     /* 60px */
-    --text-7xl: 4.5rem;      /* 72px */
+    /* ── type scale ────────────────────────────────────────────────────────
+       Nine steps, paired line heights in the comments. New code uses
+       --type-*; the --text-* ladder below is the legacy alias set and is
+       mapped onto the same nine steps so both resolve to one scale. */
+    --type-2xs: 0.625rem;    /* 10 / 12  uppercase meta, counters */
+    --type-xs: 0.6875rem;    /* 11 / 15  labels, chips */
+    --type-sm: 0.78125rem;   /* 12.5 / 18  secondary UI */
+    --type-base: 0.875rem;   /* 14 / 22  body, controls */
+    --type-md: 1rem;         /* 16 / 24  chat text, inputs */
+    --type-lg: 1.25rem;      /* 20 / 28  section titles */
+    --type-xl: 1.5rem;       /* 24 / 32  page titles */
+    --type-2xl: 2rem;        /* 32 / 38  hero, empty states */
+    --type-3xl: 2.5rem;      /* 40 / 46  marketing-like moments only */
 
-    /* Legacy type aliases used by existing component styles. */
-    --text-body: var(--text-md);
-    --text-ui: var(--text-base);
-    --text-meta: var(--text-xs);
-    --text-heading: var(--text-xl);
+    /* Legacy type aliases. Values collapse onto the nine steps above; do not
+       add new uses of these names. */
+    --text-xs: var(--type-sm);      /* was 12px */
+    --text-sm: var(--type-sm);      /* was 13px */
+    --text-base: var(--type-base);  /* 14px */
+    --text-md: var(--type-md);      /* 16px */
+    --text-lg: var(--type-lg);      /* was 18px */
+    --text-xl: var(--type-xl);      /* 24px */
+    --text-2xl: var(--type-2xl);    /* 32px */
+    --text-3xl: var(--type-2xl);    /* was 30px */
+    --text-4xl: var(--type-3xl);    /* was 36px */
+    --text-5xl: var(--type-3xl);
+    --text-6xl: var(--type-3xl);
+    --text-7xl: var(--type-3xl);
+
+    /* Legacy semantic aliases used by existing component styles. */
+    --text-body: var(--type-base);
+    --text-ui: var(--type-base);
+    --text-meta: var(--type-xs);
+    --text-heading: var(--type-xl);
 
     /* Line heights */
     --leading-none: 1;
@@ -161,17 +176,19 @@
     --lh-tight: var(--leading-tight);
     --lh-body: var(--leading-relaxed);
 
-    /* Font weights */
+    /* Font weights: three only. `semibold` is retained as an alias so old
+       styles do not fall back to the browser default; it resolves to 550. */
     --font-weight-regular: 400;
     --font-weight-medium: 550;
-    --font-weight-semibold: 600;
+    --font-weight-semibold: 550;
     --font-weight-bold: 700;
     --weight-regular: var(--font-weight-regular);
     --weight-medium: var(--font-weight-medium);
     --weight-semibold: var(--font-weight-semibold);
     --weight-bold: var(--font-weight-bold);
 
-    /* Spacing: a 4px base scale, space-N = N × 4px */
+    /* Spacing: a 4px base scale, space-N = N × 4px. */
+    --space-0-5: 2px;
     --space-1: 4px;
     --space-2: 8px;
     --space-3: 12px;
@@ -197,246 +214,295 @@
     --space-23: 92px;
     --space-24: 96px;
 
-    /* Radii */
-    --radius-xs: 4px;
-    --radius-sm: 8px;
-    --radius-md: 10px;
-    --radius-lg: 14px;
-    --radius-xl: 20px;
-    --radius-2xl: 24px;
-    --radius-card: 16px;
-    --radius-bubble: 20px;
-    --radius-full: 9999px;
+    /* ── radii ─────────────────────────────────────────────────────────────
+       MONO v2: geometry is rounded; pixel art is no longer used as shape.
+       4 / 8 / 10 / 12 / 16 / 20. 2px survives only on keyboard keys.
+       Circles are allowed for avatars, switches, dots and meters. */
+    --radius-xs: 4px;    /* kbd, tiny tags */
+    --radius-sm: 8px;    /* buttons, inputs, menu items, rows */
+    --radius-md: 10px;   /* chips, segmented, small panels */
+    --radius-lg: 12px;   /* cards, composer, panels */
+    --radius-xl: 16px;   /* dialogs, sheets */
+    --radius-2xl: 20px;  /* hero panels, large media */
+    --radius-card: var(--radius-lg);
+    --radius-bubble: 14px;
+    --radius-full: 999px;
     --radius-panel: var(--radius-lg);
-    --radius-control: var(--radius-md);
+    --radius-control: var(--radius-sm);
 
-    /* Shadows */
-    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.24);
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.24);
-    --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.24);
-    --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.28);
-    --shadow-xl: 0 32px 80px rgba(0, 0, 0, 0.55);
-    --shadow-soft: var(--shadow-lg);
-    --shadow-menu: var(--shadow-xl);
-    --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.28), 0 1px 2px rgba(0, 0, 0, 0.2);
-    --shadow-float: 0 24px 64px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.24);
+    /* ── shadows ───────────────────────────────────────────────────────────
+       MONO v2: soft elevation is back. Cards and rows separate with surface
+       and a single small shadow; hairlines are structural only. */
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.20);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.24);
+    --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.30);
+    --shadow-card: var(--shadow-xs);
+    --shadow-soft: var(--shadow-sm);
+    --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.45);
+    --shadow-xl: 0 32px 80px rgba(0, 0, 0, 0.5);
+    --shadow-menu: var(--shadow-sm);
+    --shadow-float: var(--shadow-lg);
+    --shadow-overlay: var(--shadow-lg);
 
-    /* Motion */
+    /* ── motion ────────────────────────────────────────────────────────────
+       UI transitions are 80–180ms and animate opacity/transform/background
+       only. No springs, no bounce, no parallax. Pixel loops use steps(). */
+    --dur-1: 80ms;
+    --dur-2: 120ms;
+    --dur-3: 180ms;
+    --dur-4: 240ms;
     --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
     --ease-in-out: cubic-bezier(0.45, 0, 0.2, 1);
-    --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
-    --ease-entrance: cubic-bezier(0.16, 1, 0.3, 1);
-    --duration-fast: 120ms;
-    --duration-base: 200ms;
-    --duration-slow: 320ms;
-    --transition-fast: var(--duration-fast) var(--ease-out);
-    --transition-base: var(--duration-base) var(--ease-out);
-    --transition-slow: var(--duration-slow) var(--ease-in-out);
-    --motion-fast: 140ms var(--ease-out);
-    --motion-entrance: 260ms var(--ease-entrance);
-    --t-fast: var(--duration-fast);
-    --t-med: var(--duration-base);
-    --t-slow: var(--duration-slow);
+    --ease-pixel: steps(4, end);
+    --ease-linear: linear;
+    /* Deprecated: mapped onto the two canonical curves so nothing bounces. */
+    --ease-spring: var(--ease-out);
+    --ease-entrance: var(--ease-out);
+    --duration-fast: var(--dur-2);
+    --duration-base: var(--dur-3);
+    --duration-slow: var(--dur-4);
+    --transition-fast: var(--dur-2) var(--ease-out);
+    --transition-base: var(--dur-3) var(--ease-out);
+    --transition-slow: var(--dur-4) var(--ease-in-out);
+    --motion-fast: var(--dur-2) var(--ease-out);
+    --motion-entrance: var(--dur-3) var(--ease-out);
+    --t-fast: var(--dur-2);
+    --t-med: var(--dur-3);
+    --t-slow: var(--dur-4);
 
-    /* Layout metrics */
-    --sidebar-width: 264px;
+    /* ── layout metrics ────────────────────────────────────────────────── */
+    --sidebar-width: 248px;
     --sidebar-rail-width: 64px;
     --sidebar-mobile-width: 292px;
-    --side-panel-width: 440px;
+    --side-panel-width: 400px;
     --content-max-width: 820px;
+    --measure-reading: 760px;
+    --measure-form: 720px;
+    --measure-dashboard: 1120px;
     --z-sidebar: 30;
     --z-overlay: 9000;
     --z-popover: 10000;
     --z-toast: 11000;
 }
 
-/* ── dark palette (default) ─────────────────────────────────────────────── */
+/* ── monochrome ramp (dark, default) ─────────────────────────────────────── */
+/* --mono-0 is the paper end of the scale, --mono-16 the ink end, in every
+   theme. The ramp is mirrored for light mode so a single semantic layer can
+   stay theme-agnostic; only the surface ladder and the paper/ink anchors are
+   overridden per theme. */
 :root,
 .dark-mode {
     color-scheme: dark;
 
-    /* Elevation ladder — strictly neutral greys. Every step is lighter so
-       stacked surfaces stay legible instead of collapsing into one shade. */
-    --color-bg: #0a0a0a;              /* L0 canvas */
-    --color-bg-elevated: #0e0e0e;     /* L0.5 inset wells */
-    --color-surface: #121212;         /* L1 panels */
-    --color-surface-raised: #181818;  /* L2 cards, bubbles */
-    --color-surface-overlay: #1d1d1d; /* L3 popovers, tool cards */
-    --color-surface-hover: #212121;
-    --color-surface-active: #2a2a2a;
-    --color-surface-sunken: #080808;
+    --mono-0: #000000;
+    --mono-1: #050505;
+    --mono-2: #0a0a0a;
+    --mono-3: #0f0f0f;
+    --mono-4: #141414;
+    --mono-5: #1a1a1a;
+    --mono-6: #222222;
+    --mono-7: #2c2c2c;
+    --mono-8: #3a3a3a;
+    --mono-9: #5c5c5c;
+    --mono-10: #777777;
+    --mono-11: #949494;
+    --mono-12: #b3b3b3;
+    --mono-13: #d0d0d0;
+    --mono-14: #e6e6e6;
+    --mono-15: #f2f2f2;
+    --mono-16: #ffffff;
 
-    /* Edge lines are deliberately absent — separation comes from the
-       elevation ladder and soft shadows, not outlines. */
-    --color-border: transparent;
-    --color-border-subtle: transparent;
-    --color-border-strong: rgba(255, 255, 255, 0.14);
-    --color-hairline: rgba(255, 255, 255, 0.05);
+    /* ── semantic surfaces ─────────────────────────────────────────────── */
+    --bg: var(--mono-1);
+    --bg-sunken: var(--mono-0);
+    --surface: var(--mono-3);
+    --surface-2: var(--mono-4);
+    --surface-3: var(--mono-5);
+    --surface-hover: var(--mono-5);
+    --surface-active: var(--mono-6);
 
-    --color-text-primary: #ededed;
-    --color-text-secondary: #aaaaaa;
-    --color-text-muted: #7e7e7e;
-    --color-text-inverse: #0a0a0a;
+    --line: var(--mono-6);
+    --line-subtle: var(--mono-5);
+    --line-strong: var(--mono-8);
 
-    /* Primary actions stay near-white; the brand tone is reserved for
-       "alive" states — focus, activity, working tools, active nav. */
-    --color-accent: #f2f2f2;
-    --color-accent-hover: #dddddd;
-    --color-accent-soft: rgba(255, 255, 255, 0.07);
-    --color-accent-contrast: #0a0a0a;
+    --ink: var(--mono-15);
+    --ink-secondary: var(--mono-12);
+    --ink-muted: var(--mono-10);
+    --ink-faint: var(--mono-9);
 
-    --color-brand: #d7d7d7;
-    --color-brand-hover: #f2f2f2;
-    --color-brand-soft: rgba(255, 255, 255, 0.08);
-    --color-brand-border: rgba(255, 255, 255, 0.2);
-    --color-brand-contrast: #0a0a0a;
+    --inverse-bg: var(--mono-15);
+    --inverse-ink: var(--mono-1);
 
-    --color-success: #dadada;
-    --color-success-soft: rgba(255, 255, 255, 0.09);
-    --color-warning: #b9b9b9;
-    --color-warning-soft: rgba(255, 255, 255, 0.07);
-    --color-error: #f4f4f4;
-    --color-error-soft: rgba(255, 255, 255, 0.12);
-    --color-info: #a6a6a6;
-    --color-info-soft: rgba(255, 255, 255, 0.06);
+    /* Status is never hue: inversion, line weight, shape and label carry it. */
+    --signal: var(--mono-16);
+    --quiet: var(--mono-10);
+    --alert: var(--mono-16);
 
-    --color-focus-ring: rgba(255, 255, 255, 0.52);
-    --color-selection: rgba(255, 255, 255, 0.2);
-    --color-scrim: rgba(4, 4, 4, 0.68);
-    --color-glass: rgba(16, 16, 16, 0.78);
+    /* Theme-only values that cannot come from the ramp. */
+    --wash: rgba(255, 255, 255, 0.06);
+    --wash-strong: rgba(255, 255, 255, 0.12);
+    --scrim: rgba(0, 0, 0, 0.72);
+    --selection-bg: rgba(242, 242, 242, 0.22);
+    --selection-ink: var(--mono-15);
+    --focus: var(--mono-16);
+
+    /* ── existing semantic API (--color-*) ─────────────────────────────── */
+    --color-bg: var(--bg);
+    --color-bg-elevated: var(--mono-2);
+    --color-surface: var(--surface);
+    --color-surface-raised: var(--surface-2);
+    --color-surface-overlay: var(--surface-3);
+    --color-surface-hover: var(--surface-hover);
+    --color-surface-active: var(--surface-active);
+    --color-surface-sunken: var(--bg-sunken);
+
+    --color-border: var(--line);
+    --color-border-subtle: var(--line-subtle);
+    --color-border-strong: var(--line-strong);
+    --color-hairline: var(--wash);
+
+    --color-text-primary: var(--ink);
+    --color-text-secondary: var(--ink-secondary);
+    --color-text-muted: var(--ink-muted);
+    --color-text-inverse: var(--inverse-ink);
+
+    /* Emphasis is inversion — white on black, black on white. */
+    --color-accent: var(--inverse-bg);
+    --color-accent-hover: var(--mono-13);
+    --color-accent-soft: var(--wash);
+    --color-accent-contrast: var(--inverse-ink);
+
+    --color-brand: var(--mono-16);
+    --color-brand-hover: var(--mono-15);
+    --color-brand-soft: var(--wash);
+    --color-brand-border: var(--line-strong);
+    --color-brand-contrast: var(--inverse-ink);
+
+    /* Status tones are greys; tone is a *shape* decision in the UI. */
+    --color-success: var(--mono-13);
+    --color-success-soft: var(--mono-4);
+    --color-warning: var(--mono-12);
+    --color-warning-soft: var(--mono-5);
+    --color-error: var(--mono-16);
+    --color-error-soft: var(--mono-5);
+    --color-info: var(--mono-11);
+    --color-info-soft: var(--mono-4);
+
+    --color-focus-ring: var(--focus);
+    --color-selection: var(--selection-bg);
+    --color-scrim: var(--scrim);
+    /* Glass is gone: overlays are solid paper. Kept as an alias so old rules
+       resolve to a solid surface instead of transparency. */
+    --color-glass: var(--surface-3);
 
     /* Inputs and chat surfaces */
-    --color-input-bg: #181818;
-    --color-input-bg-hover: #212121;
-    --color-msg-user-bg: #1e1e1e;
-    --color-msg-user-border: rgba(255, 255, 255, 0.07);
+    --color-input-bg: var(--mono-2);
+    --color-input-bg-hover: var(--mono-3);
+    --color-msg-user-bg: var(--mono-4);
+    --color-msg-user-border: var(--line);
+    --color-msg-user-text: var(--ink);
 
     /* Code, tools and reasoning surfaces */
-    --color-code-bg: #101010;
-    --color-code-header: #161616;
-    --color-tool-bg: rgba(23, 23, 23, 0.66);
-    --color-tool-border: rgba(255, 255, 255, 0.07);
-    --color-thought-bg: rgba(20, 20, 20, 0.62);
-    --color-thought-border: rgba(255, 255, 255, 0.07);
+    --color-code-bg: var(--mono-2);
+    --color-code-header: var(--mono-3);
+    --color-tool-bg: var(--surface-2);
+    --color-tool-border: var(--line);
+    --color-thought-bg: var(--mono-2);
+    --color-thought-border: var(--line-subtle);
 
     /* Scrollbars */
-    --color-scrollbar: rgba(255, 255, 255, 0.14);
-    --color-scrollbar-hover: rgba(255, 255, 255, 0.26);
+    --color-scrollbar: var(--mono-7);
+    --color-scrollbar-hover: var(--mono-9);
 
-    /* Legacy aliases — prefer the --color-* names in new code. */
-    --bg-color: var(--color-bg);
-    --panel-bg: var(--color-surface);
-    --panel-bg-2: var(--color-surface-raised);
-    --surface-raised: var(--color-surface-raised);
-    --surface-hover: var(--color-surface-hover);
-    --border-color: var(--color-border);
-    --border-subtle: var(--color-border-subtle);
-    --sidebar-bg: #0d0d0d;
-    --input-bg: var(--color-input-bg);
-    --input-bg-hover: var(--color-input-bg-hover);
-    --bg-hover: var(--color-surface-hover);
-    --bg-active: var(--color-surface-active);
-    --msg-user-bg: var(--color-msg-user-bg);
-    --msg-system-bg: transparent;
-    --glass-bg: var(--color-glass);
-    --primary-color: var(--color-accent);
-    --primary-hover: var(--color-accent-hover);
-    --primary-text: var(--color-accent-contrast);
-    --accent: var(--color-accent);
-    --accent-bg: var(--color-accent-soft);
-    --accent-soft: var(--color-accent-soft);
-    --text-main: var(--color-text-primary);
-    --text-secondary: var(--color-text-secondary);
-    --text-muted: var(--color-text-muted);
-    --focus-ring: var(--color-focus-ring);
-    --danger: var(--color-text-secondary);
-    --danger-strong: var(--color-text-primary);
-    --danger-soft: rgba(255, 255, 255, 0.12);
-    --success: var(--color-success);
-    --warning: var(--color-warning);
-    --error: var(--color-error);
-
-    /* Monochrome agent-chat bubbles */
-    --wa-bubble-user-bg: #f4f4f4;
-    --wa-bubble-user-text: #090909;
+    /* Monochrome agent-chat bubbles: the user turn is inverted. */
+    --wa-bubble-user-bg: var(--inverse-bg);
+    --wa-bubble-user-text: var(--inverse-ink);
 }
 
 /* ── light palette ──────────────────────────────────────────────────────── */
+/* Paper mode is a first-class theme, not an inverted afterthought: surfaces
+   step *up* to white and the ink anchors are re-declared rather than flipped
+   mechanically. */
 .light-mode,
 [data-theme="light"] {
     color-scheme: light;
 
-    /* Neutral off-white canvas — stark #ffffff is what makes light UIs feel
-       clinical. Surfaces step *up* to white so cards still read as raised. */
-    --color-bg: #fbfbfb;
-    --color-bg-elevated: #f6f6f6;
-    --color-surface: #f4f4f4;
-    --color-surface-raised: #ffffff;
-    --color-surface-overlay: #ffffff;
-    --color-surface-hover: #efefef;
-    --color-surface-active: #e6e6e6;
-    --color-surface-sunken: #f1f1f1;
+    --mono-0: #ffffff;
+    --mono-1: #fafafa;
+    --mono-2: #f6f6f6;
+    --mono-3: #f1f1f1;
+    --mono-4: #ececec;
+    --mono-5: #e6e6e6;
+    --mono-6: #dedede;
+    --mono-7: #d3d3d3;
+    --mono-8: #c6c6c6;
+    --mono-9: #a5a5a5;
+    --mono-10: #858585;
+    --mono-11: #6b6b6b;
+    --mono-12: #4f4f4f;
+    --mono-13: #363636;
+    --mono-14: #232323;
+    --mono-15: #111111;
+    --mono-16: #000000;
 
-    /* Edge lines are deliberately absent — separation comes from the
-       elevation ladder and soft shadows, not outlines. */
-    --color-border: transparent;
-    --color-border-subtle: transparent;
-    --color-border-strong: rgba(9, 9, 9, 0.14);
-    --color-hairline: rgba(9, 9, 9, 0.05);
+    --bg: #f4f4f4;
+    --bg-sunken: #ededed;
+    --surface: #fafafa;
+    --surface-2: #ffffff;
+    --surface-3: #ffffff;
+    --surface-hover: #ececec;
+    --surface-active: #e2e2e2;
 
-    --color-text-primary: #1a1a1a;
-    --color-text-secondary: #565656;
-    --color-text-muted: #797979;
-    --color-text-inverse: #ffffff;
+    --line: #d7d7d7;
+    --line-subtle: #e4e4e4;
+    --line-strong: #bdbdbd;
 
-    --color-accent: #181818;
-    --color-accent-hover: #404040;
-    --color-accent-soft: rgba(9, 9, 9, 0.055);
-    --color-accent-contrast: #ffffff;
+    --ink: #0b0b0b;
+    --ink-secondary: #454545;
+    --ink-muted: #6f6f6f;
+    --ink-faint: #8e8e8e;
 
-    --color-brand: #181818;
-    --color-brand-hover: #000000;
-    --color-brand-soft: rgba(9, 9, 9, 0.06);
-    --color-brand-border: rgba(9, 9, 9, 0.2);
-    --color-brand-contrast: #ffffff;
+    --inverse-bg: #0b0b0b;
+    --inverse-ink: #ffffff;
 
-    --color-success: #404040;
-    --color-success-soft: rgba(9, 9, 9, 0.08);
-    --color-warning: #5d5d5d;
-    --color-warning-soft: rgba(9, 9, 9, 0.06);
-    --color-error: #0a0a0a;
-    --color-error-soft: rgba(9, 9, 9, 0.1);
-    --color-info: #535353;
-    --color-info-soft: rgba(9, 9, 9, 0.05);
+    --signal: #000000;
+    --quiet: #6f6f6f;
+    --alert: #000000;
 
-    --color-focus-ring: rgba(9, 9, 9, 0.38);
-    --color-selection: rgba(9, 9, 9, 0.12);
-    --color-scrim: rgba(24, 24, 24, 0.32);
-    --color-glass: rgba(252, 252, 252, 0.82);
+    --wash: rgba(9, 9, 9, 0.055);
+    --wash-strong: rgba(9, 9, 9, 0.1);
+    --scrim: rgba(0, 0, 0, 0.38);
+    --selection-bg: rgba(11, 11, 11, 0.14);
+    --selection-ink: #0b0b0b;
+    --focus: #000000;
 
-    --color-input-bg: #f4f4f4;
-    --color-input-bg-hover: #ebebeb;
-    --color-msg-user-bg: #f1f1f1;
-    --color-msg-user-border: rgba(9, 9, 9, 0.07);
+    --color-input-bg: var(--mono-2);
+    --color-input-bg-hover: var(--mono-3);
+    --color-msg-user-bg: var(--mono-4);
+    --color-msg-user-text: var(--ink);
 
-    --color-code-bg: #f7f7f7;
-    --color-code-header: #f0f0f0;
-    --color-tool-bg: rgba(255, 255, 255, 0.72);
-    --color-tool-border: rgba(9, 9, 9, 0.07);
-    --color-thought-bg: rgba(255, 255, 255, 0.66);
-    --color-thought-border: rgba(9, 9, 9, 0.07);
+    --shadow-xs: 0 1px 2px rgba(12, 12, 12, 0.06);
+    --shadow-sm: 0 2px 8px rgba(12, 12, 12, 0.08);
+    --shadow-md: 0 10px 28px rgba(12, 12, 12, 0.10);
+    --shadow-card: var(--shadow-xs);
+    --shadow-soft: var(--shadow-sm);
+    --shadow-menu: var(--shadow-sm);
+    --shadow-lg: 0 24px 64px rgba(12, 12, 12, 0.14);
+    --shadow-xl: 0 32px 80px rgba(12, 12, 12, 0.18);
+    --shadow-overlay: var(--shadow-lg);
+}
 
-    --color-scrollbar: rgba(9, 9, 9, 0.16);
-    --color-scrollbar-hover: rgba(9, 9, 9, 0.28);
-
+/* ── legacy variable aliases ─────────────────────────────────────────────── */
+/* Kept so existing component styles keep working while they migrate. New code
+   must use the --color-* / --type-* / --space-* names above. */
+:root {
     --bg-color: var(--color-bg);
     --panel-bg: var(--color-surface);
     --panel-bg-2: var(--color-surface-raised);
     --surface-raised: var(--color-surface-raised);
-    --surface-hover: var(--color-surface-hover);
     --border-color: var(--color-border);
     --border-subtle: var(--color-border-subtle);
-    --sidebar-bg: #f6f6f6;
+    --sidebar-bg: var(--color-surface);
     --input-bg: var(--color-input-bg);
     --input-bg-hover: var(--color-input-bg-hover);
     --bg-hover: var(--color-surface-hover);
@@ -453,30 +519,19 @@
     --text-main: var(--color-text-primary);
     --text-secondary: var(--color-text-secondary);
     --text-muted: var(--color-text-muted);
-    --focus-ring: var(--color-focus-ring);
-    --danger: var(--color-text-secondary);
-    --danger-strong: var(--color-text-primary);
-    --danger-soft: rgba(9, 9, 9, 0.08);
+    --focus-ring: var(--focus);
+    --danger: var(--ink-secondary);
+    --danger-strong: var(--ink);
+    --danger-soft: var(--wash-strong);
     --success: var(--color-success);
     --warning: var(--color-warning);
     --error: var(--color-error);
-
-    --shadow-xs: 0 1px 2px rgba(24, 24, 24, 0.05);
-    --shadow-sm: 0 1px 3px rgba(24, 24, 24, 0.07), 0 1px 2px rgba(24, 24, 24, 0.04);
-    --shadow-md: 0 6px 18px rgba(24, 24, 24, 0.08), 0 2px 6px rgba(24, 24, 24, 0.04);
-    --shadow-lg: 0 18px 48px rgba(24, 24, 24, 0.12), 0 4px 12px rgba(24, 24, 24, 0.06);
-    --shadow-xl: 0 32px 80px rgba(24, 24, 24, 0.18);
-    --shadow-card: 0 8px 24px rgba(24, 24, 24, 0.07), 0 1px 2px rgba(24, 24, 24, 0.04);
-    --shadow-float: 0 24px 64px rgba(24, 24, 24, 0.14), 0 2px 8px rgba(24, 24, 24, 0.06);
-
-    --wa-bubble-user-bg: #090909;
-    --wa-bubble-user-text: #f4f4f4;
 }
 
 /* ── selection + browser chrome ─────────────────────────────────────────── */
 ::selection {
-    background: var(--color-selection);
-    color: var(--color-text-primary);
+    background: var(--selection-bg);
+    color: var(--selection-ink);
 }
 html {
     color-scheme: dark;

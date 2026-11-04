@@ -3,8 +3,48 @@ import { useTheme } from '../../../design/ThemeProvider';
 import { useActivityState } from '../hooks';
 import { Icon } from '../icons';
 import { ActivityStore } from '../store';
+import type { ActivityState } from '../model';
 import { RunSurface } from '../shell/RunSurface';
 import { SCENARIOS } from './scripts';
+
+/** A persisted run whose approval request was still pending at reload time. */
+function buildRestoredState(): ActivityState {
+  const now = Date.now();
+  const args = {
+    path: 'src/agents/runtime.ts',
+    content: 'export const registry = new Map<string, AgentSpec>();\n',
+  };
+  return {
+    runId: 'pg-reload',
+    mode: 'agent',
+    status: 'awaiting_approval',
+    startedAt: now - 42_000,
+    steps: [
+      {
+        id: 'rw1',
+        name: 'write_file',
+        status: 'awaiting_approval',
+        args,
+        startedAt: now - 38_000,
+        approval: {
+          agentId: 'agent-1',
+          runId: 'pg-reload',
+          tool: 'write_file',
+          args,
+        },
+      },
+    ],
+    sources: [],
+    passages: [],
+    answerStarted: false,
+    reasoning: {
+      text: 'The runtime registry is additive; nothing else in the module graph depends on its shape yet.',
+      done: true,
+      startedAt: now - 41_000,
+      durationMs: 3200,
+    },
+  };
+}
 
 export default function ActivityPlayground() {
   const { theme, toggleTheme } = useTheme();
@@ -14,19 +54,30 @@ export default function ActivityPlayground() {
   const [reduced, setReduced] = useState(false);
   const [runToken, setRunToken] = useState(0);
   const [store, setStore] = useState(() => new ActivityStore());
+  const [restoreToken, setRestoreToken] = useState(0);
   const scenario = useMemo(
     () => SCENARIOS.find((item) => item.id === scenarioId) ?? SCENARIOS[0],
     [scenarioId],
   );
-  const state = useActivityState(store);
+  const restored = scenario.restored === true;
+  const restoredStore = useMemo(
+    // restoreToken gives every Replay a fresh runId, which also resets the panel.
+    () =>
+      restored
+        ? ActivityStore.fromState({ ...buildRestoredState(), runId: `pg-reload-${restoreToken}` })
+        : null,
+    [restored, restoreToken],
+  );
+  const activeStore = restoredStore ?? store;
+  const state = useActivityState(activeStore);
 
   useEffect(() => {
-    setPlaying(true);
+    setPlaying(!restored);
     setRunToken((value) => value + 1);
-  }, [scenarioId]);
+  }, [scenarioId, restored]);
 
   useEffect(() => {
-    if (!playing) return undefined;
+    if (!playing || restored) return undefined;
     const next = new ActivityStore();
     setStore(next);
     const timers: number[] = [];
@@ -70,7 +121,7 @@ export default function ActivityPlayground() {
       cancelled = true;
       timers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [playing, runToken, speed, scenario]);
+  }, [playing, runToken, speed, scenario, restored]);
 
   const showAnswer = Boolean(state?.answerStarted);
 
@@ -130,6 +181,10 @@ export default function ActivityPlayground() {
             type="button"
             className="act-btn act-btn--primary"
             onClick={() => {
+              if (restored) {
+                setRestoreToken((value) => value + 1);
+                return;
+              }
               setPlaying(true);
               setRunToken((value) => value + 1);
             }}
@@ -137,13 +192,15 @@ export default function ActivityPlayground() {
             <Icon name="play" size={13} />
             Replay
           </button>
-          <button type="button" className="act-btn" onClick={() => setPlaying(false)}>
-            Stop
-          </button>
+          {!restored && (
+            <button type="button" className="act-btn" onClick={() => setPlaying(false)}>
+              Stop
+            </button>
+          )}
         </div>
 
         <div style={{ borderTop: '1px solid var(--act-hairline)', paddingTop: 16, minHeight: 220 }}>
-          <RunSurface store={store}>
+          <RunSurface store={activeStore} history={restored || scenarioId === 'history'}>
             {showAnswer && (
               <div style={{ maxWidth: 720, marginTop: 12, fontSize: 14, lineHeight: 1.6 }}>
                 {scenario.answer}

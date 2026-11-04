@@ -57,8 +57,15 @@ def _write_locked() -> None:
 
 def _prune_locked() -> None:
     stale = [key for key, entry in _pending.items() if not _entry_is_live(entry)]
-    if stale:
-        for key in stale:
+    now = time.time()
+    expired = [
+        key
+        for key, entry in _pending.items()
+        if now - float(entry.get("created_at") or now) > 30 * 60
+    ]
+    removed = set(stale) | set(expired)
+    if removed:
+        for key in removed:
             _pending.pop(key, None)
         _write_locked()
 
@@ -86,18 +93,42 @@ def add(
     args: Any = None,
     confidence: float = 0.0,
     reasoning: str = "",
+    *,
+    agent_label: str = "",
+    team_id: str = "",
+    summary: str = "",
+    tier: int = 0,
+    risk: str = "",
 ) -> None:
     with _lock:
         _pending[_key(agent_id, run_id)] = {
             "agent_id": agent_id,
+            "agent_label": agent_label,
+            "team_id": team_id,
             "run_id": run_id,
             "tool": tool,
             "args": args,
             "confidence": confidence,
             "reasoning": reasoning,
+            "summary": summary or _summarize(tool, args),
+            "tier": tier,
+            "risk": risk,
             "created_at": time.time(),
         }
         _write_locked()
+
+
+def _summarize(tool: str, args: Any) -> str:
+    if not isinstance(args, dict):
+        return tool
+    path = args.get("path") or args.get("file") or args.get("command") or ""
+    if tool in ("write_file", "search_replace") and path:
+        return f"{tool}: {path}"
+    if tool.startswith("browser_"):
+        return f"{tool}: {str(args.get('url') or args.get('selector') or '')[:120]}"
+    if path:
+        return f"{tool}: {str(path)[:120]}"
+    return tool
 
 
 def remove(agent_id: str, run_id: str | None = None) -> None:

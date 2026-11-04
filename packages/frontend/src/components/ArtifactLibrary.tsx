@@ -139,10 +139,13 @@ export default function ArtifactLibrary({
   open,
   onClose,
   onOpen,
+  embedded = false,
 }: {
   open: boolean;
   onClose: () => void;
   onOpen: (artifact: OpenedArtifact) => void;
+  /** Render inline as a view instead of inside a modal. */
+  embedded?: boolean;
 }) {
   const confirm = useConfirm();
   const [entries, setEntries] = useState<LibraryEntry[]>([]);
@@ -245,8 +248,8 @@ export default function ArtifactLibrary({
   }, []);
 
   useEffect(() => {
-    if (open) void load();
-  }, [open, load]);
+    if (open || embedded) void load();
+  }, [open, embedded, load]);
 
   const filterOptions = useMemo(
     () => [
@@ -304,11 +307,11 @@ export default function ArtifactLibrary({
   );
 
   useEffect(() => {
-    if (!open) return;
+    if (!open && !embedded) return;
     if (!visible.some(entry => entry.key === selectedKey)) {
       setSelectedKey(visible[0]?.key ?? null);
     }
-  }, [open, selectedKey, visible]);
+  }, [open, embedded, selectedKey, visible]);
 
   const previewArtifact: ActiveArtifact | null = selectedEntry
     ? {
@@ -376,15 +379,8 @@ export default function ArtifactLibrary({
     downloadArtifact({ type: entry.type, title: entry.title, content: entry.content });
   };
 
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="Artifacts"
-      subtitle="Browse, preview and open everything you have saved."
-      width={1120}
-    >
-      <div className="artifact-library">
+  const body = (
+    <div className={`artifact-library${embedded ? ' artifact-library--embedded' : ''}`}>
         <div className="artifact-library-summary">
           <div className="artifact-library-summary-main">
             <span className="artifact-library-summary-total">{counts.total}</span>
@@ -608,7 +604,20 @@ export default function ArtifactLibrary({
           Local versions are stored in IndexedDB on this device; metadata lives in
           localStorage. Project and global versions live in the local Palimind backend.
         </div>
-      </div>
+    </div>
+  );
+
+  if (embedded) return body;
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Artifacts"
+      subtitle="Browse, preview and open everything you have saved."
+      width={1120}
+    >
+      {body}
     </Modal>
   );
 }

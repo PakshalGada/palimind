@@ -5,18 +5,15 @@ import {
   Folder,
   FolderKanban,
   FolderPlus,
-  LayoutGrid,
+  Home,
   MessageSquare,
-  Moon,
   Network,
   Package,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
   RefreshCw,
-  Search,
   Settings,
-  Sun,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -114,19 +111,11 @@ export default function Sidebar() {
     setIndexingStatus,
     addToast,
     selectedAgentId,
-    agentsView,
-    setAgentsView,
     setChatMode,
-    setCommandPaletteOpen,
     sidebarCollapsed,
     toggleSidebar,
     setSidebarCollapsed,
     shortcutOverrides,
-    theme,
-    setTheme,
-    artifactLibraryOpen,
-    setArtifactLibraryOpen,
-    openArtifactLibrary,
   } = useApp();
 
   const chatScope = () =>
@@ -134,9 +123,9 @@ export default function Sidebar() {
       ? selectedAgentId
         ? `agent:${selectedAgentId}`
         : ''
-      : activeView === 'chat'
-        ? 'chat'
-        : 'field';
+      : activeView === 'knowledge'
+        ? 'field'
+        : 'chat';
 
   const [fields, setFields] = useState<string[]>([]);
   const [fieldsLoading, setFieldsLoading] = useState(true);
@@ -144,7 +133,6 @@ export default function Sidebar() {
   const [syncText, setSyncText] = useState("Sync Active Knowledge Base");
   const [treeField, setTreeField] = useState<string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
-  const [researchOpen, setResearchOpen] = useState(false);
 
   const fetchFields = useCallback(async () => {
     setFieldsLoading(true);
@@ -178,17 +166,6 @@ export default function Sidebar() {
     window.addEventListener("palimind:open-file-tree", handler);
     return () => window.removeEventListener("palimind:open-file-tree", handler);
   }, [activeField]);
-
-  // ResearchManager announces when its modal opens/closes so Projects can show
-  // an active state even though it is not a routed view.
-  useEffect(() => {
-    const handler = (event: Event) => {
-      const detail = (event as CustomEvent<{ open?: boolean }>).detail;
-      setResearchOpen(Boolean(detail?.open));
-    };
-    window.addEventListener("palimind:research-visibility", handler);
-    return () => window.removeEventListener("palimind:research-visibility", handler);
-  }, []);
 
   const handleSetActive = async (path: string) => {
     try {
@@ -285,10 +262,6 @@ export default function Sidebar() {
     runCommand("general.settings");
   };
 
-  const openResearch = () => {
-    window.dispatchEvent(new CustomEvent("palimind:open-research"));
-  };
-
   useCommandHandlers({
     "chat.new": () => {
       if (!chatScope()) {
@@ -313,33 +286,22 @@ export default function Sidebar() {
 
   const navItems: NavItem[] = [
     {
-      id: "chats",
-      label: "Chats",
+      id: "home",
+      label: "Home",
+      icon: Home,
+      active: activeView === "home",
+      shortcutId: "nav.home",
+      onSelect: () => setActiveView("home"),
+    },
+    {
+      id: "chat",
+      label: "Chat",
       icon: MessageSquare,
       active: activeView === "chat",
       shortcutId: "nav.chat",
       onSelect: () => {
         setActiveView("chat");
         setChatMode("llm");
-      },
-    },
-    {
-      id: "projects",
-      label: "Projects",
-      icon: FolderKanban,
-      active: researchOpen,
-      shortcutId: "research.projects",
-      onSelect: openResearch,
-    },
-    {
-      id: "artifacts",
-      label: "Artifacts",
-      icon: Package,
-      active: artifactLibraryOpen,
-      shortcutId: "",
-      onSelect: () => {
-        if (artifactLibraryOpen) setArtifactLibraryOpen(false);
-        else openArtifactLibrary();
       },
     },
     {
@@ -352,14 +314,38 @@ export default function Sidebar() {
     },
     {
       id: "knowledge",
-      label: "Knowledge Base",
+      label: "Knowledge",
       icon: BookOpen,
-      active: activeView === "fields",
+      active: activeView === "knowledge",
       shortcutId: "nav.knowledge",
       onSelect: () => {
-        setActiveView("fields");
+        setActiveView("knowledge");
         setChatMode("document");
       },
+    },
+    {
+      id: "projects",
+      label: "Projects",
+      icon: FolderKanban,
+      active: activeView === "projects",
+      shortcutId: "nav.projects",
+      onSelect: () => setActiveView("projects"),
+    },
+    {
+      id: "artifacts",
+      label: "Artifacts",
+      icon: Package,
+      active: activeView === "artifacts",
+      shortcutId: "nav.artifacts",
+      onSelect: () => setActiveView("artifacts"),
+    },
+    {
+      id: "research",
+      label: "Research",
+      icon: Network,
+      active: activeView === "research",
+      shortcutId: "research.projects",
+      onSelect: () => setActiveView("research"),
     },
   ];
 
@@ -423,7 +409,7 @@ export default function Sidebar() {
     <div className="sb-section">
       <div className="sb-section-head">
         <span className="sb-section-title sb-collapsible">
-          {activeView === "chat" ? "Recent chats" : "Sessions"}
+          {activeView === "home" ? "Recent chats" : "Sessions"}
         </span>
         <button
           type="button"
@@ -535,65 +521,16 @@ export default function Sidebar() {
     </div>
   );
 
-  const agentsSection = (
-    <div className="sb-section">
-      <div className="sb-section-head">
-        <span className="sb-section-title sb-collapsible">Workspace</span>
-      </div>
-      <div className="sb-list">
-        <button
-          type="button"
-          className={`sb-row${agentsView === "chat" ? " is-active" : ""}`}
-          onClick={() => setAgentsView("chat")}
-        >
-          <MessageSquare size={14} className="sb-row__icon" />
-          <span className="sb-row__label">Agent chat</span>
-        </button>
-        <button
-          type="button"
-          className={`sb-row${agentsView === "kanban" ? " is-active" : ""}`}
-          onClick={() => setAgentsView("kanban")}
-        >
-          <LayoutGrid size={14} className="sb-row__icon" />
-          <span className="sb-row__label">Task board</span>
-        </button>
-      </div>
-      <button
-        type="button"
-        className="sb-action"
-        onClick={() => window.dispatchEvent(new CustomEvent("palimind:new-agent"))}
-      >
-        <Plus size={13} />
-        <span>New agent</span>
-      </button>
-    </div>
-  );
-
-  const projectsSection = (
-    <div className="sb-section">
-      <div className="sb-section-head">
-        <span className="sb-section-title sb-collapsible">Research</span>
-      </div>
-      <EmptyState
-        compact
-        icon={<FolderKanban size={18} />}
-        title="Persistent projects"
-        description="Collect notes, findings and sources in one research workspace."
-        action={
-          <button type="button" className="sb-action" onClick={openResearch}>
-            <FolderKanban size={13} />
-            <span>Open projects</span>
-          </button>
-        }
-      />
-    </div>
-  );
-
   return (
     <aside className="sidebar" id="main-sidebar" aria-label="Primary navigation">
       <div className="sb-header">
         <div className="sb-brand">
-          <span className="sb-wordmark sb-collapsible">Palimind</span>
+          <span className="sb-workspace">
+            <span className="sb-workspace__label sb-collapsible">Workspace</span>
+            <span className="sb-workspace__name sb-collapsible">
+              {activeField ? activeField.split(/[\\/]+/).filter(Boolean).pop() : "Local"}
+            </span>
+          </span>
         </div>
         <button
           type="button"
@@ -606,18 +543,6 @@ export default function Sidebar() {
         </button>
       </div>
 
-      <button
-        type="button"
-        className="sb-search"
-        onClick={() => setCommandPaletteOpen(true)}
-        title={`Search or run a command (${shortcutFor("general.palette")})`}
-        aria-label="Open command palette"
-      >
-        <Search size={14} />
-        <span className="sb-search__label sb-collapsible">Search or run…</span>
-        <Kbd className="sb-search__kbd sb-collapsible">{shortcutFor("general.palette")}</Kbd>
-      </button>
-
       <nav className="sb-nav" aria-label="Workspace">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -628,7 +553,6 @@ export default function Sidebar() {
               type="button"
               className={`sb-nav-item${item.active ? " is-active" : ""}`}
               aria-current={item.active ? "page" : undefined}
-              aria-expanded={item.id === "projects" ? researchOpen : undefined}
               title={shortcut ? `${item.label} (${shortcut})` : item.label}
               onClick={() => {
                 item.onSelect();
@@ -650,15 +574,13 @@ export default function Sidebar() {
       </nav>
 
       <Scrollbar className="sb-context">
-        {activeView === "chat" && sessionsSection}
-        {activeView === "fields" && (
+        {(activeView === "home" || activeView === "chat") && sessionsSection}
+        {activeView === "knowledge" && (
           <>
             {knowledgeSection}
             {sessionsSection}
           </>
         )}
-        {activeView === "agents" && agentsSection}
-        {researchOpen && projectsSection}
       </Scrollbar>
 
       <div className="sb-footer">
@@ -668,15 +590,6 @@ export default function Sidebar() {
             <span className="sb-user__name">Local workspace</span>
             <span className="sb-user__hint">Offline · private</span>
           </div>
-          <button
-            type="button"
-            className="sb-icon-btn sb-collapsible"
-            title={`Switch to ${theme === "dark" ? "light" : "dark"} theme (${shortcutFor("view.toggle-theme")})`}
-            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          >
-            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-          </button>
           <button
             type="button"
             className="sb-icon-btn"

@@ -81,3 +81,74 @@ Use the shared primitives: `CodeView`, `Terminal`, `DiffView`, `DataTable`,
 Add a renderer under `modes/` with the `ModeProps` signature, add the id to
 `RunMode`, map it in `modeFromActivityMode` (`adaptRun.ts`), and dispatch it in
 `shell/RunSurface.tsx`. Keep the final answer as the children below the panel.
+
+## Normalized events (spec §13)
+
+The target vocabulary. The recorder already emits every event below into
+`ActivityStore`; today's SSE is translated to these event shapes by
+`recorder.ts` (adapter fallback), so the UI works unchanged until the backend
+ships them natively.
+
+| Event | Payload | Adapter fallback (today) |
+| --- | --- | --- |
+| `run.start` | `{ run_id, mode, title? }` | client-generated `runId`, title from send metadata |
+| `run.end` | `{ status: done \| stopped \| error, error? }` | `agent:completed` / `answer_final` / `error` |
+| `tool.start` | `{ id, name, args, parent_id?, group_key?, started_at }` | `agent:tool_call` / `agent:waiting_for_human` |
+| `tool.progress` | `{ id, text }` | streamed tool output deltas (`tool.delta`) into append-only buffers |
+| `tool.end` | `{ id, status, output?, error?, ended_at }` | `agent:tool_result` |
+| `tool.approval` | `{ id, status: awaiting_approval \| running \| denied \| cancelled }` | `agent:waiting_for_human` (start) and `resolveApproval` (client decision) |
+| `plan.set` / `plan.step` | `{ steps[] }` / `{ id, status }` | `agent:plan` / `research_plan` / agent_progress |
+| `phase` | `{ phase: routing \| searching \| reading \| analyzing \| synthesizing \| writing }` | inferred from `progress`/tool names |
+| `expert.start` / `expert.delta` / `expert.end` | MoE expert lifecycle | `agent_progress` / `agent_thinking` |
+| `source.add` | `{ item: ResultItem }` | `sources`, `citation_map` |
+| `retrieval.result` | `{ passages: Passage[] }` | `citations`, `citation_map` |
+| `text.delta` | answer tokens | `agent:token` / `token` |
+
+### Derived fields (no UI scraping of raw payloads)
+
+- **Duration**: `tool.end.at - tool.start.startedAt` → `step.durationMs`;
+  `run.end.at - run.start.startedAt` → run duration. Neither the reducer nor
+  the UI reads timestamps from raw SSE.
+- **`sources[]`**: search outputs are normalized by `normalizeResults`
+  (`toolOutput.ts`) at ingest (`recorder.ingestOutput`) and deduped by id in
+  the reducer. Citation payloads flow through `resultsFromSources`.
+- **`passages[]`**: `citations` / `citation_map` / `retrieval.result` are
+  normalized by `normalizePassages` and deduped by id in the reducer.
+
+### Approval semantics
+
+- `agent:waiting_for_human` opens an inline receipt (`PermissionGrant`) with
+  the exact payload and a plain-English action line. It never auto-approves.
+- `POST /agents/{agent_id}/approve` remains the resolution transport; the
+  store mirrors the decision as `tool.approval` so the receipt settles.
+- A run that ends while a request is pending is persisted as `cancelled`, so a
+  restored receipt never pulses forever. Restored receipts (`ActivityStore
+  .restored`) render with a "Requested earlier" note and no attention pulse.
+
+## Presentation (v2)
+
+- **Caption row** (`shell/ActivityPanel.tsx`): one hairline row —
+  `[spine node] [avatar/status] [caption] [tool icons] [Sources · N] [chevron]`.
+  The caption string comes from `caption.ts` (`captionFor(state)`), the single
+  derivation used by the panel, the composer line and the aria-live region.
+  Priority: pending approval → running tool → phase → reasoning → settled →
+  failed. Settings (Auto / Always expanded / Always collapsed) and the
+  rail/timeline toggle live behind the overflow button; `T` toggles the same
+  timeline on the live panel (never while typing).
+- **Phase spine** (`shell/PhaseSpine.tsx`): three equal-weight 2px segments
+  (Gather, Analyze, Write) filled by `phase` events; hidden under reduced
+  motion. No percentages.
+- **Reasoning trace** (`shell/ReasoningBlock.tsx`): live three-line tail from
+  the `reasoning` buffer with a top fade and a shared timer; settled form is a
+  single «Thought for Ns» line that re-opens the full trace. Reasoning text
+  never enters React state.
+- **Intent clusters** (`grouping.ts`): consecutive research/writing/running
+  steps fold into one disclosure; completed parallel calls keep the
+  "Ran N tools" row; browser sessions stay one card; delegates recurse through
+  `bodies/SubagentBody.tsx` (depth cap 3).
+- **Approval receipt** (`shell/PermissionGrant.tsx`): dashed warning edge,
+  plain-English action, exact payload with secret masking, destructive
+  warning, `Enter` allow once · `A` allow for this run · `Esc` deny. Restored
+  receipts render "Requested earlier" with no attention pulse.
+- **Playground**: dev-only `/#/activity` with every scenario, theme and
+  reduced-motion toggles, replay speed, and a restored-pending-approval case.

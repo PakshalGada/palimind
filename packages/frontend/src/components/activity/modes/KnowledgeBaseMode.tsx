@@ -1,13 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
-import { isTerminal, type Passage } from '../model';
+import { useMemo, useState } from 'react';
+import { isTerminal, type Passage, type ActivityState } from '../model';
 import { Icon } from '../icons';
-import { Highlight } from '../primitives/Highlight';
-import { LiveTimer } from '../primitives/LiveTimer';
-import { StatusIcon } from '../primitives/StatusIcon';
 import { Highlight as MarkText } from '../primitives/Highlight';
+import { ActivityPanel } from '../shell/ActivityPanel';
 import type { ModeProps } from './DefaultMode';
 
-function termsOf(state: import('../model').ActivityState): string[] {
+function termsOf(state: ActivityState): string[] {
   const running = [...state.steps].reverse().find((step) => step.name === 'document_search');
   if (!running || !running.args || typeof running.args !== 'object') return [];
   const record = running.args as Record<string, unknown>;
@@ -49,15 +47,21 @@ function DocChip({ name, passages, terms }: { name: string; passages: Passage[];
   );
 }
 
-export function KnowledgeBaseMode({ state, children }: ModeProps) {
-  const [manual, setManual] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    setManual(null);
-  }, [state.runId]);
-  const terminal = isTerminal(state.status);
-  const active = !terminal;
-  const open = manual ?? (active && !state.answerStarted);
+/**
+ * Knowledge base: document chips with matched passages are the body; the
+ * caption row owns the live status. A no-hit run settles with a single
+ * "Not found in your documents" surface and no body.
+ */
+export function KnowledgeBaseMode({
+  state,
+  store,
+  avatar,
+  history,
+  onRetry,
+  onRetryRun,
+  onResolveApproval,
+  children,
+}: ModeProps) {
   const terms = useMemo(() => termsOf(state), [state]);
   const groups = useMemo(() => {
     const map = new Map<string, Passage[]>();
@@ -69,81 +73,33 @@ export function KnowledgeBaseMode({ state, children }: ModeProps) {
     return [...map.entries()];
   }, [state.passages]);
 
-  const files = groups.length;
-  const passages = state.passages.length;
-  const notFound = terminal && passages === 0 && state.sources.length === 0;
-  const label = notFound
-    ? 'Not found in your documents'
-    : state.answerStarted
-      ? 'Reading'
-      : passages > 0
-        ? `Found ${passages} passages`
-        : 'Searching documents';
+  const terminal = isTerminal(state.status);
+  const notFound =
+    terminal && state.passages.length === 0 && state.sources.length === 0;
 
-  if (passages === 0 && state.sources.length === 0 && !terminal) {
-    return (
-      <>
-        <div className="act-thinking">
-          <span className="act-dot" aria-hidden="true" />
-          <span>Searching documents</span>
-          <LiveTimer startedAt={state.startedAt} active />
-        </div>
-        {children}
-      </>
-    );
-  }
+  const bodyExtra =
+    groups.length > 0 ? (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {groups.map(([name, group]) => (
+          <DocChip key={`${state.runId}-${name}`} name={name} passages={group} terms={terms} />
+        ))}
+      </div>
+    ) : undefined;
 
   return (
     <>
-      <div className="act act-panel">
-        <div className="act-panel__head">
-          <button
-            type="button"
-            className="act-panel__toggle"
-            aria-expanded={open}
-            onClick={() => setManual(!open)}
-          >
-            <StatusIcon status={notFound ? 'cancelled' : active ? 'running' : 'success'} />
-            <span className="act-panel__title">
-              <span className="act-panel__label">{label}</span>
-              {active && <LiveTimer startedAt={state.startedAt} active />}
-            </span>
-            <span className="act-panel__meta">
-              {passages > 0 && (
-                <span className="act-chip act-tabular">
-                  {passages} passages in {files} {files === 1 ? 'file' : 'files'}
-                </span>
-              )}
-            </span>
-            {!notFound && (
-              <span className="act-chevron" data-open={open} aria-hidden="true">
-                <Icon name="chevron-right" size={14} />
-              </span>
-            )}
-          </button>
-        </div>
-        {!notFound && (
-          <div className="act-panel__body act-disclosure" data-open={open}>
-            <div className="act-disclosure__inner">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {groups.map(([name, group]) => (
-                  <DocChip key={`${state.runId}-${name}`} name={name} passages={group} terms={terms} />
-                ))}
-              </div>
-              {state.reasoning && (
-                <div className="act-passage__text" style={{ marginTop: 8 }}>
-                  <Highlight text={state.reasoning.text.slice(0, 400)} terms={terms} />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-        {notFound && (
-          <div className="act-panel__body">
-            <div className="act-empty">Not found in your documents</div>
-          </div>
-        )}
-      </div>
+      <ActivityPanel
+        state={state}
+        store={store}
+        avatar={avatar}
+        history={history}
+        bodyExtra={bodyExtra}
+        onRetry={onRetry}
+        onRetryRun={onRetryRun}
+        onResolveApproval={onResolveApproval}
+      >
+        {notFound && <div className="act-empty">Not found in your documents</div>}
+      </ActivityPanel>
       {children}
     </>
   );

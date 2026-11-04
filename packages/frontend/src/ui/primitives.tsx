@@ -11,10 +11,12 @@ import {
   type TextareaHTMLAttributes,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, CheckCircle2, Info, X, XCircle } from 'lucide-react';
+import { AlertTriangle, Info, X, XCircle } from 'lucide-react';
+import { PixelMeter } from '../components/pixel/PixelMeter';
+import { PixelStamp } from '../components/pixel/PixelStamp';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
-type ButtonSize = 'sm' | 'md' | 'icon';
+type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';
 
 export function Button({
   variant = 'secondary',
@@ -645,6 +647,7 @@ export function Spinner({ size = 16, className = '' }: { size?: number; classNam
 
 export function EmptyState({
   icon,
+  glyph,
   title,
   description,
   action,
@@ -653,6 +656,7 @@ export function EmptyState({
   className = '',
 }: {
   icon?: ReactNode;
+  glyph?: ReactNode;
   title: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
@@ -662,6 +666,7 @@ export function EmptyState({
 }) {
   return (
     <div className={`ui-empty${compact ? ' ui-empty--compact' : ''} ${className}`.trim()}>
+      {glyph != null && <div className="ui-empty__glyph">{glyph}</div>}
       {icon != null && <div className="ui-empty__icon">{icon}</div>}
       <div className="ui-empty__title">{title}</div>
       {description != null && <div className="ui-empty__desc">{description}</div>}
@@ -674,7 +679,6 @@ export function EmptyState({
 export type ToastTone = 'default' | 'success' | 'warning' | 'error' | 'info';
 
 const TOAST_ICONS = {
-  success: CheckCircle2,
   warning: AlertTriangle,
   error: XCircle,
   info: Info,
@@ -699,11 +703,11 @@ export function Toast({
   duration?: number;
   className?: string;
 }) {
-  const Icon = TOAST_ICONS[tone];
+  const Icon = TOAST_ICONS[tone === 'success' ? 'default' : tone];
   return (
     <div className={`ui-toast ui-toast--${tone} ${className}`.trim()} role={tone === 'error' ? 'alert' : 'status'}>
       <span className="ui-toast__icon" aria-hidden="true">
-        <Icon size={16} />
+        {tone === 'success' ? <PixelStamp tone="done" size={16} /> : <Icon size={16} />}
       </span>
       <div className="ui-toast__body">
         {title != null && <div className="ui-toast__title">{title}</div>}
@@ -756,20 +760,50 @@ export function Dialog({
   width?: number;
   className?: string;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     if (!open) return;
+    restoreRef.current = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const focusable = () =>
+      Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+
+    // Focus the first control so keyboard users land inside the dialog.
+    focusable()[0]?.focus();
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
         onClose();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const list = focusable();
+      if (list.length === 0) return;
+      const first = list[0];
+      const last = list[list.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
       }
     };
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', onKey);
+      // Return focus to the control that opened the dialog.
+      restoreRef.current?.focus?.();
     };
   }, [open, onClose]);
 
@@ -777,6 +811,7 @@ export function Dialog({
   return createPortal(
     <div className="ui-modal-overlay" onMouseDown={onClose}>
       <div
+        ref={dialogRef}
         className={`ui-modal ${className}`.trim()}
         role="dialog"
         aria-modal="true"
@@ -836,32 +871,28 @@ export function Tabs<T extends string>({
 }
 
 /**
- * Progress bar. Pass `value` (0–1) for a determinate bar or leave it out for
- * an indeterminate sliding bar.
+ * Progress. Renders the discrete pixel meter (eight cells) rather than a
+ * smooth bar. Pass `value` (0–1) for determinate progress or `null` for an
+ * indeterminate march.
  */
 export function ProgressBar({
   value,
   label,
+  showPercent = true,
   className = '',
 }: {
   value?: number | null;
   label?: ReactNode;
+  showPercent?: boolean;
   className?: string;
 }) {
-  const indeterminate = value == null;
-  const pct = indeterminate ? undefined : Math.round(Math.min(1, Math.max(0, value)) * 100);
   return (
-    <div
-      className={`ui-progress${indeterminate ? ' ui-progress--indeterminate' : ''} ${className}`.trim()}
-      role="progressbar"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={pct}
-    >
-      {label != null && <div className="ui-progress__label">{label}</div>}
-      <div className="ui-progress__track">
-        <div className="ui-progress__fill" style={pct === undefined ? undefined : { width: `${pct}%` }} />
-      </div>
-    </div>
+    <PixelMeter
+      value={value ?? null}
+      label={label}
+      showPercent={showPercent}
+      ariaLabel={typeof label === 'string' ? label : 'Progress'}
+      className={className}
+    />
   );
 }

@@ -62,6 +62,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from palimind.agents.api import router as agents_router
+from palimind.agents.teams_api import router as teams_router
 from palimind.api import (
     IndexNotFoundError,
     initialize_index,
@@ -122,6 +123,7 @@ app.add_middleware(
 # authenticates automatically.
 install_auth(app, token_provider=get_api_token, cookie_path_prefix="/ui")
 
+app.include_router(teams_router)
 app.include_router(agents_router)
 app.include_router(projects_router)
 app.include_router(artifacts_router)
@@ -612,6 +614,12 @@ async def startup_event():
         print(f"[startup] preset cleanup failed: {exc}")
     start_scheduler(state.loop)
     start_runner()
+    try:
+        from palimind.agents.queue import start_queue_runner
+
+        start_queue_runner()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[startup] queue runner failed: {exc}")
 
     if state.active_field:
         # Surface embedding/index mismatches at startup instead of letting
@@ -641,9 +649,14 @@ async def startup_event():
 async def shutdown_event():
     from palimind.agents.goals import stop_runner
     from palimind.agents.scheduler import stop_scheduler
+    from palimind.agents.queue import stop_queue_runner
 
     stop_scheduler()
     stop_runner()
+    try:
+        stop_queue_runner()
+    except Exception:
+        pass
     if state.watcher:
         try:
             state.watcher.stop()

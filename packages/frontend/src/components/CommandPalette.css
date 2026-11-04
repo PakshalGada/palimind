@@ -9,17 +9,17 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 12vh 20px 40px;
+  padding: 68px 20px 40px;
 }
 
 .command-palette {
   width: 100%;
-  max-width: 640px;
+  max-width: 720px;
   max-height: min(70vh, 620px);
   display: flex;
   flex-direction: column;
-  background: var(--color-surface-overlay);
-  border: none;
+  background: var(--surface-2);
+  border: 1px solid transparent;
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-float);
   overflow: hidden;
@@ -35,7 +35,7 @@
   align-items: center;
   gap: 10px;
   padding: 14px 16px;
-  border-bottom: none;
+  border-bottom: 1px solid var(--line);
 }
 .command-palette-search-icon { color: var(--text-muted); flex: 0 0 auto; }
 .command-palette-input {
@@ -45,17 +45,17 @@
   background: transparent;
   color: var(--text-main);
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: var(--type-md);
 }
 .command-palette-input:focus { outline: none; }
 .command-palette-input::placeholder { color: var(--text-muted); }
 .command-palette-esc {
   flex: 0 0 auto;
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: var(--type-xs);
   color: var(--text-muted);
   border: none;
-  border-radius: 5px;
+  border-radius: 4px;
   padding: 2px 6px;
   background: var(--color-surface-hover);
 }
@@ -74,11 +74,11 @@
   align-items: center;
   gap: 6px;
   padding: 8px 10px 4px;
-  font-size: 0.66rem;
+  font-size: var(--type-xs);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
-  font-weight: 600;
+  font-weight: 550;
 }
 
 .command-palette-item {
@@ -126,7 +126,7 @@
 }
 .command-palette-item-kind {
   flex: 0 0 auto;
-  font-size: 10px;
+  font-size: var(--type-2xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -137,10 +137,10 @@
 .command-palette-item-kbd {
   flex: 0 0 auto;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--type-xs);
   color: var(--text-secondary);
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 3px 7px;
   background: var(--color-surface-hover);
 }
@@ -160,13 +160,13 @@
   padding: 9px 14px;
   border-top: none;
   background: var(--color-surface-raised);
-  font-size: 11px;
+  font-size: var(--type-xs);
   color: var(--text-muted);
 }
 .command-palette-footer span { display: inline-flex; align-items: center; gap: 5px; }
 .command-palette-footer kbd {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--type-2xs);
   border: none;
   border-radius: 4px;
   padding: 1px 5px;

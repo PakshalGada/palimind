@@ -8,7 +8,6 @@ import {
   type ToolStep,
 } from './model';
 
-const MAX_REASONING = 64_000;
 const MAX_EXPERT_SNIPPET = 4_000;
 
 function withStep(steps: readonly ToolStep[], step: ToolStep): ToolStep[] {
@@ -66,7 +65,11 @@ export function reduceActivity(state: ActivityState, event: ActivityEvent): Acti
         steps: state.steps.map((step) =>
           step.status === 'running'
             ? { ...step, status: event.status === 'error' ? 'error' : 'cancelled' }
-            : step,
+            : step.status === 'awaiting_approval'
+              ? // The run ended while the request was pending: cancel it so the
+                // receipt never pulses forever.
+                { ...step, status: 'cancelled', endedAt: at ?? step.endedAt }
+              : step,
         ),
       };
     }
@@ -87,25 +90,24 @@ export function reduceActivity(state: ActivityState, event: ActivityEvent): Acti
     }
 
     case 'reasoning.delta': {
-      const text = event.text;
-      if (!text) {
-        if (state.reasoning) return state;
-        return {
-          ...state,
-          reasoning: { text: '', done: false, startedAt: event.at ?? state.startedAt },
-        };
-      }
       const reasoning = state.reasoning;
       if (event.seq != null && reasoning?.seq != null && event.seq <= reasoning.seq) return state;
-      const nextText = (reasoning?.text ?? '') + text;
+      // Reasoning text lives in the append-only buffer outside React state;
+      // state only carries start/done/duration. `text` in the event is
+      // tolerated for backwards compatibility and ignored here.
+      const startedAt = reasoning?.startedAt ?? event.at;
+      const seq = event.seq ?? reasoning?.seq;
+      if (reasoning && startedAt === reasoning.startedAt && seq === reasoning.seq) {
+        return state;
+      }
       return {
         ...state,
         status: deriveStatus(state),
         reasoning: {
-          text: nextText.length > MAX_REASONING ? nextText.slice(-MAX_REASONING) : nextText,
+          text: reasoning?.text ?? '',
           done: false,
-          startedAt: reasoning?.startedAt ?? event.at,
-          seq: event.seq ?? reasoning?.seq,
+          startedAt,
+          seq,
         },
       };
     }

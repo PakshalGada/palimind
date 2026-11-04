@@ -1,10 +1,5 @@
-import { useEffect, useState } from 'react';
-import { errorCount, isTerminal, type ActivityState, type Expert } from '../model';
-import { Icon } from '../icons';
-import { LiveTimer } from '../primitives/LiveTimer';
-import { ShimmerText } from '../primitives/ShimmerText';
-import { StatusIcon } from '../primitives/StatusIcon';
-import { ReasoningBlock } from '../shell/ReasoningBlock';
+import { isTerminal, type ActivityState, type Expert } from '../model';
+import { ActivityPanel } from '../shell/ActivityPanel';
 import type { ModeProps } from './DefaultMode';
 import { DefaultMode } from './DefaultMode';
 
@@ -57,92 +52,68 @@ function Lane({ expert }: { expert: Expert }) {
 
 function combining(state: ActivityState): boolean {
   const experts = state.experts ?? [];
-  return experts.length > 0 && experts.every((expert) => expert.status === 'done') && !state.answerStarted;
+  return (
+    experts.length > 0 &&
+    experts.every((expert) => expert.status === 'done') &&
+    !state.answerStarted
+  );
 }
 
-export function MoeMode({ state, store, onRetry, onResolveApproval, children }: ModeProps) {
-  const [manual, setManual] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    setManual(null);
-  }, [state.runId]);
+export function MoeMode({
+  state,
+  store,
+  avatar,
+  history,
+  onRetry,
+  onRetryRun,
+  onResolveApproval,
+  children,
+}: ModeProps) {
   const experts = state.experts ?? [];
   if (experts.length === 0 && state.phase !== 'routing') {
     return (
       <DefaultMode
         state={state}
         store={store}
+        avatar={avatar}
+        history={history}
         onRetry={onRetry}
+        onRetryRun={onRetryRun}
         onResolveApproval={onResolveApproval}
       >
         {children}
       </DefaultMode>
     );
   }
-  const active = !isTerminal(state.status);
   const isCombining = combining(state);
-  const open = manual ?? (active && !state.answerStarted);
-  const label = isCombining ? 'Combining' : state.phase === 'routing' || experts.length === 0 ? 'Routing' : active ? 'Working' : 'Worked';
-  const errors = errorCount(state);
+  const terminal = isTerminal(state.status);
+
+  const bodyExtra = (
+    <>
+      <div className="act-expert-count act-muted act-tabular" aria-hidden="true">
+        {experts.length} {experts.length === 1 ? 'expert' : 'experts'}
+        {isCombining && !terminal && <span className="act-expert-count__combining"> · Combining</span>}
+      </div>
+      <div className="act-experts act-stagger">
+        {experts.map((expert) => (
+          <Lane key={expert.id} expert={expert} />
+        ))}
+      </div>
+    </>
+  );
 
   return (
-    <>
-      <div className="act act-panel">
-        <div className="act-panel__head">
-          <button
-            type="button"
-            className="act-panel__toggle"
-            aria-expanded={open}
-            onClick={() => setManual(!open)}
-          >
-            <StatusIcon status={active ? 'running' : state.status === 'error' ? 'error' : 'success'} />
-            <span className="act-panel__title">
-              <span className="act-panel__label">
-                {active ? <ShimmerText>{label}</ShimmerText> : label}
-              </span>
-              <LiveTimer startedAt={state.startedAt} endedAt={state.endedAt} active={active} />
-            </span>
-            <span className="act-panel__toolicons" aria-hidden="true">
-              {experts.slice(0, 5).map((expert) => (
-                <ExpertAvatar key={expert.id} name={expert.name} />
-              ))}
-            </span>
-            <span className="act-panel__meta">
-              <span className="act-chip act-tabular">{experts.length} experts</span>
-              {state.sources.length > 0 && (
-                <span className="act-chip act-tabular">{state.sources.length} sources</span>
-              )}
-              {errors > 0 && (
-                <span className="act-chip act-chip--error">
-                  <Icon name="triangle-alert" size={12} />
-                  {errors}
-                </span>
-              )}
-            </span>
-            <span className="act-chevron" data-open={open} aria-hidden="true">
-              <Icon name="chevron-right" size={14} />
-            </span>
-          </button>
-        </div>
-        <div className="act-panel__body act-disclosure" data-open={open}>
-          <div className="act-disclosure__inner">
-            <div className={`act-experts act-stagger ${isCombining ? 'act-experts--combining' : ''}`.trim()}>
-              {experts.map((expert) => (
-                <Lane key={expert.id} expert={expert} />
-              ))}
-            </div>
-            {state.reasoning && (
-              <ReasoningBlock key={`${state.runId}-reasoning`} reasoning={state.reasoning} startedAt={state.startedAt} store={store} />
-            )}
-            {isCombining && (
-              <div className="act-muted act-ticker" style={{ marginTop: 6 }}>
-                <span className="act-ticker__line">Combining</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+    <ActivityPanel
+      state={state}
+      store={store}
+      avatar={avatar}
+      history={history}
+      bodyExtra={bodyExtra}
+      onRetry={onRetry}
+      onRetryRun={onRetryRun}
+      onResolveApproval={onResolveApproval}
+    >
       {children}
-    </>
+    </ActivityPanel>
   );
 }

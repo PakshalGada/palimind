@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test": "node --experimental-strip-types --import ./tests/ts-resolve.mjs --test tests/*.test.mjs",
+    "test": "node --experimental-strip-types --import ./tests/ts-resolve.mjs --test tests/*.test.mjs && npm run test:render",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:render": "vite build --ssr tests/renderSmoke.tsx --outDir .smoke-out --logLevel error && node .smoke-out/renderSmoke.js && rm -rf .smoke-out"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

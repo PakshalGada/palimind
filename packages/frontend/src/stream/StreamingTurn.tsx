@@ -14,7 +14,7 @@ import type { ToolStep } from '@/components/activity/model';
  * Process is secondary; the answer remains the hero below the panel.
  */
 export default function StreamingTurn({ activeSessionId }: { activeSessionId: string | null }) {
-  const { state, activityStore, openVideo } = useChatStreamContext();
+  const { state, activityStore, openVideo, lastActivity } = useChatStreamContext();
   const { retry } = useChatStreamActions();
   const { sessions, openArtifact } = useApp();
   const session = sessions.find((item) => item.id === activeSessionId);
@@ -50,6 +50,7 @@ export default function StreamingTurn({ activeSessionId }: { activeSessionId: st
         <div className="message-wrapper">
           <RunSurface
             store={activityStore}
+            avatar={lastActivity?.agentAvatar ?? null}
             onResolveApproval={resolveApproval}
             onRetryRun={retry}
           >

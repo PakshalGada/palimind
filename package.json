@@ -1,7 +1,7 @@
 {
   "name": "palimind",
   "version": "0.1.0",
-  "description": "Palimind — Local-first AI workspace for everything",
+  "description": "Palimind \u2014 Local-first AI workspace for everything",
   "scripts": {
     "dev": "npm run dev --prefix apps/desktop",
     "build": "npm run build --prefix apps/desktop",
@@ -9,7 +9,9 @@
     "frontend:dev": "npm run dev --prefix packages/frontend",
     "frontend:build": "npm run build --prefix packages/frontend",
     "backend:dev": "cd packages/backend && python -m palimind.api_server",
-    "backend:test": "cd packages/backend && python -m pytest"
+    "backend:test": "cd packages/backend && python -m pytest",
+    "check:mono": "node scripts/check-mono.mjs --strict",
+    "audit:mono": "node scripts/mono-audit.mjs"
   },
   "author": "Palimind",
   "license": "MIT",

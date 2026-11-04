@@ -19,7 +19,7 @@
 
 .sm-editor {
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px;
   display: flex;
   flex-direction: column;
@@ -39,7 +39,7 @@
   justify-content: space-between;
   gap: 12px;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px 12px;
   background: var(--bg-color);
 }
@@ -53,13 +53,13 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  font-weight: 600;
-  font-size: 0.86rem;
+  font-weight: 550;
+  font-size: var(--type-base);
 }
 
 .sm-row__desc {
   margin-top: 4px;
-  font-size: 0.78rem;
+  font-size: var(--type-sm);
   color: var(--text-secondary);
 }
 
@@ -67,7 +67,7 @@
   margin-top: 6px;
   display: flex;
   gap: 10px;
-  font-size: 0.72rem;
+  font-size: var(--type-xs);
   color: var(--text-secondary);
   text-transform: capitalize;
 }

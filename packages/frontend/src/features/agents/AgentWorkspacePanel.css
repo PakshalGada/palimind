@@ -1,0 +1,24 @@
+.awp { position: fixed; inset: 0; z-index: 84; display: flex; justify-content: flex-end; }
+.awp__scrim { position: absolute; inset: 0; border: none; background: rgba(0, 0, 0, 0.4); cursor: default; }
+.awp__panel { position: relative; width: min(560px, 100%); height: 100%; display: flex; flex-direction: column; background: var(--bg-color); border-left: 1px solid var(--border-subtle); box-shadow: var(--shadow-xl); }
+.awp__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--border-subtle); background: var(--panel-bg); }
+.awp__head h2 { margin: 0; display: flex; align-items: center; gap: 7px; font-size: var(--text-ui); font-weight: var(--weight-medium); }
+.awp__head p { margin: 3px 0 0; font-size: var(--type-2xs); color: var(--text-muted); word-break: break-all; }
+.awp__close { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-subtle); background: transparent; color: var(--text-secondary); cursor: pointer; flex-shrink: 0; }
+.awp__close:hover { color: var(--text-main); background: var(--accent-bg, rgba(127,127,127,0.1)); }
+.awp__body { flex: 1; overflow-y: auto; padding: 14px 18px 24px; display: flex; flex-direction: column; gap: 10px; }
+.awp__path { display: flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--text-muted); }
+.awp__path button { border: none; background: transparent; color: var(--text-main); cursor: pointer; font-family: var(--font-sans); font-size: var(--text-xs); }
+.awp__loading { display: flex; align-items: center; gap: 8px; font-size: var(--text-xs); color: var(--text-muted); }
+.awp__list { display: flex; flex-direction: column; gap: 3px; }
+.awp__row { display: flex; align-items: center; gap: 6px; border-radius: var(--radius-sm); }
+.awp__row:hover { background: var(--accent-bg, rgba(127,127,127,0.06)); }
+.awp__row-main { flex: 1; display: flex; align-items: center; gap: 8px; padding: 8px 9px; border: none; background: transparent; color: var(--text-main); font-family: var(--font-sans); font-size: var(--text-sm); cursor: pointer; text-align: left; min-width: 0; }
+.awp__row-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.awp__row-size { font-size: var(--type-2xs); color: var(--text-muted); flex-shrink: 0; }
+.awp__row-del { border: none; background: transparent; color: var(--text-muted); cursor: pointer; padding: 6px; }
+.awp__row-del:hover { color: var(--ink); }
+.awp__preview { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.awp__preview-head { display: flex; align-items: center; gap: 10px; }
+.awp__preview-path { font-size: var(--text-xs); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.awp__preview-body { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: var(--font-mono); font-size: var(--type-sm); line-height: 1.6; color: var(--text-main); background: var(--panel-bg); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px; max-height: calc(100vh - 180px); overflow: auto; }

@@ -1,6 +1,8 @@
 import type { ToolStep } from '../model';
 import type { ActivityState } from '../model';
 import type { ActivityStore } from '../store';
+import { formatRunDuration } from '../model';
+import { spanOf } from '../grouping';
 import { Icon } from '../icons';
 import { RunTimeline } from '../shell/RunTimeline';
 
@@ -36,12 +38,16 @@ export default function SubagentBody({
       </div>
     );
   }
+  const span = spanOf(children);
   return (
     <div className="act-subagent">
       <div className="act-section-title">
         <Icon name="git-fork" size={12} />
         <span>Sub-agent</span>
         <span className="act-tabular">{children.length} steps</span>
+        {span != null && (
+          <span className="act-tabular act-muted">{formatRunDuration(span)}</span>
+        )}
       </div>
       <RunTimeline
         steps={children}

@@ -38,20 +38,37 @@ test('parallel completed calls group into one row', () => {
   assert.equal(units[1].kind, 'step');
 });
 
-test('fast sequential calls stay separate', () => {
+test('fast sequential same-intent calls cluster into one row', () => {
   const steps = [
     step({ id: 'a', startedAt: 1000, endedAt: 1100, durationMs: 100 }),
     step({ id: 'b', startedAt: 1200, endedAt: 1300, durationMs: 100 }),
   ];
-  assert.equal(unitsOf(steps).length, 2);
+  const units = unitsOf(steps);
+  assert.equal(units.length, 1);
+  assert.equal(units[0].kind, 'cluster');
+  assert.equal(units[0].intent, 'research');
+  assert.equal(units[0].steps.length, 2);
+});
+
+test('consecutive different-intent steps do not cluster', () => {
+  const steps = [
+    step({ id: 'a', name: 'web_search', startedAt: 1000, endedAt: 1100, durationMs: 100 }),
+    step({ id: 'b', name: 'write_file', startedAt: 1200, endedAt: 1300, durationMs: 100 }),
+    step({ id: 'c', name: 'run_shell', startedAt: 1400, endedAt: 1500, durationMs: 100 }),
+  ];
+  const units = unitsOf(steps);
+  assert.equal(units.length, 3);
+  assert.ok(units.every((unit) => unit.kind === 'step'));
 });
 
 test('running calls do not group as completed parallel work', () => {
   const steps = [
-    step({ id: 'a', status: 'running', startedAt: 1000 }),
-    step({ id: 'b', status: 'running', startedAt: 1000 }),
+    step({ id: 'a', name: 'web_search', status: 'running', startedAt: 1000 }),
+    step({ id: 'b', name: 'write_file', status: 'running', startedAt: 1000 }),
   ];
-  assert.equal(unitsOf(steps).length, 2);
+  const units = unitsOf(steps);
+  assert.equal(units.length, 2);
+  assert.ok(units.every((unit) => unit.kind === 'step'));
 });
 
 test('overlap detection handles concurrent intervals', () => {

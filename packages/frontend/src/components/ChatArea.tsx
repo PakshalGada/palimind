@@ -5,6 +5,8 @@ import { getGreeting } from '../utils/greeting';
 import { api } from '../api';
 import { useBookmarks } from '../hooks/useBookmarks';
 import IndexingProgress from './IndexingProgress';
+import { PixelGlyph } from './pixel/PixelGlyph';
+import { PixelAssemble } from './pixel/PixelAssemble';
 import InputArea from './InputArea';
 import MessageActions from './MessageActions';
 import MessageContent from './MessageContent';
@@ -292,13 +294,46 @@ export default function ChatArea() {
   );
 }
 
+const HERO_PROMPTS = [
+  'Summarise the documents in this workspace',
+  'Draft a plan for the next release',
+  'Find contradictions across my notes',
+  'Explain this codebase to a new teammate',
+];
+
 function ChatHero() {
   const name = useUserName();
   const greeting = useMemo(() => getGreeting(name), [name]);
 
+  const prefill = (text: string) => {
+    window.dispatchEvent(
+      new CustomEvent('palimind:prefill-composer', { detail: { text } }),
+    );
+  };
+
   return (
     <div className="chat-hero">
+      <span className="chat-hero__spark" aria-hidden="true">
+        <PixelAssemble>
+          <PixelGlyph sprite="spark" cell={3} />
+        </PixelAssemble>
+      </span>
       <h1 className="chat-hero-title">{greeting}</h1>
+      <p className="chat-hero__hint">
+        Ask anything. Models, files and answers stay on this machine.
+      </p>
+      <div className="chat-hero__prompts">
+        {HERO_PROMPTS.map((prompt) => (
+          <button
+            key={prompt}
+            type="button"
+            className="chat-hero__prompt"
+            onClick={() => prefill(prompt)}
+          >
+            {prompt}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

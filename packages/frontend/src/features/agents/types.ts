@@ -57,6 +57,10 @@ export const EMPTY_DEF: Partial<AgentDefinition> = {
   memory_mode: 'private',
   knowledge_scope: { mode: 'all', primary_field: '', extra_fields: [] },
   max_concurrent_runs: 1,
+  always_allow_tools: [],
+  workspace_dir: '',
+  team_ids: [],
+  tool_pack: 'auto',
 };
 
 export function fmtTime(ts?: number | null): string {

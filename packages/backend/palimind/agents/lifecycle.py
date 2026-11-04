@@ -56,6 +56,27 @@ def _purge_plans(agent_id: str) -> None:
 
 def purge_agent_data(agent_id: str) -> None:
     """Remove every on-disk artifact tied to *agent_id* (best effort)."""
+    try:
+        from palimind.agents import teams
+
+        teams.remove_agent_from_teams(agent_id)
+    except Exception:
+        pass
+    try:
+        from palimind.agents.workspace import purge_workspace
+
+        purge_workspace(agent_id)
+    except Exception:
+        pass
+    try:
+        from palimind.agents import routines, queue
+
+        for routine in routines.list_routines():
+            if routine.get("target_type") == "agent" and routine.get("target_id") == agent_id:
+                routines.delete_routine(str(routine.get("id")))
+        queue.clear_target("agent", agent_id)
+    except Exception:
+        pass
     # Session store + personal workspace live under the agent directory.
     shutil.rmtree(GLOBAL_AGENTS_DIR / agent_id, ignore_errors=True)
     _unlink(GLOBAL_AGENTS_DIR / "memory" / f"{agent_id}.json")

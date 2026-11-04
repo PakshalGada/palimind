@@ -1,4 +1,4 @@
-import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, Approval, BackgroundTask, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, LibraryArtifact, MarketplaceSkill, MemoryEntry, ModelItem, PlanTemplate, Project, ProjectArtifact, ProjectKbStatus, ProjectScope, RecentRun, Recommendation, ResearchFinding, ResearchProject, ResearchProjectSummary, RunRecord, SetupTask, SkillCommand, SkillMeta, SocialSignal, ToolMeta, TreeNode, VerificationReport } from './types';
+import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, Approval, BackgroundTask, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, LibraryArtifact, MarketplaceSkill, MemoryEntry, ModelItem, Overview, PlanTemplate, Project, ProjectArtifact, ProjectKbStatus, ProjectScope, QueueItem, RecentRun, Recommendation, ResearchFinding, ResearchProject, ResearchProjectSummary, Routine, RunRecord, SetupTask, SkillCommand, SkillMeta, SocialSignal, Team, TeamMessage, TeamNote, TeamRun, ToolMeta, TreeNode, VerificationReport, WorkspaceFile } from './types';
 
 const BASE = '/api';
 
@@ -317,6 +317,125 @@ export const api = {
         }
       }
     },
+    overview: () => get<Overview>('/agents/overview'),
+    inbox: () => get<{ approvals: Approval[]; groups: Record<string, Approval[]> }>('/agents/inbox'),
+    alwaysAllow: (agentId: string, tool: string) =>
+      post<{ agent?: AgentDefinition; error?: string }>(`/agents/${agentId}/approvals/always-allow`, { tool }),
+    revokeAlwaysAllow: (agentId: string, tool: string) =>
+      del<{ agent?: AgentDefinition; error?: string }>(
+        `/agents/${agentId}/approvals/always-allow/${encodeURIComponent(tool)}`,
+      ),
+    steer: (agentId: string, text: string, runId = '') =>
+      post<{ status?: string; error?: string }>(`/agents/${agentId}/steer`, { text, run_id: runId }),
+    pause: (agentId: string) => post<{ status?: string }>(`/agents/${agentId}/pause`),
+    resume: (agentId: string) => post<{ status?: string }>(`/agents/${agentId}/resume`),
+    workspace: {
+      list: (agentId: string, path = '') =>
+        get<{ files?: WorkspaceFile[]; path?: string; root?: string; error?: string }>(
+          `/agents/${agentId}/workspace${path ? `?path=${encodeURIComponent(path)}` : ''}`,
+        ),
+      read: (agentId: string, path: string) =>
+        get<{ content?: string; binary?: boolean; size?: number; error?: string }>(
+          `/agents/${agentId}/workspace/file?path=${encodeURIComponent(path)}`,
+        ),
+      remove: (agentId: string, path: string) =>
+        del<{ deleted?: boolean; error?: string }>(
+          `/agents/${agentId}/workspace/file?path=${encodeURIComponent(path)}`,
+        ),
+    },
+  },
+  teams: {
+    list: () => get<{ teams: Team[]; error?: string }>('/agents/teams'),
+    create: (data: Partial<Team>) => post<{ team?: Team; error?: string }>('/agents/teams', data),
+    get: (teamId: string) => get<{ team?: Team; error?: string }>(`/agents/teams/${teamId}`),
+    update: (teamId: string, changes: Partial<Team>) =>
+      patch<{ team?: Team; error?: string }>(`/agents/teams/${teamId}`, changes),
+    remove: (teamId: string) => del<{ status?: string; error?: string }>(`/agents/teams/${teamId}`),
+    addMember: (teamId: string, agentId: string, role = '', manager = false) =>
+      post<{ team?: Team; error?: string }>(`/agents/teams/${teamId}/members`, {
+        agent_id: agentId,
+        role,
+        manager,
+      }),
+    removeMember: (teamId: string, agentId: string) =>
+      del<{ team?: Team; error?: string }>(`/agents/teams/${teamId}/members/${agentId}`),
+    setManager: (teamId: string, agentId: string) =>
+      post<{ team?: Team; error?: string }>(`/agents/teams/${teamId}/manager`, { agent_id: agentId }),
+    messages: (teamId: string, limit = 100, beforeSeq?: number) =>
+      get<{ messages: TeamMessage[]; error?: string }>(
+        `/agents/teams/${teamId}/messages?limit=${limit}${beforeSeq ? `&before_seq=${beforeSeq}` : ''}`,
+      ),
+    sendMessage: (teamId: string, content: string) =>
+      post<{ message?: TeamMessage; error?: string }>(`/agents/teams/${teamId}/messages`, { content }),
+    clearMessages: (teamId: string) =>
+      del<{ status?: string; error?: string }>(`/agents/teams/${teamId}/messages`),
+    runStream: async (
+      teamId: string,
+      input: string,
+      onEvent: (ev: { type: string; [k: string]: unknown }) => void,
+      opts: { mode?: string; interactive?: boolean } = {},
+    ): Promise<void> => {
+      const res = await fetch(`${BASE}/agents/teams/${teamId}/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input, ...opts }),
+      });
+      if (!res.ok || !res.body) throw new Error(`run team failed: ${res.status}`);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buffer.indexOf('\n\n')) !== -1) {
+          const frame = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+          for (const line of frame.split('\n')) {
+            if (!line.startsWith('data:')) continue;
+            try {
+              onEvent(JSON.parse(line.slice(5).trim()));
+            } catch {}
+          }
+        }
+      }
+    },
+    cancel: (teamId: string) => post<{ status?: string; cancelled?: number }>(`/agents/teams/${teamId}/cancel`),
+    pause: (teamId: string) => post<{ status?: string }>(`/agents/teams/${teamId}/pause`),
+    resume: (teamId: string) => post<{ status?: string }>(`/agents/teams/${teamId}/resume`),
+    steer: (teamId: string, text: string, agentId = '') =>
+      post<{ status?: string }>(`/agents/teams/${teamId}/steer`, { text, agent_id: agentId }),
+    runs: (teamId: string, limit = 30) =>
+      get<{ runs: TeamRun[]; error?: string }>(`/agents/teams/${teamId}/runs?limit=${limit}`),
+    runDetail: (teamId: string, runId: string) =>
+      get<TeamRun & { error?: string }>(`/agents/teams/${teamId}/runs/${runId}`),
+    notes: (teamId: string) => get<{ notes: TeamNote[]; error?: string }>(`/agents/teams/${teamId}/notes`),
+    addNote: (teamId: string, content: string, label = 'Note') =>
+      post<{ entry?: TeamNote; error?: string }>(`/agents/teams/${teamId}/notes`, { content, label }),
+    clearNotes: (teamId: string) => del<{ status?: string }>(`/agents/teams/${teamId}/notes`),
+  },
+  routines: {
+    list: () => get<{ routines: Routine[]; error?: string }>('/agents/routines'),
+    create: (data: Partial<Routine>) => post<{ routine?: Routine; error?: string }>('/agents/routines', data),
+    update: (routineId: string, changes: Partial<Routine>) =>
+      patch<{ routine?: Routine; error?: string }>(`/agents/routines/${routineId}`, changes),
+    remove: (routineId: string) => del<{ status?: string; error?: string }>(`/agents/routines/${routineId}`),
+    run: (routineId: string) =>
+      post<{ status?: string; run_id?: string; error?: string }>(`/agents/routines/${routineId}/run`),
+    saveFromRun: (runId: string, data: { target_type: string; target_id: string; name: string; schedule?: string | null; run_mode?: string; tool_pack?: string; working_root?: string }) =>
+      post<{ routine?: Routine; error?: string }>(`/agents/runs/${runId}/save-as-routine`, data),
+  },
+  queue: {
+    list: (targetType?: string, targetId?: string) =>
+      get<{ items: QueueItem[]; error?: string }>(
+        `/agents/queue${targetType ? `?target_type=${targetType}&target_id=${encodeURIComponent(targetId || '')}` : ''}`,
+      ),
+    enqueue: (data: { target_type: string; target_id: string; input: string; priority?: number }) =>
+      post<{ item?: QueueItem; error?: string }>('/agents/queue', data),
+    update: (itemId: string, status: string) =>
+      patch<{ item?: QueueItem; error?: string }>(`/agents/queue/${itemId}`, { status }),
+    cancel: (itemId: string) => post<{ item?: QueueItem; error?: string }>(`/agents/queue/${itemId}/cancel`),
   },
   moe: {
     hardwareCheck: () => get<{ fits_gpu?: boolean; fits_ram?: boolean; vram_per_worker_mb?: number; vram_orchestrator_mb?: number; total_vram_needed_mb?: number; total_ram_needed_mb?: number; suggested_worker?: string; suggested_orchestrator?: string; gpu_vram_mb?: number; system_ram_mb?: number; error?: string }>('/moe/hardware-check'),

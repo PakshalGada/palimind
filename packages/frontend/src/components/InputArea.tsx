@@ -2,8 +2,11 @@ import { memo, useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { ArrowUp, Loader2, Mic, Square } from "lucide-react";
 import ModelSwitcher from "./ModelSwitcher";
+import { PixelBurst } from "./pixel/PixelBurst";
+import { useOneShot } from "./pixel/useOneShot";
 import LoadingSpinner from "./LoadingSpinner";
 import AgentAvatar from "./AgentAvatar";
+import { ComposerCaption } from "./ComposerCaption";
 import { botStateFor } from "../bots/config";
 import MicWave from "./MicWave";
 import { useApp } from "../AppContext";
@@ -68,6 +71,7 @@ function InputArea() {
   const sendOverrideRef = useRef<string | null>(null);
 
   const [moePopupOpen, setMoePopupOpen] = useState(false);
+  const [burstNonce, fireBurst] = useOneShot();
   const moeBtnRef = useRef<HTMLButtonElement>(null);
   const moePopupRef = useRef<HTMLDivElement>(null);
   const [models, setModels] = useState<ModelItem[]>([]);
@@ -688,6 +692,7 @@ function InputArea() {
           </div>
         )}
 
+        <ComposerCaption />
         <PromptInputTextarea
           id="chat-input"
           ref={textareaRef}
@@ -900,6 +905,12 @@ function InputArea() {
             </div>
           )}
 
+          <ModelSwitcher />
+
+          {burstNonce > 0 && (
+            <PixelBurst key={burstNonce} className="composer-burst" />
+          )}
+
           <PromptInputActions className="prompt-composer-actions">
             {isRecording && (
               <span className="mic-listening" role="status" aria-live="polite">
@@ -946,6 +957,7 @@ function InputArea() {
                   if (isGenerating) {
                     stopStream();
                   } else {
+                    fireBurst();
                     handleSend();
                   }
                 }}
@@ -960,7 +972,6 @@ function InputArea() {
           </PromptInputActions>
         </div>
       </PromptInput>
-      <ModelSwitcher />
     </div>
   );
 }

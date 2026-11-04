@@ -1,15 +1,16 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
-  elapsedMs,
-  errorCount,
-  formatRunDuration,
   hasPendingApproval,
   isTerminal,
   type ActivityState,
   type ToolStep,
 } from '../model';
-import { useActivitySettings } from '../hooks';
+import { captionFor } from '../caption';
+import AgentAvatar from '../../AgentAvatar';
+import { botStateForRun, configFromSeed, type BotAvatarConfig } from '../../../bots/config';
+import { useActivitySettings, useMediaQuery } from '../hooks';
 import { Icon } from '../icons';
+import { Kbd } from '../primitives/Kbd';
 import { LiveTimer } from '../primitives/LiveTimer';
 import { SourceStack } from '../primitives/SourceStack';
 import { StatusIcon } from '../primitives/StatusIcon';
@@ -18,7 +19,12 @@ import { getToolDefinition } from '../toolRegistry';
 import { ReasoningBlock } from './ReasoningBlock';
 import { RunTimeline } from './RunTimeline';
 import { ThinkingIndicator } from './ThinkingIndicator';
+import { PhaseSpine } from './PhaseSpine';
 import type { GrantDecision } from './PermissionGrant';
+import type { ActivityAgentAvatar } from '../../../AppContext';
+
+const DEFAULT_SEED = 'palimind-assistant';
+const DEFAULT_AVATAR: BotAvatarConfig = configFromSeed(DEFAULT_SEED);
 
 function distinctTools(steps: readonly ToolStep[]): string[] {
   const names: string[] = [];
@@ -40,9 +46,24 @@ function overlaps(steps: readonly ToolStep[]): boolean {
   );
 }
 
+function isTypingTarget(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null;
+  if (!element) return false;
+  const tag = element.tagName;
+  return (
+    tag === 'INPUT' ||
+    tag === 'TEXTAREA' ||
+    tag === 'SELECT' ||
+    element.isContentEditable
+  );
+}
+
 export function ActivityPanel({
   state,
   store,
+  avatar,
+  history = false,
+  bodyExtra,
   onRetry,
   onRetryRun,
   onResolveApproval,
@@ -50,188 +71,314 @@ export function ActivityPanel({
 }: {
   state: ActivityState;
   store: ActivityStore;
+  /** The chat assistant's avatar — defaults to a stable built-in bot. */
+  avatar?: ActivityAgentAvatar | null;
+  /** Rendered from persisted history: collapsed, no replay animation. */
+  history?: boolean;
   onRetry?: (step: ToolStep) => void;
   onRetryRun?: () => void;
   onResolveApproval?: (step: ToolStep, decision: GrantDecision) => void;
+  /** Mode-specific body (stepper, plan, lanes, doc chips) rendered in the body. */
+  bodyExtra?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   const [settings, updateSettings] = useActivitySettings();
   const [manual, setManual] = useState<boolean | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const bodyId = useId();
+  const menuId = useId();
+  const overflowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setManual(null);
+    setMenuOpen(false);
   }, [state.runId]);
+
   const steps = useMemo(() => state.steps.filter((step) => !step.parentId), [state.steps]);
   const pending = hasPendingApproval(state);
   const terminal = isTerminal(state.status);
   const running = !terminal && state.status !== 'idle';
-  const errors = errorCount(state);
   const tools = distinctTools(steps);
   const hasContent = steps.length > 0 || Boolean(state.reasoning);
   const canGantt = steps.length >= 3 || overlaps(steps);
+  const narrow = useMediaQuery('(max-width: 560px)');
+  const staticRun = history || store.restored;
 
+  // Keyboard shortcut: T toggles rail/gantt (live panel only, never while typing).
+  useEffect(() => {
+    if (staticRun) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 't' && event.key !== 'T') return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (isTypingTarget(event.target)) return;
+      if (!canGantt || narrow) return;
+      updateSettings({ timeline: settings.timeline === 'rail' ? 'gantt' : 'rail' });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [canGantt, narrow, settings.timeline, updateSettings, staticRun]);
+
+  // Overflow menu: close on Escape and on outside pointer.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const trigger = overflowRef.current?.querySelector('button') ?? null;
+    const onPointer = (event: PointerEvent) => {
+      if (overflowRef.current && !overflowRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuOpen(false);
+        trigger?.focus();
+      }
+    };
+    window.addEventListener('pointerdown', onPointer, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pointerdown', onPointer, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
+  // Collaboration rules: a pending approval never folds — not even for
+  // restored history.
   const autoOpen = pending
     ? true
-    : settings.collapse === 'expanded'
-      ? true
-      : settings.collapse === 'collapsed'
-        ? false
-        : running && !state.answerStarted;
+    : history
+      ? false
+      : settings.collapse === 'expanded'
+        ? true
+        : settings.collapse === 'collapsed'
+          ? false
+          : running && !state.answerStarted;
   const open = manual ?? autoOpen;
 
-  const label = pending
-    ? 'Needs approval'
-    : state.status === 'stopped'
-      ? 'Stopped'
-      : state.status === 'error'
-        ? 'Failed'
+  const caption = captionFor(state);
+  const captionLive = caption.live;
+  const nodeStatus = pending
+    ? 'awaiting_approval'
+    : state.status === 'error'
+      ? 'error'
+      : state.status === 'stopped'
+        ? 'cancelled'
         : running
-          ? steps.length === 0
-            ? 'Thinking'
-            : 'Working'
-          : steps.length === 0
-            ? 'Thought'
-            : 'Worked';
+          ? 'running'
+          : 'success';
 
-  const announcement = pending
-    ? 'Needs approval'
-    : terminal
-      ? `${label}${state.endedAt != null ? ` ${formatRunDuration(elapsedMs(state))}` : ''}`
-      : label;
+  const announcement = pending ? 'Needs approval' : caption.text;
 
   if (!hasContent) {
+    // A run with no reasoning and no tools renders only the minimal 32px
+    // optimistic dot — never an empty card. Once the answer starts, the
+    // answer is the content.
     return (
       <>
-        {running && <ThinkingIndicator startedAt={state.startedAt} />}
+        {running && !state.answerStarted && <ThinkingIndicator />}
         {children}
       </>
     );
   }
 
+  const passagesInFiles = state.passages.length > 0
+    ? new Set(state.passages.map((passage) => passage.docName)).size
+    : 0;
+
+  const avatarConfig =
+    avatar?.type === 'upload' ? undefined : avatar?.config ?? DEFAULT_AVATAR;
+
+  const staticRunClass = staticRun ? ' act--static' : '';
+
   return (
     <>
-      <div className={`act act-panel ${state.status === 'error' ? 'act-panel--error' : ''}`.trim()}>
+      <div
+        className={`act act-panel${state.status === 'error' ? ' act-panel--error' : ''}${staticRunClass}`.trim()}
+      >
         <div className="act-panel__head">
           <button
             type="button"
-            className="act-panel__toggle"
+            className="act-caption"
             aria-expanded={open}
             aria-controls={bodyId}
             onClick={() => setManual(!open)}
           >
-            <StatusIcon status={pending ? 'awaiting_approval' : running ? 'running' : state.status === 'error' ? 'error' : state.status === 'stopped' ? 'cancelled' : 'success'} />
-            <span className="act-panel__title">
-              <span className="act-panel__label">{label}</span>
-              {running ? (
-                <LiveTimer startedAt={state.startedAt} active />
-              ) : (
-                state.endedAt != null && (
-                  <span className="act-muted act-tabular">
-                    for {formatRunDuration(elapsedMs(state))}
-                  </span>
-                )
+            <span
+              className={`act-node act-node--${nodeStatus} act-caption__node`}
+              aria-hidden="true"
+            />
+            {avatar?.type === 'upload' && avatar.upload ? (
+              <span className="act-caption__avatar" aria-hidden="true">
+                <img src={avatar.upload} alt="" width={18} height={18} />
+              </span>
+            ) : avatarConfig ? (
+              <span className="act-caption__avatar" aria-hidden="true">
+                <AgentAvatar
+                  config={avatarConfig}
+                  type="bot"
+                  size={18}
+                  state={botStateForRun(state)}
+                  interactive={false}
+                  paused={staticRun}
+                />
+              </span>
+            ) : (
+              <StatusIcon status={nodeStatus} size={13} />
+            )}
+            <span className="act-caption__text">
+              {caption.kind === 'failed' && (
+                <Icon name="triangle-alert" size={12} className="act-caption__error-icon" />
+              )}
+              <span className="act-caption__label">
+                {captionLive ? (
+                  <span className="act-shimmer">{caption.text}</span>
+                ) : (
+                  caption.text
+                )}
+              </span>
+              {running && (
+                <span className="act-caption__timer">
+                  <LiveTimer startedAt={state.startedAt} active />
+                </span>
               )}
             </span>
-          <span className="act-panel__toolicons" aria-hidden="true">
-            {tools.slice(0, 4).map((name) => (
-              <Icon key={name} name={getToolDefinition(name).icon} size={13} />
-            ))}
-            {tools.length > 4 && <span className="act-tabular">+{tools.length - 4}</span>}
-          </span>
-          <span className="act-panel__meta">
+            <span className="act-caption__strip" aria-hidden="true">
+              {tools.slice(0, 3).map((name) => (
+                <span key={name} className="act-caption__toolicon">
+                  <Icon name={getToolDefinition(name).icon} size={12} />
+                </span>
+              ))}
+              {tools.length > 3 && (
+                <span className="act-caption__toolicon act-tabular">+{tools.length - 3}</span>
+              )}
+            </span>
             {state.sources.length > 0 && (
-              <>
+              <span className="act-caption__sources">
                 <SourceStack items={state.sources} />
                 <span key={state.sources.length} className="act-chip act-tabular act-count-tick">
-                  {state.sources.length} sources
+                  {state.sources.length} {state.sources.length === 1 ? 'source' : 'sources'}
                 </span>
-              </>
-            )}
-            {state.passages.length > 0 && (
-              <span className="act-chip act-tabular">
-                {state.passages.length} passages in{' '}
-                {new Set(state.passages.map((passage) => passage.docName)).size} files
               </span>
             )}
-            {steps.length > 0 && (
-              <span className="act-chip act-tabular">
-                {steps.length} {steps.length === 1 ? 'tool' : 'tools'}
+            {state.sources.length === 0 && passagesInFiles > 0 && (
+              <span className="act-chip act-tabular act-caption__sources">
+                {state.passages.length} {state.passages.length === 1 ? 'passage' : 'passages'} in{' '}
+                {passagesInFiles} {passagesInFiles === 1 ? 'file' : 'files'}
               </span>
             )}
-            {errors > 0 && (
-              <span className="act-chip act-chip--error act-tabular">
-                <Icon name="triangle-alert" size={12} />
-                {errors}
-              </span>
-            )}
-          </span>
-          <span className="act-chevron" data-open={open} aria-hidden="true">
-            <Icon name="chevron-right" size={14} />
-          </span>
-        </button>
-        <span className="act-panel__settings">
-          {state.status === 'error' && onRetryRun && (
-            <button type="button" className="act-btn act-btn--ghost" onClick={onRetryRun}>
-              Retry
-            </button>
-          )}
-          {canGantt && (
+            <span className="act-chevron" data-open={open} aria-hidden="true">
+              <Icon name="chevron-right" size={14} />
+            </span>
+          </button>
+
+          <div className="act-overflow" ref={overflowRef}>
             <button
               type="button"
-              className="act-btn act-btn--ghost"
-              onClick={() =>
-                updateSettings({ timeline: settings.timeline === 'rail' ? 'gantt' : 'rail' })
-              }
+              className="act-iconbtn"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-controls={menuId}
+              aria-label="Activity options"
+              onClick={() => setMenuOpen((value) => !value)}
             >
-              {settings.timeline === 'rail' ? 'Timeline' : 'Rail'}
+              <Icon name="more-horizontal" size={15} />
             </button>
-          )}
-          <select
-            className="act-select"
-            aria-label="Activity panel behaviour"
-            value={settings.collapse}
-            onChange={(event) =>
-              updateSettings({
-                collapse: event.target.value as 'auto' | 'expanded' | 'collapsed',
-              })
-            }
-          >
-            <option value="auto">Auto</option>
-            <option value="expanded">Always expanded</option>
-            <option value="collapsed">Always collapsed</option>
-          </select>
-        </span>
-      </div>
-
-      <div className="act-panel__body act-disclosure" data-open={open}>
-        <div className="act-disclosure__inner">
-          <div role="region" id={bodyId} aria-label="Run activity">
-            {state.reasoning && (
-              <ReasoningBlock
-                key={`${state.runId}-reasoning`}
-                reasoning={state.reasoning}
-                startedAt={state.startedAt}
-                store={store}
-              />
-            )}
-            {steps.length > 0 && (
-              <RunTimeline
-                key={state.runId}
-                steps={steps}
-                store={store}
-                view={settings.timeline}
-                onRetry={onRetry}
-                onResolveApproval={onResolveApproval}
-              />
+            {menuOpen && (
+              <div role="menu" id={menuId} className="act-menu">
+                <div className="act-menu__label">Panel behaviour</div>
+                {(
+                  [
+                    ['auto', 'Auto'],
+                    ['expanded', 'Always expanded'],
+                    ['collapsed', 'Always collapsed'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={settings.collapse === value}
+                    className="act-menu__item"
+                    onClick={() => {
+                      updateSettings({ collapse: value });
+                      setMenuOpen(false);
+                    }}
+                  >
+                    <span className="act-menu__check">
+                      {settings.collapse === value && <Icon name="check" size={12} />}
+                    </span>
+                    {label}
+                  </button>
+                ))}
+                <div className="act-menu__sep" role="separator" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="act-menu__item"
+                  disabled={!canGantt || narrow}
+                  onClick={() => {
+                    updateSettings({
+                      timeline: settings.timeline === 'rail' ? 'gantt' : 'rail',
+                    });
+                    setMenuOpen(false);
+                  }}
+                >
+                  <span className="act-menu__check" />
+                  {settings.timeline === 'rail' ? 'Timeline view' : 'Rail view'}
+                  <span className="act-menu__kbd"><Kbd>T</Kbd></span>
+                </button>
+                {state.status === 'error' && onRetryRun && (
+                  <>
+                    <div className="act-menu__sep" role="separator" />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="act-menu__item"
+                      onClick={() => {
+                        onRetryRun();
+                        setMenuOpen(false);
+                      }}
+                    >
+                      <span className="act-menu__check" />
+                      Retry
+                    </button>
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>
-      </div>
 
-      <span className="act-visually-hidden" aria-live="polite" aria-atomic="true">
-        {announcement}
-      </span>
+        {(running || open) && <PhaseSpine phase={state.phase} />}
+
+        <div className="act-panel__body act-disclosure" data-open={open}>
+          <div className="act-disclosure__inner">
+            <div role="region" id={bodyId} aria-label="Run activity">
+              {state.reasoning && (
+                <ReasoningBlock
+                  key={`${state.runId}-reasoning`}
+                  reasoning={state.reasoning}
+                  startedAt={state.startedAt}
+                  store={store}
+                />
+              )}
+              {bodyExtra}
+              {steps.length > 0 && (
+                <RunTimeline
+                  key={state.runId}
+                  steps={steps}
+                  store={store}
+                  view={settings.timeline}
+                  onRetry={onRetry}
+                  onResolveApproval={onResolveApproval}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+
+        <span className="act-visually-hidden" aria-live="polite" aria-atomic="true">
+          {announcement}
+        </span>
       </div>
       {children}
     </>

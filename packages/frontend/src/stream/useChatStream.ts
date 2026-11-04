@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useEffect, useReducer, useRef } from 'react';
+import { startTransition, useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { useApp } from '../AppContext';
 import { modeFromActivityMode } from '@/components/activity/adaptRun';
 import { RunRecorder } from '@/components/activity/recorder';
@@ -41,6 +41,8 @@ export interface ChatStream {
   stop: () => void;
   retry: () => void;
   isStreaming: boolean;
+  /** The activity block of the in-flight (or last) request, for the caption avatar. */
+  lastActivity: ActivityInfo | null;
   liveText: string;
 }
 
@@ -62,6 +64,7 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
   const tokensSinceFlush = useRef(0);
   const streamIdRef = useRef(0);
   const lastRequestRef = useRef<SendRequest | null>(null);
+  const [lastActivity, setLastActivity] = useState<ActivityInfo | null>(null);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -136,6 +139,7 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
   const send = useCallback(
     (request: SendRequest) => {
       lastRequestRef.current = request;
+      setLastActivity(request.activity ?? null);
       closeSource();
       clearTimer();
       clearFlushTimer();
@@ -352,6 +356,7 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
     stop,
     retry,
     isStreaming: state.status === 'streaming',
+    lastActivity,
     liveText: state.answer,
   };
 }

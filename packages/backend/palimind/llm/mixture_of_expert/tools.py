@@ -24,6 +24,10 @@ _DEFAULT_TOOL_CONTEXT: dict[str, Any] = {
     "session_id": "",
     "write_access": False,
     "allow_network": False,
+    "team_id": "",
+    "team_run_id": "",
+    "team_emit": None,
+    "team_loop": None,
 }
 _tool_context_var: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
     "palimind_tool_context", default=None
@@ -72,6 +76,10 @@ def make_tool_context(
     write_access: bool = False,
     allow_network: bool = False,
     delegate_depth: int = 0,
+    team_id: str = "",
+    team_run_id: str = "",
+    team_emit: Any = None,
+    team_loop: Any = None,
 ) -> dict[str, Any]:
     """Build a complete, isolated tool context."""
     return {
@@ -89,6 +97,10 @@ def make_tool_context(
         "session_id": str(session_id or ""),
         "write_access": bool(write_access),
         "allow_network": bool(allow_network),
+        "team_id": str(team_id or ""),
+        "team_run_id": str(team_run_id or ""),
+        "team_emit": team_emit,
+        "team_loop": team_loop,
     }
 
 
@@ -106,6 +118,10 @@ def set_tool_context(
     write_access: bool = False,
     allow_network: bool = False,
     delegate_depth: int = 0,
+    team_id: str = "",
+    team_run_id: str = "",
+    team_emit: Any = None,
+    team_loop: Any = None,
 ) -> None:
     """Set the tool context for the current thread/task.
 
@@ -125,6 +141,10 @@ def set_tool_context(
         write_access=write_access,
         allow_network=allow_network,
         delegate_depth=delegate_depth,
+        team_id=team_id,
+        team_run_id=team_run_id,
+        team_emit=team_emit,
+        team_loop=team_loop,
     )
     _tool_context_var.set(ctx)
     # Mirror for legacy readers. Execution never relies on this copy.
@@ -941,6 +961,13 @@ def _register_plugin_tools() -> None:
                 ),
                 "timeout_s": int(spec.get("timeout_s") or TOOL_TIMEOUT_S),
             }
+
+    try:
+        from palimind.agents.team_tools import register_team_tools
+
+        register_team_tools()
+    except Exception as e:
+        print(f"[plugins] failed to load team tools: {e}")
 
 
 def get_tool_names() -> list[str]:

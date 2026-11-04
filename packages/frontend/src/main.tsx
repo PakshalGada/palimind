@@ -5,8 +5,10 @@ import { ThemeProvider } from './design/ThemeProvider'
 import { ConfirmProvider } from './components/ConfirmDialog'
 import ErrorBoundary from './components/ErrorBoundary'
 import App from './App'
-import './App.css'
+// Cascade order matters: Tailwind/shadcn defaults first, then Palimind's
+// tokens and component layers so the design system always wins.
 import './index.css'
+import './App.css'
 import './components/activity/activity.css'
 
 const ActivityPlayground = lazy(() => import('./components/activity/playground/Playground'))

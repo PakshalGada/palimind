@@ -18,7 +18,7 @@
   gap: 10px;
   align-items: end;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 12px;
   background: var(--panel-bg);
 }
@@ -30,7 +30,7 @@
 .tm-goal,
 .tm-task {
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px 12px;
   background: var(--bg-color);
 }
@@ -44,8 +44,8 @@
 }
 
 .tm-goal__name {
-  font-weight: 600;
-  font-size: 0.86rem;
+  font-weight: 550;
+  font-size: var(--type-base);
 }
 
 .tm-goal__actions,
@@ -57,7 +57,7 @@
 
 .tm-goal__obj {
   margin-top: 4px;
-  font-size: 0.78rem;
+  font-size: var(--type-sm);
   color: var(--text-secondary);
 }
 
@@ -81,13 +81,13 @@
   margin-top: 6px;
   display: flex;
   gap: 10px;
-  font-size: 0.72rem;
+  font-size: var(--type-xs);
   color: var(--text-secondary);
 }
 
 .tm-task__prompt {
   margin-top: 6px;
-  font-size: 0.82rem;
+  font-size: var(--type-sm);
 }
 
 .tm-task__output {
@@ -97,10 +97,10 @@
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 0.74rem;
+  font-size: var(--type-sm);
   color: var(--text-secondary);
   background: var(--panel-bg);
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 .tm-notif__bar {
@@ -114,7 +114,7 @@
   align-items: center;
   gap: 10px;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 8px 12px;
   background: var(--bg-color);
 }
@@ -124,11 +124,11 @@
 
 .tm-notif__text {
   flex: 1;
-  font-size: 0.82rem;
+  font-size: var(--type-sm);
 }
 
 .tm-notif__time {
-  font-size: 0.72rem;
+  font-size: var(--type-xs);
   color: var(--text-secondary);
   white-space: nowrap;
 }

@@ -2,7 +2,7 @@
 
 .research-plan-hint {
   margin: 0 0 14px;
-  font-size: 0.8rem;
+  font-size: var(--type-sm);
   color: var(--text-muted);
   line-height: 1.5;
 }
@@ -25,10 +25,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--accent-bg);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: var(--type-xs);
   font-family: var(--font-mono);
 }
 .research-plan-title-input {
@@ -41,8 +41,8 @@
   background: var(--input-bg);
   color: var(--text-main);
   font-family: var(--font-sans);
-  font-size: 0.84rem;
-  font-weight: 500;
+  font-size: var(--type-base);
+  font-weight: 550;
 }
 .research-plan-question,
 .research-plan-queries {
@@ -53,11 +53,11 @@
   background: var(--input-bg);
   color: var(--text-secondary);
   font-family: var(--font-sans);
-  font-size: 0.78rem;
+  font-size: var(--type-sm);
   line-height: 1.45;
   resize: vertical;
 }
-.research-plan-queries { font-family: var(--font-mono); font-size: 0.72rem; }
+.research-plan-queries { font-family: var(--font-mono); font-size: var(--type-xs); }
 .research-plan-title-input:focus,
 .research-plan-question:focus,
 .research-plan-queries:focus {
@@ -75,7 +75,7 @@
   background: transparent;
   color: var(--text-secondary);
   font-family: var(--font-sans);
-  font-size: 0.8rem;
+  font-size: var(--type-sm);
   cursor: pointer;
   width: 100%;
   justify-content: center;

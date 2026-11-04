@@ -256,6 +256,11 @@ def _gate_tool(
             autonomy = "off" if legacy_threshold <= 0 else "semi"
         if autonomy == "off":
             return None
+        # Explicit always-allow tools skip the approval prompt (but tier and
+        # access-flag gates above still apply).
+        always_allow = getattr(definition, "always_allow_tools", []) or []
+        if tool_name in always_allow:
+            return None
         if autonomy == "supervised":
             needs_approval = True
         elif autonomy == "high":
@@ -332,6 +337,7 @@ def run_agent(
     token_stream: bool = False,
     reflect: bool = False,
     tool_context: dict[str, Any] | None = None,
+    run_control: Any | None = None,
 ) -> str:
     """Run one agent loop.
 
@@ -564,6 +570,24 @@ Be concise and effective."""
     full_log: list[str] = []
     recent_tool_calls: list[str] = []
     for iteration in range(max_tool_iterations):
+        if run_control is not None:
+            while getattr(run_control, "paused", None) is not None and run_control.paused.is_set():
+                time.sleep(0.1)
+            try:
+                for steer_text in run_control.drain_steer():
+                    live.append(
+                        {
+                            "role": "user",
+                            "content": f"The user adds: {steer_text}\nAcknowledge and adjust your work.",
+                        }
+                    )
+                    _emit_event(
+                        event_cb,
+                        "agent:thought",
+                        {"text": f"Steering: {steer_text[:300]}", "iteration": iteration},
+                    )
+            except Exception:
+                pass
         result = _call(native_tools, stream_mode="detect" if token_stream else None)
         response = result["content"]
         _emit_event(
@@ -627,6 +651,10 @@ Be concise and effective."""
                 approval_provider=approval_provider,
                 response=response,
             )
+            if denial is None and not _tool_allowed(tool_name, sub_task, definition):
+                denial = (
+                    f"Access denied: tool '{tool_name}' is not in this agent's tool allowlist."
+                )
             _emit_event(event_cb, "agent:tool_call", {"tool": tool_name, "args": tool_args})
             if denial:
                 tool_result = denial
@@ -702,6 +730,27 @@ Be concise and effective."""
 # ── helper ────────────────────────────────────────────────────────────────
 
 
+def _tool_allowed(
+    tool_name: str, sub_task: dict[str, Any], definition: Any | None = None
+) -> bool:
+    """Enforce the per-run allowlist on both native and text-protocol calls.
+
+    ``tool_pack="auto"`` keeps the legacy behaviour: any tier-appropriate tool
+    may run even if it was not explicitly listed, so existing agents do not
+    regress. Explicit packs and explicit tool lists are honoured strictly.
+    """
+    tools = sub_task.get("tools")
+    if not tools:
+        return True
+    if tool_name in tools:
+        return True
+    if tool_name in {"ask_agent", "post_to_team", "read_team_notes"}:
+        return True
+    if definition is not None and str(getattr(definition, "tool_pack", "auto")) == "auto":
+        return True
+    return False
+
+
 def _execute_tool(
     agent_id: int,
     tool_name: str,
@@ -723,6 +772,17 @@ def _execute_tool(
             on_step(f"Tool: {tool_name}")
 
     _emit_event(event_cb, "agent:tool_call", {"tool": tool_name, "args": tool_args})
+
+    if not _tool_allowed(tool_name, sub_task, definition):
+        tool_result = (
+            f"Access denied: tool '{tool_name}' is not in this agent's tool allowlist."
+        )
+        _emit_event(
+            event_cb,
+            "agent:tool_result",
+            {"tool": tool_name, "result": tool_result[:600]},
+        )
+        return tool_result
 
     denial = _gate_tool(
         tool_name,

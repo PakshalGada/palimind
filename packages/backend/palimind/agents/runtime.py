@@ -41,6 +41,21 @@ class RunningAgent:
         self.approval_event = asyncio.Event()
         self.approval_result: dict | None = None
         self.pending: dict | None = None
+        self.paused = threading.Event()
+        self._steer: list[str] = []
+        self._steer_lock = threading.Lock()
+
+    def push_steer(self, text: str) -> None:
+        text = str(text or "").strip()
+        if not text:
+            return
+        with self._steer_lock:
+            self._steer.append(text)
+
+    def drain_steer(self) -> list[str]:
+        with self._steer_lock:
+            items, self._steer = self._steer, []
+        return items
 
 
 # agent_id -> run_id -> RunningAgent (true N concurrent runs)
@@ -107,6 +122,45 @@ def cancel_agent(agent_id: str, run_id: str | None = None) -> int:
             ra.task.cancel()
             cancelled += 1
     return cancelled
+
+
+def steer_agent(agent_id: str, text: str, run_id: str | None = None) -> bool:
+    """Queue guidance for a running agent. It is injected on the next step."""
+    runs = _running.get(agent_id) or {}
+    if not runs:
+        return False
+    ra = runs.get(run_id) if run_id else next(reversed(list(runs.values())))
+    if ra is None:
+        return False
+    ra.push_steer(text)
+    return True
+
+
+def pause_agent(agent_id: str, run_id: str | None = None) -> bool:
+    runs = _running.get(agent_id) or {}
+    if not runs:
+        return False
+    ra = runs.get(run_id) if run_id else next(reversed(list(runs.values())))
+    if ra is None:
+        return False
+    ra.paused.set()
+    return True
+
+
+def resume_agent(agent_id: str, run_id: str | None = None) -> bool:
+    runs = _running.get(agent_id) or {}
+    if not runs:
+        return False
+    ra = runs.get(run_id) if run_id else next(reversed(list(runs.values())))
+    if ra is None:
+        return False
+    ra.paused.clear()
+    return True
+
+
+def is_paused(agent_id: str) -> bool:
+    ra = get_running(agent_id)
+    return bool(ra and ra.paused.is_set())
 
 
 async def resolve_approval(
@@ -281,9 +335,21 @@ def get_run(agent_id: str, run_id: str) -> dict | None:
 # ── human-in-the-loop bridge ──────────────────────────────────────────────
 
 
+def _tool_tier(tool_name: str) -> int:
+    try:
+        from palimind.llm.mixture_of_expert.tools import TOOL_REGISTRY, _register_plugin_tools
+
+        _register_plugin_tools()
+        return int((TOOL_REGISTRY.get(tool_name, {}).get("meta") or {}).get("tier", 0))
+    except Exception:
+        return 0
+
+
 def _make_approval_provider(
     ra: RunningAgent,
     emit_async: Callable[[str, dict], Awaitable[None]] | None,
+    definition: AgentDefinition | None = None,
+    team_id: str = "",
 ) -> Callable[[dict], dict]:
     """Return a blocking approval callback suitable for the sync tool layer.
 
@@ -319,7 +385,24 @@ def _make_approval_provider(
                 pending.get("args"),
                 float(pending.get("confidence", 0.0) or 0.0),
                 str(pending.get("reasoning", "")),
+                agent_label=str(getattr(definition, "label", "") or ""),
+                team_id=team_id,
+                tier=_tool_tier(str(pending.get("tool", ""))),
             )
+            if team_id:
+                try:
+                    from palimind.agents import team_chat
+
+                    team_chat.append_message(
+                        team_id,
+                        "approval",
+                        f"{pending.get('tool')} needs approval: {pending.get('args')}",
+                        author=f"agent:{ra.agent_id}",
+                        run_id=ra.run_id,
+                        meta={"tool": pending.get("tool"), "status": "waiting"},
+                    )
+                except Exception:
+                    pass
             await ra.approval_event.wait()
             result = ra.approval_result or {"approved": False}
             approvals.remove(ra.agent_id, ra.run_id)
@@ -597,6 +680,10 @@ async def run_with_definition(
     emit: Callable[[str, dict], Awaitable[None]] | None = None,
     calling_root: Path | None = None,
     interactive: bool = True,
+    *,
+    team_context: dict[str, Any] | None = None,
+    extra_tools: list[str] | None = None,
+    extra_prompt: str = "",
 ) -> str:
     """Run an agent from its definition.
 
@@ -662,7 +749,17 @@ async def run_with_definition(
         if emit is not None:
             await emit("agent:completed", {"output": output, "status": status})
 
-    approval_provider = _make_approval_provider(ra, emit) if interactive else None
+    team_ctx = dict(team_context or {})
+    approval_provider = (
+        _make_approval_provider(
+            ra,
+            emit,
+            definition,
+            team_id=str(team_ctx.get("team_id") or ""),
+        )
+        if interactive
+        else None
+    )
 
     chat_model, ollama_url, light_model = _field_models(calling_root)
     requested_model = definition.model or chat_model or "llama3"
@@ -690,6 +787,11 @@ async def run_with_definition(
         session_id=session_id,
         write_access=bool(definition.write_access),
         allow_network=False,
+        team_id=str(team_ctx.get("team_id") or ""),
+        team_run_id=str(team_ctx.get("team_run_id") or ""),
+        team_emit=team_ctx.get("team_emit"),
+        team_loop=team_ctx.get("team_loop"),
+        delegate_depth=int(team_ctx.get("delegate_depth", 0) or 0),
     )
 
     # ── Phase 4.1: adaptive reasoning effort ─────────────────────────────
@@ -749,8 +851,40 @@ async def run_with_definition(
     if context_block:
         custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + context_block
 
+    from palimind.agents.workspace import workspace_context_block
+
+    ws_block = workspace_context_block(definition)
+    if ws_block:
+        custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + ws_block
+    if extra_prompt:
+        custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + extra_prompt
+    custom_prompt = (
+        (custom_prompt.rstrip() + "\n\n" if custom_prompt else "")
+        + "[HOW TO WORK]\n"
+        "Plan → act → verify → deliver. Use a tool instead of guessing. "
+        "Cite sources when you research. Write requested deliverables to your "
+        "workspace with write_file. Read tool errors, adjust once, then continue. "
+        "Stop when the success criteria are met and always finish with FINAL_ANSWER."
+    )
+
     # Attached skills can extend the agent's tool allowlist.
-    effective_tools = list(dict.fromkeys([*definition.tools, *skill_tools(definition.skills)]))
+    from palimind.agents.catalog import resolve_tool_pack
+
+    pack_tools = (
+        resolve_tool_pack(definition.tool_pack)
+        if str(definition.tool_pack or "auto") not in ("auto", "custom")
+        else []
+    )
+    effective_tools = list(
+        dict.fromkeys(
+            [
+                *definition.tools,
+                *pack_tools,
+                *skill_tools(definition.skills),
+                *(extra_tools or []),
+            ]
+        )
+    )
     sub_task: dict[str, Any] = {
         "agent_id": _stable_agent_int(definition.id),
         "label": definition.name,
@@ -853,6 +987,7 @@ async def run_with_definition(
                         token_stream=True,
                         reflect=False,
                         usage_cb=_usage_cb,
+                        run_control=ra,
                     )
             except asyncio.CancelledError:
                 status = "cancelled"
