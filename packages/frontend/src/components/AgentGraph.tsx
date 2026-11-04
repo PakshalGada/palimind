@@ -31,7 +31,8 @@ export default function AgentGraph() {
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [synthesis, setSynthesis] = useState('');
   const [conflicts, setConflicts] = useState(0);
-  const abortRef = useRef(false);
+  // Incremented per run and on Stop; events from a superseded stream are ignored.
+  const runIdRef = useRef(0);
 
   useEffect(() => {
     const onOpen = () => setOpen(true);
@@ -69,7 +70,7 @@ export default function AgentGraph() {
       addToast('Describe the task to orchestrate.');
       return;
     }
-    abortRef.current = false;
+    const runId = ++runIdRef.current;
     setNodes([]);
     setSynthesis('');
     setConflicts(0);
@@ -79,7 +80,7 @@ export default function AgentGraph() {
         selectedAgentId,
         task.trim(),
         (ev) => {
-          if (abortRef.current) return;
+          if (runIdRef.current !== runId) return;
           if (ev.type === 'orchestrator:plan') {
             const agents = (ev.agents as { agent_id: number; label: string; task: string }[]) || [];
             setNodes(
@@ -120,13 +121,13 @@ export default function AgentGraph() {
         { mode, num_agents: numAgents },
       );
     } catch (e) {
-      addToast(e instanceof Error ? e.message : String(e));
+      if (runIdRef.current === runId) addToast(e instanceof Error ? e.message : String(e));
     }
-    setRunning(false);
+    if (runIdRef.current === runId) setRunning(false);
   };
 
   const stop = () => {
-    abortRef.current = true;
+    runIdRef.current += 1;
     setRunning(false);
   };
 

@@ -14,7 +14,6 @@ export default function NewTeamModal({
   onCreated: (team?: Team) => void;
 }) {
   const [agents, setAgents] = useState<AgentListItem[]>([]);
-  const [name, setName] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
   const [mode, setMode] = useState<TeamMode>('manager');
@@ -26,7 +25,6 @@ export default function NewTeamModal({
 
   useEffect(() => {
     if (!open) return;
-    setName('');
     setDisplayName('');
     setDescription('');
     setMode('manager');
@@ -42,12 +40,12 @@ export default function NewTeamModal({
 
   const handle = useMemo(
     () =>
-      name
+      displayName
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
         .slice(0, 64),
-    [name],
+    [displayName],
   );
 
   const toggle = (id: string) => {

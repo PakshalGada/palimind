@@ -194,7 +194,8 @@ export default function AgentsHome() {
   };
 
   const send = async () => {
-    if (!prompt.trim() || !target) return;
+    // ⌘↵ bypasses the disabled Send button, so guard against double sends here.
+    if (busy || !prompt.trim() || !target) return;
     const [kind, id] = target.split(':');
     setBusy(true);
     try {

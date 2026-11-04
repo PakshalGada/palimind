@@ -73,7 +73,8 @@ export default function RunsView() {
   };
 
   const toggleRoutine = async (routine: Routine) => {
-    await api.routines.update(routine.id, { enabled: !routine.enabled });
+    const res = await api.routines.update(routine.id, { enabled: !routine.enabled });
+    if (res.error) addToast(res.error, { tone: 'error' });
     void refresh();
   };
 

@@ -167,6 +167,9 @@ export default function AgentOnboarding({
       name: handle,
       display_name: displayName,
       system_prompt: composeSystemPrompt(draft),
+      // Without a schema version the backend treats the body as a legacy
+      // definition and resets autonomy_level / memory_mode to defaults.
+      schema_version: draft.schema_version ?? 3,
       tool_pack: chosenPack,
     };
     try {

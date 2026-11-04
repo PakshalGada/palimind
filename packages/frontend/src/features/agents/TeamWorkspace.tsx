@@ -79,7 +79,8 @@ export default function TeamWorkspace({
   }, [messages]);
 
   const send = async () => {
-    if (!prompt.trim()) return;
+    // ⌘↵ bypasses the disabled Run button, so guard against a second run here.
+    if (busy || !prompt.trim()) return;
     const text = prompt.trim();
     setPrompt('');
     setBusy(true);

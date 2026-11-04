@@ -277,6 +277,9 @@ export default function AgentWizard({
       name: handle,
       display_name: displayName,
       system_prompt: composeSystemPrompt(draft),
+      // Without a schema version the backend treats the body as a legacy
+      // definition and resets autonomy_level / memory_mode to defaults.
+      schema_version: draft.schema_version ?? 3,
       knowledge_scope: scope,
       schedule: runMode === 'scheduled' ? draft.schedule || null : null,
       watcher_pattern: runMode === 'watcher' ? draft.watcher_pattern || null : null,

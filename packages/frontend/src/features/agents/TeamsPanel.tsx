@@ -42,7 +42,7 @@ export default function TeamsPanel() {
   }, [setSelectedTeamId]);
 
   if (selectedTeamId) {
-    return <TeamWorkspace teamId={selectedTeamId} onBack={() => setSelectedTeamId(null)} />;
+    return <TeamWorkspace key={selectedTeamId} teamId={selectedTeamId} onBack={() => setSelectedTeamId(null)} />;
   }
 
   return (

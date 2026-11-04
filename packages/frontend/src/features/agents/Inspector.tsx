@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -178,6 +178,7 @@ export default function Inspector({
   const [openTrace, setOpenTrace] = useState<string | null>(null);
   const [traceData, setTraceData] = useState<AgentReasoningEvent[]>([]);
   const [traceLoading, setTraceLoading] = useState(false);
+  const traceReqRef = useRef<string | null>(null);
 
   // Reset only when switching agents; refreshes of the same agent keep edits.
   useEffect(() => {
@@ -193,7 +194,11 @@ export default function Inspector({
   const loadMemory = useCallback(
     async (page: number) => {
       try {
-        const data = await api.agents.memory(agent.id, page, PAGE_SIZE);
+        let data = await api.agents.memory(agent.id, page, PAGE_SIZE);
+        // Deleting the last entry on the last page leaves that page empty.
+        if (data.entries.length === 0 && data.total > 0 && page > 1) {
+          data = await api.agents.memory(agent.id, Math.ceil(data.total / PAGE_SIZE), PAGE_SIZE);
+        }
         setMemory(data.entries);
         setMemTotal(data.total);
         setMemPage(data.page);
@@ -504,18 +509,24 @@ export default function Inspector({
 
   const loadTrace = async (runId: string) => {
     if (openTrace === runId) {
+      traceReqRef.current = null;
       setOpenTrace(null);
       return;
     }
+    traceReqRef.current = runId;
     setOpenTrace(runId);
     setTraceLoading(true);
     setTraceData([]);
+    let trace: AgentReasoningEvent[] = [];
     try {
       const rec = await api.agents.run(agent.id, runId);
-      setTraceData(rec.trace || []);
+      trace = rec.trace || [];
     } catch {
-      setTraceData([]);
+      trace = [];
     }
+    // A slower response for a previously opened run must not overwrite this one.
+    if (traceReqRef.current !== runId) return;
+    setTraceData(trace);
     setTraceLoading(false);
   };
 

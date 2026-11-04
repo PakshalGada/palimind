@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { createBot } from '../vendor/bots/index.js';
+import { createBot, DEFAULTS } from '../vendor/bots/index.js';
 import type { BotAvatarConfig, BotState } from '../bots/config';
 
 /**
@@ -21,6 +21,7 @@ export default function BotAvatarCanvas({
 }) {
   const hostRef = useRef<HTMLSpanElement>(null);
   const botRef = useRef<ReturnType<typeof createBot> | null>(null);
+  const prevConfigRef = useRef<BotAvatarConfig>(config);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -36,7 +37,14 @@ export default function BotAvatarCanvas({
   }, []);
 
   useEffect(() => {
-    botRef.current?.set({ ...config, size, state, interactive, paused });
+    // `set()` merges into the previous options, so keys dropped from the new
+    // config (e.g. a preset without a hat) must be reset explicitly.
+    const cleared: Record<string, unknown> = {};
+    for (const key of Object.keys(prevConfigRef.current)) {
+      if (!(key in config)) cleared[key] = (DEFAULTS as Record<string, unknown>)[key];
+    }
+    prevConfigRef.current = config;
+    botRef.current?.set({ ...cleared, ...config, size, state, interactive, paused });
   }, [config, size, state, interactive, paused]);
 
   return (
