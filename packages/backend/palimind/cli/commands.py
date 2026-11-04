@@ -232,13 +232,44 @@ def ui(
             s.settimeout(0.25)
             return s.connect_ex(("127.0.0.1", p)) == 0
 
-    def wait_port(p: int, timeout: float) -> bool:
+    def wait_port(p: int, timeout: float, proc: subprocess.Popen | None = None) -> bool:
         deadline = time.time() + timeout
         while time.time() < deadline:
             if port_up(p):
                 return True
+            if proc is not None and proc.poll() is not None:
+                return False  # the server crashed on startup; don't wait out the timeout
             time.sleep(0.4)
         return False
+
+    def stop_tree(proc: subprocess.Popen) -> None:
+        """Stop *proc* and its children (``ollama serve`` spawns model runners).
+
+        ``Popen.terminate()`` alone only signals the direct child: on Windows
+        TerminateProcess never reaches the runners, which kept holding RAM/VRAM
+        after the app closed.
+        """
+        if proc.poll() is not None:
+            return
+        try:
+            if os.name == "nt":
+                subprocess.run(
+                    ["taskkill", "/T", "/F", "/PID", str(proc.pid)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                )
+            else:
+                import signal
+
+                # spawn() used start_new_session, so the pid is the group id.
+                os.killpg(proc.pid, signal.SIGTERM)
+        except (OSError, ProcessLookupError):
+            proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
 
     def spawn(cmd: list[str], **kw) -> subprocess.Popen:
         kwargs = {"cwd": str(root_dir), "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
@@ -312,7 +343,7 @@ def ui(
             if ollama_bin:
                 print_info("Starting Ollama server...")
                 ollama_proc = spawn([ollama_bin, "serve"])
-                if wait_port(11434, 20):
+                if wait_port(11434, 20, ollama_proc):
                     print_success("Ollama running on :11434")
                 else:
                     print_warning("Ollama did not respond on :11434 yet — continuing")
@@ -336,7 +367,7 @@ def ui(
                     str(port),
                 ],
             )
-            if not wait_port(port, 60):
+            if not wait_port(port, 60, backend_proc):
                 print_error(f"API server failed to start on :{port}")
                 raise typer.Exit(1)
             print_success(f"API server running on :{port} ({SERVER_HOST})")
@@ -367,10 +398,10 @@ def ui(
     finally:
         if not keep_backend:
             if backend_proc is not None:
-                backend_proc.terminate()
+                stop_tree(backend_proc)
                 print_info("API server stopped.")
             if ollama_proc is not None:
-                ollama_proc.terminate()
+                stop_tree(ollama_proc)
                 print_info("Ollama stopped.")
 
 
@@ -469,17 +500,16 @@ def hotkey(
                 status["done"] = True
 
             manager.event_callback = on_event
-            manager._on_hotkey_pressed(sync=True)
+            # Synchronous: the capture has fully finished when this returns.
+            # (Polling afterwards only stalled for 60s when nothing was
+            # captured, e.g. an empty clipboard.)
+            event = manager._on_hotkey_pressed(sync=True)
+            if event is None and not status["done"]:
+                print_warning("Nothing captured — copy some text and make sure a field is set.")
+                raise typer.Exit(1)
 
-            # Keep alive until flow finishes
-            with create_spinner() as spinner:
-                spinner.add_task("Waiting for capture to complete...", total=None)
-                import time
-
-                for _ in range(600):  # Wait up to 60 seconds
-                    if status["done"]:
-                        break
-                    time.sleep(0.1)
+        except typer.Exit:
+            raise
 
         except Exception as e:
             print_error(f"Error triggering hotkey: {e}")

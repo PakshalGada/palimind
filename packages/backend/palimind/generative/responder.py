@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
+import threading
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
 
 import httpx
@@ -12,6 +14,13 @@ from palimind.exceptions import ImageEncodeError, ResponseError
 from palimind.opencode.client import proxy_auth_headers
 
 _MIN_CTX = 2048  # Ollama's default window when num_ctx is not set
+# Room left for the reply (incl. hidden reasoning tokens). Without it a long
+# answer overflows the window and Ollama's context shift evicts the prompt
+# head (system prompt + top-ranked context) mid-generation.
+_RESPONSE_RESERVE = 4096
+# Round the window up to a multiple of this so small prompt-length changes do
+# not produce a new num_ctx (and a full model reload in Ollama) every request.
+_CTX_STEP = 2048
 
 
 def _effective_num_ctx(messages: list[dict], configured: int | None) -> int:
@@ -25,7 +34,8 @@ def _effective_num_ctx(messages: list[dict], configured: int | None) -> int:
     """
     if not messages:
         return _MIN_CTX
-    est = sum(len(m.get("content") or "") // 3 for m in messages) + 512
+    est = sum(len(m.get("content") or "") // 3 for m in messages) + _RESPONSE_RESERVE
+    est = -(-est // _CTX_STEP) * _CTX_STEP
     if configured and configured > 0:
         return max(_MIN_CTX, min(est, configured))
     return max(_MIN_CTX, est)
@@ -136,6 +146,15 @@ def generate_response_stream(
                 with client.stream(
                     "POST", url, json=payload, headers=proxy_auth_headers(url)
                 ) as response:
+                    if 400 <= response.status_code < 500:
+                        # Permanent (e.g. model not found): surface Ollama's
+                        # error body instead of a bare "Client error '404'".
+                        from palimind.llm.mixture_of_expert.llm import _http_error_message
+
+                        response.read()
+                        raise ResponseError(
+                            _http_error_message(response.status_code, response.text, chat_model)
+                        )
                     response.raise_for_status()
                     for line in response.iter_lines():
                         if not line:
@@ -149,8 +168,13 @@ def generate_response_stream(
                             emitted = True
                             yield content
                         if on_reasoning is not None:
-                            reasoning = message.get("reasoning")
+                            # Ollama's native API streams chain-of-thought as
+                            # ``thinking``; OpenAI-style proxies use ``reasoning``.
+                            reasoning = message.get("thinking") or message.get("reasoning")
                             if reasoning:
+                                # Already delivered to the caller: a retry would
+                                # replay (duplicate) the reasoning text.
+                                emitted = True
                                 on_reasoning(reasoning)
             return
         except ResponseError:
@@ -178,7 +202,12 @@ def generate_response_stream(
                     raise ResponseError(f"Failed to generate response: {fe}") from fe
                 if data.get("error"):
                     raise ResponseError(f"LLM error: {data['error']}")
-                content = (data.get("message") or {}).get("content")
+                message = data.get("message") or {}
+                if on_reasoning is not None:
+                    reasoning = message.get("thinking") or message.get("reasoning")
+                    if reasoning:
+                        on_reasoning(reasoning)
+                content = message.get("content")
                 if content:
                     yield content
                 return
@@ -187,6 +216,58 @@ def generate_response_stream(
             raise ResponseError(f"Failed to generate response: {e}") from e
         except json.JSONDecodeError as e:
             raise ResponseError(f"Invalid response from Ollama: {e}") from e
+
+
+async def aiter_stream(stream: Iterator[str]) -> AsyncIterator[str]:
+    """Consume a blocking token iterator from a worker thread.
+
+    Iterating ``generate_response_stream`` directly inside an ``async``
+    generator blocks the event loop on every socket read, freezing every other
+    request for the whole generation. When the consumer stops early (client
+    disconnect, ``aclose``), the worker stops pulling tokens and closes the
+    iterator in its own thread, which closes the Ollama connection so the
+    model stops generating.
+    """
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue = asyncio.Queue()
+    stop = threading.Event()
+    end = object()
+
+    def _put(item: tuple) -> None:
+        try:
+            loop.call_soon_threadsafe(queue.put_nowait, item)
+        except RuntimeError:  # event loop already closed
+            pass
+
+    def _pump() -> None:
+        try:
+            for token in stream:
+                if stop.is_set():
+                    break
+                _put((None, token))
+        except Exception as e:  # noqa: BLE001 - re-raised in the consumer
+            _put((e, None))
+            return
+        finally:
+            close = getattr(stream, "close", None)
+            if close is not None:
+                try:
+                    close()
+                except Exception:  # noqa: BLE001
+                    pass
+        _put((None, end))
+
+    threading.Thread(target=_pump, name="llm-stream", daemon=True).start()
+    try:
+        while True:
+            err, token = await queue.get()
+            if err is not None:
+                raise err
+            if token is end:
+                return
+            yield token
+    finally:
+        stop.set()
 
 
 def generate_response(stream: Iterator[str]) -> str:

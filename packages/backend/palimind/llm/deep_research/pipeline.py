@@ -452,24 +452,27 @@ async def run_deep_research_pipeline(
 
         agent_usage: dict[str, int] = {}
 
-        async with semaphore:
-            output = await asyncio.to_thread(
-                run_agent,
-                subtopic_id,
-                {
-                    "agent_id": subtopic_id,
-                    "label": title,
-                    "task": f"Research question: {research_question}\nSearch queries: {', '.join(search_queries)}",
-                    "tools": ["web_search", "fetch_url", "x_search"],
-                    "context": user_query,
-                },
-                worker_model,
-                worker_url or ollama_url,
-                min(DR_MAX_AGENT_ITERATIONS, DR_MAX_STEPS),
-                on_step_callback,
-                briefing=briefing,
-                usage_cb=agent_usage.update,
-            )
+        try:
+            async with semaphore:
+                output = await asyncio.to_thread(
+                    run_agent,
+                    subtopic_id,
+                    {
+                        "agent_id": subtopic_id,
+                        "label": title,
+                        "task": f"Research question: {research_question}\nSearch queries: {', '.join(search_queries)}",
+                        "tools": ["web_search", "fetch_url", "x_search"],
+                        "context": user_query,
+                    },
+                    worker_model,
+                    worker_url or ollama_url,
+                    min(DR_MAX_AGENT_ITERATIONS, DR_MAX_STEPS),
+                    on_step_callback,
+                    briefing=briefing,
+                    usage_cb=agent_usage.update,
+                )
+        except Exception as e:  # noqa: BLE001 - one failing agent must not sink the run
+            output = f"[Agent {subtopic_id} error: {e}]"
         if agent_usage:
             usage[f"agent_{subtopic_id}"] = dict(agent_usage)
 
@@ -553,8 +556,11 @@ async def run_deep_research_pipeline(
                 error_prefix="[deep-synthesis error",
             )
             _capture("synthesis_refine", refined_result)
-            if refined_result["content"]:
-                synthesis = refined_result["content"]
+            refined = refined_result["content"]
+            # A failed refine returns its error text as content; keep the
+            # good first-pass report instead of replacing it with that.
+            if refined and not refined.startswith("[deep-synthesis error"):
+                synthesis = refined
 
     timings["total"] = time.monotonic() - t_start
 
@@ -588,7 +594,7 @@ async def run_deep_research_pipeline(
 
 
 def _needs_refinement(critique: dict[str, Any]) -> bool:
-    if not critique:
+    if not critique or not isinstance(critique, dict):
         return False
     if critique.get("answers_query") is False:
         return True

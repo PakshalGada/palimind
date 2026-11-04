@@ -123,6 +123,8 @@ def llm_chat(
     except json.JSONDecodeError as e:
         raise LLMError(f"Invalid LLM response: {e}") from e
 
+    if isinstance(data, dict) and data.get("error"):
+        raise LLMError(f"LLM error: {data['error']}")
     message = data.get("message", {}) or {}
     content = message.get("content", "") or ""
 
@@ -151,6 +153,9 @@ def _normalize_tool_calls(message: dict[str, Any]) -> list[dict[str, Any]]:
                 args = json.loads(args)
             except json.JSONDecodeError:
                 args = {"_raw": args}
+        if args and not isinstance(args, dict):
+            # e.g. a JSON array/scalar: agents call ``.items()`` on this.
+            args = {"_raw": args}
         calls.append({"name": name, "arguments": args or {}})
     return calls
 
@@ -224,6 +229,11 @@ def llm_chat_stream(
                         data = json.loads(line)
                     except json.JSONDecodeError:
                         continue
+                    if data.get("error"):
+                        # Ollama reports mid-stream failures (model load
+                        # error, OOM, runner crash) as an ``error`` line on a
+                        # 200 response; ignoring it yields an empty answer.
+                        raise LLMError(f"LLM error: {data['error']}")
                     message = data.get("message", {}) or {}
                     delta = message.get("content") or ""
                     if delta:

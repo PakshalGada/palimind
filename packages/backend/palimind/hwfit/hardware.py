@@ -32,7 +32,9 @@ class HardwareProfile:
             "os_platform": self.os_platform,
             "wsl2_detected": self.wsl2_detected,
             "serve_engines_available": self.serve_engines_available,
-            "best_vram_mb": max((g.vram_mb for g in self.gpus), default=0),
+            "best_vram_mb": max(
+                (g.vram_mb for g in self.gpus if g.backend != "cpu"), default=0
+            ),
             "gpu_count": len(self.gpus),
         }
 

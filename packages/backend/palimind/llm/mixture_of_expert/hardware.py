@@ -55,16 +55,26 @@ def estimate_model_vram(model_name: str) -> int:
     exact = MODEL_VRAM_ESTIMATES.get(model_name)
     if exact is not None:
         return exact
+    # Ollama reports untagged models as ``name:latest`` (e.g.
+    # ``nomic-embed-text:latest``); match those to the untagged estimate.
+    if model_name.endswith(":latest"):
+        exact = MODEL_VRAM_ESTIMATES.get(model_name[: -len(":latest")])
+        if exact is not None:
+            return exact
     parts = model_name.split(":")
     if len(parts) > 1:
         size_part = parts[1]
         import re
 
-        match = re.match(r"(\d+)", size_part)
+        # Parameter count in billions: "7b", "1.5b", "e4b" (gemma effective),
+        # "14b-instruct-q4_K_M".
+        match = re.search(r"(\d+(?:\.\d+)?)b", size_part.lower())
         if match:
-            size_val = int(match.group(1))
+            size_val = float(match.group(1))
             if size_val <= 1:
                 return 768
+            elif size_val <= 2:
+                return 1024
             elif size_val <= 3:
                 return 2048
             elif size_val <= 7:

@@ -39,7 +39,7 @@ async def llm_mode_stream(
 
     async def plain_stream():
         from palimind.config import load_config
-        from palimind.generative.responder import generate_response_stream
+        from palimind.generative.responder import aiter_stream, generate_response_stream
         from palimind.memory.hierarchical import format_hierarchical_memory_context
 
         if active_sess_id:
@@ -82,15 +82,27 @@ async def llm_mode_stream(
                 num_ctx=num_ctx,
                 on_reasoning=on_reasoning,
             )
-            emitted_thinking = False
-            for token in stream:
-                if not emitted_thinking and reasoning_parts:
-                    yield (
-                        f"data: {json.dumps({'type': 'thinking', 'text': ''.join(reasoning_parts)})}\n\n"
-                    )
-                    emitted_thinking = True
+            # The frontend appends every ``thinking`` event, so only send the
+            # reasoning that has not been sent yet (and flush any trailing
+            # reasoning when the model produced no answer tokens after it).
+            thinking_sent = 0
+
+            def pending_thinking() -> str | None:
+                nonlocal thinking_sent
+                if len(reasoning_parts) <= thinking_sent:
+                    return None
+                upto = len(reasoning_parts)
+                text = "".join(reasoning_parts[thinking_sent:upto])
+                thinking_sent = upto
+                return f"data: {json.dumps({'type': 'thinking', 'text': text})}\n\n"
+
+            async for token in aiter_stream(stream):
+                if (sse := pending_thinking()) is not None:
+                    yield sse
                 full_text += token
                 yield (f"data: {json.dumps({'type': 'token', 'text': token})}\n\n")
+            if (sse := pending_thinking()) is not None:
+                yield sse
         except Exception as e:
             err_msg = f"Generation error: {str(e)}"
             if not full_text:
@@ -317,6 +329,11 @@ async def moe_mode_stream(
                 full_text = f"**Error:** {err_msg}"
             yield f"data: {json.dumps({'type': 'error', 'text': err_msg})}\n\n"
         finally:
+            # Client disconnected (or the stream errored) before the pipeline
+            # finished: stop it instead of letting agents run to completion
+            # for nobody.
+            if not pipeline_task.done():
+                pipeline_task.cancel()
             if active_sess_id and full_text:
                 await asyncio.to_thread(
                     append_message_to_session,
@@ -402,6 +419,9 @@ async def deep_research_mode_stream(
             except TimeoutError:
                 discard_plan(pending.plan_id)
                 return plan
+            except asyncio.CancelledError:
+                discard_plan(pending.plan_id)
+                raise
             current = get_pending_plan(pending.plan_id)
             discard_plan(pending.plan_id)
             if current is None or current.cancelled:
@@ -506,6 +526,10 @@ async def deep_research_mode_stream(
                 full_text = f"**Error:** {err_msg}"
             yield f"data: {json.dumps({'type': 'error', 'text': err_msg})}\n\n"
         finally:
+            # Client disconnected (e.g. while the plan awaited review): stop
+            # the pipeline instead of running the whole research unattended.
+            if not pipeline_task.done():
+                pipeline_task.cancel()
             if active_sess_id and full_text:
                 await asyncio.to_thread(
                     append_message_to_session,

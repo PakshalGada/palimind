@@ -51,7 +51,15 @@ def _download(url: str, dest: Path, label: str) -> None:
         else:
             setup_status.update("tts", message=f"Downloading {label}…")
 
-    urllib.request.urlretrieve(url, str(dest), reporthook=hook)
+    # Download to a temp file and rename on success: an interrupted download
+    # left a truncated (>1 KB) file at ``dest`` that passed the existence
+    # check forever, so Kokoro failed to load on every later request.
+    tmp = dest.with_name(dest.name + ".part")
+    try:
+        urllib.request.urlretrieve(url, str(tmp), reporthook=hook)
+        tmp.replace(dest)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def get_tts():

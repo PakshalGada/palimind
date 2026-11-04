@@ -89,6 +89,8 @@ def route_query(
         parsed = json.loads(result["content"])
     except (json.JSONDecodeError, TypeError):
         return prior
+    if not isinstance(parsed, dict):
+        return prior
 
     route = dict(prior)
     for key in route:
@@ -178,6 +180,12 @@ def _default_plan(query: str, route: dict[str, Any], num_workers: int) -> list[d
     return plan[:num_workers]
 
 
+def _with_tag(model: str) -> str:
+    """Normalize an Ollama model name: ``qwen3`` and ``qwen3:latest`` are the same."""
+    model = model.strip()
+    return model if ":" in model.rsplit("/", 1)[-1] else f"{model}:latest"
+
+
 def _model_is_loaded(ollama_url: str, model: str) -> bool:
     """Return True when *model* is currently resident in Ollama (/api/ps)."""
     import httpx
@@ -189,7 +197,11 @@ def _model_is_loaded(ollama_url: str, model: str) -> bool:
         if resp.status_code != 200:
             return False
         data = resp.json()
-        return any(m.get("model") == model for m in data.get("models", []))
+        want = _with_tag(model)
+        return any(
+            _with_tag(str(m.get("model") or m.get("name") or "")) == want
+            for m in data.get("models", [])
+        )
     except Exception:
         return False
 
@@ -223,7 +235,7 @@ def _max_concurrency(num_workers: int, ollama_url: str = "", worker_model: str =
 
 
 def _needs_refinement(critique: dict[str, Any]) -> bool:
-    if not critique:
+    if not critique or not isinstance(critique, dict):
         return False
     if critique.get("answers_query") is False:
         return True
@@ -433,18 +445,21 @@ async def run_moe_pipeline(
 
         agent_usage: dict[str, int] = {}
 
-        async with semaphore:
-            output = await asyncio.to_thread(
-                run_agent,
-                agent_id,
-                sub_task,
-                worker_model,
-                worker_url or ollama_url,
-                None,  # adaptive per-agent budget
-                on_step_callback,
-                briefing=briefing,
-                usage_cb=agent_usage.update,
-            )
+        try:
+            async with semaphore:
+                output = await asyncio.to_thread(
+                    run_agent,
+                    agent_id,
+                    sub_task,
+                    worker_model,
+                    worker_url or ollama_url,
+                    None,  # adaptive per-agent budget
+                    on_step_callback,
+                    briefing=briefing,
+                    usage_cb=agent_usage.update,
+                )
+        except Exception as e:  # noqa: BLE001 - one failing worker must not sink the run
+            output = f"[Agent {agent_id} error: {e}]"
         if agent_usage:
             usage[f"agent_{agent_id}"] = dict(agent_usage)
 
@@ -533,8 +548,11 @@ async def run_moe_pipeline(
                 error_prefix="[synthesis error",
             )
             _capture("synthesis_refine", refined_result)
-            if refined_result["content"]:
-                synthesis = refined_result["content"]
+            refined = refined_result["content"]
+            # A failed refine returns its error text as content; keep the
+            # good first-pass synthesis instead of replacing it with that.
+            if refined and not refined.startswith("[synthesis error"):
+                synthesis = refined
 
     timings["total"] = time.monotonic() - t_start
     await emit({"type": "complete"})

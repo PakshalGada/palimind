@@ -26,7 +26,9 @@ def compute_fit(vram_mb: int, ram_mb: int, quant_vram: int) -> tuple[str, float]
 
 
 def rank_models(hardware, catalog: list[dict], top: int = 20) -> list[dict]:
-    best_vram = max((g.vram_mb for g in hardware.gpus), default=0)
+    # backend="cpu" adapters (Intel iGPUs) report shared AdapterRAM but run
+    # inference on the CPU: they must not count as GPU VRAM.
+    best_vram = max((g.vram_mb for g in hardware.gpus if g.backend != "cpu"), default=0)
     ram = hardware.total_ram_mb
     results = []
 
