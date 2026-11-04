@@ -354,13 +354,38 @@ async def delete_routine(routine_id: str):
 
 @router.post("/routines/{routine_id}/run")
 async def run_routine(routine_id: str):
-    try:
-        run_id = await routines.run_routine(routine_id)
-        return {"status": "started", "run_id": run_id}
-    except KeyError as exc:
-        return {"error": str(exc)}
-    except Exception as exc:  # noqa: BLE001
-        return {"error": str(exc)}
+    """Start a routine in the background and return at once.
+
+    The run can take minutes, so the request no longer waits for it; the
+    outcome is reported through the routine's last_status and a notification
+    (same as scheduled routine runs). Missing routine/target is still
+    reported synchronously as ``{"error": ...}``.
+    """
+    routine = routines.get_routine(routine_id)
+    if routine is None:
+        return {"error": "Routine not found"}
+    target_type = str(routine.get("target_type") or "agent")
+    target_id = str(routine.get("target_id") or "")
+    if target_type == "team":
+        if teams.get_team(target_id) is None:
+            return {"error": "Team not found"}
+    elif get_registry().get_by_id(target_id) is None:
+        return {"error": "Agent not found"}
+
+    from palimind.agents.scheduler import _spawn, post_routine_notification
+
+    async def _run() -> None:
+        try:
+            await routines.run_routine(routine_id)
+            await post_routine_notification(routine, "success")
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            print(f"[agents] routine {routine_id} failed: {exc}")
+            await post_routine_notification(routine, "error", str(exc))
+
+    _spawn(_run())
+    return {"status": "started"}
 
 
 @router.post("/runs/{run_id}/save-as-routine")

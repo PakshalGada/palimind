@@ -691,7 +691,7 @@ async def run_agent_now(agent_id: str, req: Request):
     if not defn.enabled:
         return {"error": "Agent is disabled"}
 
-    from palimind.agents.scheduler import post_result
+    from palimind.agents.scheduler import post_result, recorded_run_status
     from palimind.agents.service import run_agent as run_once
 
     from palimind.agents.runtime import running_count
@@ -710,7 +710,8 @@ async def run_agent_now(agent_id: str, req: Request):
             output = await run_once(
                 defn, agent_input, session_id="_manual", interactive=False
             )
-            await post_result(defn, output, "success", "manual")
+            status = recorded_run_status(defn.id, agent_input, output)
+            await post_result(defn, output, status, "manual")
         except asyncio.CancelledError:
             await post_result(defn, "[cancelled]", "cancelled", "manual")
             raise

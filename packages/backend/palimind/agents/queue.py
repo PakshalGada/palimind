@@ -144,9 +144,18 @@ async def _execute(item: dict[str, Any]) -> None:
             update_item(item["id"], status="queued")
             return
         try:
+            agent_input = str(item.get("input") or "")
             output = await run_agent(
-                defn, str(item.get("input") or ""), session_id=f"_queue:{item['id']}", interactive=False
+                defn, agent_input, session_id=f"_queue:{item['id']}", interactive=False
             )
+            from palimind.agents.scheduler import recorded_run_status
+
+            # run_agent returns error text instead of raising: honour the
+            # recorded run status so failed runs are not marked "done".
+            run_status = recorded_run_status(defn.id, agent_input, output)
+            if run_status != "success":
+                update_item(item["id"], status="failed", error=output[:500] or run_status)
+                return
             update_item(item["id"], status="done", error=None)
             try:
                 from palimind.agents import goals

@@ -155,10 +155,43 @@ async def post_result(defn: Any, output: str, status: str, source: str) -> None:
 # ── firing ────────────────────────────────────────────────────────────────
 
 
+def recorded_run_status(agent_id: str, input: str, output: str) -> str:
+    """Status the runtime recorded for a run that just returned ``output``.
+
+    ``run_with_definition`` reports failures as an output string instead of
+    raising, so callers must read the recorded run status (as
+    ``routines.run_routine`` does) rather than assume success. Prefers the
+    recent record matching this run's input/output (concurrent runs of the
+    same agent), then the latest record.
+    """
+    try:
+        from palimind.agents.runtime import get_run_history
+
+        history = get_run_history(agent_id, limit=20) or []
+    except Exception:
+        history = []
+    match = None
+    for rec in reversed(history):
+        if str(rec.get("output") or "") == output[:100_000] and str(
+            rec.get("input") or ""
+        ) == input[:2000]:
+            match = rec
+            break
+    if match is None and history:
+        match = history[-1]
+    status = str((match or {}).get("status") or "")
+    if status:
+        return status
+    if not output or output.startswith("[Agent run error]"):
+        return "error"
+    return "success"
+
+
 async def _fire_agent(defn: Any, input: str, source: str) -> None:
     try:
         output = await run_agent(defn, input, session_id=f"_{source}", interactive=False)
-        await post_result(defn, output, "success", source)
+        status = recorded_run_status(defn.id, input, output)
+        await post_result(defn, output, status, source)
     except asyncio.CancelledError:
         await post_result(defn, "[cancelled]", "cancelled", source)
         raise

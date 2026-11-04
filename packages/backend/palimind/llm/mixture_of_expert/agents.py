@@ -320,6 +320,20 @@ def _request_approval(
     return None
 
 
+CANCELLED_ANSWER = "[Agent run cancelled]"
+
+
+def _is_cancelled(run_control: Any | None) -> bool:
+    """True once the owning run was stopped (no-op without a run_control)."""
+    if run_control is None:
+        return False
+    flag = getattr(run_control, "cancelled", None)
+    try:
+        return bool(flag is not None and flag.is_set())
+    except Exception:
+        return False
+
+
 def run_agent(
     agent_id: int,
     sub_task: dict[str, Any],
@@ -567,6 +581,11 @@ Be concise and effective."""
         if usage_cb is not None:
             usage_cb(dict(usage))
 
+    def _cancelled_result() -> str:
+        # Stop requested: end the run without another LLM/tool call.
+        _finish_usage()
+        return CANCELLED_ANSWER
+
     full_log: list[str] = []
     recent_tool_calls: list[str] = []
     for iteration in range(max_tool_iterations):
@@ -588,6 +607,8 @@ Be concise and effective."""
                     )
             except Exception:
                 pass
+        if _is_cancelled(run_control):
+            return _cancelled_result()
         result = _call(native_tools, stream_mode="detect" if token_stream else None)
         response = result["content"]
         _emit_event(
@@ -597,6 +618,8 @@ Be concise and effective."""
         # ── 1. Native tool calls (preferred) ──────────────────────────
         if result["tool_calls"]:
             for tc in result["tool_calls"]:
+                if _is_cancelled(run_control):
+                    return _cancelled_result()
                 tool_name = tc["name"]
                 native_args = {k: v for k, v in (tc.get("arguments") or {}).items()}
                 tool_result = _execute_tool(
@@ -637,39 +660,25 @@ Be concise and effective."""
         # ── 2. Text-protocol tool call (fallback) ─────────────────────
         tool_name, tool_args = parse_tool_call(response)
         if tool_name:
-            if on_step:
-                if tool_name == "web_search":
-                    q = (tool_args or {}).get("query", sub_task.get("task", ""))
-                    on_step(f"Searching web: '{q[:60]}'")
-                else:
-                    on_step(f"Tool: {tool_name}")
-
-            denial = _gate_tool(
+            if _is_cancelled(run_control):
+                return _cancelled_result()
+            tool_args = tool_args or {}
+            # Same ordering/payloads as the native path: tool_call →
+            # allow-list → approval gate → tool_result.
+            tool_result = _execute_tool(
+                agent_id,
                 tool_name,
-                tool_args or {},
+                tool_args,
+                sub_task,
+                on_step,
+                full_log,
                 definition=definition,
                 approval_provider=approval_provider,
                 response=response,
-            )
-            if denial is None and not _tool_allowed(tool_name, sub_task, definition):
-                denial = (
-                    f"Access denied: tool '{tool_name}' is not in this agent's tool allowlist."
-                )
-            _emit_event(event_cb, "agent:tool_call", {"tool": tool_name, "args": tool_args})
-            if denial:
-                tool_result = denial
-            else:
-                tool_result = call_tool(tool_name, **(tool_args or {}))
-            _report_web_step(on_step, tool_name, tool_result)
-            _emit_event(
-                event_cb,
-                "agent:tool_result",
-                {"tool": tool_name, "result": str(tool_result)[:600]},
+                event_cb=event_cb,
             )
 
             tool_msg = f"Tool '{tool_name}' returned:\n{tool_result[:MAX_TOOL_RESULT_CHARS]}"
-            full_log.append(f"[Agent {agent_id}] Called {tool_name}: {tool_args}")
-            full_log.append(f"[Agent {agent_id}] Result: {tool_result[:200]}")
             live.append({"role": "assistant", "content": response})
             live.append({"role": "user", "content": tool_msg})
             recent_tool_calls.append(_tool_signature(tool_name, tool_args))
@@ -701,6 +710,9 @@ Be concise and effective."""
                 ),
             }
         )
+
+    if _is_cancelled(run_control):
+        return _cancelled_result()
 
     # The tool budget was used up without a FINAL_ANSWER. Run one last call
     # (no tools) that forces the model to synthesize a best-effort answer, so

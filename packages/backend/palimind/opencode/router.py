@@ -52,7 +52,14 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 _models_cache: list[dict] | None = None
 _cache_lock = threading.Lock()
-_proxy_started = False
+# The proxy process this backend spawned (None until first spawn). Tracked so
+# a proxy that died is respawned instead of being given up on forever.
+_proxy_proc: subprocess.Popen | None = None
+_proxy_lock = threading.Lock()
+_proxy_last_spawn = float("-inf")
+# Minimum seconds between spawn attempts, so a proxy that crashes on startup
+# is not respawned on every call.
+_PROXY_RESPAWN_INTERVAL = 10.0
 
 # Cache of `/api/tags` model ids per base URL, so the availability check that
 # backs :func:`resolve_model` does not add an HTTP round-trip to every chat
@@ -86,26 +93,33 @@ def ensure_proxy() -> bool:
     Non-fatal: returns True when the proxy is (now) reachable. A missing key
     or a failed spawn simply returns False.
     """
-    global _proxy_started
+    global _proxy_proc, _proxy_last_spawn
     if _proxy_alive():
         return True
     if not _key_configured():
         return False
-    if _proxy_started:
-        return False
-    _proxy_started = True
-    try:
-        log = open(str(_REPO_ROOT / ".opencode-proxy.log"), "ab")
-        subprocess.Popen(
-            [sys.executable, "-m", "palimind.opencode_proxy"],
-            cwd=str(_REPO_ROOT),
-            stdin=subprocess.DEVNULL,
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-        )
-    except Exception as e:
-        print(f"[opencode] failed to start proxy: {e}")
+    with _proxy_lock:
+        if _proxy_proc is not None and _proxy_proc.poll() is None:
+            # Our proxy is still running (likely still starting up).
+            return False
+        if time.monotonic() - _proxy_last_spawn < _PROXY_RESPAWN_INTERVAL:
+            return False
+        if _proxy_proc is not None:
+            print(f"[opencode] proxy exited (code {_proxy_proc.returncode}); respawning")
+        _proxy_proc = None
+        _proxy_last_spawn = time.monotonic()
+        try:
+            with open(str(_REPO_ROOT / ".opencode-proxy.log"), "ab") as log:
+                _proxy_proc = subprocess.Popen(
+                    [sys.executable, "-m", "palimind.opencode_proxy"],
+                    cwd=str(_REPO_ROOT),
+                    stdin=subprocess.DEVNULL,
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
+        except Exception as e:
+            print(f"[opencode] failed to start proxy: {e}")
     return False
 
 
