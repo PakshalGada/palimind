@@ -157,6 +157,14 @@ export default function Sidebar() {
     void fetchFields();
   }, [fetchFields]);
 
+  // The directory picker adds (and activates) a knowledge base; refresh the
+  // list and the global active field so every view picks it up.
+  useEffect(() => {
+    const handler = () => void fetchFields();
+    window.addEventListener("palimind:field-added", handler);
+    return () => window.removeEventListener("palimind:field-added", handler);
+  }, [fetchFields]);
+
   // The command palette can request the workspace file tree for the active
   // knowledge base.
   useEffect(() => {

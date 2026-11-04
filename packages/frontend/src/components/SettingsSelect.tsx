@@ -26,8 +26,19 @@ export default function SettingsSelect({ id, value, options, onChange }: Setting
         setOpen(false);
       }
     };
+    // Escape closes just the dropdown; capture + stopPropagation keeps it from
+    // also closing the Settings dialog.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setOpen(false);
+    };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    window.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('keydown', onKey, true);
+    };
   }, [open]);
 
   return (

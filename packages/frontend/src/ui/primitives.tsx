@@ -379,19 +379,28 @@ export function Picker({
       if (menuRef.current?.contains(target)) return;
       setOpen(false);
     };
+    // Capture phase + stopPropagation: Escape closes only the open menu, not
+    // the dialog it sits in.
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setOpen(false);
     };
     const onClose = () => setOpen(false);
+    // Scrolling the (scrollable) option list itself must not close it.
+    const onScroll = (e: Event) => {
+      if (menuRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
     window.addEventListener('mousedown', onDoc);
-    window.addEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
     window.addEventListener('resize', onClose);
-    window.addEventListener('scroll', onClose, true);
+    window.addEventListener('scroll', onScroll, true);
     return () => {
       window.removeEventListener('mousedown', onDoc);
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('resize', onClose);
-      window.removeEventListener('scroll', onClose, true);
+      window.removeEventListener('scroll', onScroll, true);
     };
   }, [open]);
 
@@ -512,19 +521,28 @@ export function Popover({
       if (menuRef.current?.contains(target)) return;
       close();
     };
+    // Capture phase + stopPropagation: Escape closes only the popover, not
+    // the dialog it sits in.
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      close();
     };
     const onLayout = () => close();
+    // Scrolling inside the popover's own content must not close it.
+    const onScroll = (e: Event) => {
+      if (menuRef.current?.contains(e.target as Node)) return;
+      close();
+    };
     window.addEventListener('mousedown', onDoc);
-    window.addEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
     window.addEventListener('resize', onLayout);
-    window.addEventListener('scroll', onLayout, true);
+    window.addEventListener('scroll', onScroll, true);
     return () => {
       window.removeEventListener('mousedown', onDoc);
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('resize', onLayout);
-      window.removeEventListener('scroll', onLayout, true);
+      window.removeEventListener('scroll', onScroll, true);
     };
   }, [open]);
 
@@ -762,6 +780,13 @@ export function Dialog({
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
+  // Callers pass inline `onClose` arrows. Reading it through a ref keeps the
+  // effect below tied to `open` only; otherwise every parent re-render (e.g. a
+  // keystroke in a dialog input) re-ran it, bouncing focus out of the field.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -782,7 +807,7 @@ export function Dialog({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab') return;
@@ -805,7 +830,7 @@ export function Dialog({
       // Return focus to the control that opened the dialog.
       restoreRef.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   return createPortal(

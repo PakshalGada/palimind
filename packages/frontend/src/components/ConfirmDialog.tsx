@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 
 interface ConfirmState {
   title?: string;
@@ -22,14 +22,34 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 
   const confirm = useCallback<ConfirmFn>((message, opts) => {
     return new Promise<boolean>((resolve) => {
-      setPending({ message, ...opts, resolve });
+      setPending((prev) => {
+        // A newer prompt replaces an open one; settle the old caller.
+        prev?.resolve(false);
+        return { message, ...opts, resolve };
+      });
     });
   }, []);
 
-  const close = (result: boolean) => {
-    pending?.resolve(result);
-    setPending(null);
-  };
+  const close = useCallback((result: boolean) => {
+    setPending((prev) => {
+      prev?.resolve(result);
+      return null;
+    });
+  }, []);
+
+  // Escape cancels. Capture phase so the modal underneath (which also closes
+  // on Escape) isn't dismissed along with the prompt.
+  useEffect(() => {
+    if (!pending) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      close(false);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [pending, close]);
 
   return (
     <ConfirmContext.Provider value={confirm}>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 
 type Mode = 'easy' | 'advanced';
@@ -35,8 +35,10 @@ function pad(n: number): string {
 function stateToCron(s: EasyState): string {
   switch (s.type) {
     case 'interval':
-      if (s.everyUnit === 'minutes') return `*/${Math.max(1, s.every)} * * * *`;
-      return `${s.minute} */${Math.max(1, s.every)} * * *`;
+      // Steps beyond the field range are accepted by the backend but only
+      // fire at 0 (`*/90` runs hourly), so clamp to the field's range.
+      if (s.everyUnit === 'minutes') return `*/${Math.min(59, Math.max(1, s.every))} * * * *`;
+      return `${s.minute} */${Math.min(23, Math.max(1, s.every))} * * *`;
     case 'daily':
       return `${s.minute} ${s.hour} * * *`;
     case 'weekly': {
@@ -48,6 +50,31 @@ function stateToCron(s: EasyState): string {
   }
 }
 
+const isInt = (v: string) => /^\d+$/.test(v);
+
+/**
+ * Expand a day-of-week field (`1-5`, `1,3,5`, `0-6`, `7`) into sorted 0..6
+ * day numbers (7 = Sunday, as on the backend). Null when the field uses
+ * anything easy mode can't represent (steps, names, bad ranges).
+ */
+function parseDow(dow: string): number[] | null {
+  const out = new Set<number>();
+  for (const atom of dow.split(',')) {
+    const range = /^(\d+)-(\d+)$/.exec(atom);
+    if (range) {
+      const a = parseInt(range[1], 10);
+      const b = parseInt(range[2], 10);
+      if (a > b || b > 7) return null;
+      for (let d = a; d <= b; d++) out.add(d % 7);
+    } else if (isInt(atom) && parseInt(atom, 10) <= 7) {
+      out.add(parseInt(atom, 10) % 7);
+    } else {
+      return null;
+    }
+  }
+  return out.size ? [...out].sort((a, b) => a - b) : null;
+}
+
 /** Best-effort parse of a simple cron back into easy-mode state. Returns null if not parseable. */
 function cronToState(expr: string): EasyState | null {
   const f = (expr || '').trim().split(/\s+/);
@@ -56,17 +83,20 @@ function cronToState(expr: string): EasyState | null {
   const m = (v: string) => parseInt(v, 10);
 
   const isStar = (v: string) => v === '*';
+  // Easy mode only models plain numbers; lists/ranges/steps in the time
+  // fields (e.g. `0,30 9-17 * * *`) must stay in advanced mode.
   const parseTime = (): { minute: number; hour: number } | null => {
-    if (isStar(min) || isStar(hour)) return null;
-    return { minute: m(min), hour: m(hour) };
+    if (!isInt(min) || !isInt(hour)) return null;
+    const t = { minute: m(min), hour: m(hour) };
+    return t.minute <= 59 && t.hour <= 23 ? t : null;
   };
 
   // Every N minutes: */N * * * *
-  if (min.startsWith('*/') && isStar(hour) && isStar(dom) && isStar(month) && isStar(dow)) {
+  if (/^\*\/\d+$/.test(min) && isStar(hour) && isStar(dom) && isStar(month) && isStar(dow)) {
     return { ...DEFAULT_STATE, type: 'interval', everyUnit: 'minutes', every: parseInt(min.slice(2), 10) || 1 };
   }
   // Every N hours: M */N * * *
-  if (hour.startsWith('*/') && isStar(dom) && isStar(month) && isStar(dow) && !isStar(min) && !isStar(hour)) {
+  if (/^\*\/\d+$/.test(hour) && isStar(dom) && isStar(month) && isStar(dow) && isInt(min) && m(min) <= 59) {
     return { ...DEFAULT_STATE, type: 'interval', everyUnit: 'hours', every: parseInt(hour.slice(2), 10) || 1, minute: m(min) };
   }
   // Daily: M H * * *
@@ -77,14 +107,14 @@ function cronToState(expr: string): EasyState | null {
   }
   // Weekly: M H * * dow list
   if (!isStar(min) && !isStar(hour) && isStar(dom) && isStar(month) && !isStar(dow)) {
-    const days = dow.split(',').map(m).filter(n => !isNaN(n) && n >= 0 && n <= 6);
-    if (!days.length) return null;
+    const days = parseDow(dow);
+    if (!days) return null;
     const t = parseTime();
     if (!t) return null;
     return { ...DEFAULT_STATE, type: 'weekly', ...t, days };
   }
   // Monthly: M H dom * *
-  if (!isStar(min) && !isStar(hour) && !isStar(dom) && isStar(month) && isStar(dow)) {
+  if (!isStar(min) && !isStar(hour) && isInt(dom) && isStar(month) && isStar(dow)) {
     const t = parseTime();
     if (!t) return null;
     return { ...DEFAULT_STATE, type: 'monthly', ...t, dom: Math.min(31, Math.max(1, m(dom))) };
@@ -107,7 +137,7 @@ export function describeCron(expr: string): string {
   if (f.length !== 5) return 'Invalid cron';
   const [min, hour, dom, month, dow] = f;
   const isStar = (v: string) => v === '*';
-  const time = !isStar(min) && !isStar(hour)
+  const time = isInt(min) && isInt(hour)
     ? `${pad(parseInt(hour, 10))}:${pad(parseInt(min, 10))}`
     : null;
 
@@ -119,13 +149,10 @@ export function describeCron(expr: string): string {
   if (isStar(dom) && isStar(month) && isStar(dow) && time)
     return `Daily at ${time}`;
   if (isStar(dom) && isStar(month) && !isStar(dow) && time) {
-    const names = dow.split(',').map(d => {
-      const n = parseInt(d, 10) % 7;
-      return DAY_NAMES[n];
-    });
-    return `Weekly on ${names.join(', ')} at ${time}`;
+    const days = parseDow(dow);
+    if (days) return `Weekly on ${days.map(n => DAY_NAMES[n]).join(', ')} at ${time}`;
   }
-  if (!isStar(dom) && isStar(month) && isStar(dow) && time)
+  if (isInt(dom) && isStar(month) && isStar(dow) && time)
     return `Monthly on day ${parseInt(dom, 10)} at ${time}`;
   return expr.trim();
 }
@@ -143,6 +170,9 @@ export default function CronEditor({
   const [validating, setValidating] = useState(false);
   const [validation, setValidation] = useState<{ ok: boolean; error?: string } | null>(null);
   const lastExpr = useRef(value);
+  // Only the latest validation request may update the badge; an older, slower
+  // reply must not mark the current expression valid/invalid.
+  const validationSeq = useRef(0);
 
   // When the caller's cron changes externally, resync easy/raw state.
   useEffect(() => {
@@ -155,7 +185,9 @@ export default function CronEditor({
       setValidation(null);
       void runValidation(value);
     }
-  }, [value]);
+    // runValidation only touches state setters/refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, mode]);
 
   const push = (cron: string) => {
     lastExpr.current = cron;
@@ -163,11 +195,14 @@ export default function CronEditor({
   };
 
   const runValidation = async (expr: string) => {
+    const seq = ++validationSeq.current;
     setValidating(true);
     try {
       const res = await api.agents.validateCron(expr);
+      if (seq !== validationSeq.current) return;
       setValidation(res.valid ? { ok: true } : { ok: false, error: res.error || 'Invalid cron' });
     } catch {
+      if (seq !== validationSeq.current) return;
       setValidation({ ok: false, error: 'Could not reach the validation service.' });
     }
     setValidating(false);
@@ -183,6 +218,7 @@ export default function CronEditor({
   const patchState = (p: Partial<EasyState>) => {
     const next = { ...state, ...p };
     if (p.type === 'interval') next.dom = DEFAULT_STATE.dom;
+    next.every = Math.min(next.everyUnit === 'hours' ? 23 : 59, Math.max(1, next.every));
     syncFromEasy(next);
   };
 
@@ -202,7 +238,7 @@ export default function CronEditor({
 
   const time = (m: number, h: number) => `${pad(h)}:${pad(m)}`;
 
-  const description = useMemo(() => describeCron(lastExpr.current), [lastExpr.current]);
+  const description = describeCron(lastExpr.current);
 
   return (
     <div className="cron-editor">
@@ -278,7 +314,7 @@ export default function CronEditor({
                 type="number"
                 className="cron-num-input"
                 min={1}
-                max={59}
+                max={state.everyUnit === 'hours' ? 23 : 59}
                 value={state.every}
                 onChange={e => patchState({ every: Math.max(1, parseInt(e.target.value, 10) || 1) })}
               />
@@ -368,12 +404,10 @@ export default function CronEditor({
                 setRaw(v);
                 push(v);
                 if (v.trim()) {
-                  setValidating(true);
-                  void api.agents.validateCron(v)
-                    .then(res => setValidation(res.valid ? { ok: true } : { ok: false, error: res.error || 'Invalid cron' }))
-                    .catch(() => setValidation({ ok: false, error: 'Validation unavailable.' }))
-                    .finally(() => setValidating(false));
+                  void runValidation(v);
                 } else {
+                  validationSeq.current += 1;
+                  setValidating(false);
                   setValidation(null);
                 }
               }}

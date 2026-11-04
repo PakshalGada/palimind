@@ -150,6 +150,12 @@ export default function ResearchManager({ embedded = false }: { embedded?: boole
     if (!project) return;
     try {
       const updated = await api.research.projects.update(project.id, { notes });
+      // A `{ error }` body (project deleted elsewhere) has no findings/sources;
+      // storing it as the project would crash the detail pane.
+      if (updated.error) {
+        addToast(updated.error);
+        return;
+      }
       setProject(updated);
       addToast('Notes saved');
     } catch {
@@ -161,10 +167,15 @@ export default function ResearchManager({ embedded = false }: { embedded?: boole
     if (!project) return;
     if (!findingTitle.trim() && !findingBody.trim()) return;
     try {
-      await api.research.projects.addFinding(project.id, findingTitle.trim() || 'Finding', findingBody.trim());
+      const res = await api.research.projects.addFinding(project.id, findingTitle.trim() || 'Finding', findingBody.trim());
+      if (res.error) {
+        addToast(res.error);
+        return;
+      }
       setFindingTitle('');
       setFindingBody('');
-      await loadProject(project.id);
+      // Refresh the list too so its finding count matches.
+      await Promise.all([loadProject(project.id), loadProjects()]);
     } catch {
       addToast('Could not add finding.');
     }

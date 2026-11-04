@@ -336,7 +336,12 @@ export default function KanbanDashboard() {
                         key={task.id}
                         className={`kb-card ${selectedTaskId === task.id ? 'selected' : ''}`}
                         draggable
-                        onDragStart={() => setDraggedTask(task.id)}
+                        onDragStart={(e) => {
+                          // Firefox won't start an HTML5 drag without data.
+                          e.dataTransfer.setData('text/plain', task.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                          setDraggedTask(task.id);
+                        }}
                         onDragEnd={() => {
                           setDraggedTask(null);
                           setDragOverColumn(null);

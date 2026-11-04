@@ -330,16 +330,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // One canonical scope per view. The Agents view is deliberately empty when
-  // no agent is selected — it must never fall back to global/field chat.
+  // One canonical scope per view, matching the scope App loads sessions for
+  // (Home shows the global chat history). The Agents view is deliberately
+  // empty when no agent is selected — it must never fall back to global/field
+  // chat.
   const sessionScope =
     activeView === 'agents'
       ? selectedAgentId
         ? `agent:${selectedAgentId}`
         : ''
-      : activeView === 'chat'
+      : activeView === 'chat' || activeView === 'home'
         ? 'chat'
-        : 'field';
+        : activeView === 'knowledge'
+          ? 'field'
+          : '';
 
   const sessionScopeRef = useRef(sessionScope);
   useEffect(() => {
@@ -455,7 +459,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     artifactPanelOpen, artifactLibraryOpen, artifactTarget, shortcutOverrides,
     toggleSidebar, setShortcutOverride, resetShortcut, resetAllShortcuts,
     openArtifactLibrary, openArtifact, clearArtifactTarget,
-    setActiveProjectId,
+    setActiveProjectId, setTheme, refreshFields, addToast, clearSelectedFiles,
+    refreshFileTree, refreshSessions, toggleSelectedFile,
   ]);
 
   const activityValue = useMemo<ActivityContextType>(() => ({

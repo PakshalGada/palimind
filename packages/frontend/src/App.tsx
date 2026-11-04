@@ -149,9 +149,13 @@ export default function App() {
           : '';
 
   useEffect(() => {
+    // A late config response from a scope we already left must not overwrite
+    // the model/MoE settings of the scope now on screen.
+    let cancelled = false;
     async function init() {
       try {
         const fieldsData = await api.fields.list();
+        if (cancelled) return;
         setActiveField(fieldsData.active_field);
         setIsIndexing(fieldsData.is_indexing);
         if (fieldsData.is_indexing) {
@@ -159,6 +163,7 @@ export default function App() {
         }
         if (!scope) return;
         const configData = await api.config.get(scope);
+        if (cancelled) return;
         if (configData.chat_model) {
           setCurrentModel(configData.chat_model);
         }
@@ -172,12 +177,19 @@ export default function App() {
           setWorkerModel(configData.moe_worker_model);
         }
       } catch (e) {
+        if (cancelled) return;
         console.error('Init error:', e);
         addToast('Failed to connect to backend');
       }
     }
     init();
-  }, [scope]);
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    scope, setActiveField, setIsIndexing, setIndexingStatus, setCurrentModel,
+    setLlmSubMode, setOrchestratorModel, setWorkerModel, addToast,
+  ]);
 
   useEffect(() => {
     if (!scope || (scope === 'field' && !activeField)) {
@@ -198,7 +210,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [scope, activeField]);
+  }, [scope, activeField, setSessions, setActiveSessionId]);
 
   const containerClass = [
     isRecording ? 'recording' : '',

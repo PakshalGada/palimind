@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 interface MenuItem {
   label: string;
@@ -15,6 +15,19 @@ interface ContextMenuProps {
 
 export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ left: x, top: y });
+
+  // Keep the menu inside the viewport: opening near the right/bottom edge
+  // would otherwise render items off-screen.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const margin = 8;
+    const { width, height } = el.getBoundingClientRect();
+    const left = Math.max(margin, Math.min(x, window.innerWidth - width - margin));
+    const top = Math.max(margin, Math.min(y, window.innerHeight - height - margin));
+    setPos({ left, top });
+  }, [x, y, items.length]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -37,7 +50,7 @@ export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) 
     <div
       ref={ref}
       className="context-menu"
-      style={{ left: x, top: y }}
+      style={{ left: pos.left, top: pos.top }}
     >
       {items.map((item, i) => {
         const isDelete = item.isDanger || /delete|remove|trash/i.test(item.label);

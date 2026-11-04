@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   FolderKanban,
@@ -63,11 +63,19 @@ export default function ProjectsView() {
     return () => window.removeEventListener('palimind:new-project', open);
   }, []);
 
+  // Latest project requested; responses for an earlier click are dropped so a
+  // slow reply never shows project A's details while B is selected.
+  const selectSeq = useRef(0);
+
   const select = useCallback(async (id: string) => {
+    const seq = ++selectSeq.current;
     setSelectedId(id);
     setProject(null);
+    setSessions([]);
+    setArtifacts([]);
     try {
       const data = await api.projects.get(id);
+      if (seq !== selectSeq.current) return;
       if (data.error) {
         addToast(data.error, { tone: 'error' });
         return;
@@ -77,6 +85,7 @@ export default function ProjectsView() {
         api.projects.sessions.list(id),
         api.projects.artifacts.library(id),
       ]);
+      if (seq !== selectSeq.current) return;
       setSessions(
         sessionData.status === 'fulfilled' ? sessionData.value.sessions ?? [] : [],
       );
@@ -84,6 +93,7 @@ export default function ProjectsView() {
         artifactData.status === 'fulfilled' ? artifactData.value.artifacts ?? [] : [],
       );
     } catch {
+      if (seq !== selectSeq.current) return;
       addToast('Could not open project.', { tone: 'error' });
     }
   }, [addToast]);
@@ -122,9 +132,12 @@ export default function ProjectsView() {
     try {
       await api.projects.remove(target.id);
       if (selectedId === target.id) {
+        selectSeq.current += 1;
         setSelectedId(null);
         setProject(null);
       }
+      // Don't leave chat pointed at a project that no longer exists.
+      if (activeProjectId === target.id) setActiveProjectId(null);
       await load();
     } catch {
       addToast('Could not delete project.', { tone: 'error' });

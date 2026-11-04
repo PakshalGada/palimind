@@ -676,8 +676,15 @@ export default function KnowledgeGraph() {
     const handler = (e: MouseEvent) => {
       if (e.target === modal) close();
     };
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && modal.style.display !== 'none') close();
+    };
     modal.addEventListener('click', handler);
-    return () => modal.removeEventListener('click', handler);
+    window.addEventListener('keydown', keyHandler);
+    return () => {
+      modal.removeEventListener('click', handler);
+      window.removeEventListener('keydown', keyHandler);
+    };
   }, [close]);
 
   useEffect(() => () => destroyNetwork(), [destroyNetwork]);

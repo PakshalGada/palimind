@@ -17,11 +17,14 @@ export default function DirectoryPicker() {
       if (data.error) { alert(data.error); return; }
       setCurrentPath(data.current_path);
       setParentPath(data.parent_path || null);
-      setItems(data.items);
+      setItems(data.items ?? []);
     } catch (e) {
       console.error('dir picker error:', e);
+    } finally {
+      // Always clear the spinner, including the early return on an error
+      // (e.g. a folder the backend can't read).
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   const close = () => {
@@ -41,18 +44,29 @@ export default function DirectoryPicker() {
     const clickHandler = (e: MouseEvent) => {
       if (e.target === modal) close();
     };
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && modal.style.display !== 'none') close();
+    };
     modal.addEventListener('click', clickHandler);
-    return () => modal.removeEventListener('click', clickHandler);
+    window.addEventListener('keydown', keyHandler);
+    return () => {
+      modal.removeEventListener('click', clickHandler);
+      window.removeEventListener('keydown', keyHandler);
+    };
   }, []);
 
   const handleSelect = async () => {
     if (!selectedPath) return;
     close();
-    const addData = await api.fields.add(selectedPath);
-    if (!addData.error) {
-      window.dispatchEvent(new CustomEvent('palimind:field-added'));
-    } else {
-      alert(addData.error);
+    try {
+      const addData = await api.fields.add(selectedPath);
+      if (!addData.error) {
+        window.dispatchEvent(new CustomEvent('palimind:field-added'));
+      } else {
+        alert(addData.error);
+      }
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not add the folder.');
     }
   };
 
