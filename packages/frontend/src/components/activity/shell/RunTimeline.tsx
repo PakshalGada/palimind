@@ -30,8 +30,10 @@ function Gantt({ steps, running }: { steps: readonly ToolStep[]; running: boolea
   const now = useNow(running);
   const starts = steps.map((step) => step.startedAt).filter((value): value is number => value != null);
   const runStart = starts.length ? Math.min(...starts) : now;
+  // `now` only stretches the axis while live; a settled run mounted later
+  // (history, details view) must not squash every bar against mount time.
   const runEnd = Math.max(
-    now,
+    running ? now : runStart,
     ...steps.map((step) => step.endedAt ?? (step.startedAt ?? runStart) + (step.durationMs ?? 0)),
   );
   const total = Math.max(1, runEnd - runStart);

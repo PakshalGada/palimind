@@ -59,7 +59,13 @@ function runningStep(state: ActivityState): ToolStep | undefined {
   return state.steps.find((step) => step.status === 'running');
 }
 
-function settledCaption(state: ActivityState): string {
+export interface CaptionOptions {
+  /** The settled reasoning line ("Thought for 8s") is on screen, so the
+   *  caption must not repeat it. */
+  reasoningShown?: boolean;
+}
+
+function settledCaption(state: ActivityState, options: CaptionOptions): string {
   if (state.mode === 'knowledge_base' && state.passages.length === 0 && state.sources.length === 0) {
     return 'Not found in your documents';
   }
@@ -67,7 +73,8 @@ function settledCaption(state: ActivityState): string {
   const duration = reasoning?.durationMs;
   const parts: string[] = [];
   if (reasoning?.done && duration != null) {
-    parts.push(`Thought for ${formatRunDuration(duration)}`);
+    // When the reasoning line is visible it already reads "Thought for 8s".
+    if (!options.reasoningShown) parts.push(`Thought for ${formatRunDuration(duration)}`);
   } else if (state.endedAt != null) {
     parts.push(`Worked for ${formatRunDuration(elapsedMs(state))}`);
   } else {
@@ -80,10 +87,13 @@ function settledCaption(state: ActivityState): string {
   else if (state.passages.length > 0) {
     parts.push(`${state.passages.length} ${state.passages.length === 1 ? 'passage' : 'passages'}`);
   }
+  if (parts.length === 0) {
+    parts.push(state.endedAt != null ? `Worked for ${formatRunDuration(elapsedMs(state))}` : 'Worked');
+  }
   return parts.join(' · ');
 }
 
-export function captionFor(state: ActivityState): Caption {
+export function captionFor(state: ActivityState, options: CaptionOptions = {}): Caption {
   const terminal = isTerminal(state.status);
   const errors = errorCount(state);
 
@@ -123,7 +133,7 @@ export function captionFor(state: ActivityState): Caption {
       errors === 1 ? 'Failed — 1 step' : errors > 1 ? `Failed — ${errors} steps` : 'Failed';
     return { kind: 'failed', text, live: false, error: true };
   }
-  return { kind: 'settled', text: settledCaption(state), live: false, error: false };
+  return { kind: 'settled', text: settledCaption(state, options), live: false, error: false };
 }
 
 /** The caption string alone — what the composer line and aria-live print. */

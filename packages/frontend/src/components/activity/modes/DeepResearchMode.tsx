@@ -68,7 +68,7 @@ export function DeepResearchMode({
     );
   }
 
-  if (terminal && state.status !== 'error') {
+  if (state.status === 'done') {
     return (
       <>
         <div className="act act-summary">

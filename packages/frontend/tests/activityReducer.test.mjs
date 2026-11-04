@@ -223,3 +223,43 @@ test('duration formatters match the copy deck', () => {
   assert.equal(formatToolDuration(1200), '1.2s');
   assert.equal(formatToolDuration(12_000), '12s');
 });
+
+test('run.error settles in-flight work so nothing spins after a failure', () => {
+  let state = reduceActivity(start(), { type: 'reasoning.delta', text: '', at: 1000 });
+  state = reduceActivity(state, { type: 'tool.start', id: 't1', name: 'web_search', startedAt: 1100 });
+  state = reduceActivity(state, { type: 'tool.start', id: 't2', name: 'run_shell', awaitingApproval: true });
+  state = reduceActivity(state, { type: 'plan.set', steps: [{ id: 'p', label: 'Search' }] });
+  state = reduceActivity(state, { type: 'plan.step', id: 'p', status: 'running' });
+  state = reduceActivity(state, { type: 'expert.start', id: 'e1', name: 'Retrieval' });
+  state = reduceActivity(state, { type: 'run.error', message: 'Boom', at: 3000 });
+  assert.equal(state.status, 'error');
+  assert.equal(state.reasoning.done, true);
+  assert.equal(state.reasoning.durationMs, 2000);
+  assert.equal(state.steps[0].status, 'error');
+  assert.equal(state.steps[0].endedAt, 3000);
+  assert.equal(state.steps[1].status, 'cancelled');
+  assert.equal(state.plan[0].status, 'error');
+  assert.equal(state.experts[0].status, 'done');
+  // The stream's run.end that follows is a no-op.
+  assert.equal(reduceActivity(state, { type: 'run.end', status: 'error', at: 3100 }), state);
+});
+
+test('a running tool can pause for approval, and a denied step is not revived', () => {
+  let state = reduceActivity(start(), { type: 'tool.start', id: 't1', name: 'run_shell', startedAt: 1000 });
+  const approval = { agentId: 'a1', tool: 'run_shell' };
+  state = reduceActivity(state, {
+    type: 'tool.start',
+    id: 't1',
+    name: 'run_shell',
+    approval,
+    awaitingApproval: true,
+  });
+  assert.equal(state.steps.length, 1);
+  assert.equal(state.steps[0].status, 'awaiting_approval');
+  assert.deepEqual(state.steps[0].approval, approval);
+  assert.equal(state.status, 'awaiting_approval');
+  state = reduceActivity(state, { type: 'tool.approval', id: 't1', status: 'denied', at: 1500 });
+  const same = reduceActivity(state, { type: 'tool.start', id: 't1', name: 'run_shell' });
+  assert.equal(same, state);
+  assert.equal(same.steps[0].status, 'denied');
+});

@@ -292,3 +292,17 @@ test('run.end cancels a pending approval', () => {
   state = reduceActivity(state, { type: 'run.end', status: 'stopped', at: 2000 });
   assert.equal(state.steps[0].status, 'cancelled');
 });
+
+test('settled caption drops the thought duration when the reasoning line is shown', () => {
+  let state = base();
+  state = reduceActivity(state, { type: 'reasoning.delta', text: '', at: 1000 });
+  state = reduceActivity(state, { type: 'reasoning.end', at: 9000 });
+  state = reduceActivity(state, { type: 'tool.start', id: 't1', name: 'web_search', args: { query: 'x' }, startedAt: 9100 });
+  state = reduceActivity(state, { type: 'tool.end', id: 't1', status: 'success', at: 9500 });
+  state = reduceActivity(state, { type: 'run.end', status: 'done', at: 10_000 });
+  assert.equal(captionFor(state).text, 'Thought for 8s · 1 tool');
+  assert.equal(captionFor(state, { reasoningShown: true }).text, '1 tool');
+  // Nothing else to say: fall back to the run's duration, never an empty head.
+  const bare = { ...state, steps: [] };
+  assert.equal(captionFor(bare, { reasoningShown: true }).text, `Worked for ${Math.round((10_000 - bare.startedAt) / 1000)}s`);
+});

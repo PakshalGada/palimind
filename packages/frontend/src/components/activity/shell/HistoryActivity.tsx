@@ -57,7 +57,7 @@ export function HistoryActivity({
   const resolveApproval = useCallback(
     (step: ToolStep, decision: GrantDecision) => {
       if (!store) return;
-      store.resolveApproval(step.id, decision);
+      if (!store.resolveApproval(step.id, decision)) return;
       const meta = step.approval;
       if (meta?.agentId) {
         api.agents.approve(meta.agentId, decision !== 'deny', '', meta.runId).catch(() => undefined);

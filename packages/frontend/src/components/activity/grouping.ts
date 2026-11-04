@@ -26,14 +26,22 @@ export function intentOf(step: ToolStep): StepIntent | undefined {
   return undefined;
 }
 
+function awaiting(step: ToolStep): boolean {
+  return step.status === 'awaiting_approval';
+}
+
 /** Merge browser steps into one card and completed parallel calls into one row. */
 export function unitsOf(steps: readonly ToolStep[]): TimelineUnit[] {
   const units: TimelineUnit[] = [];
   const consumed = new Set<string>();
   for (const step of steps) {
     if (consumed.has(step.id)) continue;
-    if (step.groupKey) {
-      const group = steps.filter((entry) => entry.groupKey === step.groupKey);
+    // A pending approval always stays its own row so its prompt is never
+    // folded inside a collapsed browser card or cluster.
+    if (step.groupKey && !awaiting(step)) {
+      const group = steps.filter(
+        (entry) => entry.groupKey === step.groupKey && !awaiting(entry),
+      );
       group.forEach((entry) => consumed.add(entry.id));
       units.push({ key: step.groupKey, kind: 'browser', steps: group });
       continue;
@@ -93,7 +101,7 @@ function clusterIntents(units: readonly TimelineUnit[]): TimelineUnit[] {
 
   const intentOfUnit = (unit: TimelineUnit): StepIntent | undefined => {
     // Browser cards and "Ran N tools" parallel rows keep their own identity.
-    if (unit.kind !== 'step') return undefined;
+    if (unit.kind !== 'step' || unit.steps.some(awaiting)) return undefined;
     const intents = unit.steps.map(intentOf);
     if (intents.some((intent) => intent === undefined)) return undefined;
     return intents[0];

@@ -155,6 +155,10 @@ export function ActivityPanel({
   const open = manual ?? autoOpen;
 
   const caption = captionFor(state);
+  // The open body renders the settled "Thought for 8s" line; the head must
+  // not repeat it. The aria-live announcement keeps the full caption.
+  const headCaption =
+    open && state.reasoning?.done ? captionFor(state, { reasoningShown: true }) : caption;
   const captionLive = caption.live;
   const nodeStatus = pending
     ? 'awaiting_approval'
@@ -230,9 +234,9 @@ export function ActivityPanel({
               )}
               <span className="act-caption__label">
                 {captionLive ? (
-                  <span className="act-shimmer">{caption.text}</span>
+                  <span className="act-shimmer">{headCaption.text}</span>
                 ) : (
-                  caption.text
+                  headCaption.text
                 )}
               </span>
               {running && (

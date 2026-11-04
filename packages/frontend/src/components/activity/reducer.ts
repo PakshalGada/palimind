@@ -45,42 +45,21 @@ export function reduceActivity(state: ActivityState, event: ActivityEvent): Acti
 
     case 'run.end': {
       if (isTerminal(state.status)) return state;
-      const at = event.at ?? undefined;
-      return {
-        ...state,
-        status: event.status === 'error' ? 'error' : event.status,
-        endedAt: at,
-        error: event.error ?? state.error,
-        reasoning: state.reasoning
-          ? {
-              ...state.reasoning,
-              done: true,
-              durationMs:
-                state.reasoning.durationMs ??
-                (state.reasoning.startedAt != null && at != null
-                  ? Math.max(0, at - state.reasoning.startedAt)
-                  : undefined),
-            }
-          : undefined,
-        steps: state.steps.map((step) =>
-          step.status === 'running'
-            ? { ...step, status: event.status === 'error' ? 'error' : 'cancelled' }
-            : step.status === 'awaiting_approval'
-              ? // The run ended while the request was pending: cancel it so the
-                // receipt never pulses forever.
-                { ...step, status: 'cancelled', endedAt: at ?? step.endedAt }
-              : step,
-        ),
-      };
+      return settleRun(state, event.status, event.at ?? undefined, event.error ?? state.error);
     }
 
     case 'run.error': {
       if (state.status === 'error' && state.error === event.message) return state;
+      // An error event arrives before the stream's run.end, which is then a
+      // no-op: settle in-flight work here so nothing spins after the failure.
+      const settled = isTerminal(state.status)
+        ? state
+        : settleRun(state, 'error', event.at ?? undefined, event.message);
       return {
-        ...state,
+        ...settled,
         status: 'error',
         error: event.message,
-        endedAt: event.at ?? state.endedAt,
+        endedAt: event.at ?? settled.endedAt,
       };
     }
 
@@ -212,11 +191,12 @@ export function reduceActivity(state: ActivityState, event: ActivityEvent): Acti
       if (existing) {
         // A duplicate start never downgrades a settled or running step. An
         // out-of-order start older than the stored one is ignored.
+        // A running step may still pause for approval (call-then-gate).
         if (
           isTerminal(state.status) ||
-          existing.status === 'running' ||
-          existing.status === 'success' ||
-          existing.status === 'error' ||
+          (existing.status === 'running' && !event.awaitingApproval) ||
+          (existing.status === 'awaiting_approval' && event.awaitingApproval) ||
+          isTerminalTool(existing) ||
           (existing.startedAt != null &&
             event.startedAt != null &&
             event.startedAt < existing.startedAt)
@@ -234,6 +214,7 @@ export function reduceActivity(state: ActivityState, event: ActivityEvent): Acti
             parentId: event.parentId ?? existing.parentId,
             groupKey: event.groupKey ?? existing.groupKey,
             startedAt: existing.startedAt ?? event.startedAt,
+            approval: event.approval ?? existing.approval,
           }
         : {
             id,
@@ -341,6 +322,50 @@ function isTerminalTool(step: ToolStep): boolean {
     step.status === 'denied' ||
     step.status === 'cancelled'
   );
+}
+
+/** Settle a run: finish reasoning and stop every step, plan item and expert
+ *  that was still in flight so no spinner or timer outlives the run. */
+function settleRun(
+  state: ActivityState,
+  status: 'done' | 'stopped' | 'error',
+  at: number | undefined,
+  error: string | undefined,
+): ActivityState {
+  return {
+    ...state,
+    status,
+    endedAt: at,
+    error,
+    reasoning: state.reasoning
+      ? {
+          ...state.reasoning,
+          done: true,
+          durationMs:
+            state.reasoning.durationMs ??
+            (state.reasoning.startedAt != null && at != null
+              ? Math.max(0, at - state.reasoning.startedAt)
+              : undefined),
+        }
+      : undefined,
+    steps: state.steps.map((step) =>
+      step.status === 'running' || step.status === 'queued'
+        ? { ...step, status: status === 'error' ? 'error' : 'cancelled', endedAt: at ?? step.endedAt }
+        : step.status === 'awaiting_approval'
+          ? // The run ended while the request was pending: cancel it so the
+            // receipt never pulses forever.
+            { ...step, status: 'cancelled', endedAt: at ?? step.endedAt }
+          : step,
+    ),
+    plan: state.plan?.map((step) =>
+      step.status === 'running'
+        ? { ...step, status: status === 'done' ? 'done' : status === 'error' ? 'error' : 'pending' }
+        : step,
+    ),
+    experts: state.experts?.map((expert) =>
+      expert.status === 'running' ? { ...expert, status: 'done' } : expert,
+    ),
+  };
 }
 
 /** Apply a batch, returning the same reference when nothing changed. */

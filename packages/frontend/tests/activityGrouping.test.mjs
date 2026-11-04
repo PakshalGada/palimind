@@ -122,3 +122,24 @@ test('cycles in parent links do not loop forever', () => {
   };
   assert.equal(depthOf(state, state.steps[0]), 1);
 });
+
+test('a pending approval is never folded into a cluster or browser card', () => {
+  const shell = [
+    step({ id: 'a', name: 'run_shell', startedAt: 1000, endedAt: 1100, durationMs: 100 }),
+    step({ id: 'b', name: 'run_shell', status: 'awaiting_approval', startedAt: 1200 }),
+  ];
+  const units = unitsOf(shell);
+  assert.equal(units.length, 2);
+  assert.ok(units.every((unit) => unit.kind === 'step'));
+
+  const browser = [
+    step({ id: 'b1', name: 'browser_open', groupKey: 'browser-1' }),
+    step({ id: 'b2', name: 'browser_click', groupKey: 'browser-1', status: 'awaiting_approval' }),
+  ];
+  const browserUnits = unitsOf(browser);
+  assert.equal(browserUnits.length, 2);
+  assert.equal(browserUnits[0].kind, 'browser');
+  assert.deepEqual(browserUnits[0].steps.map((entry) => entry.id), ['b1']);
+  assert.equal(browserUnits[1].kind, 'step');
+  assert.equal(browserUnits[1].steps[0].id, 'b2');
+});

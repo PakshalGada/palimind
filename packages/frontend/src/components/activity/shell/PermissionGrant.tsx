@@ -111,7 +111,15 @@ export function PermissionGrant({
   onResolve: (decision: GrantDecision) => void;
 }) {
   const primary = useRef<HTMLButtonElement>(null);
+  const submitted = useRef(false);
   const pending = step.status === 'awaiting_approval';
+  const resolve = (decision: GrantDecision) => {
+    // One decision per request: a double click or held key must not send a
+    // second (possibly contradicting) approval before the row re-renders.
+    if (submitted.current) return;
+    submitted.current = true;
+    onResolve(decision);
+  };
   const action = plainAction(step);
   const safeAction = maskSecrets(action);
   const destructive = destructiveReason(step);
@@ -151,7 +159,7 @@ export function PermissionGrant({
         });
         if (decision) {
           event.preventDefault();
-          onResolve(decision);
+          resolve(decision);
         }
       }}
     >
@@ -179,11 +187,11 @@ export function PermissionGrant({
 
       <div className="act-grant__foot">
         <div className="act-grant__actions">
-          <button type="button" className="act-btn act-btn--danger-ghost" onClick={() => onResolve('deny')}>
+          <button type="button" className="act-btn act-btn--danger-ghost" onClick={() => resolve('deny')}>
             Deny
           </button>
           <span className="act-grant__scope">
-            <button type="button" className="act-btn act-btn--ghost" onClick={() => onResolve('run')}>
+            <button type="button" className="act-btn act-btn--ghost" onClick={() => resolve('run')}>
               Allow for this run
             </button>
             <span className="act-grant__scope-note">Per tool name · this run only</span>
@@ -192,7 +200,7 @@ export function PermissionGrant({
             type="button"
             ref={primary}
             className="act-btn act-btn--primary"
-            onClick={() => onResolve('once')}
+            onClick={() => resolve('once')}
           >
             Allow once
           </button>

@@ -99,10 +99,12 @@ export class ActivityStore {
     this.notify(previous, state);
   }
 
-  /** Mark a pending approval. */
+  /** Mark a pending approval. Returns undefined when it was not pending. */
   resolveApproval(id: string, decision: 'once' | 'run' | 'deny'): ToolStep | undefined {
+    this.flush();
     const step = this.getStep(id);
-    if (!step) return undefined;
+    // Already resolved (double click, key repeat): never submit twice.
+    if (!step || step.status !== 'awaiting_approval') return undefined;
     if (decision === 'run') this.allowedForRun.add(step.name);
     this.dispatch({
       type: 'tool.approval',
@@ -110,6 +112,9 @@ export class ActivityStore {
       status: decision === 'deny' ? 'denied' : 'running',
       at: Date.now(),
     });
+    // Apply now so the prompt closes before another input event and callers
+    // reading getState() (history persistence) see the decision.
+    this.flush();
     return step;
   }
 

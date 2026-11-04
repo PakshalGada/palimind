@@ -33,6 +33,7 @@ export default function TaskMonitor() {
   const [taskPrompt, setTaskPrompt] = useState('/loop 5m check tests');
   const [taskGoal, setTaskGoal] = useState('');
   const [taskAgent, setTaskAgent] = useState('');
+  const [creating, setCreating] = useState<'goal' | 'task' | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -78,19 +79,27 @@ export default function TaskMonitor() {
       addToast('Give the goal a name.');
       return;
     }
-    const res = await api.agents.goals.create({
-      name: goalName.trim(),
-      objective: goalObjective,
-      success_criteria: goalCriteria,
-      agent_id: selectedAgentId || '',
-    });
-    if (res.error) addToast(res.error);
-    else {
-      setGoalName('');
-      setGoalObjective('');
-      setGoalCriteria('');
-      addToast('Goal created.');
-      await refresh();
+    if (creating) return;
+    setCreating('goal');
+    try {
+      const res = await api.agents.goals.create({
+        name: goalName.trim(),
+        objective: goalObjective,
+        success_criteria: goalCriteria,
+        agent_id: selectedAgentId || '',
+      });
+      if (res.error) addToast(res.error);
+      else {
+        setGoalName('');
+        setGoalObjective('');
+        setGoalCriteria('');
+        addToast('Goal created.');
+        await refresh();
+      }
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Could not create the goal.');
+    } finally {
+      setCreating(null);
     }
   };
 
@@ -99,16 +108,24 @@ export default function TaskMonitor() {
       addToast('Describe the task or use /loop 5m …');
       return;
     }
-    const res = await api.agents.tasks.create({
-      agent_id: taskAgent || selectedAgentId || '',
-      command: taskPrompt.trim().startsWith('/loop') ? taskPrompt.trim() : undefined,
-      prompt: taskPrompt.trim().startsWith('/loop') ? undefined : taskPrompt.trim(),
-      goal_id: taskGoal || undefined,
-    });
-    if (res.error) addToast(res.error);
-    else {
-      addToast('Task queued.');
-      await refresh();
+    if (creating) return;
+    setCreating('task');
+    try {
+      const res = await api.agents.tasks.create({
+        agent_id: taskAgent || selectedAgentId || '',
+        command: taskPrompt.trim().startsWith('/loop') ? taskPrompt.trim() : undefined,
+        prompt: taskPrompt.trim().startsWith('/loop') ? undefined : taskPrompt.trim(),
+        goal_id: taskGoal || undefined,
+      });
+      if (res.error) addToast(res.error);
+      else {
+        addToast('Task queued.');
+        await refresh();
+      }
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Could not queue the task.');
+    } finally {
+      setCreating(null);
     }
   };
 
@@ -155,7 +172,7 @@ export default function TaskMonitor() {
                   placeholder="e.g. all tests green and docs updated"
                 />
               </Field>
-              <Button size="sm" variant="primary" onClick={createGoal}>
+              <Button size="sm" variant="primary" onClick={createGoal} disabled={creating !== null}>
                 <Plus size={14} /> Add goal
               </Button>
             </div>
@@ -230,7 +247,7 @@ export default function TaskMonitor() {
                   ))}
                 </Select>
               </Field>
-              <Button size="sm" variant="primary" onClick={createTask}>
+              <Button size="sm" variant="primary" onClick={createTask} disabled={creating !== null}>
                 <Play size={14} /> Queue
               </Button>
             </div>

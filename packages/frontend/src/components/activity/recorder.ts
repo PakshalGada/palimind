@@ -116,6 +116,8 @@ export class RunRecorder {
   private seq = 0;
   private lastToolId: string | null = null;
   private lastToolName = '';
+  /** Approval requested before its tool call (gate-then-call backends). */
+  private pendingApproval: { id: string; name: string } | null = null;
   private browserGroup = 0;
   private groupOpen = false;
   private reasoningStartedAt: number | null = null;
@@ -135,7 +137,9 @@ export class RunRecorder {
   }
 
   end(status: 'done' | 'stopped' | 'error', error?: string): void {
-    this.groupOpen = false;    if (this.mode === 'knowledge_base' && status === 'done' && this.store.getState()?.passages.length === 0) {
+    this.groupOpen = false;
+    this.pendingApproval = null;
+    if (this.mode === 'knowledge_base' && status === 'done' && this.store.getState()?.passages.length === 0) {
       this.store.dispatch({ type: 'phase', phase: 'searching' });
     }
     this.store.dispatch({ type: 'run.end', status, at: Date.now(), error });
@@ -201,7 +205,11 @@ export class RunRecorder {
 
       case 'agent:tool_call': {
         const name = normalizeToolName(String(event.tool || 'tool'));
-        const id = `tool-${(this.seq += 1)}`;
+        // The call that follows its own approval request continues that row
+        // instead of opening a second one that the approval row shadows.
+        const approved = this.pendingApproval?.name === name ? this.pendingApproval.id : null;
+        this.pendingApproval = null;
+        const id = approved ?? `tool-${(this.seq += 1)}`;
         this.lastToolId = id;
         this.lastToolName = name;
         const groupKey = name.startsWith('browser_') ? this.browserGroupKey() : undefined;
@@ -243,7 +251,11 @@ export class RunRecorder {
 
       case 'agent:waiting_for_human': {
         const name = normalizeToolName(String(event.tool || 'tool'));
-        const id = `approval-${(this.seq += 1)}`;
+        // Call-then-gate backends request approval for the tool that is
+        // already running: pause that row rather than adding a new one.
+        const current = this.lastToolId && this.lastToolName === name ? this.lastToolId : null;
+        const id = current ?? `approval-${(this.seq += 1)}`;
+        this.pendingApproval = current ? null : { id, name };
         const approval: ApprovalMeta = {
           agentId: String(event.agent_id ?? ''),
           runId: event.run_id ? String(event.run_id) : undefined,
