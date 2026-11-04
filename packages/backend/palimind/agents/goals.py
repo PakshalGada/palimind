@@ -376,7 +376,11 @@ def complete_task(
             task["last_run"] = moment
             task["last_status"] = status
             task["last_output"] = str(output)[:8000]
-            if task.get("kind") == "loop" and float(task.get("expires_at", 0) or 0) > moment:
+            if task.get("status") == "cancelled":
+                # Cancelled while running: keep it cancelled instead of
+                # rescheduling the loop / marking it done.
+                pass
+            elif task.get("kind") == "loop" and float(task.get("expires_at", 0) or 0) > moment:
                 task["status"] = "pending"
                 task["next_run"] = moment + int(task.get("interval_seconds", 60) or 60)
             else:
@@ -489,6 +493,27 @@ async def _run_one(task: dict[str, Any], run_callable: Any) -> None:
         )
 
 
+_task_refs: set[asyncio.Task] = set()
+
+
+def recover_stale_running() -> int:
+    """Return tasks left ``running`` by a previous process to ``pending``.
+
+    Only the runner moves tasks out of ``running``; after a crash/restart they
+    would otherwise never run again and keep counting toward the task limit.
+    """
+    count = 0
+    with _LOCK:
+        tasks = _load_list(TASKS_FILE)
+        for task in tasks:
+            if task.get("status") == "running" and task.get("id") not in _in_flight:
+                task["status"] = "pending"
+                count += 1
+        if count:
+            _save_list(TASKS_FILE, tasks)
+    return count
+
+
 async def _goals_loop(run_callable: Any) -> None:
     while True:
         try:
@@ -496,7 +521,9 @@ async def _goals_loop(run_callable: Any) -> None:
             for task in due_tasks():
                 if task["id"] in _in_flight:
                     continue
-                asyncio.create_task(_run_one(task, run_callable))
+                ref = asyncio.create_task(_run_one(task, run_callable))
+                _task_refs.add(ref)
+                ref.add_done_callback(_task_refs.discard)
         except asyncio.CancelledError:
             raise
         except Exception as e:  # noqa: BLE001
@@ -508,6 +535,10 @@ def start_runner(run_callable: Any | None = None) -> asyncio.Task | None:
     global _runner_task
     if _runner_task is not None and not _runner_task.done():
         return _runner_task
+    try:
+        recover_stale_running()
+    except Exception as e:  # noqa: BLE001 - recovery is best-effort
+        print(f"[goals] could not recover running tasks: {e}")
     _runner_task = asyncio.create_task(_goals_loop(run_callable or _default_run))
     return _runner_task
 

@@ -139,7 +139,8 @@ async def classify_effort(req: Request):
     task = str(body.get("task", ""))
     model = str(body.get("model", "") or "")
     ollama_url = str(body.get("ollama_url", "") or "")
-    result = classify_complexity(task, model, ollama_url)
+    # LLM call: run off the event loop so it doesn't stall every request.
+    result = await asyncio.to_thread(classify_complexity, task, model, ollama_url)
     result["indicator"] = effort_indicator(result["level"])
     return result
 
@@ -255,7 +256,7 @@ async def create_plan(req: Request):
     model = str(body.get("model", "") or "")
     ollama_url = str(body.get("ollama_url", "") or "")
     agent_id = str(body.get("agent_id", "") or "")
-    plan = generate_plan(task, model, ollama_url, agent_id=agent_id)
+    plan = await asyncio.to_thread(generate_plan, task, model, ollama_url, agent_id=agent_id)
     save_plan(plan)
     return {"plan": plan}
 
@@ -488,7 +489,8 @@ async def verify_endpoint(req: Request):
     from palimind.agents.self_critique import verify_output
 
     body = await req.json()
-    report = verify_output(
+    report = await asyncio.to_thread(
+        verify_output,
         str(body.get("task", "")),
         str(body.get("output", "")),
         str(body.get("model", "") or ""),

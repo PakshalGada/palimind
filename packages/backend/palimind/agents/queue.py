@@ -15,6 +15,7 @@ from typing import Any
 from palimind.storage import state_store
 
 QUEUE_LIMIT = 100
+_ACTIVE_STATUSES = ("queued", "running", "paused")
 _loop_task: asyncio.Task | None = None
 _locks: dict[str, asyncio.Lock] = {}
 
@@ -24,7 +25,13 @@ def enqueue(target_type: str, target_id: str, input: str, priority: int = 0) -> 
         raise ValueError("target_type must be agent or team")
     if not target_id:
         raise ValueError("target_id is required")
-    if len(state_store.list_queue_items(limit=1000)) >= QUEUE_LIMIT:
+    # Only live items count: finished/cancelled history must not fill the queue.
+    active = [
+        i
+        for i in state_store.list_queue_items(limit=1000)
+        if i.get("status") in _ACTIVE_STATUSES
+    ]
+    if len(active) >= QUEUE_LIMIT:
         raise ValueError(f"queue limit reached ({QUEUE_LIMIT})")
     item = {
         "id": str(uuid.uuid4()),
@@ -84,16 +91,43 @@ def clear_target(target_type: str, target_id: str) -> None:
     state_store.delete_target_queue(target_type, target_id)
 
 
+def _target_busy(item: dict[str, Any]) -> bool:
+    """True when the item's target is at its concurrency limit right now."""
+    if item.get("target_type") == "team":
+        from palimind.agents.team_runtime import is_team_running
+
+        return is_team_running(str(item.get("target_id")))
+    from palimind.agents.registry import get_registry
+    from palimind.agents.runtime import running_count
+
+    defn = get_registry().get_by_id(str(item.get("target_id")))
+    if defn is None:
+        return False  # _execute marks it failed
+    return running_count(defn.id) >= max(1, int(defn.max_concurrent_runs or 1))
+
+
 def next_due() -> dict[str, Any] | None:
     for item in list_queue(limit=1000):
-        if item.get("status") == "queued":
+        if item.get("status") == "queued" and not _target_busy(item):
             return item
     return None
 
 
+def recover_stale_running() -> int:
+    """Requeue items a previous process left ``running`` (crash/restart)."""
+    count = 0
+    for item in list_queue(limit=1000):
+        if item.get("status") == "running":
+            item["status"] = "queued"
+            item["started_at"] = None
+            state_store.upsert_queue_item(item)
+            count += 1
+    return count
+
+
 async def _execute(item: dict[str, Any]) -> None:
     from palimind.agents.registry import get_registry
-    from palimind.agents.runtime import is_running
+    from palimind.agents.runtime import running_count
     from palimind.agents.service import run_agent
     from palimind.agents import teams
     from palimind.agents.team_runtime import run_team
@@ -105,7 +139,9 @@ async def _execute(item: dict[str, Any]) -> None:
         if defn is None:
             update_item(item["id"], status="failed", error="Agent not found")
             return
-        if is_running(defn.id):
+        if running_count(defn.id) >= max(1, int(defn.max_concurrent_runs or 1)):
+            # Still busy: put it back instead of leaving it "running" forever.
+            update_item(item["id"], status="queued")
             return
         try:
             output = await run_agent(
@@ -166,6 +202,10 @@ def start_queue_runner() -> asyncio.Task:
     global _loop_task
     if _loop_task is not None and not _loop_task.done():
         return _loop_task
+    try:
+        recover_stale_running()
+    except Exception as exc:  # noqa: BLE001 - recovery is best-effort
+        print(f"[queue] could not recover running items: {exc}")
     _loop_task = asyncio.create_task(_queue_loop())
     return _loop_task
 

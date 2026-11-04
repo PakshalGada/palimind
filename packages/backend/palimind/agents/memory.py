@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,11 @@ from typing import Any
 from palimind.settings import AGENT_MEMORY_MAX_ENTRIES
 
 ALLOWED_TYPES = ("fact", "preference", "result", "error")
+
+# Serialises read-modify-write of memory stores: run completion, background
+# fact extraction (worker thread) and parallel team members can append to the
+# same store at once and would otherwise drop each other's entries.
+write_lock = threading.RLock()
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
 _STOPWORDS = {
@@ -131,14 +137,15 @@ def append_memory(agent_id: str, entry_type: str, content: str) -> None:
     if path is None:
         return
 
-    entries = read_memory(agent_id)
-    entries.append({"timestamp": _now_iso(), "type": entry_type, "content": str(content)})
-    if len(entries) > AGENT_MEMORY_MAX_ENTRIES:
-        entries = entries[-AGENT_MEMORY_MAX_ENTRIES:]
+    with write_lock:
+        entries = read_memory(agent_id)
+        entries.append({"timestamp": _now_iso(), "type": entry_type, "content": str(content)})
+        if len(entries) > AGENT_MEMORY_MAX_ENTRIES:
+            entries = entries[-AGENT_MEMORY_MAX_ENTRIES:]
 
-    try:
-        from palimind.storage import state_store
+        try:
+            from palimind.storage import state_store
 
-        state_store.set_json(_memory_namespace(path), "entries", entries)
-    except Exception as e:
-        print(f"[agents] failed to write memory for {agent_id}: {e}")
+            state_store.set_json(_memory_namespace(path), "entries", entries)
+        except Exception as e:
+            print(f"[agents] failed to write memory for {agent_id}: {e}")

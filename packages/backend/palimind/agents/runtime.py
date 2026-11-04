@@ -32,6 +32,14 @@ class AgentBusyError(RuntimeError):
     """Raised when an agent has reached its concurrent-run limit."""
 
 
+class _RunCancelled(BaseException):
+    """Raised inside a run's worker thread once the run was cancelled.
+
+    A BaseException so the agent loop's ``except Exception`` guards do not
+    swallow it: the orphaned thread must stop calling the LLM and tools.
+    """
+
+
 class RunningAgent:
     def __init__(self, agent_id: str, run_id: str, loop: asyncio.AbstractEventLoop) -> None:
         self.agent_id = agent_id
@@ -42,8 +50,26 @@ class RunningAgent:
         self.approval_result: dict | None = None
         self.pending: dict | None = None
         self.paused = threading.Event()
+        # Set when the run is cancelled/finished; the worker thread checks it.
+        self.cancelled = threading.Event()
+        # One pending approval at a time per run: parallel workers (fan-out)
+        # share this RunningAgent and must not overwrite each other's request.
+        self.approval_lock = asyncio.Lock()
         self._steer: list[str] = []
         self._steer_lock = threading.Lock()
+
+    def release(self) -> None:
+        """Stop a worker thread that may outlive its task (loop thread only).
+
+        Clears pause, rejects any pending/queued approval and flags the run
+        cancelled so the thread exits at its next event instead of spinning
+        or blocking forever.
+        """
+        self.cancelled.set()
+        self.paused.clear()
+        if self.pending is not None:
+            self.approval_result = {"approved": False, "correction": ""}
+        self.approval_event.set()
 
     def push_steer(self, text: str) -> None:
         text = str(text or "").strip()
@@ -61,6 +87,7 @@ class RunningAgent:
 # agent_id -> run_id -> RunningAgent (true N concurrent runs)
 _running: dict[str, dict[str, RunningAgent]] = {}
 _running_lock = asyncio.Lock()
+_background_tasks: set[asyncio.Task] = set()
 
 
 async def register_running(
@@ -115,11 +142,16 @@ def is_running(agent_id: str) -> bool:
 
 def cancel_agent(agent_id: str, run_id: str | None = None) -> int:
     runs = _running.get(agent_id) or {}
-    targets = [runs[run_id]] if run_id and run_id in runs else list(runs.values())
+    if run_id:
+        # An unknown/finished run id must not cancel the agent's other runs.
+        targets = [runs[run_id]] if run_id in runs else []
+    else:
+        targets = list(runs.values())
     cancelled = 0
     for ra in targets:
         if ra.task is not None:
             ra.task.cancel()
+            ra.release()
             cancelled += 1
     return cancelled
 
@@ -173,7 +205,12 @@ async def resolve_approval(
     runs = _running.get(agent_id) or {}
     if not runs:
         return False
-    ra = runs.get(run_id) if run_id else next(reversed(list(runs.values())))
+    if run_id:
+        ra = runs.get(run_id)
+    else:
+        # Resolve the run that is actually waiting, not just the newest one.
+        waiting = [r for r in runs.values() if r.pending is not None]
+        ra = waiting[-1] if waiting else None
     if ra is None or ra.pending is None:
         return False
     ra.approval_result = {"approved": approved, "correction": correction}
@@ -218,14 +255,17 @@ def delete_memory_entry(agent_id: str, index: int) -> None:
     path = memory_file_for(defn, getattr(registry, "field_root", None))
     if path is None:
         return
-    entries = read_memory(agent_id)
-    if not (0 <= index < len(entries)):
-        return
-    entries.pop(index)
-    try:
-        state_store.set_json(_memory_namespace(path), "entries", entries)
-    except Exception as e:
-        print(f"[agents] failed to delete memory entry for {agent_id}: {e}")
+    from palimind.agents.memory import write_lock
+
+    with write_lock:
+        entries = read_memory(agent_id)
+        if not (0 <= index < len(entries)):
+            return
+        entries.pop(index)
+        try:
+            state_store.set_json(_memory_namespace(path), "entries", entries)
+        except Exception as e:
+            print(f"[agents] failed to delete memory entry for {agent_id}: {e}")
 
 
 def _runs_dir() -> Path:
@@ -362,6 +402,12 @@ def _make_approval_provider(
 
     def provider(pending: dict) -> dict:
         async def _inner() -> dict:
+            async with ra.approval_lock:
+                if ra.cancelled.is_set():
+                    return {"approved": False}
+                return await _wait(pending)
+
+        async def _wait(pending: dict) -> dict:
             ra.pending = pending
             ra.approval_event.clear()
             ra.approval_result = None
@@ -723,6 +769,10 @@ async def run_with_definition(
     }
 
     def thread_emit(event_type: str, payload: dict) -> None:
+        if ra.cancelled.is_set():
+            # The task was cancelled but asyncio.to_thread cannot stop the
+            # worker; abort it here so it stops running tools after Stop.
+            raise _RunCancelled()
         if event_type != "agent:token":
             with trace_lock:
                 trace.append({"type": event_type, **payload})
@@ -749,199 +799,203 @@ async def run_with_definition(
         if emit is not None:
             await emit("agent:completed", {"output": output, "status": status})
 
-    team_ctx = dict(team_context or {})
-    approval_provider = (
-        _make_approval_provider(
-            ra,
-            emit,
-            definition,
-            team_id=str(team_ctx.get("team_id") or ""),
-        )
-        if interactive
-        else None
-    )
-
-    chat_model, ollama_url, light_model = _field_models(calling_root)
-    requested_model = definition.model or chat_model or "llama3"
-    model, fallback_note = _resolve_available_model(requested_model, chat_model, ollama_url)
-    from palimind.opencode.router import resolve_model_url
-
-    # The agent may use a model different from the field's chat_model (e.g. an
-    # OpenCode-proxy model); re-resolve the URL against the actual model so
-    # proxy-served models are not called on the local Ollama instance.
-    ollama_url = resolve_model_url(model, ollama_url)
-    from palimind.agents.registry import get_registry
-
-    working_root = calling_root if calling_root is not None else get_registry().field_root
-    from palimind.agents.scope import resolve_scope
-
-    primary_root, extra_roots = resolve_scope(definition, working_root)
-    set_tool_context(
-        primary_root,
-        ollama_url,
-        model,
-        light_model,
-        extra_roots=extra_roots,
-        read_only_roots=extra_roots,
-        agent_id=definition.id,
-        session_id=session_id,
-        write_access=bool(definition.write_access),
-        allow_network=False,
-        team_id=str(team_ctx.get("team_id") or ""),
-        team_run_id=str(team_ctx.get("team_run_id") or ""),
-        team_emit=team_ctx.get("team_emit"),
-        team_loop=team_ctx.get("team_loop"),
-        delegate_depth=int(team_ctx.get("delegate_depth", 0) or 0),
-    )
-
-    # ── Phase 4.1: adaptive reasoning effort ─────────────────────────────
-    from dataclasses import replace
-
-    from palimind.agents import adaptive_reasoning as ar
-
-    effort_info: dict[str, Any] = {}
-    effective_iterations = definition.max_iterations
-    effective_context = definition.context_budget
-    if definition.reasoning_effort and definition.reasoning_effort != "off":
-        classifier_model = REASONING_CLASSIFIER_MODEL or light_model or model
-        effort_info = await asyncio.to_thread(
-            ar.resolve_effort,
-            input,
-            definition.reasoning_effort,
-            classifier_model,
-            ollama_url,
-        )
-        applied = ar.apply_effort(
-            effort_info["level"],
-            max_iterations=definition.max_iterations,
-            context_budget=definition.context_budget,
-        )
-        effective_iterations = applied["iterations"]
-        effective_context = applied["context_budget"]
-        if emit is not None:
-            await emit(
-                "agent:effort",
-                {
-                    "level": effort_info["level"],
-                    "indicator": ar.effort_indicator(effort_info["level"]),
-                    "source": effort_info.get("source", ""),
-                    "score": effort_info.get("score"),
-                    "reasoning": effort_info.get("reasoning", ""),
-                    "max_iterations": effective_iterations,
-                },
-            )
-    run_definition = replace(definition, context_budget=effective_context)
-
-    memory_block = ""
-    if definition.memory_mode != "off":
-        # Pre-run recall: surface the memory entries most relevant to this
-        # input rather than just the most recent ones.
-        mem = recall_memory(definition.id, input, k=AGENT_MEMORY_RECALL_LIMIT)
-        if mem:
-            lines = [f"- [{e.get('type', 'fact')}] {str(e.get('content', ''))[:400]}" for e in mem]
-            memory_block = "[AGENT MEMORY]\n" + "\n".join(lines) + "\n"
-
-    custom_prompt = definition.system_prompt or ""
-    if memory_block:
-        custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + memory_block
-    skill_prompt = skill_instructions(definition.skills)
-    if skill_prompt:
-        custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + skill_prompt
-    context_block = _workspace_context_block(working_root)
-    if context_block:
-        custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + context_block
-
-    from palimind.agents.workspace import workspace_context_block
-
-    ws_block = workspace_context_block(definition)
-    if ws_block:
-        custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + ws_block
-    if extra_prompt:
-        custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + extra_prompt
-    custom_prompt = (
-        (custom_prompt.rstrip() + "\n\n" if custom_prompt else "")
-        + "[HOW TO WORK]\n"
-        "Plan → act → verify → deliver. Use a tool instead of guessing. "
-        "Cite sources when you research. Write requested deliverables to your "
-        "workspace with write_file. Read tool errors, adjust once, then continue. "
-        "Stop when the success criteria are met and always finish with FINAL_ANSWER."
-    )
-
-    # Attached skills can extend the agent's tool allowlist.
-    from palimind.agents.catalog import resolve_tool_pack
-
-    pack_tools = (
-        resolve_tool_pack(definition.tool_pack)
-        if str(definition.tool_pack or "auto") not in ("auto", "custom")
-        else []
-    )
-    effective_tools = list(
-        dict.fromkeys(
-            [
-                *definition.tools,
-                *pack_tools,
-                *skill_tools(definition.skills),
-                *(extra_tools or []),
-            ]
-        )
-    )
-    sub_task: dict[str, Any] = {
-        "agent_id": _stable_agent_int(definition.id),
-        "label": definition.name,
-        "task": input,
-        "tools": effective_tools,
-        "context": "",
-    }
-
-    # ── Phase 4.4: planning mode ─────────────────────────────────────────
-    from palimind.agents import planner as planner_mod
-
-    plan: dict[str, Any] | None = None
-    plan_rejected = False
-    if definition.planning_mode in ("review", "auto"):
-        try:
-            plan = await asyncio.to_thread(
-                planner_mod.generate_plan,
-                input,
-                light_model or model,
-                ollama_url,
-                agent_id=definition.id,
-                available_tools=effective_tools,
-                success_criteria=definition.success_criteria,
-            )
-        except Exception as e:  # noqa: BLE001 - planning is best-effort
-            print(f"[agents] plan generation failed: {e}")
-            plan = None
-        if plan is not None:
-            planner_mod.save_plan(plan)
-            if emit is not None:
-                await emit(
-                    "agent:plan",
-                    {
-                        "plan_id": plan["id"],
-                        "mode": definition.planning_mode,
-                        "status": "pending",
-                        "steps": plan.get("steps", []),
-                    },
-                )
-            if definition.planning_mode == "review" and emit is not None:
-                decision = await planner_mod.wait_for_plan_review(plan["id"], PLAN_REVIEW_TIMEOUT)
-                if not decision.get("approved") and not decision.get("timeout"):
-                    plan_rejected = True
-                else:
-                    refreshed = planner_mod.get_plan(plan["id"])
-                    if refreshed:
-                        plan = refreshed
-            if not plan_rejected:
-                custom_prompt = _plan_prompt_block(custom_prompt, plan)
-
     start = time.time()
     status = "success"
     output = ""
     cancelled = False
     verification_holder: dict[str, Any] = {}
-    orchestration_result: dict[str, Any] | None = None
+    effort_info: dict[str, Any] = {}
+    fallback_note = ""
+    model = definition.model or "llama3"
+    ollama_url = ""
+    light_model = ""
     try:
+        team_ctx = dict(team_context or {})
+        approval_provider = (
+            _make_approval_provider(
+                ra,
+                emit,
+                definition,
+                team_id=str(team_ctx.get("team_id") or ""),
+            )
+            if interactive
+            else None
+        )
+
+        chat_model, ollama_url, light_model = _field_models(calling_root)
+        requested_model = definition.model or chat_model or "llama3"
+        model, fallback_note = _resolve_available_model(requested_model, chat_model, ollama_url)
+        from palimind.opencode.router import resolve_model_url
+
+        # The agent may use a model different from the field's chat_model (e.g. an
+        # OpenCode-proxy model); re-resolve the URL against the actual model so
+        # proxy-served models are not called on the local Ollama instance.
+        ollama_url = resolve_model_url(model, ollama_url)
+        from palimind.agents.registry import get_registry
+
+        working_root = calling_root if calling_root is not None else get_registry().field_root
+        from palimind.agents.scope import resolve_scope
+
+        primary_root, extra_roots = resolve_scope(definition, working_root)
+        set_tool_context(
+            primary_root,
+            ollama_url,
+            model,
+            light_model,
+            extra_roots=extra_roots,
+            read_only_roots=extra_roots,
+            agent_id=definition.id,
+            session_id=session_id,
+            write_access=bool(definition.write_access),
+            allow_network=False,
+            team_id=str(team_ctx.get("team_id") or ""),
+            team_run_id=str(team_ctx.get("team_run_id") or ""),
+            team_emit=team_ctx.get("team_emit"),
+            team_loop=team_ctx.get("team_loop"),
+            delegate_depth=int(team_ctx.get("delegate_depth", 0) or 0),
+        )
+
+        # ── Phase 4.1: adaptive reasoning effort ─────────────────────────────
+        from dataclasses import replace
+
+        from palimind.agents import adaptive_reasoning as ar
+
+        effective_iterations = definition.max_iterations
+        effective_context = definition.context_budget
+        if definition.reasoning_effort and definition.reasoning_effort != "off":
+            classifier_model = REASONING_CLASSIFIER_MODEL or light_model or model
+            effort_info = await asyncio.to_thread(
+                ar.resolve_effort,
+                input,
+                definition.reasoning_effort,
+                classifier_model,
+                ollama_url,
+            )
+            applied = ar.apply_effort(
+                effort_info["level"],
+                max_iterations=definition.max_iterations,
+                context_budget=definition.context_budget,
+            )
+            effective_iterations = applied["iterations"]
+            effective_context = applied["context_budget"]
+            if emit is not None:
+                await emit(
+                    "agent:effort",
+                    {
+                        "level": effort_info["level"],
+                        "indicator": ar.effort_indicator(effort_info["level"]),
+                        "source": effort_info.get("source", ""),
+                        "score": effort_info.get("score"),
+                        "reasoning": effort_info.get("reasoning", ""),
+                        "max_iterations": effective_iterations,
+                    },
+                )
+        run_definition = replace(definition, context_budget=effective_context)
+
+        memory_block = ""
+        if definition.memory_mode != "off":
+            # Pre-run recall: surface the memory entries most relevant to this
+            # input rather than just the most recent ones.
+            mem = recall_memory(definition.id, input, k=AGENT_MEMORY_RECALL_LIMIT)
+            if mem:
+                lines = [f"- [{e.get('type', 'fact')}] {str(e.get('content', ''))[:400]}" for e in mem]
+                memory_block = "[AGENT MEMORY]\n" + "\n".join(lines) + "\n"
+
+        custom_prompt = definition.system_prompt or ""
+        if memory_block:
+            custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + memory_block
+        skill_prompt = skill_instructions(definition.skills)
+        if skill_prompt:
+            custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + skill_prompt
+        context_block = _workspace_context_block(working_root)
+        if context_block:
+            custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + context_block
+
+        from palimind.agents.workspace import workspace_context_block
+
+        ws_block = workspace_context_block(definition)
+        if ws_block:
+            custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + ws_block
+        if extra_prompt:
+            custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + extra_prompt
+        custom_prompt = (
+            (custom_prompt.rstrip() + "\n\n" if custom_prompt else "")
+            + "[HOW TO WORK]\n"
+            "Plan → act → verify → deliver. Use a tool instead of guessing. "
+            "Cite sources when you research. Write requested deliverables to your "
+            "workspace with write_file. Read tool errors, adjust once, then continue. "
+            "Stop when the success criteria are met and always finish with FINAL_ANSWER."
+        )
+
+        # Attached skills can extend the agent's tool allowlist.
+        from palimind.agents.catalog import resolve_tool_pack
+
+        pack_tools = (
+            resolve_tool_pack(definition.tool_pack)
+            if str(definition.tool_pack or "auto") not in ("auto", "custom")
+            else []
+        )
+        effective_tools = list(
+            dict.fromkeys(
+                [
+                    *definition.tools,
+                    *pack_tools,
+                    *skill_tools(definition.skills),
+                    *(extra_tools or []),
+                ]
+            )
+        )
+        sub_task: dict[str, Any] = {
+            "agent_id": _stable_agent_int(definition.id),
+            "label": definition.name,
+            "task": input,
+            "tools": effective_tools,
+            "context": "",
+        }
+
+        # ── Phase 4.4: planning mode ─────────────────────────────────────────
+        from palimind.agents import planner as planner_mod
+
+        plan: dict[str, Any] | None = None
+        plan_rejected = False
+        if definition.planning_mode in ("review", "auto"):
+            try:
+                plan = await asyncio.to_thread(
+                    planner_mod.generate_plan,
+                    input,
+                    light_model or model,
+                    ollama_url,
+                    agent_id=definition.id,
+                    available_tools=effective_tools,
+                    success_criteria=definition.success_criteria,
+                )
+            except Exception as e:  # noqa: BLE001 - planning is best-effort
+                print(f"[agents] plan generation failed: {e}")
+                plan = None
+            if plan is not None:
+                planner_mod.save_plan(plan)
+                if emit is not None:
+                    await emit(
+                        "agent:plan",
+                        {
+                            "plan_id": plan["id"],
+                            "mode": definition.planning_mode,
+                            "status": "pending",
+                            "steps": plan.get("steps", []),
+                        },
+                    )
+                if definition.planning_mode == "review" and emit is not None:
+                    decision = await planner_mod.wait_for_plan_review(plan["id"], PLAN_REVIEW_TIMEOUT)
+                    if not decision.get("approved") and not decision.get("timeout"):
+                        plan_rejected = True
+                    else:
+                        refreshed = planner_mod.get_plan(plan["id"])
+                        if refreshed:
+                            plan = refreshed
+                if not plan_rejected:
+                    custom_prompt = _plan_prompt_block(custom_prompt, plan)
+
+        start = time.time()
         if plan_rejected:
             status = "rejected"
             output = "[Plan rejected by user]"
@@ -1002,7 +1056,10 @@ async def run_with_definition(
             except Exception as e:
                 status = "error"
                 output = f"[Agent run error] {e}"
-                await emit_completed(output, status)
+                try:
+                    await emit_completed(output, status)
+                except Exception:
+                    pass
 
             # ── Phase 4.6: structured self-critique / verification ───────
             if status == "success" and output and definition.self_critique:
@@ -1023,14 +1080,34 @@ async def run_with_definition(
                     usage_cb=_usage_cb,
                 )
                 verification_holder = report
+    except asyncio.CancelledError:
+        # Cancelled outside the agent loop (plan review, setup, verification):
+        # still finalise below so the run never stays "running".
+        status = "cancelled"
+        output = "[Agent run cancelled]"
+        cancelled = True
+        try:
+            await emit_completed(output, status)
+        except Exception:
+            pass
+    except Exception as e:
+        status = "error"
+        output = f"[Agent run error] {e}"
+        try:
+            await emit_completed(output, status)
+        except Exception:
+            pass
     finally:
         await unregister_running(definition.id, run_id)
         approvals.remove(definition.id, run_id)
+        # Unblock a worker thread that may outlive the run (cancelled while
+        # paused or waiting for approval) so it stops instead of leaking.
+        ra.release()
 
     if fallback_note and status == "success":
         output = f"**Note:** {fallback_note}\n\n{output}"
 
-    if status == "success":
+    if status in ("success", "rejected"):
         await emit_completed(output, status)
 
     duration = time.time() - start
@@ -1049,7 +1126,7 @@ async def run_with_definition(
         effort=effort_info or None,
     )
     append_chat(definition.id, "agent", output)
-    activity.finish(definition.id, status, output)
+    activity.finish(definition.id, status, output, run_id=run_id)
     run_journal.finish(run_id, definition.id, status, output)
 
     if definition.memory_mode != "off":
@@ -1063,11 +1140,14 @@ async def run_with_definition(
             print(f"[agents] memory append failed: {e}")
         if status == "success" and AGENT_AUTO_MEMORY_EXTRACT:
             # Fire-and-forget so extraction never delays the run's completion.
-            asyncio.create_task(
+            # Keep a reference so the task is not garbage-collected mid-run.
+            extract = asyncio.create_task(
                 asyncio.to_thread(
                     _extract_facts, definition, input, output, light_model, ollama_url
                 )
             )
+            _background_tasks.add(extract)
+            extract.add_done_callback(_background_tasks.discard)
 
     if cancelled:
         raise asyncio.CancelledError()

@@ -147,6 +147,15 @@ def ask_agent(agent: str, task: str, context: str = "") -> str:
             working_root = candidate
 
     async def _run() -> str:
+        # Track the delegate under the team run so Stop cancels it too;
+        # otherwise it keeps running (up to 30 min) after the team is stopped.
+        from palimind.agents.team_runtime import _handles
+
+        handle = _handles.get(team_id)
+        if handle is not None and handle.run_id == run_id:
+            if handle.cancelled:
+                raise asyncio.CancelledError()
+            handle.add(asyncio.current_task())
         return await run_with_definition(
             defn,
             task_text,
@@ -165,11 +174,13 @@ def ask_agent(agent: str, task: str, context: str = "") -> str:
         )
 
     started = time.time()
+    future = asyncio.run_coroutine_threadsafe(_run(), loop)
     try:
-        future = asyncio.run_coroutine_threadsafe(_run(), loop)
         output = future.result(timeout=1800)
         status = "ok"
     except Exception as exc:  # noqa: BLE001 - surface failure to the manager
+        # On timeout the delegate is still running; stop it.
+        future.cancel()
         output = f"[{getattr(defn, 'label', defn.name)} failed] {exc}"
         status = "error"
 

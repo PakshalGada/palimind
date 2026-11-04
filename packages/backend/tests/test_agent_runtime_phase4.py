@@ -11,14 +11,9 @@ from palimind.agents import runtime as rt
 from palimind.agents.catalog import AgentDefinition
 
 
-class _FakeRunning:
+class _FakeRunning(rt.RunningAgent):
     def __init__(self) -> None:
-        self.agent_id = "a"
-        self.run_id = "r"
-        self.loop = None
-        self.approval_event = asyncio.Event()
-        self.approval_result = None
-        self.pending = None
+        super().__init__("a", "r", None)  # type: ignore[arg-type]
 
 
 @pytest.fixture(autouse=True)

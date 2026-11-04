@@ -449,12 +449,13 @@ def validate_cron(expr: str) -> str | None:
             atom = atom.strip()
             if atom == "*":
                 continue
-            if atom.startswith("*/") and atom[2:].isdigit():
-                continue
             if "/" in atom:
                 base, step = atom.split("/", 1)
                 if not step.isdigit():
                     return f"invalid schedule field '{part}'"
+                if int(step) == 0:
+                    # "*/0" would silently never fire.
+                    return f"step must be at least 1 in schedule field '{part}'"
                 if base != "*" and not base.isdigit():
                     return f"invalid schedule field '{part}'"
                 continue
@@ -465,6 +466,9 @@ def validate_cron(expr: str) -> str | None:
                 a_i, b_i = int(a), int(b)
                 if a_i < lo or b_i > hi:
                     return f"value out of range in schedule field '{part}'"
+                if a_i > b_i:
+                    # The matcher has no wrap-around ranges; "5-1" never fires.
+                    return f"range start must not exceed end in schedule field '{part}'"
                 continue
             if not atom.isdigit():
                 return f"invalid schedule field '{part}'"

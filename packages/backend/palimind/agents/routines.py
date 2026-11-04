@@ -139,7 +139,10 @@ async def run_routine(routine_id: str) -> str:
             raise KeyError("Team not found")
         result = await run_team(team, input_text, interactive=False)
         run_id = str(result.get("run_id") or "")
-        mark_run(routine_id, run_id, str(result.get("status") or "success"))
+        status = str(result.get("status") or "success")
+        mark_run(routine_id, run_id, status)
+        if status == "error":
+            raise RuntimeError(str(result.get("error") or result.get("output") or "team run failed"))
         return run_id
 
     from palimind.agents.registry import get_registry
@@ -157,7 +160,12 @@ async def run_routine(routine_id: str) -> str:
     except Exception:
         pass
     run_id = str((last or {}).get("run_id") or "")
-    mark_run(routine_id, run_id, "success" if output else "error")
+    # run_agent reports failures as an output string, so trust the recorded
+    # run status rather than "non-empty output" (which is always true).
+    status = str((last or {}).get("status") or ("success" if output else "error"))
+    mark_run(routine_id, run_id, status)
+    if status == "error":
+        raise RuntimeError(output[:500] or "run failed")
     return run_id
 
 

@@ -28,6 +28,7 @@ from palimind.agents.catalog import AgentDefinition
 from palimind.agents.team_chat import append_message
 from palimind.agents.team_tools import delegation_count, reset_delegations
 from palimind.agents.runtime import (
+    AgentBusyError,
     record_run,
     register_running,
     unregister_running,
@@ -427,6 +428,18 @@ async def run_team(
         run_mode = "manager"
 
     run_id = str(uuid.uuid4())
+    try:
+        await register_running(f"team:{team_id}", run_id, 1)
+    except AgentBusyError:
+        # A second concurrent run would overwrite the first run's handle (so
+        # Stop no longer reaches it) and clear the live state of the other.
+        error = "Team is already running. Wait for it to finish or cancel it."
+        if emit is not None:
+            try:
+                await emit({"type": "team:error", "text": error})
+            except Exception:  # noqa: BLE001
+                pass
+        return {"run_id": "", "status": "error", "error": error, "output": ""}
     handle = TeamRunHandle(team_id, run_id)
     _handles[team_id] = handle
     handle.add(asyncio.current_task())
@@ -452,10 +465,6 @@ async def run_team(
     error = ""
     started = time.time()
 
-    try:
-        await register_running(f"team:{team_id}", run_id, 1)
-    except Exception:
-        pass
     activity.start(f"team:{team_id}", str(team.get("display_name") or team.get("name") or "Team"), run_id, f"team:{run_id}")
     reset_delegations(run_id)
 
@@ -540,8 +549,9 @@ async def run_team(
             await unregister_running(f"team:{team_id}", run_id)
         except Exception:
             pass
-        activity.finish(f"team:{team_id}", status, output)
-        _handles.pop(team_id, None)
+        activity.finish(f"team:{team_id}", status, output, run_id=run_id)
+        if _handles.get(team_id) is handle:
+            _handles.pop(team_id, None)
         try:
             await asyncio.to_thread(
                 record_run,

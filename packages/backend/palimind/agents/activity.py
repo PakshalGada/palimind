@@ -77,9 +77,13 @@ def step(agent_id: str, text: str, kind: str = "thought") -> None:
         )
 
 
-def finish(agent_id: str, status: str, summary: str = "") -> None:
+def finish(agent_id: str, status: str, summary: str = "", run_id: str = "") -> None:
     with _lock:
-        activity = _running.pop(agent_id, None)
+        activity = _running.get(agent_id)
+        # With concurrent runs, only the run that owns the live entry may
+        # clear it; an older run finishing must not hide a newer active one.
+        if activity is not None and (not run_id or activity.get("run_id") == run_id):
+            _running.pop(agent_id, None)
         name = activity["name"] if activity else ""
         _push(
             {

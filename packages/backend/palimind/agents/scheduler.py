@@ -13,6 +13,15 @@ from palimind.settings import AGENT_SCHEDULER_TICK
 _loop: asyncio.AbstractEventLoop | None = None
 _scheduler_task: asyncio.Task | None = None
 _fired_keys: deque[str] = deque(maxlen=2000)
+_fire_tasks: set[asyncio.Task] = set()
+
+
+def _spawn(coro: Any) -> None:
+    # Keep a strong reference: the loop only holds weak refs to tasks, so a
+    # bare create_task() can be garbage-collected before the run finishes.
+    task = asyncio.create_task(coro)
+    _fire_tasks.add(task)
+    task.add_done_callback(_fire_tasks.discard)
 
 
 # ── cron matcher (5-field, supports */n, lists, ranges) ───────────────────
@@ -32,7 +41,9 @@ def _field_matches(expr: str, value: int, lo: int, hi: int) -> bool:
             if step_value <= 0:
                 continue
             if base == "*":
-                if value % step_value == 0:
+                # Steps count from the field minimum: "*/2" in day-of-month
+                # is 1,3,5,… and "*/3" in month is Jan,Apr,Jul,Oct.
+                if (value - lo) % step_value == 0:
                     return True
             else:
                 try:
@@ -73,12 +84,22 @@ def cron_matches(expr: str, dt: datetime | None = None) -> bool:
         return False
     if not _field_matches(parts[1], hour, 0, 23):
         return False
-    if not _field_matches(parts[2], dom, 1, 31):
-        return False
     if not _field_matches(parts[3], month, 1, 12):
         return False
+    dom_ok = _field_matches(parts[2], dom, 1, 31)
     # accept 7 as Sunday too
-    return _field_matches(parts[4], dow, 0, 7)
+    dow_ok = _field_matches(parts[4], dow, 0, 7) or (
+        dow == 0 and _field_matches(parts[4], 7, 0, 7)
+    )
+    # Standard cron: when both day-of-month and day-of-week are restricted,
+    # the job runs when *either* matches ("0 9 1 * 1" = the 1st and Mondays).
+    if _is_wildcard(parts[2]) or _is_wildcard(parts[4]):
+        return dom_ok and dow_ok
+    return dom_ok or dow_ok
+
+
+def _is_wildcard(expr: str) -> bool:
+    return expr.strip().startswith("*")
 
 
 # ── results ───────────────────────────────────────────────────────────────
@@ -165,7 +186,7 @@ async def _tick_scheduled() -> None:
             if running_count(defn.id) >= max(1, int(defn.max_concurrent_runs or 1)):
                 continue
         input = f"[Scheduled trigger at {now.isoformat()}]\nExecute your scheduled task now."
-        asyncio.create_task(_fire_agent(defn, input, source="scheduled"))
+        _spawn(_fire_agent(defn, input, source="scheduled"))
 
     await _tick_routines(now)
 
@@ -189,7 +210,7 @@ async def _tick_routines(now: datetime) -> None:
                 print(f"[agents] routine {r.get('id')} failed: {exc}")
                 await post_routine_notification(r, "error", str(exc))
 
-        asyncio.create_task(_run())
+        _spawn(_run())
 
 
 async def post_routine_notification(
