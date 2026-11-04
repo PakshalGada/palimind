@@ -451,19 +451,25 @@ def get_chunk_neighbors(
     ]
 
 
-def fts_search(conn: sqlite3.Connection, query: str, limit: int = 5) -> list[dict]:
-    """Perform a BM25 keyword search using FTS5."""
+def build_fts_query(query: str) -> str:
+    """Turn raw user text into a safe FTS5 OR-of-prefixes query.
+
+    Each term is emitted as a quoted string (``"term"*``) so FTS5 operators
+    and keywords (``-``, ``AND``, ``OR``, ``NOT``, ``NEAR``, ``col:``) in user
+    input can never produce a syntax error. Returns ``""`` if nothing usable.
+    """
     import re as _re
 
     safe_query = _re.sub(r"[^\w\s\-]", " ", query, flags=_re.UNICODE).strip()
+    terms = [w for w in safe_query.split() if len(w.strip("-")) >= 2]
+    return " OR ".join(f'"{w}"*' for w in terms)
 
-    if not safe_query:
-        return []
 
-    terms = [f"{w}*" for w in safe_query.split() if len(w) >= 2]
-    if not terms:
+def fts_search(conn: sqlite3.Connection, query: str, limit: int = 5) -> list[dict]:
+    """Perform a BM25 keyword search using FTS5."""
+    fts_query = build_fts_query(query)
+    if not fts_query:
         return []
-    fts_query = " OR ".join(terms)
 
     try:
         cur = conn.execute(
@@ -519,15 +525,9 @@ def fts_search_filtered(
     limit: int = 5,
 ) -> list[dict]:
     """BM25 search with optional metadata filters on the JOIN side."""
-    import re as _re
-
-    safe_query = _re.sub(r"[^\w\s\-]", " ", query, flags=_re.UNICODE).strip()
-    if not safe_query:
+    fts_query = build_fts_query(query)
+    if not fts_query:
         return []
-    terms = [f"{w}*" for w in safe_query.split() if len(w) >= 2]
-    if not terms:
-        return []
-    fts_query = " OR ".join(terms)
 
     conditions = ["chunks_fts MATCH ?"]
     params: list = [fts_query]

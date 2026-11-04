@@ -65,6 +65,11 @@ def has_session_data(root: Path) -> bool:
 def _connect(root: Path) -> sqlite3.Connection:
     path = _state_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists():
+        # The DB was removed out from under us (e.g. "clear agent sessions"
+        # deletes the whole .palimind dir): re-create the schema instead of
+        # failing with "no such table" until the server restarts.
+        _INITIALISED.discard(str(path.resolve()))
     conn = sqlite3.connect(str(path), timeout=30.0)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
@@ -450,7 +455,23 @@ def delete_session(root: Path, session_id: str) -> dict:
         raise
     finally:
         conn.close()
+    _delete_session_episodes(root, session_id)
     return load_sessions(root)
+
+
+def _delete_session_episodes(root: Path, session_id: str) -> None:
+    """Remove a deleted session's turns from episodic (long-term) memory.
+
+    Otherwise a deleted conversation keeps resurfacing as "relevant past
+    turns" in every other chat.
+    """
+    try:
+        from palimind.storage.chat_store import ChatVectorStore
+
+        with ChatVectorStore(root) as vstore:
+            vstore.delete_session(session_id)
+    except Exception as exc:
+        logger.warning("Failed to purge episodic memory for session %s: %s", session_id, exc)
 
 
 def append_message_to_session(
@@ -531,6 +552,10 @@ def truncate_session_messages(root: Path, session_id: str, keep_count: int) -> d
 
 
 def delete_session_message(root: Path, session_id: str, index: int) -> dict:
+    if int(index) < 0:
+        # SQLite treats a negative OFFSET as 0, so a missing/-1 index (the API
+        # default) used to delete the session's *first* message.
+        return load_sessions(root)
     conn = _connect(root)
     try:
         row = conn.execute(

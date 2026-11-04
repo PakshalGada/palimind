@@ -18,6 +18,7 @@ import json
 import mimetypes
 import re
 import shutil
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -56,6 +57,10 @@ _MIME_TYPES = {
     ".txt": "text/plain",
 }
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
+# index.json is rewritten in full on every change; serialise read-modify-write
+# cycles so concurrent saves (UI + agent tools) cannot drop each other's
+# artifacts or race on the shared temp file.
+_INDEX_LOCK = threading.RLock()
 
 
 def _now() -> float:
@@ -89,7 +94,7 @@ def _load_index(project_id: str) -> dict[str, Any]:
 
 def _save_index(project_id: str, data: dict[str, Any]) -> None:
     path = _index_path(project_id)
-    tmp = path.with_suffix(".json.tmp")
+    tmp = path.with_suffix(f".json.{threading.get_ident()}.tmp")
     tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), "utf-8")
     tmp.replace(path)
 
@@ -170,7 +175,11 @@ def _write_version(
     )
     filename = supplied_name or f"{artifact.get('id', 'artifact')[:8]}-v{version}{ext}"
     filename = _safe_filename(filename, f"artifact-v{version}{ext}")
-    physical = f"v{version}{Path(filename).suffix or ext}"
+    if not Path(filename).suffix:
+        # The reader derives the stored file name from this suffix; without
+        # one it looked for ``vN.txt`` while ``vN<ext>`` was written.
+        filename = f"{filename}{ext}"
+    physical = f"v{version}{Path(filename).suffix}"
     path = _version_dir(project_id, str(artifact["id"])) / physical
     path.write_bytes(payload)
     checksum = hashlib.sha256(payload).hexdigest()[:16]
@@ -244,28 +253,30 @@ def save_artifact(project_id: str, data: dict[str, Any]) -> dict[str, Any]:
         "session_id": str(data.get("session_id") or ""),
         "message_id": str(data.get("message_id") or ""),
     }
-    _write_version(project_id, artifact, data)
-    index = _load_index(project_id)
-    index["artifacts"].append(artifact)
-    _save_index(project_id, index)
+    with _INDEX_LOCK:
+        _write_version(project_id, artifact, data)
+        index = _load_index(project_id)
+        index["artifacts"].append(artifact)
+        _save_index(project_id, index)
     return _public(artifact)
 
 
 def add_version(project_id: str, artifact_id: str, data: dict[str, Any]) -> dict[str, Any]:
     """Append a new version to an existing artifact."""
-    index = _load_index(project_id)
-    for artifact in index["artifacts"]:
-        if artifact.get("id") == artifact_id:
-            _write_version(project_id, artifact, data)
-            if data.get("title"):
-                artifact["title"] = str(data["title"]).strip()
-            if data.get("description") is not None:
-                artifact["description"] = str(data.get("description") or "")
-            if data.get("metadata") and isinstance(data.get("metadata"), dict):
-                artifact["metadata"] = {**(artifact.get("metadata") or {}), **data["metadata"]}
-            _save_index(project_id, index)
-            return _public(artifact)
-    raise FileNotFoundError(f"Artifact not found: {artifact_id}")
+    with _INDEX_LOCK:
+        index = _load_index(project_id)
+        for artifact in index["artifacts"]:
+            if artifact.get("id") == artifact_id:
+                _write_version(project_id, artifact, data)
+                if data.get("title"):
+                    artifact["title"] = str(data["title"]).strip()
+                if data.get("description") is not None:
+                    artifact["description"] = str(data.get("description") or "")
+                if data.get("metadata") and isinstance(data.get("metadata"), dict):
+                    artifact["metadata"] = {**(artifact.get("metadata") or {}), **data["metadata"]}
+                _save_index(project_id, index)
+                return _public(artifact)
+        raise FileNotFoundError(f"Artifact not found: {artifact_id}")
 
 
 def list_artifacts(project_id: str, include_content: bool = False) -> list[dict[str, Any]]:
@@ -299,7 +310,12 @@ def _version_file(project_id: str, artifact: dict[str, Any], version: int | None
     if meta is None:
         raise FileNotFoundError(f"Artifact version not found: {target_version}")
     ext = Path(str(meta.get("filename") or "")).suffix or ".txt"
-    path = _version_dir(project_id, str(artifact["id"])) / f"v{target_version}{ext}"
+    directory = _version_dir(project_id, str(artifact["id"]))
+    path = directory / f"v{target_version}{ext}"
+    if not path.exists():
+        # Older records saved an extension-less filename while the payload was
+        # written with the type's extension.
+        path = next(iter(sorted(directory.glob(f"v{target_version}.*"))), path)
     if not path.exists():
         raise FileNotFoundError(f"Artifact file missing: {path.name}")
     return path, meta
@@ -322,18 +338,19 @@ def get_artifact(
 
 
 def delete_artifact(project_id: str, artifact_id: str) -> bool:
-    index = _load_index(project_id)
-    before = len(index["artifacts"])
-    index["artifacts"] = [
-        artifact
-        for artifact in index["artifacts"]
-        if not (isinstance(artifact, dict) and artifact.get("id") == artifact_id)
-    ]
-    if len(index["artifacts"]) == before:
-        return False
-    _save_index(project_id, index)
-    shutil.rmtree(_artifacts_root(project_id) / "files" / artifact_id, ignore_errors=True)
-    return True
+    with _INDEX_LOCK:
+        index = _load_index(project_id)
+        before = len(index["artifacts"])
+        index["artifacts"] = [
+            artifact
+            for artifact in index["artifacts"]
+            if not (isinstance(artifact, dict) and artifact.get("id") == artifact_id)
+        ]
+        if len(index["artifacts"]) == before:
+            return False
+        _save_index(project_id, index)
+        shutil.rmtree(_artifacts_root(project_id) / "files" / artifact_id, ignore_errors=True)
+        return True
 
 
 def export_artifact(

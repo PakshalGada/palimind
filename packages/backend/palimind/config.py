@@ -144,21 +144,26 @@ def load_config(root: Path) -> dict:
     return merged
 
 
+def _atomic_write_json(path: Path, data: dict) -> None:
+    """Write via temp file + ``os.replace``: a crash mid-write must never leave
+    a truncated config.json, which makes every load_config() call raise."""
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    with tmp.open("w") as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp, path)
+
+
 def write_default_config(root: Path) -> None:
     p_dir = palimind_dir(root)
     p_dir.mkdir(parents=True, exist_ok=True)
-    path = config_path(root)
-    with path.open("w") as f:
-        json.dump(DEFAULTS, f, indent=2)
+    _atomic_write_json(config_path(root), DEFAULTS)
 
 
 def save_config(root: Path, config: dict) -> None:
     """Persist a merged config dict to the workspace config.json."""
     p_dir = palimind_dir(root)
     p_dir.mkdir(parents=True, exist_ok=True)
-    path = config_path(root)
-    with path.open("w") as f:
-        json.dump({**DEFAULTS, **config}, f, indent=2)
+    _atomic_write_json(config_path(root), {**DEFAULTS, **config})
 
 
 GLOBAL_CONFIG_PATH = Path.home() / ".palimind_global.json"

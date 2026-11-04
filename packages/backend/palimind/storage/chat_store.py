@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +18,17 @@ _DEFAULT_DIM = 768
 _BIT_WIDTH = 4
 _META_FILE = "turbovec_chat_meta.json"
 _INDEX_FILE = "turbovec_chat.tvim"
+
+# Serialises load → mutate → save cycles so a background memory update and a
+# session deletion can't overwrite each other's changes.
+_WRITE_LOCK = threading.RLock()
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    with tmp.open("w") as f:
+        f.write(text)
+    os.replace(tmp, path)
 
 
 def _index_path(root: Path) -> Path:
@@ -36,9 +49,7 @@ def _load_meta(root: Path) -> dict[int, dict[str, Any]]:
 
 
 def _save_meta(root: Path, meta: dict[int, dict[str, Any]]) -> None:
-    p = _meta_path(root)
-    with p.open("w") as f:
-        json.dump({str(k): v for k, v in meta.items()}, f)
+    _atomic_write_text(_meta_path(root), json.dumps({str(k): v for k, v in meta.items()}))
 
 
 def _load_index(root: Path, dim: int = _DEFAULT_DIM) -> IdMapIndex:
@@ -65,7 +76,10 @@ def reset(root: Path) -> None:
 
 
 def _save_index(root: Path, index: IdMapIndex) -> None:
-    index.write(str(_index_path(root)))
+    path = _index_path(root)
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    index.write(str(tmp))
+    os.replace(tmp, path)
 
 
 class ChatVectorStore:
@@ -78,10 +92,14 @@ class ChatVectorStore:
         self._dirty = False
 
     def __enter__(self) -> ChatVectorStore:
+        _WRITE_LOCK.acquire()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.commit()
+        try:
+            self.commit()
+        finally:
+            _WRITE_LOCK.release()
 
     def _ensure_loaded(self, dim: int = _DEFAULT_DIM) -> None:
         if self._index is None:
@@ -113,6 +131,14 @@ class ChatVectorStore:
         if self._index is None or self._meta is None:
             raise RuntimeError("ChatVectorStore failed to initialise")
 
+        if int(self._index.dim) != dim:
+            # The embedding model changed. Old episodes can never be compared
+            # with new query vectors, and turbovec rejects mixed dimensions,
+            # so without this every future insert would fail and episodic
+            # memory would silently stop growing. Start a fresh index.
+            self._index = IdMapIndex(dim=dim, bit_width=_BIT_WIDTH)
+            self._meta = {}
+
         vectors = np.array([d["vector"] for d in data], dtype=np.float32)
         ids = np.array([d["chunk_id"] for d in data], dtype=np.uint64)
         self._index.add_with_ids(vectors, ids)
@@ -124,6 +150,21 @@ class ChatVectorStore:
                 "content": d["content"],
             }
         self._dirty = True
+
+    def delete_session(self, session_id: str) -> int:
+        """Drop every episode recorded for *session_id*. Returns the count."""
+        if not _index_path(self.root).exists() and self._index is None:
+            return 0
+        self._ensure_loaded()
+        if self._index is None or self._meta is None:
+            return 0
+        ids = [cid for cid, m in self._meta.items() if m.get("session_id") == session_id]
+        for cid in ids:
+            self._index.remove(int(cid))
+            del self._meta[cid]
+        if ids:
+            self._dirty = True
+        return len(ids)
 
     def commit(self) -> None:
         """Persist all pending changes to disk."""
@@ -149,6 +190,9 @@ def search_chat_episodes(root: Path, query_vector: list[float], limit: int = 5) 
     except VectorIndexError:
         return []
     query = np.array(query_vector, dtype=np.float32).reshape(1, -1)
+    if int(index.dim) != query.shape[1]:
+        # Built with a different embedding model; nothing comparable to return.
+        return []
     k = min(limit, len(meta))
     _scores, ext_ids = index.search(query, k=k)
     top_ids = ext_ids[0]

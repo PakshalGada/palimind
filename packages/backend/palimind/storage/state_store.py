@@ -44,6 +44,9 @@ def state_db_path() -> Path:
 def _connect(path: Path | None = None) -> sqlite3.Connection:
     db = path or state_db_path()
     db.parent.mkdir(parents=True, exist_ok=True)
+    if not db.exists():
+        # Re-create the schema if the DB file was deleted while running.
+        _initialised.discard(str(db))
     conn = sqlite3.connect(str(db), timeout=30.0)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
@@ -342,13 +345,15 @@ def list_runs(agent_id: str, limit: int = 50) -> list[dict[str, Any]]:
     conn = _connect()
     try:
         rows = conn.execute(
-            "SELECT value FROM runs WHERE agent_id=? ORDER BY timestamp ASC LIMIT ?",
+            "SELECT value FROM runs WHERE agent_id=? ORDER BY timestamp DESC LIMIT ?",
             (agent_id, int(limit)),
         ).fetchall()
     finally:
         conn.close()
+    # Keep the *newest* ``limit`` runs (callers treat ``[-1]`` as the latest
+    # run) but return them in chronological order.
     out: list[dict[str, Any]] = []
-    for (raw,) in rows:
+    for (raw,) in reversed(rows):
         try:
             value = json.loads(raw)
         except (TypeError, json.JSONDecodeError) as exc:

@@ -93,50 +93,56 @@ def get_task(task_id: str) -> dict[str, Any] | None:
 
 
 def create_task(raw: dict[str, Any]) -> dict[str, Any]:
-    items = _load()
-    task = _normalize(raw)
-    task["id"] = str(raw.get("id") or uuid.uuid4().hex)
-    items.append(task)
-    _save(items)
-    return task
+    # Hold the lock across the whole read-modify-write: concurrent writers
+    # (e.g. a running task finishing while the user edits the board) would
+    # otherwise overwrite each other with a stale list.
+    with _LOCK:
+        items = _load()
+        task = _normalize(raw)
+        task["id"] = str(raw.get("id") or uuid.uuid4().hex)
+        items.append(task)
+        _save(items)
+        return task
 
 
 def update_task(task_id: str, changes: dict[str, Any]) -> dict[str, Any] | None:
-    changes = dict(changes)
-    actor = str(changes.pop("_actor", "user"))
-    items = _load()
-    for i, task in enumerate(items):
-        if task.get("id") != task_id:
-            continue
-        if "status" in changes and changes["status"] != task.get("status"):
-            task = {
-                **task,
-                "history": task.get("history", [])
-                + [
-                    {
-                        "id": uuid.uuid4().hex,
-                        "task_id": task_id,
-                        "from_status": task.get("status"),
-                        "to_status": changes["status"],
-                        "timestamp": time.time(),
-                        "actor": actor,
-                    }
-                ],
-            }
-        merged = {**task, **changes}
-        merged["id"] = task_id
-        merged["created_at"] = task.get("created_at")
-        items[i] = _normalize(merged, task)
-        items[i]["id"] = task_id
-        _save(items)
-        return items[i]
-    return None
+    with _LOCK:
+        changes = dict(changes)
+        actor = str(changes.pop("_actor", "user"))
+        items = _load()
+        for i, task in enumerate(items):
+            if task.get("id") != task_id:
+                continue
+            if "status" in changes and changes["status"] != task.get("status"):
+                task = {
+                    **task,
+                    "history": task.get("history", [])
+                    + [
+                        {
+                            "id": uuid.uuid4().hex,
+                            "task_id": task_id,
+                            "from_status": task.get("status"),
+                            "to_status": changes["status"],
+                            "timestamp": time.time(),
+                            "actor": actor,
+                        }
+                    ],
+                }
+            merged = {**task, **changes}
+            merged["id"] = task_id
+            merged["created_at"] = task.get("created_at")
+            items[i] = _normalize(merged, task)
+            items[i]["id"] = task_id
+            _save(items)
+            return items[i]
+        return None
 
 
 def delete_task(task_id: str) -> bool:
-    items = _load()
-    remaining = [t for t in items if t.get("id") != task_id]
-    if len(remaining) == len(items):
-        return False
-    _save(remaining)
-    return True
+    with _LOCK:
+        items = _load()
+        remaining = [t for t in items if t.get("id") != task_id]
+        if len(remaining) == len(items):
+            return False
+        _save(remaining)
+        return True

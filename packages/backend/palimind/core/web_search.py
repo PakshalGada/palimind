@@ -17,7 +17,7 @@ import logging
 import threading
 import time
 from collections import OrderedDict
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 from ddgs import DDGS
 
@@ -182,13 +182,26 @@ def _fetch_page_fallback(url: str) -> str:
         import httpx
         from bs4 import BeautifulSoup
 
-        resp = httpx.get(
-            url,
-            timeout=FETCH_TIMEOUT_SECONDS,
-            follow_redirects=True,
-            headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"},
-        )
-        if resp.status_code >= 400:
+        # Follow redirects manually so every hop is re-checked: a public page
+        # redirecting to http://127.0.0.1/... (or a LAN host) must not bypass
+        # the SSRF guard applied to the original URL.
+        resp = None
+        current = url
+        for _hop in range(6):
+            if not _is_safe_url(current):
+                return ""
+            resp = httpx.get(
+                current,
+                timeout=FETCH_TIMEOUT_SECONDS,
+                follow_redirects=False,
+                headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"},
+            )
+            if not resp.is_redirect:
+                break
+            current = urljoin(current, resp.headers.get("location", ""))
+        else:
+            return ""
+        if resp is None or resp.is_redirect or resp.status_code >= 400:
             return ""
         soup = BeautifulSoup(resp.text, "html.parser")
         for tag in soup(["script", "style", "nav", "header", "footer", "aside", "noscript"]):
@@ -248,9 +261,9 @@ def perform_web_search(
 
     results = _dedupe_results(raw_results, max_results)
     if not results:
-        out = f"No web search results found for query: '{query}'"
-        _cache_put(key, out)
-        return out
+        # Not cached: an empty result is usually a transient DDG failure or
+        # rate-limit, which would otherwise stick for the whole cache TTL.
+        return f"No web search results found for query: '{query}'"
 
     # 2. Fetch page content for top results
     pages_to_fetch = results[:MAX_PAGES_TO_FETCH] if fetch_content else []

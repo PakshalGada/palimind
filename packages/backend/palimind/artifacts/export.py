@@ -261,7 +261,9 @@ def _png_bytes(title: str, content: str) -> bytes:
 
 
 def export_filename(title: str, extension: str) -> str:
-    base = re.sub(r"[^\w.-]+", "_", title or "artifact").strip("._") or "artifact"
+    # ASCII only: the name goes into a raw Content-Disposition header, which
+    # Starlette encodes as latin-1 — a CJK/emoji title used to raise and 500.
+    base = re.sub(r"[^\w.-]+", "_", title or "artifact", flags=re.ASCII).strip("._") or "artifact"
     return f"{base}.{extension}"
 
 

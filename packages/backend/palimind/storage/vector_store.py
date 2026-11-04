@@ -13,6 +13,7 @@ The external IDs stored in FAISS are the ``id`` primary keys from the
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -53,6 +54,15 @@ def _stamp_path(root: Path) -> Path:
     return palimind_dir(root) / _STAMP_FILE
 
 
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write *text* via temp file + ``os.replace`` so a crash never leaves a
+    truncated sidecar that makes the whole index unloadable."""
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    with tmp.open("w") as f:
+        f.write(text)
+    os.replace(tmp, path)
+
+
 def read_stamp(root: Path) -> dict[str, Any] | None:
     """Return the {model, dim} stamp the persisted index was built with."""
     p = _stamp_path(root)
@@ -68,7 +78,7 @@ def read_stamp(root: Path) -> dict[str, Any] | None:
 def write_stamp(root: Path, model: str, dim: int) -> None:
     """Record which embedding model + dimension produced the index."""
     try:
-        _stamp_path(root).write_text(json.dumps({"model": model, "dim": int(dim)}))
+        _atomic_write_text(_stamp_path(root), json.dumps({"model": model, "dim": int(dim)}))
     except Exception:
         pass
 
@@ -83,9 +93,7 @@ def _load_meta(root: Path) -> dict[int, dict[str, Any]]:
 
 
 def _save_meta(root: Path, meta: dict[int, dict[str, Any]]) -> None:
-    p = _meta_path(root)
-    with p.open("w") as f:
-        json.dump({str(k): v for k, v in meta.items()}, f)
+    _atomic_write_text(_meta_path(root), json.dumps({str(k): v for k, v in meta.items()}))
 
 
 def _load_removed(root: Path) -> set[int]:
@@ -99,9 +107,7 @@ def _load_removed(root: Path) -> set[int]:
 
 
 def _save_removed(root: Path, removed: set[int]) -> None:
-    p = _removed_path(root)
-    with p.open("w") as f:
-        json.dump(sorted(removed), f)
+    _atomic_write_text(_removed_path(root), json.dumps(sorted(removed)))
 
 
 def _create_index(dim: int, quantization: str = "none") -> faiss.Index:
@@ -238,7 +244,10 @@ def reset(root: Path) -> None:
 
 
 def _save_index(root: Path, index: faiss.Index) -> None:
-    faiss.write_index(index, str(_index_path(root)))
+    path = _index_path(root)
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    faiss.write_index(index, str(tmp))
+    os.replace(tmp, path)
 
 
 def _get_cached_search_data(
@@ -420,7 +429,9 @@ class VectorStore:
                 _save_index(self.root, self._index)
             if self._meta is not None:
                 _save_meta(self.root, self._meta)
-            if self._removed:
+            if self._removed or _removed_path(self.root).exists():
+                # Also rewrite when a rebuild just emptied the set, so a stale
+                # removed-list on disk cannot hide re-used ids later.
                 _save_removed(self.root, self._removed)
 
             # Invalidate cache
@@ -444,18 +455,22 @@ class VectorStore:
             self._removed.clear()
             return
 
-        # Search for all existing vectors to get their values
-        # This is expensive but only happens when > 5% of vectors are removed
-        vectors_list = []
-        ids_list = []
-        for cid in keep_ids:
-            try:
-                vec = self._index.reconstruct(int(cid))
-                vectors_list.append(vec)
-                ids_list.append(cid)
-            except Exception:
-                # Vector not found in index (shouldn't happen, but be safe)
-                pass
+        # ``IndexIDMap`` does not support ``reconstruct(external_id)`` (it
+        # raises), so read every stored vector from the wrapped index by its
+        # *internal* position and map it back through ``id_map``. The old code
+        # caught that exception per id and ended up rebuilding an EMPTY index,
+        # silently wiping all semantic search after enough deletions.
+        keep = set(keep_ids)
+        ntotal = int(self._index.ntotal)
+        ext_ids = faiss.vector_to_array(self._index.id_map) if ntotal else np.array([])
+        all_vecs = self._index.index.reconstruct_n(0, ntotal) if ntotal else None
+        latest: dict[int, int] = {}
+        for pos, ext in enumerate(ext_ids):
+            cid = int(ext)
+            if cid in keep:
+                latest[cid] = pos  # last write wins for re-inserted ids
+        vectors_list = [all_vecs[pos] for pos in latest.values()] if all_vecs is not None else []
+        ids_list = list(latest.keys())
 
         if not vectors_list:
             dim = self._index.d

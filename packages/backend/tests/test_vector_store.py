@@ -65,3 +65,38 @@ def test_insert_still_rejects_dimension_mismatch():
                 pass
             else:
                 raise AssertionError("expected VectorIndexError on dimension mismatch")
+
+
+def test_rebuild_after_deletes_keeps_surviving_vectors():
+    """Deleting >5% of vectors triggers a rebuild that must keep the rest.
+
+    Regression: ``_rebuild_index`` called ``IndexIDMap.reconstruct(ext_id)``,
+    which FAISS does not implement; every lookup failed and the index was
+    rebuilt empty, so semantic search silently returned nothing.
+    """
+    import numpy as np
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / ".palimind").mkdir()
+        dim = 8
+        rng = np.random.default_rng(0)
+        entries = []
+        for i in range(1, 41):
+            e = _entry(dim, i, "a.txt" if i <= 30 else "b.txt", f"chunk {i}")
+            e["vector"] = rng.random(dim).astype("float32").tolist()
+            entries.append(e)
+        with VectorStore(root) as vs:
+            vs.insert(entries)
+        with VectorStore(root) as vs:
+            vs.delete_file("b.txt")  # 25% removed → rebuild on commit
+
+        target = entries[4]
+        results = search(root, target["vector"], limit=3)
+        assert results, "index was wiped by the rebuild"
+        assert results[0]["chunk_db_id"] == target["chunk_db_id"]
+        assert all(r["file_path"] == "a.txt" for r in results)
+
+        from palimind.storage.vector_store import _load_index
+
+        assert _load_index(root).ntotal == 30

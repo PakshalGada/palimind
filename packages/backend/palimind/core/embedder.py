@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import threading
 import time
 from pathlib import Path
@@ -40,8 +41,14 @@ def _get_mem_cache(root: Path) -> dict:
 
 
 def _flush_mem_cache(root: Path, entry: dict) -> None:
-    _save_cache(entry["data"], root)
-    entry["dirty"] = 0
+    # Prune expired entries (the TTL was previously never applied, so the
+    # cache file grew without bound) and snapshot under the lock so a
+    # concurrent put can't break serialisation mid-iteration.
+    with _mem_lock:
+        entry["data"] = _prune_cache(entry["data"])
+        snapshot = dict(entry["data"])
+        entry["dirty"] = 0
+    _save_cache(snapshot, root)
 
 
 def _text_key(text: str, model: str) -> str:
@@ -54,25 +61,31 @@ def _load_cache(root: Path | None) -> dict:
     if not p or not p.exists():
         return {}
     try:
-        return json.loads(p.read_text())
+        data = json.loads(p.read_text())
     except Exception:
         return {}
+    return _prune_cache(data) if isinstance(data, dict) else {}
 
 
 def _save_cache(cache: dict, root: Path | None) -> None:
     p = _cache_path(root)
     if not p:
         return
+    tmp = p.with_name(f"{p.name}.{os.getpid()}.{threading.get_ident()}.tmp")
     try:
-        p.write_text(json.dumps(cache, separators=(",", ":")))
+        tmp.write_text(json.dumps(cache, separators=(",", ":")))
+        os.replace(tmp, p)
     except Exception:
-        pass
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
 
 
 def _prune_cache(cache: dict) -> dict:
     now = time.time()
     cutoff = now - _CACHE_TTL_HOURS * 3600
-    return {k: v for k, v in cache.items() if v.get("ts", 0) > cutoff}
+    return {k: v for k, v in cache.items() if isinstance(v, dict) and v.get("ts", 0) > cutoff}
 
 
 def _mem_get(root: Path | None, key: str) -> list[float] | None:
@@ -91,10 +104,11 @@ def _mem_put(root: Path | None, key: str, embedding: list[float]) -> None:
     if root is None:
         return
     entry = _get_mem_cache(root)
-    entry["data"][key] = {"e": embedding, "ts": time.time()}
-    _prune_cache(entry["data"])
-    entry["dirty"] += 1
-    if entry["dirty"] >= _MEM_FLUSH_EVERY:
+    with _mem_lock:
+        entry["data"][key] = {"e": embedding, "ts": time.time()}
+        entry["dirty"] += 1
+        should_flush = entry["dirty"] >= _MEM_FLUSH_EVERY
+    if should_flush:
         _flush_mem_cache(root, entry)
 
 

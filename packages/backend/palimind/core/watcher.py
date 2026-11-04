@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import threading
 from pathlib import Path
 
@@ -6,14 +8,24 @@ from watchdog.observers import Observer
 
 
 class FieldEventHandler(FileSystemEventHandler):
-    def __init__(self, callback):
+    def __init__(self, callback, root: Path | None = None):
         self.callback = callback
+        self.root = Path(root).resolve() if root is not None else None
 
     def on_any_event(self, event):
         if event.is_directory:
             return
-        # Ignore changes to hidden/palimind directories
-        parts = Path(event.src_path).parts
+        # Ignore changes to hidden/palimind directories *inside* the field.
+        # Only look at components below the root: a field that itself lives
+        # under a dot-directory (e.g. ~/.palimind/projects/<id>/workspace)
+        # used to have every event ignored.
+        path = Path(str(event.src_path))
+        if self.root is not None:
+            try:
+                path = path.resolve().relative_to(self.root)
+            except (ValueError, OSError):
+                pass
+        parts = path.parts
         if any(
             p.startswith(".") or p in ["node_modules", "__pycache__", "venv", ".venv"]
             for p in parts
@@ -32,7 +44,7 @@ class FieldWatcher:
         self.lock = threading.Lock()
 
     def start(self):
-        event_handler = FieldEventHandler(self._on_file_changed)
+        event_handler = FieldEventHandler(self._on_file_changed, self.root)
         self.observer = Observer()
         self.observer.schedule(event_handler, str(self.root), recursive=True)
         self.observer.start()
