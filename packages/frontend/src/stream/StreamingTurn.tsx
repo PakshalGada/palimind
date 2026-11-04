@@ -3,6 +3,7 @@ import { useApp } from '../AppContext';
 import { nextAssistantMessageIndex } from '../utils/artifacts';
 import { api } from '../api';
 import { useChatStreamActions, useChatStreamContext } from './context';
+import { streamBelongsTo } from './reducer';
 import StreamingMessage from './StreamingMessage';
 import { RunSurface } from '@/components/activity/shell/RunSurface';
 import { PersistRun } from '@/components/activity/shell/PersistRun';
@@ -20,8 +21,7 @@ export default function StreamingTurn({ activeSessionId }: { activeSessionId: st
   const session = sessions.find((item) => item.id === activeSessionId);
   const messageIndex = nextAssistantMessageIndex(session?.messages);
 
-  if (state.status === 'idle') return null;
-  if (state.sessionId !== null && state.sessionId !== activeSessionId) return null;
+  if (!streamBelongsTo(state, activeSessionId)) return null;
 
   const resolveApproval = (step: ToolStep, decision: GrantDecision) => {
     activityStore.resolveApproval(step.id, decision);

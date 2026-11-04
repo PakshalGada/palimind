@@ -2,10 +2,14 @@ import asyncio
 import json
 import os as _os
 import platform
+import re
 import subprocess
 import sys as _sys
+import tempfile
 import time
 import uuid
+from dataclasses import dataclass
+from dataclasses import field as _dc_field
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +65,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from palimind import config as _palimind_config
 from palimind.agents.api import router as agents_router
 from palimind.agents.teams_api import router as teams_router
 from palimind.api import (
@@ -162,7 +167,32 @@ if UI_DIR.exists():
 
 
 # -- Global State & Config --
-GLOBAL_CONFIG_PATH = Path.home() / ".palimind_global.json"
+# Single source of truth with palimind.config so the server writes the same
+# file load_global_config() reads (tests monkeypatch this module attribute).
+GLOBAL_CONFIG_PATH = _palimind_config.GLOBAL_CONFIG_PATH
+
+
+def _write_global_config(data: dict) -> None:
+    """Atomically replace the global config file.
+
+    Written to a temp file in the same directory and swapped in with
+    ``os.replace`` so a crash mid-write never leaves a truncated JSON file.
+    """
+    path = Path(GLOBAL_CONFIG_PATH)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with _os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(data, indent=2))
+            fh.flush()
+            _os.fsync(fh.fileno())
+        _os.replace(tmp, path)
+    except BaseException:
+        try:
+            _os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 class AppState:
@@ -185,15 +215,11 @@ class AppState:
                 pass
 
     def save(self):
-        GLOBAL_CONFIG_PATH.write_text(
-            json.dumps(
-                {
-                    "fields": self.fields,
-                    "active_field": str(self.active_field) if self.active_field else None,
-                },
-                indent=2,
-            ),
-            "utf-8",
+        _write_global_config(
+            {
+                "fields": self.fields,
+                "active_field": str(self.active_field) if self.active_field else None,
+            }
         )
 
 
@@ -648,8 +674,8 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     from palimind.agents.goals import stop_runner
-    from palimind.agents.scheduler import stop_scheduler
     from palimind.agents.queue import stop_queue_runner
+    from palimind.agents.scheduler import stop_scheduler
 
     stop_scheduler()
     stop_runner()
@@ -1467,7 +1493,12 @@ async def get_file_tree_sub(path: str = ""):
     return {"children": children}
 
 
-async def _agent_scope_chat(scope: str, q: str, session_id: str | None) -> StreamingResponse:
+async def _agent_scope_chat(
+    scope: str,
+    q: str,
+    session_id: str | None,
+    entry: "_ChatStreamEntry | None" = None,
+) -> StreamingResponse:
     """Route a chat directly to the agent named by ``scope="agent:<id>"``.
 
     The agent's conversations are stored in its own private session store, so
@@ -1493,8 +1524,12 @@ async def _agent_scope_chat(scope: str, q: str, session_id: str | None) -> Strea
     global_cfg = load_global_config()
     ollama_url = global_cfg.get("ollama_base_url", "http://localhost:11434")
     model = defn.model or global_cfg.get("chat_model", "llama3")
+    agent_root = _agent_chat_root(agent_id)
+    session_id = await _resolve_chat_session(agent_root, session_id)
+    if entry is not None:
+        entry.bind(agent_root, session_id, mode="agent", mode_params={"agent_name": defn.name})
     return await agent_sse_stream(
-        _agent_chat_root(agent_id),
+        agent_root,
         defn.name,
         q,
         session_id,
@@ -1503,6 +1538,186 @@ async def _agent_scope_chat(scope: str, q: str, session_id: str | None) -> Strea
         working_root=None,
         prefix_mention=False,
     )
+
+
+# ── Chat stream registry (session event + Stop) ─────────────────────────
+_STREAM_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+@dataclass
+class _ChatStreamEntry:
+    """Server-side view of one in-flight /api/chat stream.
+
+    ``text`` mirrors the answer the client has been sent (same rules as the
+    frontend stream reducer), so Stop can persist exactly what the user saw.
+    """
+
+    stream_id: str
+    root: Path | None = None
+    session_id: str | None = None
+    mode: str = ""
+    mode_params: dict | None = None
+    text: str = ""
+    sources: list[str] | None = None
+    citations: dict | None = None
+    started: bool = False
+    finished: bool = False
+    cancelled: bool = False
+    stop_lock: asyncio.Lock = _dc_field(default_factory=asyncio.Lock)
+    stop_result: dict | None = None
+
+    def bind(
+        self,
+        root: Path | None,
+        session_id: str | None,
+        mode: str = "",
+        mode_params: dict | None = None,
+    ) -> None:
+        self.root = root
+        self.session_id = session_id
+        self.mode = mode
+        self.mode_params = mode_params
+
+    def observe(self, chunk: Any) -> None:
+        """Track the visible answer from one SSE chunk."""
+        if isinstance(chunk, bytes | memoryview):
+            chunk = bytes(chunk).decode("utf-8", "replace")
+        for line in str(chunk).splitlines():
+            if not line.startswith("data:"):
+                continue
+            try:
+                event = json.loads(line[5:].strip())
+            except (ValueError, TypeError):
+                continue
+            if isinstance(event, dict):
+                self._apply(event)
+
+    def _apply(self, event: dict) -> None:
+        etype = event.get("type")
+        text = event.get("text")
+        if etype == "token" or (etype == "agent:token" and not event.get("reset")):
+            if isinstance(text, str):
+                self.text += text
+        elif etype == "agent:token":
+            self.text = ""
+        elif etype == "answer_final":
+            if isinstance(text, str) and text:
+                self.text = text
+        elif etype == "agent:completed":
+            output = str(event.get("output") or "").strip()
+            if output:
+                self.text = output
+        elif etype == "citation_map":
+            self.citations = {k: v for k, v in event.items() if k != "type"}
+            if isinstance(text, str) and text:
+                self.text = text
+        elif etype == "sources":
+            srcs = event.get("sources")
+            self.sources = [str(x) for x in srcs] if isinstance(srcs, list) else None
+        elif etype == "done":
+            self.finished = True
+
+
+_CHAT_STREAMS: dict[str, _ChatStreamEntry] = {}
+
+
+def _register_chat_stream(stream_id: str | None) -> _ChatStreamEntry:
+    sid = (stream_id or "").strip()
+    if not _STREAM_ID_RE.match(sid) or sid in _CHAT_STREAMS:
+        sid = uuid.uuid4().hex
+    entry = _ChatStreamEntry(stream_id=sid)
+    _CHAT_STREAMS[sid] = entry
+    return entry
+
+
+def _unregister_chat_stream(entry: _ChatStreamEntry) -> None:
+    if _CHAT_STREAMS.get(entry.stream_id) is entry:
+        del _CHAT_STREAMS[entry.stream_id]
+
+
+async def _resolve_chat_session(root: Path, session_id: str | None) -> str | None:
+    """Session a turn is stored in: the requested one, else the store's active one.
+
+    Mirrors ``get_hierarchical_memory`` so every chat path (including @agent
+    mentions) persists a brand-new chat's first turn.
+    """
+    if session_id:
+        return session_id
+    try:
+        data = await asyncio.to_thread(load_sessions, root)
+        return data.get("active_session_id")
+    except Exception:
+        return None
+
+
+async def _tracked_chat_sse(entry: _ChatStreamEntry, inner):
+    """Wrap a chat SSE body: announce the session, mirror the answer, honour Stop."""
+    try:
+        yield (
+            "data: "
+            + json.dumps({"type": "session", "id": entry.session_id, "stream_id": entry.stream_id})
+            + "\n\n"
+        )
+        async for chunk in inner:
+            # The generator has run past its user-message append once it yields.
+            entry.started = True
+            if entry.cancelled:
+                break
+            entry.observe(chunk)
+            yield chunk
+        if entry.cancelled:
+            # Stop already saved the partial answer; closing the generator runs
+            # its ``finally`` now (its duplicate append is dropped by the store).
+            aclose = getattr(inner, "aclose", None)
+            if aclose is not None:
+                try:
+                    await aclose()
+                except Exception:
+                    pass
+    finally:
+        _unregister_chat_stream(entry)
+
+
+@app.post("/api/chat/stop")
+async def chat_stop(stream_id: str):
+    """Stop a chat stream and persist its partial answer before responding.
+
+    Idempotent. Response: ``{"status": "stopped" | "finished" | "not_found",
+    "persisted": bool, "session_id": str | null}``. ``persisted`` is true when
+    this call wrote the partial answer; the stream's own late save of the
+    same turn is suppressed so the answer is stored exactly once.
+    """
+    from palimind.memory.session_store import persist_stopped_turn
+
+    entry = _CHAT_STREAMS.get(stream_id)
+    if entry is None:
+        return {"status": "not_found", "persisted": False, "session_id": None}
+    async with entry.stop_lock:
+        if entry.stop_result is not None:
+            return {**entry.stop_result, "persisted": False}
+        entry.cancelled = True
+        persisted = False
+        status = "finished" if entry.finished else "stopped"
+        if not entry.finished and entry.started and entry.root is not None and entry.session_id:
+            try:
+                persisted = await asyncio.to_thread(
+                    persist_stopped_turn,
+                    entry.root,
+                    entry.session_id,
+                    entry.text,
+                    sources=entry.sources,
+                    mode=entry.mode,
+                    mode_params=entry.mode_params,
+                    citations=entry.citations,
+                )
+            except Exception as exc:
+                print(f"[chat] failed to save stopped turn: {exc}")
+        entry.stop_result = {
+            "status": status,
+            "persisted": persisted,
+            "session_id": entry.session_id,
+        }
+        return entry.stop_result
 
 
 @app.get("/api/chat")
@@ -1515,9 +1730,41 @@ async def chat_stream(
     llm_sub_mode: str | None = None,
     scope: str = "field",
     rerank: bool | None = None,
+    stream_id: str | None = None,
 ):
+    """Chat SSE stream.
+
+    The first event is always ``{"type": "session", "id": <session id or
+    null>, "stream_id": <id>}`` so the client knows which conversation the
+    turn belongs to (a brand-new chat has no id client-side) and which id to
+    pass to ``POST /api/chat/stop``. ``stream_id`` may be supplied by the
+    client so Stop works even before that first event arrives.
+    """
+    entry = _register_chat_stream(stream_id)
+    try:
+        response = await _chat_stream_response(
+            entry, q, session_id, files, chat_mode, web_search, llm_sub_mode, scope, rerank
+        )
+    except BaseException:
+        _unregister_chat_stream(entry)
+        raise
+    response.body_iterator = _tracked_chat_sse(entry, response.body_iterator)
+    return response
+
+
+async def _chat_stream_response(
+    entry: "_ChatStreamEntry",
+    q: str,
+    session_id: str | None,
+    files: str | None,
+    chat_mode: str,
+    web_search: str,
+    llm_sub_mode: str | None,
+    scope: str,
+    rerank: bool | None,
+) -> StreamingResponse:
     if scope.startswith("agent:"):
-        return await _agent_scope_chat(scope, q, session_id)
+        return await _agent_scope_chat(scope, q, session_id, entry)
 
     root = _chat_root(scope)
     if root is None:
@@ -1555,11 +1802,15 @@ async def chat_stream(
             defn = get_registry().get(candidate)
             if defn is not None and defn.enabled:
                 agent_input = mention_parts[1].strip() if len(mention_parts) > 1 else ""
+                mention_session = await _resolve_chat_session(root, session_id)
+                entry.bind(
+                    root, mention_session, mode="agent", mode_params={"agent_name": defn.name}
+                )
                 return await agent_sse_stream(
                     root,
                     defn.name,
                     agent_input or "Run your task.",
-                    session_id,
+                    mention_session,
                     ollama_url,
                     chat_model,
                     working_root=root if not is_global_chat else None,
@@ -1586,6 +1837,7 @@ async def chat_stream(
     )
 
     active_sess_id = mem["active_sess_id"]
+    entry.bind(root, active_sess_id)
     history_to_send = mem["short_term"]
     mid_term_summary = mem["mid_term_summary"]
     long_term_episodes = mem["long_term_episodes"]
@@ -2065,7 +2317,7 @@ async def update_model(req: Request, scope: str = "field"):
         if GLOBAL_CONFIG_PATH.exists():
             global_data = json.loads(GLOBAL_CONFIG_PATH.read_text("utf-8"))
         global_data["chat_model"] = model_id
-        GLOBAL_CONFIG_PATH.write_text(json.dumps(global_data, indent=2), "utf-8")
+        _write_global_config(global_data)
     except Exception:
         pass
 
@@ -2238,7 +2490,7 @@ async def update_moe_config(req: Request, scope: str = "field"):
         for key in ("moe_orchestrator_model", "moe_worker_model", "moe_sub_mode"):
             if key in data:
                 global_data[key] = data[key]
-        GLOBAL_CONFIG_PATH.write_text(json.dumps(global_data, indent=2), "utf-8")
+        _write_global_config(global_data)
         return {"status": "success"}
     from palimind.config import config_path, load_config, palimind_dir, save_config
 
@@ -2286,7 +2538,7 @@ async def update_embed_model(req: Request, scope: str = "field"):
             except Exception:
                 pass
         global_data["embed_model"] = model_id
-        GLOBAL_CONFIG_PATH.write_text(json.dumps(global_data, indent=2), "utf-8")
+        _write_global_config(global_data)
         return {"status": "success"}
     from palimind.config import config_path, load_config, palimind_dir, save_config
 
@@ -2323,7 +2575,11 @@ async def moe_hardware_check():
     worker = config.get("moe_worker_model", "") or config.get("chat_model", "llama3")
     try:
         hw = await asyncio.to_thread(detect_hardware)
-        gpu_vram = max((g.vram_mb for g in hw.gpus), default=0)
+        # CPU-backend GPUs (iGPUs without an offload backend) can't hold the
+        # model in VRAM; same filter as palimind.hwfit.fit.
+        gpu_vram = max(
+            (g.vram_mb for g in hw.gpus if getattr(g, "backend", "") != "cpu"), default=0
+        )
         sys_ram = hw.total_ram_mb
         estimate = estimate_hardware_requirements(
             orch, worker, num_workers=4, gpu_vram_mb=gpu_vram, system_ram_mb=sys_ram
@@ -2595,7 +2851,7 @@ async def update_voice_settings(req: Request):
         if GLOBAL_CONFIG_PATH.exists():
             global_data = json.loads(GLOBAL_CONFIG_PATH.read_text("utf-8"))
         global_data["stt_whisper_model"] = model
-        GLOBAL_CONFIG_PATH.write_text(json.dumps(global_data, indent=2), "utf-8")
+        _write_global_config(global_data)
     except Exception:
         return {"error": "Failed to update voice settings"}
     return {"status": "success", "stt_whisper_model": model}

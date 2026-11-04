@@ -12,6 +12,7 @@ import MessageActions from './MessageActions';
 import MessageContent from './MessageContent';
 import { useChatStreamContext } from '../stream/context';
 import StreamingTurn from '../stream/StreamingTurn';
+import { streamBelongsTo } from '../stream/reducer';
 import { HistoryActivity } from '@/components/activity/shell/HistoryActivity';
 import { SourcesList } from '@/components/activity/citations/SourcesList';
 import { resultsFromSources } from '@/components/activity/recorder';
@@ -49,11 +50,9 @@ export default function ChatArea() {
   const finalRunRef = useRef('');
 
   const currentSess = sessions.find(s => s.id === activeSessionId);
-  // A live turn belongs to the session it was started from. New sessions have
-  // no id yet, so `null` means "show wherever the composer is".
-  const isStreaming =
-    streamState.status !== 'idle' &&
-    (streamState.sessionId === null || streamState.sessionId === activeSessionId);
+  // A live turn belongs to the session it was started from (or, for a new
+  // chat, the one the server reports in its first `session` event).
+  const isStreaming = streamBelongsTo(streamState, activeSessionId);
   const isEmpty =
     !isStreaming && (!currentSess || !currentSess.messages || currentSess.messages.length === 0);
 

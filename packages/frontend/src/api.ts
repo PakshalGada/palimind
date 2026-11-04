@@ -437,6 +437,13 @@ export const api = {
       patch<{ item?: QueueItem; error?: string }>(`/agents/queue/${itemId}`, { status }),
     cancel: (itemId: string) => post<{ item?: QueueItem; error?: string }>(`/agents/queue/${itemId}/cancel`),
   },
+  chat: {
+    /**
+     * Stop a chat stream. The server persists the partial answer before it
+     * responds, so a sessions refresh afterwards already contains it.
+     */
+    stop: (streamId: string) => post<{ status: 'stopped' | 'finished' | 'not_found'; persisted: boolean; session_id: string | null }>(`/chat/stop?stream_id=${encodeURIComponent(streamId)}`),
+  },
   moe: {
     hardwareCheck: () => get<{ fits_gpu?: boolean; fits_ram?: boolean; vram_per_worker_mb?: number; vram_orchestrator_mb?: number; total_vram_needed_mb?: number; total_ram_needed_mb?: number; suggested_worker?: string; suggested_orchestrator?: string; gpu_vram_mb?: number; system_ram_mb?: number; error?: string }>('/moe/hardware-check'),
   },

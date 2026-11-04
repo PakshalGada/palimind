@@ -23,6 +23,11 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
       };
     case 'reset':
       return { ...initialStreamState, revision: state.revision + 1 };
+    case 'setSession':
+      // A turn never moves between sessions once bound; only a brand-new chat
+      // (sessionId null) adopts the id the server created/used.
+      if (state.status === 'idle' || state.sessionId !== null || !action.sessionId) return state;
+      return next({ sessionId: action.sessionId });
     case 'setAnswer':
       if (action.text === state.answer) return state;
       return next({ answer: action.text });
@@ -51,4 +56,14 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
     default:
       return state;
   }
+}
+
+/**
+ * Whether the live turn belongs in the conversation being viewed. A turn whose
+ * session is not known yet (brand-new chat, before the server's `session`
+ * event) only shows in the "no session" view it was started from, so switching
+ * to another conversation mid-stream never displays it there.
+ */
+export function streamBelongsTo(state: StreamState, activeSessionId: string | null): boolean {
+  return state.status !== 'idle' && state.sessionId === activeSessionId;
 }

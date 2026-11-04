@@ -1,5 +1,6 @@
 import { startTransition, useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { useApp } from '../AppContext';
+import { api } from '../api';
 import { modeFromActivityMode } from '@/components/activity/adaptRun';
 import { RunRecorder } from '@/components/activity/recorder';
 import type { ActivityStore } from '@/components/activity/store';
@@ -16,6 +17,33 @@ import {
 /** Re-render the markdown buffer at most every 64ms (or every 4 tokens). */
 const FLUSH_MS = 64;
 const FLUSH_TOKENS = 4;
+
+/** Upper bound on waiting for the server to save a stopped turn. */
+const STOP_TIMEOUT_MS = 5_000;
+
+/** Client-chosen stream id so Stop can address a stream before its first event. */
+function makeStreamKey(): string {
+  const cryptoApi = globalThis.crypto as Crypto | undefined;
+  if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
+    return cryptoApi.randomUUID().replace(/-/g, '');
+  }
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+}
+
+/** Ask the server to stop the stream and persist its partial answer. */
+async function stopOnServer(streamKey: string): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      api.chat.stop(streamKey).catch(() => undefined),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, STOP_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
 
 function flushIntervalFor(length: number): number {
   if (length > 12_000) return 220;
@@ -52,7 +80,11 @@ export interface ChatStream {
  * rendering lives in the activity surface.
  */
 export function useChatStream(activityStore: ActivityStore): ChatStream {
-  const { setIsGenerating, refreshSessions } = useApp();
+  const { setIsGenerating, refreshSessions, activeSessionId, setActiveSessionId } = useApp();
+  const activeSessionRef = useRef(activeSessionId);
+  useEffect(() => {
+    activeSessionRef.current = activeSessionId;
+  }, [activeSessionId]);
   const [state, dispatch] = useReducer(streamReducer, initialStreamState);
 
   const sourceRef = useRef<EventSource | null>(null);
@@ -189,6 +221,9 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
       if (request.subMode) params.set('llm_sub_mode', request.subMode);
       if (request.sessionId) params.set('session_id', request.sessionId);
       if (request.files?.length) params.set('files', request.files.join(','));
+      // The server echoes this in its first `session` event; Stop uses it.
+      let streamKey = makeStreamKey();
+      params.set('stream_id', streamKey);
 
       const eventSource = new EventSource(`/api/chat?${params.toString()}`, {
         withCredentials: true,
@@ -209,7 +244,11 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
         setIsGenerating(false);
         recorder.end('stopped');
         dispatch({ type: 'finish', status: 'done' });
-        void refreshSessions().then(resetIfCurrent);
+        // The server saves the partial answer before answering the stop call,
+        // so the refresh below already contains it (no flash of lost text).
+        void stopOnServer(streamKey)
+          .then(() => refreshSessions())
+          .then(resetIfCurrent);
       });
 
       const finalize = (status: 'done' | 'error') => {
@@ -228,6 +267,19 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
       const handleEvent = (event: StreamEvent) => {
         recorder.observe(event);
         switch (event.type) {
+          case 'session': {
+            if (typeof event.stream_id === 'string' && event.stream_id) streamKey = event.stream_id;
+            const id = typeof event.id === 'string' && event.id ? event.id : null;
+            if (!id) break;
+            dispatch({ type: 'setSession', sessionId: id });
+            // A brand-new chat had no id; follow it into the session the server
+            // created, unless the user has already moved to another chat.
+            if (request.sessionId === null && activeSessionRef.current === null) {
+              setActiveSessionId(id);
+            }
+            break;
+          }
+
           case 'research_plan':
             window.dispatchEvent(
               new CustomEvent('palimind:research-plan', {
@@ -344,7 +396,16 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
         finalize('error');
       };
     },
-    [activityStore, closeSource, clearTimer, clearFlushTimer, flushAnswer, refreshSessions, setIsGenerating],
+    [
+      activityStore,
+      closeSource,
+      clearTimer,
+      clearFlushTimer,
+      flushAnswer,
+      refreshSessions,
+      setActiveSessionId,
+      setIsGenerating,
+    ],
   );
 
   const retry = useCallback(() => {

@@ -44,6 +44,8 @@ export interface VideoTarget {
  * so the UI layer never has to string-match raw payloads.
  */
 export type StreamEvent =
+  /** First event of every chat stream: the session the turn is stored in. */
+  | { type: 'session'; id?: string | null; stream_id?: string }
   | { type: 'token'; text?: string }
   | { type: 'thinking'; text?: string }
   | { type: 'reasoning'; text?: string }
@@ -98,6 +100,11 @@ export interface StreamState {
   status: StreamStatus;
   /** Echoed user prompt (also used to hide the live turn on session switch). */
   userText: string;
+  /**
+   * Session this turn belongs to: the one it was sent from, or (for a brand-new
+   * chat) the id the server reports in its first `session` event. `null` until
+   * known; the live turn only renders where `sessionId === activeSessionId`.
+   */
   sessionId: string | null;
   /** Epoch ms when this run started; used for live elapsed labels. */
   startedAt: number | null;
@@ -137,6 +144,7 @@ export const initialStreamState: StreamState = {
 export type StreamAction =
   | { type: 'start'; userText: string; sessionId: string | null }
   | { type: 'reset' }
+  | { type: 'setSession'; sessionId: string }
   | { type: 'setAnswer'; text: string }
   | { type: 'appendThinking'; text: string }
   | { type: 'setSources'; sources: string[] }

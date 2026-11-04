@@ -476,6 +476,123 @@ def _delete_session_episodes(root: Path, session_id: str) -> None:
         logger.warning("Failed to purge episodic memory for session %s: %s", session_id, exc)
 
 
+# ── Stopped turns ────────────────────────────────────────────────────────
+# When the user presses Stop, the API saves the partial answer synchronously
+# (``persist_stopped_turn``) and the stream generator's ``finally`` later tries
+# to append its own copy once it notices the disconnect. The marker below makes
+# that late append a no-op so the partial answer is stored exactly once. It is
+# cleared by the next user message (a new turn) or after ``_STOPPED_TURN_TTL``.
+_STOPPED_TURN_TTL = 300.0
+_STOPPED_TURNS: dict[tuple[str, str], float] = {}
+
+
+def _turn_key(root: Path, session_id: str) -> tuple[str, str]:
+    try:
+        base = str(Path(root).resolve())
+    except OSError:
+        base = str(root)
+    return (base, str(session_id))
+
+
+def _consume_stopped_marker(root: Path, session_id: str) -> bool:
+    """Pop the stop marker for a session; True when it was set and fresh."""
+    stamp = _STOPPED_TURNS.pop(_turn_key(root, session_id), None)
+    return stamp is not None and time.monotonic() - stamp < _STOPPED_TURN_TTL
+
+
+def _insert_message(
+    conn: sqlite3.Connection,
+    session_id: str,
+    role: str,
+    content: str,
+    extra: dict[str, Any],
+) -> None:
+    # First user message becomes the session title.
+    msg_count = conn.execute(
+        "SELECT COUNT(*) FROM messages WHERE session_id=?", (session_id,)
+    ).fetchone()[0]
+    if msg_count == 0 and role == "user":
+        conn.execute("UPDATE sessions SET name=? WHERE id=?", (str(content)[:200], session_id))
+    conn.execute(
+        "INSERT INTO messages(session_id, role, content, timestamp, meta) VALUES (?, ?, ?, ?, ?)",
+        (
+            session_id,
+            role,
+            content,
+            time.time(),
+            json.dumps(extra, ensure_ascii=False, default=str),
+        ),
+    )
+
+
+def _message_extra(
+    sources: list[str] | None,
+    mode: str,
+    mode_params: dict | None,
+    citations: list[dict] | dict | None,
+) -> dict[str, Any]:
+    extra: dict[str, Any] = {}
+    if mode:
+        extra["mode"] = mode
+    if mode_params:
+        extra["mode_params"] = mode_params
+    if sources:
+        extra["sources"] = sources
+    if citations:
+        extra["citations"] = citations
+    return extra
+
+
+def persist_stopped_turn(
+    root: Path,
+    session_id: str,
+    content: str,
+    sources: list[str] | None = None,
+    mode: str = "",
+    mode_params: dict | None = None,
+    citations: list[dict] | dict | None = None,
+) -> bool:
+    """Save the partial answer of a stream the user stopped — at most once.
+
+    The answer is only appended when the session's last message is the user's
+    turn (so a stream that already saved its final answer is not duplicated).
+    Whatever the outcome, the session is marked so the stream generator's own
+    late append of the same turn is dropped. Returns True when a message was
+    written.
+    """
+    with _LOCK:
+        _STOPPED_TURNS[_turn_key(root, session_id)] = time.monotonic()
+        if not str(content or "").strip():
+            return False
+        conn = _connect(root)
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            if conn.execute("SELECT 1 FROM sessions WHERE id=?", (session_id,)).fetchone() is None:
+                conn.rollback()
+                return False
+            last = conn.execute(
+                "SELECT role FROM messages WHERE session_id=? ORDER BY id DESC LIMIT 1",
+                (session_id,),
+            ).fetchone()
+            if last is None or last[0] != "user":
+                conn.rollback()
+                return False
+            _insert_message(
+                conn,
+                session_id,
+                "system",
+                content,
+                _message_extra(sources, mode, mode_params, citations),
+            )
+            conn.commit()
+            return True
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+
 def append_message_to_session(
     root: Path,
     session_id: str,
@@ -486,17 +603,35 @@ def append_message_to_session(
     mode_params: dict | None = None,
     citations: list[dict] | dict | None = None,
 ):
-    """Append exactly one message. Other sessions/summaries are untouched."""
-    extra: dict[str, Any] = {}
-    if mode:
-        extra["mode"] = mode
-    if mode_params:
-        extra["mode_params"] = mode_params
-    if sources:
-        extra["sources"] = sources
-    if citations:
-        extra["citations"] = citations
+    """Append exactly one message. Other sessions/summaries are untouched.
 
+    An assistant append for a turn that was already saved by
+    ``persist_stopped_turn`` is skipped (see the stop marker above).
+    """
+    if role == "user":
+        # A new turn starts: any stop marker from the previous one is stale.
+        with _LOCK:
+            _STOPPED_TURNS.pop(_turn_key(root, session_id), None)
+        _append_message_row(root, session_id, role, content, sources, mode, mode_params, citations)
+        return
+    # Check-and-insert atomically against ``persist_stopped_turn``.
+    with _LOCK:
+        if _consume_stopped_marker(root, session_id):
+            return
+        _append_message_row(root, session_id, role, content, sources, mode, mode_params, citations)
+
+
+def _append_message_row(
+    root: Path,
+    session_id: str,
+    role: str,
+    content: str,
+    sources: list[str] | None,
+    mode: str,
+    mode_params: dict | None,
+    citations: list[dict] | dict | None,
+) -> None:
+    extra = _message_extra(sources, mode, mode_params, citations)
     conn = _connect(root)
     try:
         conn.execute("BEGIN IMMEDIATE")
@@ -504,23 +639,7 @@ def append_message_to_session(
         if row is None:
             conn.rollback()
             return
-        # First user message becomes the session title.
-        msg_count = conn.execute(
-            "SELECT COUNT(*) FROM messages WHERE session_id=?", (session_id,)
-        ).fetchone()[0]
-        if msg_count == 0 and role == "user":
-            conn.execute("UPDATE sessions SET name=? WHERE id=?", (str(content)[:200], session_id))
-        conn.execute(
-            "INSERT INTO messages(session_id, role, content, timestamp, meta) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (
-                session_id,
-                role,
-                content,
-                time.time(),
-                json.dumps(extra, ensure_ascii=False, default=str),
-            ),
-        )
+        _insert_message(conn, session_id, role, content, extra)
         conn.commit()
     except Exception:
         conn.rollback()
