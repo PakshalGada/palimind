@@ -360,29 +360,42 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
 
 async function textToPng(artifact: ExportableArtifact): Promise<Blob> {
   const dark = !document.documentElement.classList.contains('light-mode');
-  const scale = 2;
   const width = 1200;
   const padding = 70;
   const lineHeight = 27;
+  const bodyTop = padding + 70;
+  // Tall enough for the wrapped content, capped so the canvas stays allocatable.
+  const maxHeight = 16000;
+  const titleFont = '600 30px Inter, ui-sans-serif, system-ui, sans-serif';
+  const bodyFont = '16px "IBM Plex Mono", ui-monospace, monospace';
   const canvas = document.createElement('canvas');
-  canvas.width = width * scale;
-  canvas.height = 1600 * scale;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas is not available');
+
+  // Wrap first (measuring needs the font) so the canvas can be sized to fit.
+  ctx.font = bodyFont;
+  let lines = wrapText(ctx, artifact.content, width - padding * 2);
+  const maxLines = Math.max(1, Math.floor((maxHeight - bodyTop - padding) / lineHeight) + 1);
+  if (lines.length > maxLines) lines = [...lines.slice(0, maxLines - 1), '…'];
+  const height = Math.min(maxHeight, Math.max(400, bodyTop + (lines.length - 1) * lineHeight + padding));
+  // Keep the backing store under common browser canvas limits (~32k px per side).
+  const scale = Math.min(2, 32000 / height);
+
+  // Resizing resets context state, so styles are applied after.
+  canvas.width = Math.round(width * scale);
+  canvas.height = Math.round(height * scale);
   ctx.scale(scale, scale);
   ctx.fillStyle = dark ? '#090909' : '#ffffff';
-  ctx.fillRect(0, 0, width, 1600);
+  ctx.fillRect(0, 0, width, height);
 
   ctx.fillStyle = dark ? '#f4f4f4' : '#181818';
-  ctx.font = '600 30px Inter, ui-sans-serif, system-ui, sans-serif';
+  ctx.font = titleFont;
   ctx.fillText(artifact.title || 'Artifact', padding, padding + 20);
 
   ctx.fillStyle = dark ? '#a2a2a2' : '#535353';
-  ctx.font = '16px "IBM Plex Mono", ui-monospace, monospace';
-  const lines = wrapText(ctx, artifact.content, width - padding * 2);
-  let y = padding + 70;
+  ctx.font = bodyFont;
+  let y = bodyTop;
   for (const line of lines) {
-    if (y > 1600 - padding) break;
     ctx.fillText(line, padding, y);
     y += lineHeight;
   }

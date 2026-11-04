@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { FileText, Folder, Trash2, X } from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { Button, EmptyState, Spinner } from '../../ui/primitives';
 import type { WorkspaceFile } from '../../types';
 import './AgentWorkspacePanel.css';
@@ -14,6 +15,7 @@ export default function AgentWorkspacePanel({
   onClose: () => void;
 }) {
   const { selectedAgentId, addToast } = useApp();
+  const confirm = useConfirm();
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
   const [path, setPath] = useState('');
   const [root, setRoot] = useState('');
@@ -56,6 +58,12 @@ export default function AgentWorkspacePanel({
 
   const remove = async (file: WorkspaceFile) => {
     if (!selectedAgentId) return;
+    const ok = await confirm(`Delete "${file.name}"? This cannot be undone.`, {
+      title: file.type === 'directory' ? 'Delete Folder' : 'Delete File',
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     const res = await api.agents.workspace.remove(selectedAgentId, file.path);
     if (res.error) addToast(res.error, { tone: 'error' });
     else {

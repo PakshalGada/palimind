@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
+import { useConfirm } from '../../components/ConfirmDialog';
 import AgentAvatar from '../../components/AgentAvatar';
 import { Button, Chip, EmptyState, Field, Select, TextArea, TextInput } from '../../ui/primitives';
 import type { AgentListItem, Team, TeamMessage, TeamNote, TeamRun } from '../../types';
@@ -36,6 +37,7 @@ export default function TeamWorkspace({
   onBack: () => void;
 }) {
   const { addToast, refreshOverview } = useApp();
+  const confirm = useConfirm();
   const [team, setTeam] = useState<Team | null>(null);
   const [messages, setMessages] = useState<TeamMessage[]>([]);
   const [notes, setNotes] = useState<TeamNote[]>([]);
@@ -159,6 +161,7 @@ export default function TeamWorkspace({
     if (res.team) setTeam(res.team);
     else if (res.error) addToast(res.error, { tone: 'error' });
     setSavingSettings(false);
+    return Boolean(res.team);
   };
 
   const cancel = async () => {
@@ -415,6 +418,12 @@ export default function TeamWorkspace({
 
           {tab === 'settings' && (
             <SettingsTab team={team} saving={savingSettings} onSave={saveSettings} onDelete={async () => {
+              const ok = await confirm(`Delete team "${team.display_name || team.name}"? This cannot be undone.`, {
+                title: 'Delete Team',
+                confirmLabel: 'Delete',
+                danger: true,
+              });
+              if (!ok) return;
               await api.teams.remove(teamId);
               window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
               onBack();
@@ -523,11 +532,25 @@ function SettingsTab({
 }: {
   team: Team;
   saving: boolean;
-  onSave: (changes: Partial<Team>) => void;
+  onSave: (changes: Partial<Team>) => Promise<boolean>;
   onDelete: () => void;
 }) {
-  const [draft, setDraft] = useState(team);
-  useEffect(() => setDraft(team), [team]);
+  const [draft, setDraftState] = useState(team);
+  // Unsaved edits survive background refreshes of `team` (e.g. after a run);
+  // the draft is only re-seeded for a different team or when nothing is dirty.
+  const dirtyRef = useRef(false);
+  const seededIdRef = useRef(team.id);
+  const setDraft = (next: Team) => {
+    dirtyRef.current = true;
+    setDraftState(next);
+  };
+  useEffect(() => {
+    if (seededIdRef.current !== team.id || !dirtyRef.current) {
+      seededIdRef.current = team.id;
+      dirtyRef.current = false;
+      setDraftState(team);
+    }
+  }, [team]);
   return (
     <div className="team-ws__panel">
       <div className="team-ws__panel-head">
@@ -579,16 +602,19 @@ function SettingsTab({
           variant="primary"
           size="sm"
           disabled={saving}
-          onClick={() =>
-            onSave({
+          onClick={async () => {
+            // Clear before saving so the saved team re-seeds the draft; restore on failure.
+            dirtyRef.current = false;
+            const ok = await onSave({
               display_name: draft.display_name,
               description: draft.description,
               mode: draft.mode,
               charter: draft.charter,
               max_concurrency: draft.max_concurrency,
               working_root: draft.working_root,
-            })
-          }
+            });
+            if (!ok) dirtyRef.current = true;
+          }}
         >
           Save settings
         </Button>

@@ -193,7 +193,12 @@ export default function KanbanDashboard() {
     async (updated: KanbanTask) => {
       try {
         const res = await api.tasks.update(updated.id, updated);
-        if (res.task) setTasks((prev) => prev.map((t) => (t.id === updated.id ? res.task! : t)));
+        // The backend reports failures as 200 { error }, so check before claiming success.
+        if (res.error || !res.task) {
+          addToast(res.error ? `Update failed: ${res.error}` : 'Update failed', { tone: 'error' });
+          return;
+        }
+        setTasks((prev) => prev.map((t) => (t.id === updated.id ? res.task! : t)));
       } catch {
         setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       }

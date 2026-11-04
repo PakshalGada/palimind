@@ -35,14 +35,20 @@ interface Options {
 export function useKeyboardShortcuts({ overrides, disabled }: Options): void {
   const bindingMap = useMemo(() => {
     const map = new Map<string, string>();
-    for (const cmd of COMMANDS) {
-      const combo = overrides[cmd.id] ?? cmd.defaultShortcut;
-      if (!combo) continue;
+    const bind = (combo: string | undefined, commandId: string) => {
+      if (!combo) return;
       const canonical = canonicalizeShortcut(combo);
-      if (!canonical) continue;
-      // First binding wins so a user override on one command can't be
-      // shadowed by a later default.
-      if (!map.has(canonical)) map.set(canonical, cmd.id);
+      if (!canonical) return;
+      if (!map.has(canonical)) map.set(canonical, commandId);
+    };
+    // Two passes so user overrides take precedence over every default: an
+    // override that reuses another command's default combo must win, whatever
+    // the catalog order. An empty override unbinds the command.
+    for (const cmd of COMMANDS) {
+      if (overrides[cmd.id] !== undefined) bind(overrides[cmd.id], cmd.id);
+    }
+    for (const cmd of COMMANDS) {
+      if (overrides[cmd.id] === undefined) bind(cmd.defaultShortcut, cmd.id);
     }
     return map;
   }, [overrides]);

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useMemo, useState } from 'react';
-import type { ToolStep } from '../model';
+import type { ToolStatus, ToolStep } from '../model';
 import { formatToolDuration } from '../model';
 import { useNow, useMediaQuery } from '../hooks';
 import { Icon } from '../icons';
@@ -78,6 +78,17 @@ function Gantt({ steps, running }: { steps: readonly ToolStep[]; running: boolea
   );
 }
 
+// Card status from its steps: running > awaiting approval > error > cancelled > denied > success.
+function browserStatus(steps: readonly ToolStep[], running: boolean): ToolStatus {
+  if (running) return 'running';
+  const has = (status: ToolStatus) => steps.some((step) => step.status === status);
+  if (has('awaiting_approval')) return 'awaiting_approval';
+  if (has('error')) return 'error';
+  if (has('cancelled')) return 'cancelled';
+  if (has('denied')) return 'denied';
+  return 'success';
+}
+
 function BrowserUnit({ unit }: { unit: TimelineUnit }) {
   const [open, setOpen] = useState(false);
   const group = unit.steps;
@@ -85,9 +96,9 @@ function BrowserUnit({ unit }: { unit: TimelineUnit }) {
   const url = titleStep ? previewForTool(titleStep.name, titleStep.args) : '';
   const domain = url ? hostOf(url) : '';
   const pageTitle = pageTitleOf(group);
-  const running = group.some((step) => step.status === 'running');
+  const running = group.some((step) => step.status === 'running' || step.status === 'queued');
   return (
-    <RailItem status={running ? 'running' : 'success'}>
+    <RailItem status={browserStatus(group, running)}>
       <Disclosure
         open={open}
         onOpenChange={setOpen}

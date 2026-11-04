@@ -104,9 +104,19 @@ export function normalizeResults(output: unknown): ResultItem[] {
   const value = parseOutput(output);
   const items = asArray(value);
   const results: ResultItem[] = [];
+  // Ids double as React keys and source identities; repeats (e.g. the same URL
+  // returned twice) get an index suffix so neither entry is dropped.
+  const seen = new Set<string>();
+  const uniqueId = (id: string, index: number): string => {
+    let next = id;
+    if (seen.has(next)) next = `${id}#${index}`;
+    for (let n = 2; seen.has(next); n += 1) next = `${id}#${index}-${n}`;
+    seen.add(next);
+    return next;
+  };
   items.forEach((entry, index) => {
     if (typeof entry === 'string') {
-      results.push({ id: `r${index}`, title: entry.slice(0, 160) });
+      results.push({ id: uniqueId(`r${index}`, index), title: entry.slice(0, 160) });
       return;
     }
     if (!isRecord(entry)) return;
@@ -119,7 +129,7 @@ export function normalizeResults(output: unknown): ResultItem[] {
       pick(entry, ['snippet', 'abstract', 'description', 'summary', 'content', 'text', 'selftext']),
     );
     results.push({
-      id: asText(pick(entry, ['id', 'objectID', 'doi', 'url'])) || `r${index}`,
+      id: uniqueId(asText(pick(entry, ['id', 'objectID', 'doi', 'url'])) || `r${index}`, index),
       title: title.replace(/\s+/g, ' ').trim(),
       url: url || undefined,
       domain: url ? hostOf(url) : undefined,

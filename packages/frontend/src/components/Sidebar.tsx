@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   BookOpen,
   Bot,
@@ -127,6 +127,21 @@ export default function Sidebar() {
         ? 'field'
         : 'chat';
 
+  // Session requests resolve after the user may have switched views/agents.
+  // Each request captures its scope and a sequence number; a response is only
+  // applied if it is still the latest request and the scope hasn't changed.
+  const currentScope = chatScope();
+  const scopeRef = useRef(currentScope);
+  useEffect(() => {
+    scopeRef.current = currentScope;
+  }, [currentScope]);
+  const sessionReqSeq = useRef(0);
+  const beginSessionRequest = () => {
+    const seq = ++sessionReqSeq.current;
+    const scope = chatScope();
+    return { scope, isCurrent: () => seq === sessionReqSeq.current && scopeRef.current === scope };
+  };
+
   const [fields, setFields] = useState<string[]>([]);
   const [fieldsLoading, setFieldsLoading] = useState(true);
   const [fieldsError, setFieldsError] = useState<string | null>(null);
@@ -223,8 +238,10 @@ export default function Sidebar() {
       addToast("Select an agent to start a session.");
       return;
     }
+    const req = beginSessionRequest();
     try {
-      const data = await api.sessions.new(`Session ${sessions.length + 1}`, chatScope());
+      const data = await api.sessions.new(`Session ${sessions.length + 1}`, req.scope);
+      if (!req.isCurrent()) return;
       if (!data.error) {
         setSessions(data.sessions as typeof sessions);
         setActiveSessionId(data.active_session_id);
@@ -236,8 +253,10 @@ export default function Sidebar() {
   };
 
   const handleSwitchSession = async (id: string) => {
+    const req = beginSessionRequest();
     try {
-      const data = await api.sessions.setActive(id, chatScope());
+      const data = await api.sessions.setActive(id, req.scope);
+      if (!req.isCurrent()) return;
       if (!data.error) {
         setSessions(data.sessions as typeof sessions);
         setActiveSessionId(data.active_session_id);
@@ -248,8 +267,10 @@ export default function Sidebar() {
   };
 
   const handleDeleteSession = async (id: string) => {
+    const req = beginSessionRequest();
     try {
-      const data = await api.sessions.remove(id, chatScope());
+      const data = await api.sessions.remove(id, req.scope);
+      if (!req.isCurrent()) return;
       if (!data.error) {
         setSessions(data.sessions as typeof sessions);
         setActiveSessionId(data.active_session_id);
