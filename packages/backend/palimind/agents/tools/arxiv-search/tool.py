@@ -75,9 +75,15 @@ TOOL_DEFINITION: dict[str, Any] = {
         "Returns a JSON list of {title, authors, summary, link, published}."
     ),
     "parameters": {
-        "query": "The search query",
-        "max_results": "Optional: maximum number of papers (default 5)",
+        "query": {"type": "string", "description": "The search query"},
+        "max_results": {
+            "type": "integer",
+            "description": "Maximum number of papers",
+            "default": 5,
+        },
     },
     "tier": 1,
     "requires_approval": False,
+    "parallel_safe": True,
+    "idempotent": True,
 }

@@ -115,6 +115,7 @@ class DocumentEngine:
         mid_term_summary: str | None = None,
         long_term_episodes: list[dict] | None = None,
         on_reasoning: Callable[[str], None] | None = None,
+        image_paths: list[str] | None = None,
     ) -> Iterator[str]:
         """Stream the answer from the LLM using retrieved context."""
         from palimind.memory.hierarchical import format_hierarchical_memory_context
@@ -157,7 +158,7 @@ class DocumentEngine:
         stream = generate_response_stream(
             query=query,
             context=ctx_text,
-            image_paths=[],
+            image_paths=list(image_paths or []),
             ollama_url=self.ollama_url,
             chat_model=self.chat_model,
             system_prompt=sys,

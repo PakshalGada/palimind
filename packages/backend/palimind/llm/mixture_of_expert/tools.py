@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import contextvars
 import inspect
+import json
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -435,6 +437,23 @@ def document_search(query: str, limit: int = 6) -> str:
             f"Source [{idx}] ({r.get('search_type', '')}): {fp}{sec_str}\n"
             f"{r.get('content', '')[:2000]}\n"
         )
+    sink = _source_collector()
+    if sink is not None:
+        for r in results:
+            fp = str(r.get("file_path") or "")
+            if not fp:
+                continue
+            sec = str(r.get("section_title") or r.get("main_section") or "")
+            sink.append(
+                {
+                    "url": "",
+                    "file": fp,
+                    "section": sec,
+                    "title": sec or fp.split("/")[-1],
+                    "snippet": str(r.get("content") or "")[:600],
+                    "content": str(r.get("content") or "")[:2000],
+                }
+            )
     return "\n".join(parts) + "=" * 39 + "\n"
 
 
@@ -466,6 +485,40 @@ def memory_search(query: str, limit: int = 3) -> str:
         return "=== RELEVANT PAST CONVERSATIONS ===\n" + "\n".join(lines)
     except Exception as e:
         return f"Memory search error: {e}"
+
+
+def remember(content: str, entry_type: str = "fact", confidence: float = 1.0) -> str:
+    """Store a durable fact/preference in this agent's memory."""
+    agent_id = str(_get_context().get("agent_id") or "")
+    if not agent_id:
+        return "Error: no active agent is associated with this run."
+    try:
+        from palimind.agents.memory import append_memory
+
+        entry = append_memory(
+            agent_id,
+            str(entry_type or "fact"),
+            str(content or ""),
+            confidence=float(confidence or 1.0),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return f"Memory write error: {exc}"
+    if entry is None:
+        return "Error: this agent has no writable memory store (memory is off)."
+    return f"Remembered [{entry['type']}] {entry['content']} (id={entry['id']})"
+
+
+def forget(entry_id: str) -> str:
+    """Delete a memory entry by id from this agent's memory."""
+    agent_id = str(_get_context().get("agent_id") or "")
+    if not agent_id:
+        return "Error: no active agent is associated with this run."
+    if not str(entry_id or "").strip():
+        return "Error: entry_id is required"
+    from palimind.agents.memory import delete_memory_entry_by_id
+
+    ok = delete_memory_entry_by_id(agent_id, str(entry_id).strip())
+    return "Forgotten." if ok else "Error: memory entry not found."
 
 
 # ── file tools (sandboxed to the workspace) ───────────────────────────────
@@ -647,6 +700,42 @@ def run_python(code: str, timeout: int = 15) -> str:
 # ── summarization tool ────────────────────────────────────────────────────
 
 
+def tool_search(query: str, limit: int = 8) -> str:
+    """Discover tools by describing what you need.
+
+    The agent only sees a routed subset of tool schemas. This meta-tool lets it
+    search the full catalog when the routed set is missing a capability.
+    """
+    from palimind.agents.tool_router import select_tools
+    from palimind.agents.tools.base import parameters_to_schema
+
+    try:
+        cap = max(1, min(int(limit or 8), 25))
+    except (TypeError, ValueError):
+        cap = 8
+    names = select_tools(
+        query,
+        list(TOOL_REGISTRY),
+        TOOL_REGISTRY,
+        top_k=cap,
+        include_core=False,
+    )
+    items = []
+    for name in names:
+        info = TOOL_REGISTRY.get(name) or {}
+        meta = info.get("meta") or {}
+        items.append(
+            {
+                "name": name,
+                "description": info.get("description", ""),
+                "tier": int(meta.get("tier", 3)),
+                "requires_approval": bool(meta.get("requires_approval", True)),
+                "parameters": parameters_to_schema(info.get("parameters") or {}),
+            }
+        )
+    return json.dumps(items, indent=2, ensure_ascii=False)
+
+
 def summarize(text: str, max_chars: int = 1000) -> str:
     """Summarize long text with the light model."""
     if len(text) <= max_chars:
@@ -751,24 +840,71 @@ def _meta(tier: int, requires_approval: bool) -> dict[str, Any]:
     return {"tier": tier, "requires_approval": requires_approval}
 
 
+def _p(
+    *,
+    type: str = "string",
+    description: str,
+    required: bool = True,
+    enum: tuple[str, ...] = (),
+    default: Any = None,
+    items: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Small helper for readable typed parameter declarations."""
+    spec: dict[str, Any] = {"type": type, "description": description, "required": required}
+    if enum:
+        spec["enum"] = list(enum)
+    if default is not None:
+        spec["default"] = default
+        spec["required"] = False
+    if items:
+        spec["items"] = items
+    return spec
+
+
 TOOL_REGISTRY: dict[str, dict] = {
+    "tool_search": {
+        "fn": tool_search,
+        "description": (
+            "Discover tools by describing the capability you need. Use this when "
+            "the currently visible tool list does not contain the right tool."
+        ),
+        "parameters": {
+            "query": _p(description="What you need to do, e.g. 'run tests' or 'read a PDF'"),
+            "limit": _p(
+                type="integer", description="Maximum tools to return (default 8)", default=8
+            ),
+        },
+        "meta": _meta(1, False),
+        "parallel_safe": True,
+        "idempotent": True,
+    },
     "web_search": {
         "fn": web_search,
         "description": "Search the web using DuckDuckGo and fetch page content for top results.",
         "parameters": {
-            "query": "The search query string",
-            "max_results": "Optional: maximum number of results (default 4)",
+            "query": _p(description="The search query string"),
+            "max_results": _p(
+                type="integer", description="Maximum number of results (default 4)", default=4
+            ),
         },
         "meta": _meta(1, False),
+        "parallel_safe": True,
+        "idempotent": True,
     },
     "fetch_url": {
         "fn": fetch_url,
         "description": "Fetch a specific URL and extract its readable page content.",
         "parameters": {
-            "url": "The full URL to fetch (http/https)",
-            "max_chars": "Optional: maximum characters to return (default 4000)",
+            "url": _p(description="The full URL to fetch (http/https)"),
+            "max_chars": _p(
+                type="integer",
+                description="Maximum characters to return (default 4000)",
+                default=4000,
+            ),
         },
         "meta": _meta(1, False),
+        "parallel_safe": True,
+        "idempotent": True,
     },
     "x_search": {
         "fn": x_search,
@@ -777,102 +913,166 @@ TOOL_REGISTRY: dict[str, dict] = {
             "Returns overall sentiment, trending hashtags/tickers and cited posts."
         ),
         "parameters": {
-            "query": "The topic or query to search on X/Twitter",
-            "max_results": "Optional: maximum number of posts (default 8)",
+            "query": _p(description="The topic or query to search on X/Twitter"),
+            "max_results": _p(
+                type="integer", description="Maximum number of posts (default 8)", default=8
+            ),
         },
         "meta": _meta(1, False),
+        "parallel_safe": True,
+        "idempotent": True,
     },
     "document_search": {
         "fn": document_search,
         "description": "Search the user's indexed workspace documents (semantic + keyword).",
         "parameters": {
-            "query": "The search query",
-            "limit": "Optional: maximum chunks to return (default 6)",
+            "query": _p(description="The search query"),
+            "limit": _p(
+                type="integer", description="Maximum chunks to return (default 6)", default=6
+            ),
         },
         "meta": _meta(1, False),
+        "parallel_safe": True,
+        "idempotent": True,
     },
     "memory_search": {
         "fn": memory_search,
         "description": "Search past conversation memory for relevant episodes.",
         "parameters": {
-            "query": "The search query",
-            "limit": "Optional: maximum episodes (default 3)",
+            "query": _p(description="The search query"),
+            "limit": _p(type="integer", description="Maximum episodes (default 3)", default=3),
         },
         "meta": _meta(1, False),
+        "parallel_safe": True,
+        "idempotent": True,
+    },
+    "remember": {
+        "fn": remember,
+        "description": "Store a durable fact or preference in this agent's memory.",
+        "parameters": {
+            "content": _p(description="The fact/preference to remember"),
+            "entry_type": _p(
+                type="string",
+                description="fact, preference, decision, entity, result or error",
+                default="fact",
+            ),
+            "confidence": _p(
+                type="number", description="Confidence 0..1 (default 1.0)", default=1.0
+            ),
+        },
+        "meta": _meta(1, False),
+        "parallel_safe": False,
+        "idempotent": False,
+    },
+    "forget": {
+        "fn": forget,
+        "description": "Delete one memory entry by its id.",
+        "parameters": {
+            "entry_id": _p(description="Memory entry id"),
+        },
+        "meta": _meta(1, False),
+        "parallel_safe": False,
+        "idempotent": False,
     },
     "read_file": {
         "fn": read_file,
         "description": "Read a file from the workspace (sandboxed to the active field).",
         "parameters": {
-            "path": "Absolute or workspace-relative path to the file",
+            "path": _p(description="Absolute or workspace-relative path to the file"),
         },
         "meta": _meta(1, False),
+        "parallel_safe": True,
+        "idempotent": True,
     },
     "write_file": {
         "fn": write_file,
         "description": "Write content to a file in the workspace (sandboxed to the active field).",
         "parameters": {
-            "path": "Absolute or workspace-relative path to the file",
-            "content": "Text content to write",
+            "path": _p(description="Absolute or workspace-relative path to the file"),
+            "content": _p(description="Text content to write"),
         },
         "meta": _meta(2, True),
+        "parallel_safe": False,
+        "idempotent": False,
     },
     "list_files": {
         "fn": list_files,
         "description": "List files and directories at a given workspace path.",
         "parameters": {
-            "path": "Optional: directory path (default '.')",
+            "path": _p(description="Directory path (default '.')", default="."),
         },
         "meta": _meta(1, False),
+        "parallel_safe": True,
+        "idempotent": True,
     },
     "glob_files": {
         "fn": glob_files,
         "description": "Recursively list workspace files matching a glob pattern (e.g. '**/*.py').",
         "parameters": {
-            "pattern": "The glob pattern to match file paths",
-            "path": "Optional: directory to search from (default '.')",
-            "max_results": "Optional: max results (default 200)",
+            "pattern": _p(description="The glob pattern to match file paths"),
+            "path": _p(description="Directory to search from (default '.')", default="."),
+            "max_results": _p(type="integer", description="Max results (default 200)", default=200),
         },
         "meta": _meta(1, False),
+        "parallel_safe": True,
+        "idempotent": True,
     },
     "grep_files": {
         "fn": grep_files,
         "description": "Search file contents inside the workspace for a pattern (case-insensitive regex).",
         "parameters": {
-            "pattern": "Regex or plain-text pattern to search for",
-            "path": "Optional: directory to search from (default '.')",
-            "max_results": "Optional: max matches (default 50)",
+            "pattern": _p(description="Regex or plain-text pattern to search for"),
+            "path": _p(description="Directory to search from (default '.')", default="."),
+            "max_results": _p(type="integer", description="Max matches (default 50)", default=50),
         },
         "meta": _meta(1, False),
+        "parallel_safe": True,
+        "idempotent": True,
     },
     "search_replace": {
         "fn": search_replace,
         "description": "Surgically replace occurrences of a string in a workspace file.",
         "parameters": {
-            "path": "Absolute or workspace-relative path to the file",
-            "old_string": "Exact text to find",
-            "new_string": "Replacement text",
-            "count": "Optional: number of occurrences to replace (default 1)",
+            "path": _p(description="Absolute or workspace-relative path to the file"),
+            "old_string": _p(description="Exact text to find"),
+            "new_string": _p(description="Replacement text"),
+            "count": _p(
+                type="integer",
+                description="Number of occurrences to replace (default 1)",
+                default=1,
+            ),
         },
         "meta": _meta(2, True),
+        "parallel_safe": False,
+        "idempotent": False,
     },
     "run_python": {
         "fn": run_python,
         "description": "Execute Python code in an isolated subprocess. stdout is returned.",
         "parameters": {
-            "code": "Python code to execute",
-            "timeout": "Optional: timeout in seconds (default 15)",
+            "code": _p(description="Python code to execute"),
+            "timeout": _p(
+                type="integer", description="Timeout in seconds (default 15)", default=15
+            ),
         },
         "meta": _meta(2, True),
+        "parallel_safe": False,
+        "idempotent": False,
     },
     "summarize": {
         "fn": summarize,
         "description": "Summarize long text using the light model.",
         "parameters": {
-            "text": "The text to summarize",
-            "max_chars": "Optional: target length in characters (default 1000)",
+            "text": _p(description="The text to summarize"),
+            "max_chars": _p(
+                type="integer",
+                description="Target length in characters (default 1000)",
+                default=1000,
+            ),
         },
         "meta": _meta(1, False),
+        "parallel_safe": True,
+        "idempotent": True,
     },
     "delegate": {
         "fn": delegate,
@@ -881,10 +1081,16 @@ TOOL_REGISTRY: dict[str, dict] = {
             "read-only sub-agent and return its findings."
         ),
         "parameters": {
-            "task": "A clear, self-contained task description for the sub-agent",
-            "max_iterations": "Optional: maximum tool steps for the sub-agent (default 6)",
+            "task": _p(description="A clear, self-contained task description for the sub-agent"),
+            "max_iterations": _p(
+                type="integer",
+                description="Maximum tool steps for the sub-agent (default 6)",
+                default=6,
+            ),
         },
         "meta": _meta(1, False),
+        "parallel_safe": False,
+        "idempotent": False,
     },
 }
 
@@ -902,6 +1108,7 @@ _PLUGIN_TOOLS: list[tuple[str, str, str]] = [
     ("arxiv_search", "palimind.agents.tools.arxiv-search.tool", "arxiv_search"),
     ("fetch_rss", "palimind.agents.tools.rss-fetch.tool", "fetch_rss"),
     ("mqtt", "palimind.agents.tools.mqtt.tool", "mqtt"),
+    ("image_generate", "palimind.agents.tools.image-generate.tool", "image_generate"),
 ]
 
 # Plugins that expose several tools from one module via a module-level `TOOLS`
@@ -909,13 +1116,104 @@ _PLUGIN_TOOLS: list[tuple[str, str, str]] = [
 _MULTI_TOOL_PLUGINS: list[str] = [
     "palimind.agents.tools.browser.tool",
     "palimind.agents.tools.research.tool",
+    "palimind.agents.tools.git.tool",
+    "palimind.agents.tools.apply-patch.tool",
+    "palimind.agents.tools.office.tool",
+    "palimind.agents.tools.data.tool",
 ]
 
+# Names of drop-in user tools currently merged into TOOL_REGISTRY. Tracked so a
+# deleted user tool disappears on the next reload instead of lingering.
+_user_tool_names: set[str] = set()
+_user_tools_loaded = False
+_mcp_tools_loaded = False
 
-def _register_plugin_tools() -> None:
+
+def _user_tool_fn(tool: Any) -> Any:
+    """Adapt an async :class:`Tool` to the sync callable TOOL_REGISTRY expects."""
+
+    def _run(**kwargs: Any) -> str:
+        import asyncio
+
+        from palimind.agents.tools.base import ToolContext
+
+        ctx = ToolContext(
+            workspace_root=_workspace_root(),
+            allowed_paths=list(_extra_roots()),
+            settings={},
+        )
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            result = asyncio.run(tool.run(ctx, **kwargs))
+        else:
+            # A loop is already running in this thread (rare for call_tool, but
+            # tests and embedders may do this): use a private loop.
+            loop = asyncio.new_event_loop()
+            try:
+                result = loop.run_until_complete(tool.run(ctx, **kwargs))
+            finally:
+                loop.close()
+        return str(result)
+
+    return _run
+
+
+def _register_user_tools(*, force: bool = False) -> None:
+    """Merge drop-in tools from ~/.palimind/tools into the live registry."""
+    global _user_tools_loaded
+    if _user_tools_loaded and not force:
+        return
+    from palimind.agents.tools.registry import discover_user_tools
+    from palimind.settings import TOOL_TIMEOUT_S
+
+    current = discover_user_tools()
+    for old in _user_tool_names - set(current):
+        TOOL_REGISTRY.pop(old, None)
+    for name, tool in current.items():
+        # Built-ins always win; only replace a previous user tool.
+        if name in TOOL_REGISTRY and name not in _user_tool_names:
+            continue
+        TOOL_REGISTRY[name] = {
+            "fn": _user_tool_fn(tool),
+            "description": tool.description,
+            "parameters": dict(tool.parameters or {}),
+            "meta": _meta(tool.tier, tool.requires_approval),
+            "timeout_s": int(tool.timeout_s or TOOL_TIMEOUT_S),
+            "parallel_safe": bool(tool.parallel_safe),
+            "idempotent": bool(tool.idempotent),
+            "source": tool.source,
+        }
+    _user_tool_names.clear()
+    _user_tool_names.update(current)
+    _user_tools_loaded = True
+
+
+def _register_mcp_tools(*, force: bool = False) -> None:
+    """Merge tools from trusted local MCP servers into the live registry."""
+    global _mcp_tools_loaded
+    if _mcp_tools_loaded and not force:
+        return
+    from palimind.agents.mcp import get_manager
+    from palimind.settings import MCP_ENABLE
+
+    if not MCP_ENABLE:
+        _mcp_tools_loaded = True
+        return
+    manager = get_manager()
+    if manager.configs:
+        manager.register_into(TOOL_REGISTRY)
+    _mcp_tools_loaded = True
+
+
+def _register_plugin_tools(*, force: bool = False) -> None:
     """Lazily merge every folder-based tool into the live registry so the UI
     and the agent loop can see and call them. Idempotent and best-effort: one
-    unloadable plugin must never break the rest."""
+    unloadable plugin must never break the rest.
+
+    ``force=True`` re-scans drop-in user tools and MCP servers (used by the
+    reload endpoints); the normal path is cached.
+    """
     import importlib
 
     from palimind.settings import TOOL_TIMEOUT_S
@@ -939,6 +1237,8 @@ def _register_plugin_tools() -> None:
                 bool(definition.get("requires_approval", False)),
             ),
             "timeout_s": int(definition.get("timeout_s") or TOOL_TIMEOUT_S),
+            "parallel_safe": bool(definition.get("parallel_safe", False)),
+            "idempotent": bool(definition.get("idempotent", False)),
         }
 
     for module_path in _MULTI_TOOL_PLUGINS:
@@ -969,6 +1269,16 @@ def _register_plugin_tools() -> None:
     except Exception as e:
         print(f"[plugins] failed to load team tools: {e}")
 
+    try:
+        _register_user_tools(force=force)
+    except Exception as e:
+        print(f"[plugins] failed to load user tools: {e}")
+
+    try:
+        _register_mcp_tools(force=force)
+    except Exception as e:
+        print(f"[plugins] failed to load MCP tools: {e}")
+
 
 def get_tool_names() -> list[str]:
     _register_plugin_tools()
@@ -988,8 +1298,18 @@ def call_tool(name: str, **kwargs: Any) -> str:
     agent_id = str(ctx.get("agent_id") or "")
     session_id = str(ctx.get("session_id") or "")
 
-    # Surface bad arguments as an argument error (the loop retries/adjusts),
-    # rather than a tool crash. Non-introspectable callables are let through.
+    # Validate/coerce arguments against the tool's declared schema first. This
+    # turns the common model mistake of sending "5" for an integer into a
+    # corrected call instead of a confusing failure deep inside the tool.
+    from palimind.agents.tools.base import coerce_tool_args
+
+    kwargs, arg_error = coerce_tool_args(name, entry.get("parameters"), kwargs)
+    if arg_error:
+        return arg_error
+
+    # Surface remaining bad arguments as an argument error (the loop
+    # retries/adjusts), rather than a tool crash. Non-introspectable callables
+    # are let through.
     try:
         inspect.signature(fn).bind(**kwargs)
     except TypeError as e:
@@ -1001,8 +1321,9 @@ def call_tool(name: str, **kwargs: Any) -> str:
     from palimind.settings import TOOL_TIMEOUT_S
 
     timeout_s = int(entry.get("timeout_s") or TOOL_TIMEOUT_S)
+    started = time.perf_counter()
     try:
-        return run_sandboxed_sync(
+        output = run_sandboxed_sync(
             lambda: fn(**kwargs),
             timeout_s=timeout_s,
             tool_name=name,
@@ -1010,7 +1331,21 @@ def call_tool(name: str, **kwargs: Any) -> str:
             agent_id=agent_id,
             session_id=session_id,
         )
+        ok = not str(output).startswith(("Error", "Access denied", "Tool '"))
+        try:
+            from palimind import metrics
+
+            metrics.record_tool(name, ok, (time.perf_counter() - started) * 1000.0)
+        except Exception:
+            pass
+        return output
     except Exception as e:  # noqa: BLE001 - tools must never crash the loop
+        try:
+            from palimind import metrics
+
+            metrics.record_tool(name, False, (time.perf_counter() - started) * 1000.0)
+        except Exception:
+            pass
         return f"Tool '{name}' error: {e}"
 
 

@@ -512,6 +512,9 @@ export interface Approval {
 export interface RecentRun extends RunRecord {
   agent_id: string;
   agent_name: string;
+  checkpoint_status?: string;
+  checkpoint_step?: number;
+  resumable?: boolean;
 }
 
 export interface SetupTask {
@@ -559,7 +562,7 @@ export interface ToolMeta {
   description: string;
   tier: number;
   requires_approval: boolean;
-  parameters?: Record<string, string>;
+  parameters?: Record<string, unknown>;
 }
 
 /**

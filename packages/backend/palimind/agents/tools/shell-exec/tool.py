@@ -35,8 +35,13 @@ TOOL_DEFINITION: dict[str, Any] = {
         "read-only unless the agent has write access). Requires shell_access."
     ),
     "parameters": {
-        "command": "The shell command to execute",
+        "command": {
+            "type": "string",
+            "description": "The shell command to execute",
+        },
     },
     "tier": 2,
     "requires_approval": True,
+    "parallel_safe": False,
+    "idempotent": False,
 }

@@ -159,8 +159,11 @@
   box-shadow: var(--shadow-xs);
 }
 .artifact-library-card:focus-visible {
-  outline: none;
-  box-shadow: none;
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  box-shadow: var(--shadow-xs);
+  position: relative;
+  z-index: 1;
 }
 .artifact-library-card.is-selected {
   background: var(--surface);
@@ -386,4 +389,9 @@
 }
 .artifact-library--embedded .artifact-library-storage {
   margin-top: 0;
+}
+
+/* One-pane first run: never reserve an empty preview column. */
+.artifact-library-layout.is-single {
+  grid-template-columns: minmax(0, 1fr);
 }

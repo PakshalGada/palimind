@@ -25,14 +25,14 @@ export default function DirectoryPicker() {
     try {
       const data = await api.fs.list(path);
       if (data.error) {
-        setError(data.error);
+        setError('Could not read that folder.');
         return;
       }
       setCurrentPath(data.current_path);
       setParentPath(data.parent_path || null);
       setItems(data.items ?? []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not read that folder.');
+    } catch {
+      setError('Could not read that folder.');
     } finally {
       setLoading(false);
     }

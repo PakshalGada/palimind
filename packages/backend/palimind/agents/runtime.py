@@ -90,9 +90,7 @@ _running_lock = asyncio.Lock()
 _background_tasks: set[asyncio.Task] = set()
 
 
-async def register_running(
-    agent_id: str, run_id: str, max_concurrent: int = 1
-) -> RunningAgent:
+async def register_running(agent_id: str, run_id: str, max_concurrent: int = 1) -> RunningAgent:
     loop = asyncio.get_running_loop()
     ra = RunningAgent(agent_id, run_id, loop)
     ra.task = asyncio.current_task()
@@ -287,6 +285,7 @@ def record_run(
     trace: list[dict] | None = None,
     verification: dict | None = None,
     effort: dict | None = None,
+    citations: dict | None = None,
 ) -> None:
     from palimind.storage import state_store
 
@@ -311,7 +310,15 @@ def record_run(
             entry["verification"] = verification
         if effort:
             entry["effort"] = effort
+        if citations:
+            entry["citations"] = citations
         state_store.append_run(agent_id, run_id, entry, AGENT_RUN_HISTORY_LIMIT)
+        try:
+            from palimind import metrics
+
+            metrics.record_agent_run(status)
+        except Exception:
+            pass
     except Exception as e:
         print(f"[agents] failed to record run for {agent_id}: {e}")
 
@@ -730,6 +737,8 @@ async def run_with_definition(
     team_context: dict[str, Any] | None = None,
     extra_tools: list[str] | None = None,
     extra_prompt: str = "",
+    resume_state: dict[str, Any] | None = None,
+    resume_from_run_id: str = "",
 ) -> str:
     """Run an agent from its definition.
 
@@ -748,9 +757,13 @@ async def run_with_definition(
     waiting_for_human / completed).
     """
     run_id = str(uuid.uuid4())
+    if resume_state:
+        input = str(resume_state.get("input") or input)
+        session_id = str(resume_state.get("session_id") or session_id)
     ra = await register_running(definition.id, run_id, definition.max_concurrent_runs)
     loop = asyncio.get_running_loop()
-    append_chat(definition.id, "user", input)
+    if not resume_state:
+        append_chat(definition.id, "user", input)
     activity.start(definition.id, definition.name, run_id, session_id)
     from palimind.agents import run_journal
 
@@ -805,6 +818,8 @@ async def run_with_definition(
     cancelled = False
     verification_holder: dict[str, Any] = {}
     effort_info: dict[str, Any] = {}
+    collected_sources: list[dict[str, Any]] = []
+    citation_holder: dict[str, Any] | None = None
     fallback_note = ""
     model = definition.model or "llama3"
     ollama_url = ""
@@ -844,6 +859,7 @@ async def run_with_definition(
             light_model,
             extra_roots=extra_roots,
             read_only_roots=extra_roots,
+            source_collector=collected_sources,
             agent_id=definition.id,
             session_id=session_id,
             write_access=bool(definition.write_access),
@@ -898,18 +914,26 @@ async def run_with_definition(
             # input rather than just the most recent ones.
             mem = recall_memory(definition.id, input, k=AGENT_MEMORY_RECALL_LIMIT)
             if mem:
-                lines = [f"- [{e.get('type', 'fact')}] {str(e.get('content', ''))[:400]}" for e in mem]
+                lines = [
+                    f"- [{e.get('type', 'fact')}] {str(e.get('content', ''))[:400]}" for e in mem
+                ]
                 memory_block = "[AGENT MEMORY]\n" + "\n".join(lines) + "\n"
 
         custom_prompt = definition.system_prompt or ""
         if memory_block:
-            custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + memory_block
+            custom_prompt = (
+                custom_prompt.rstrip() + "\n\n" if custom_prompt else ""
+            ) + memory_block
         skill_prompt = skill_instructions(definition.skills)
         if skill_prompt:
-            custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + skill_prompt
+            custom_prompt = (
+                custom_prompt.rstrip() + "\n\n" if custom_prompt else ""
+            ) + skill_prompt
         context_block = _workspace_context_block(working_root)
         if context_block:
-            custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + context_block
+            custom_prompt = (
+                custom_prompt.rstrip() + "\n\n" if custom_prompt else ""
+            ) + context_block
 
         from palimind.agents.workspace import workspace_context_block
 
@@ -917,10 +941,11 @@ async def run_with_definition(
         if ws_block:
             custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + ws_block
         if extra_prompt:
-            custom_prompt = (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + extra_prompt
+            custom_prompt = (
+                custom_prompt.rstrip() + "\n\n" if custom_prompt else ""
+            ) + extra_prompt
         custom_prompt = (
-            (custom_prompt.rstrip() + "\n\n" if custom_prompt else "")
-            + "[HOW TO WORK]\n"
+            (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + "[HOW TO WORK]\n"
             "Plan → act → verify → deliver. Use a tool instead of guessing. "
             "Cite sources when you research. Write requested deliverables to your "
             "workspace with write_file. Read tool errors, adjust once, then continue. "
@@ -947,6 +972,7 @@ async def run_with_definition(
         )
         sub_task: dict[str, Any] = {
             "agent_id": _stable_agent_int(definition.id),
+            "definition_id": definition.id,
             "label": definition.name,
             "task": input,
             "tools": effective_tools,
@@ -985,7 +1011,9 @@ async def run_with_definition(
                         },
                     )
                 if definition.planning_mode == "review" and emit is not None:
-                    decision = await planner_mod.wait_for_plan_review(plan["id"], PLAN_REVIEW_TIMEOUT)
+                    decision = await planner_mod.wait_for_plan_review(
+                        plan["id"], PLAN_REVIEW_TIMEOUT
+                    )
                     if not decision.get("approved") and not decision.get("timeout"):
                         plan_rejected = True
                     else:
@@ -1042,6 +1070,9 @@ async def run_with_definition(
                         reflect=False,
                         usage_cb=_usage_cb,
                         run_control=ra,
+                        run_id=run_id,
+                        resume_state=resume_state,
+                        resume_from_run_id=resume_from_run_id,
                     )
             except asyncio.CancelledError:
                 status = "cancelled"
@@ -1080,6 +1111,17 @@ async def run_with_definition(
                     usage_cb=_usage_cb,
                 )
                 verification_holder = report
+
+            # ── Source ledger + citations ────────────────────────────────
+            if status == "success" and output and collected_sources:
+                try:
+                    from palimind.agents.citations import finalize_agent_citations
+
+                    output, citation_holder = finalize_agent_citations(output, collected_sources)
+                    if citation_holder and emit is not None:
+                        await emit("citation_map", citation_holder)
+                except Exception as exc:  # noqa: BLE001 - never lose the answer
+                    print(f"[agents] citation attachment failed: {exc}")
     except asyncio.CancelledError:
         # Cancelled outside the agent loop (plan review, setup, verification):
         # still finalise below so the run never stays "running".
@@ -1113,6 +1155,12 @@ async def run_with_definition(
     duration = time.time() - start
     with trace_lock:
         trace_snapshot = list(trace)
+    try:
+        from palimind.agents import run_state as run_state_mod
+
+        run_state_mod.finalize(run_id, status, output)
+    except Exception as exc:  # noqa: BLE001 - never lose a completed run
+        print(f"[agents] failed to finalize run state {run_id}: {exc}")
     record_run(
         definition.id,
         run_id,
@@ -1124,6 +1172,7 @@ async def run_with_definition(
         trace=trace_snapshot,
         verification=verification_holder or None,
         effort=effort_info or None,
+        citations=citation_holder,
     )
     append_chat(definition.id, "agent", output)
     activity.finish(definition.id, status, output, run_id=run_id)

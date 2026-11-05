@@ -108,6 +108,8 @@ DEFAULTS = {
     "stt_whisper_model": "base.en",  # faster-whisper model for mic dictation
     "persona_name": "",
     "persona_system_prompt": "",
+    "search_provider": "auto",  # auto | ddg | searxng
+    "searxng_url": "",  # local SearXNG base URL; empty uses the env/default
 }
 
 
@@ -167,6 +169,15 @@ def save_config(root: Path, config: dict) -> None:
 
 
 GLOBAL_CONFIG_PATH = Path.home() / ".palimind_global.json"
+
+
+def save_global_config(changes: dict) -> dict:
+    """Merge *changes* into the user-level config and persist atomically."""
+    data = load_global_config()
+    data.update(changes)
+    GLOBAL_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _atomic_write_json(GLOBAL_CONFIG_PATH, data)
+    return data
 
 
 def load_global_config() -> dict:

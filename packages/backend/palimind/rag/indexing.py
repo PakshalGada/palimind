@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from palimind.core.embedder import generate_embeddings_batch, prewarm_cache
 from palimind.exceptions import (
     CaptionError,
     EmbeddingError,
+    IndexCancelledError,
     IndexExistsError,
     IndexNotFoundError,
     OCRError,
@@ -195,17 +197,30 @@ def update_index(
     *,
     on_progress: ProgressCallback | None = None,
     source_root: Path | None = None,
+    paths: set[str] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> UpdateIndexResult:
     """Update the index stored in *root*.
 
     ``source_root`` optionally indexes a different directory (a project's
     workspace) into this store. When omitted, content and index share *root*
     exactly as before.
+
+    ``paths`` restricts processing to those relative paths (used by incremental
+    runs). ``cancel_check`` is polled between batches and raises
+    :class:`IndexCancelledError` when it returns true; already-committed batches
+    are preserved so a later resume can continue.
     """
     from palimind.storage.db import INDEX_WRITE_LOCK
 
     with INDEX_WRITE_LOCK:
-        return _update_index_locked(root, on_progress=on_progress, source_root=source_root)
+        return _update_index_locked(
+            root,
+            on_progress=on_progress,
+            source_root=source_root,
+            paths=paths,
+            cancel_check=cancel_check,
+        )
 
 
 def _update_index_locked(
@@ -213,6 +228,8 @@ def _update_index_locked(
     *,
     on_progress: ProgressCallback | None = None,
     source_root: Path | None = None,
+    paths: set[str] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> UpdateIndexResult:
     root = require_index(root)
     scan_root = (source_root or root).resolve()
@@ -226,6 +243,12 @@ def _update_index_locked(
     ) -> None:
         if on_progress is not None:
             on_progress(phase, current=current, total=total, message=message)
+
+    def check_cancel() -> None:
+        if cancel_check is not None and cancel_check():
+            raise IndexCancelledError("Indexing cancelled")
+
+    check_cancel()
 
     # A persisted index written by an older/incompatible build cannot be
     # decoded, and an index built with a different embedding model must not be
@@ -248,6 +271,12 @@ def _update_index_locked(
     new_or_modified, unchanged, deleted, crawled_hashes = crawl_directory(
         scan_root, index_root=root, config=config
     )
+    if paths is not None:
+        wanted = {str(p) for p in paths}
+        new_or_modified = [
+            path for path in new_or_modified if str(path.relative_to(scan_root)) in wanted
+        ]
+        deleted = [path for path in deleted if path in wanted]
     report(
         "crawl",
         message=(
@@ -266,10 +295,15 @@ def _update_index_locked(
         with VectorStore(root, quantization=config.get("vector_quantization", "none")) as vstore:
             # ---- deletions ----
             if deleted:
+                check_cancel()
                 for i, rel_path in enumerate(deleted, start=1):
+                    check_cancel()
                     vstore.delete_file(rel_path)
                     delete_file(conn, rel_path)
                     report("delete", current=i, total=len(deleted), message=rel_path)
+                # Persist deletions even when there are no new/modified files
+                # to process (otherwise conn.close() would roll them back).
+                conn.commit()
 
             # ---- indexing ----
             # Streaming approach: process files in batches, commit after each batch.
@@ -337,6 +371,7 @@ def _update_index_locked(
             def process_batch(batch: list[tuple[int, Path, str, str]]) -> None:
                 """Parse + embed + write one batch of files, then commit."""
                 nonlocal chunks_indexed, indexed_files
+                check_cancel()
                 parse_results: list[dict] = []
 
                 # Parse batch concurrently
@@ -378,6 +413,7 @@ def _update_index_locked(
                 # Batch embedding — one HTTP call for the entire batch
                 all_embeddings: list[list[float]] = []
                 if all_texts:
+                    check_cancel()
                     report(
                         "embed",
                         message=f"Embedding {len(all_texts)} chunks from {len(file_spans)} files...",

@@ -424,3 +424,93 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── first-run projects state ──────────────────────────────────────────── */
+.projects-zero {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: min(720px, 100%);
+  margin: 8px auto 0;
+}
+.projects-zero__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.projects-zero__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  flex: 0 0 auto;
+  box-shadow: var(--shadow-xs);
+}
+.projects-zero__head h2 {
+  margin: 0 0 4px;
+  font-family: var(--font-heading);
+  font-size: var(--type-xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.projects-zero__head p {
+  margin: 0;
+  max-width: 520px;
+  color: var(--ink-muted);
+  font-size: var(--type-base);
+  line-height: 1.5;
+}
+.projects-zero__templates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.projects-zero__template {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-2) var(--ease-out),
+    border-color var(--dur-2) var(--ease-out),
+    transform var(--dur-2) var(--ease-out);
+}
+.projects-zero__template:hover {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+  transform: translateY(-1px);
+}
+.projects-zero__template-name {
+  font-size: var(--type-base);
+  font-weight: var(--font-weight-medium);
+}
+.projects-zero__template-desc {
+  color: var(--ink-muted);
+  font-size: var(--type-xs);
+}
+@media (max-width: 640px) {
+  .projects-zero__templates {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .projects-zero__template:hover {
+    transform: none;
+  }
+}
+html[data-motion="reduced"] .projects-zero__template:hover {
+  transform: none;
+}

@@ -514,16 +514,29 @@ def recover_stale_running() -> int:
     return count
 
 
+def _enqueue_due_tasks() -> int:
+    """Backfill due background tasks into the durable job service."""
+    from palimind.jobs import enqueue
+
+    count = 0
+    for task in due_tasks():
+        if task["id"] in _in_flight:
+            continue
+        enqueue(
+            "background_task",
+            str(task.get("id")),
+            {"task_id": str(task.get("id"))},
+            idempotency_key=f"task:{task.get('id')}:{task.get('next_run')}",
+        )
+        count += 1
+    return count
+
+
 async def _goals_loop(run_callable: Any) -> None:
     while True:
         try:
             await asyncio.sleep(GOALS_TICK)
-            for task in due_tasks():
-                if task["id"] in _in_flight:
-                    continue
-                ref = asyncio.create_task(_run_one(task, run_callable))
-                _task_refs.add(ref)
-                ref.add_done_callback(_task_refs.discard)
+            _enqueue_due_tasks()
         except asyncio.CancelledError:
             raise
         except Exception as e:  # noqa: BLE001

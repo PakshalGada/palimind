@@ -59,8 +59,8 @@ export default function ProjectsView() {
     try {
       const data = await api.projects.list();
       setProjects(data.projects ?? []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load projects.');
+    } catch {
+      setError('Could not load projects. Check that the local engine is running.');
     } finally {
       setLoading(false);
     }
@@ -296,16 +296,7 @@ export default function ProjectsView() {
               compact
               glyph={<PixelGlyph sprite="folder" cell={3} />}
               title="No projects yet"
-              description="A project keeps sessions, knowledge and artifacts together."
-              action={
-                <button
-                  type="button"
-                  className="ui-btn ui-btn--primary ui-btn--sm"
-                  onClick={() => setCreateOpen(true)}
-                >
-                  <Plus size={13} /> New project
-                </button>
-              }
+              description="Use the templates on the right to create your first workspace."
             />
           ) : (
             <>
@@ -359,11 +350,50 @@ export default function ProjectsView() {
 
         <section className="projects-detail">
           {!project ? (
-            <EmptyState
-              glyph={<PixelGlyph sprite="folder" cell={4} />}
-              title="Select a project"
-              description="Or create one to start collecting work in a single workspace."
-            />
+            projects.length === 0 && !loading && !error ? (
+              <div className="projects-zero">
+                <div className="projects-zero__head">
+                  <span className="projects-zero__glyph">
+                    <PixelGlyph sprite="projects" cell={4} />
+                  </span>
+                  <div>
+                    <h2>Create your first project</h2>
+                    <p>
+                      A project keeps chats, knowledge and artifacts together so a
+                      piece of work never gets lost between surfaces.
+                    </p>
+                  </div>
+                </div>
+                <div className="projects-zero__templates">
+                  {[
+                    { name: 'Blank workspace', desc: 'Start with a clean project.' },
+                    { name: 'Product notes', desc: 'Decisions, specs and research.' },
+                    { name: 'Codebase', desc: 'A repository and its docs.' },
+                    { name: 'Client work', desc: 'Deliverables and source files.' },
+                  ].map((template) => (
+                    <button
+                      key={template.name}
+                      type="button"
+                      className="projects-zero__template"
+                      onClick={() => {
+                        setNewName(template.name);
+                        setCreateOpen(true);
+                      }}
+                    >
+                      <FolderKanban size={16} />
+                      <span className="projects-zero__template-name">{template.name}</span>
+                      <span className="projects-zero__template-desc">{template.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <EmptyState
+                glyph={<PixelGlyph sprite="folder" cell={4} />}
+                title="Select a project"
+                description="Choose a workspace on the left, or create one to collect work in one place."
+              />
+            )
           ) : (
             <>
               <header className="projects-detail__head">

@@ -13,8 +13,7 @@ export function RailItem({
   children: ReactNode;
 }) {
   return (
-    <div className="act-rail__item">
-      <span className={`act-node act-node--${status}`} aria-hidden="true" />
+    <div className="act-rail__item" data-status={status}>
       {children}
     </div>
   );

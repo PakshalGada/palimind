@@ -59,7 +59,7 @@ def _detach_stdio() -> None:
 
 import httpx
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -67,6 +67,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from palimind import config as _palimind_config
 from palimind.agents.api import router as agents_router
+from palimind.agents.memory_api import router as memory_router
 from palimind.agents.teams_api import router as teams_router
 from palimind.api import (
     IndexNotFoundError,
@@ -74,11 +75,31 @@ from palimind.api import (
     require_index,
     update_index,
 )
+from palimind.api_routers.routers.backup import router as backup_router
+from palimind.api_routers.routers.config import (
+    moe_hardware_check as moe_hardware_check,  # noqa: F401
+)
+from palimind.api_routers.routers.config import router as config_router
+from palimind.api_routers.routers.cookbook import router as cookbook_router
+from palimind.api_routers.routers.document import router as document_router
+from palimind.api_routers.routers.files import router as files_router
+from palimind.api_routers.routers.images import router as images_router
+from palimind.api_routers.routers.index_runs import router as index_runs_router
+from palimind.api_routers.routers.jobs import router as jobs_router
+from palimind.api_routers.routers.mcp import router as mcp_router
+from palimind.api_routers.routers.media import router as media_router
+from palimind.api_routers.routers.metrics import router as metrics_router
+from palimind.api_routers.routers.models import router as models_router
+from palimind.api_routers.routers.research import router as research_router
+from palimind.api_routers.routers.search import router as search_router
+from palimind.api_routers.routers.tasks import router as tasks_router
+from palimind.api_routers.routers.uploads import router as uploads_router
+from palimind.api_routers.routers.voice import router as voice_router
 from palimind.artifacts.api import router as artifacts_router
-from palimind.audio.stt import transcribe_wav_bytes
-from palimind.audio.tts import text_to_speech_bytes
 from palimind.document.stream import document_mode_stream
-from palimind.llm.comparative_research import analyze_comparison, find_contradictions
+from palimind.events import hub as event_hub
+from palimind.events import sse as event_sse
+from palimind.events import store as event_store
 from palimind.llm.stream import deep_research_mode_stream, llm_mode_stream, moe_mode_stream
 from palimind.memory.session_store import (
     add_new_session,
@@ -88,22 +109,12 @@ from palimind.memory.session_store import (
     set_active_session_id,
     truncate_session_messages,
 )
-from palimind.opencode.client import proxy_auth_headers
+from palimind.metrics import MetricsMiddleware
+from palimind.openai_compat import router as openai_router
 from palimind.projects.api import router as projects_router
-from palimind.research.plan_registry import resolve_plan
-from palimind.research.project_store import (
-    add_finding,
-    add_report,
-    add_sources,
-    create_project,
-    delete_project,
-    list_projects,
-    load_project,
-    update_project,
-)
 from palimind.security.auth import install_auth
 from palimind.security.tokens import get_api_token
-from palimind.storage import task_store as board_store
+from palimind.workflows.api import router as workflows_router
 
 app = FastAPI(title="Palimind V2 API")
 
@@ -123,15 +134,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Every /api/* request must present the per-install bearer token. Loading /ui
-# sets an HttpOnly same-origin cookie so the browser app (and EventSource)
-# authenticates automatically.
-install_auth(app, token_provider=get_api_token, cookie_path_prefix="/ui")
+# Every /api/* and /v1/* request must present the per-install bearer token.
+# Loading /ui sets an HttpOnly same-origin cookie so the browser app (and
+# EventSource) authenticates automatically.
+install_auth(
+    app,
+    token_provider=get_api_token,
+    protected_prefixes=("/api", "/v1"),
+    cookie_path_prefix="/ui",
+)
+app.add_middleware(MetricsMiddleware)
 
 app.include_router(teams_router)
 app.include_router(agents_router)
+app.include_router(memory_router)
 app.include_router(projects_router)
 app.include_router(artifacts_router)
+app.include_router(openai_router)
+app.include_router(workflows_router)
+app.include_router(uploads_router)
+app.include_router(tasks_router)
+app.include_router(research_router)
+app.include_router(search_router)
+app.include_router(mcp_router)
+app.include_router(index_runs_router)
+app.include_router(images_router)
+app.include_router(jobs_router)
+app.include_router(document_router)
+app.include_router(files_router)
+app.include_router(cookbook_router)
+app.include_router(config_router)
+app.include_router(backup_router)
+app.include_router(media_router)
+app.include_router(metrics_router)
+app.include_router(models_router)
+app.include_router(voice_router)
 
 
 # Built frontend lives at packages/frontend/dist (repo layout: backend package
@@ -360,13 +397,17 @@ def _read_clipboard() -> str:
     return ""
 
 
-# -- Global Event Listeners for Watcher notifications --
-EVENT_LISTENERS: set[Any] = set()
+# -- Global Event Listeners for watcher notifications --
+# (The live fan-out now lives in palimind.events.hub, which also persists IDs.)
 
 
 async def broadcast_event(data: dict):
-    for queue in list(EVENT_LISTENERS):
-        await queue.put(data)
+    """Persist a global event and push it to live subscribers.
+
+    Persisting before fan-out is what makes ``Last-Event-ID`` replay reliable:
+    a client that missed the live push can reconnect and catch up.
+    """
+    await event_hub.publish("global", data)
 
 
 async def background_index_field(path: Path):
@@ -616,6 +657,18 @@ async def startup_event():
     except Exception as exc:  # noqa: BLE001
         print(f"[agents] run-journal recovery failed: {exc}")
 
+    # Checkpoints written by a previous process are ``running`` but nothing is
+    # actually in flight at startup. Mark them resumable so the UI/API can
+    # continue them instead of pretending they are still active.
+    try:
+        from palimind.agents import run_state as run_state_mod
+
+        recovered_states = await asyncio.to_thread(run_state_mod.recover_interrupted)
+        if recovered_states:
+            print(f"[agents] {len(recovered_states)} run checkpoint(s) marked resumable")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[agents] run-state recovery failed: {exc}")
+
     roots = list(state.fields)
     if state.active_field and state.active_field not in roots:
         roots.append(state.active_field)
@@ -640,6 +693,12 @@ async def startup_event():
         print(f"[startup] preset cleanup failed: {exc}")
     start_scheduler(state.loop)
     start_runner()
+    try:
+        from palimind.jobs import start_runner as start_job_runner
+
+        await start_job_runner()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[startup] durable job runner failed: {exc}")
     try:
         from palimind.agents.queue import start_queue_runner
 
@@ -679,6 +738,12 @@ async def shutdown_event():
 
     stop_scheduler()
     stop_runner()
+    try:
+        from palimind.jobs import stop_runner as stop_job_runner
+
+        await stop_job_runner()
+    except Exception:
+        pass
     try:
         stop_queue_runner()
     except Exception:
@@ -1128,317 +1193,84 @@ async def _run_agent_and_record(agent_id: str, prompt: str, session_id: str) -> 
     return output
 
 
-# ── Task board (Phase 1) ───────────────────────────────────────────────────
-
-
-@app.get("/api/tasks")
-async def get_tasks():
-    return {"tasks": await asyncio.to_thread(board_store.list_tasks)}
-
-
-@app.post("/api/tasks")
-async def create_task_endpoint(req: Request):
-    try:
-        data = await req.json()
-    except Exception:
-        return {"error": "Invalid JSON body"}
-    task = await asyncio.to_thread(board_store.create_task, data)
-    return {"task": task}
-
-
-@app.patch("/api/tasks/{task_id}")
-async def update_task_endpoint(task_id: str, req: Request):
-    try:
-        changes = await req.json()
-    except Exception:
-        return {"error": "Invalid JSON body"}
-    task = await asyncio.to_thread(board_store.update_task, task_id, changes)
-    if task is None:
-        return {"error": "Task not found"}
-    return {"task": task}
-
-
-@app.delete("/api/tasks/{task_id}")
-async def delete_task_endpoint(task_id: str):
-    ok = await asyncio.to_thread(board_store.delete_task, task_id)
-    return {"status": "success" if ok else "not_found"}
-
-
-@app.post("/api/tasks/{task_id}/run")
-async def run_task_endpoint(task_id: str):
-    """Assign the task to its agent, run it, and store the result."""
-    task = await asyncio.to_thread(board_store.get_task, task_id)
-    if task is None:
-        return {"error": "Task not found"}
-    agent_id = str(task.get("agent_id") or "")
-    if not agent_id:
-        return {"error": "Task has no agent assigned"}
-    from palimind.agents.registry import get_registry
-
-    defn = await asyncio.to_thread(get_registry().get_by_id, agent_id)
-    if defn is None:
-        return {"error": "Assigned agent not found"}
-    prompt = str(
-        task.get("prompt") or task.get("description") or task.get("title") or "Run your task."
-    )
-    started = time.time()
-    await asyncio.to_thread(
-        board_store.update_task,
-        task_id,
-        {
-            "status": "in_progress",
-            "started_at": started,
-            "agent_name": defn.name,
-            "_actor": "system",
-        },
-    )
-    try:
-        output = await _run_agent_and_record(agent_id, prompt, f"_task:{task_id}")
-    except Exception as exc:
-        failed = await asyncio.to_thread(
-            board_store.update_task,
-            task_id,
-            {
-                "status": "failed",
-                "output": str(exc),
-                "completed_at": time.time(),
-                "_actor": "system",
-            },
-        )
-        return {"task": failed, "error": str(exc)}
-    completed = time.time()
-    updated = await asyncio.to_thread(
-        board_store.update_task,
-        task_id,
-        {
-            "status": "completed",
-            "output": output,
-            "completed_at": completed,
-            "duration": int(completed - started),
-            "progress": 100,
-            "agent_name": defn.name,
-            "_actor": "system",
-        },
-    )
-    return {"task": updated, "output": output}
-
-
-# ── Research plan review (3.1) ─────────────────────────────────────────────
-
-
-@app.post("/api/research/approve")
-async def approve_research_plan(req: Request):
-    """Approve (and optionally edit) a paused deep-research plan."""
-    try:
-        data = await req.json()
-    except Exception:
-        return {"error": "Invalid JSON body"}
-    plan_id = data.get("plan_id")
-    if not plan_id:
-        return {"error": "plan_id is required"}
-    plan = data.get("plan")
-    if plan is not None and not isinstance(plan, list):
-        return {"error": "plan must be a list"}
-    ok = resolve_plan(str(plan_id), plan=plan)
-    return {"status": "approved" if ok else "not_found"}
-
-
-@app.post("/api/research/cancel")
-async def cancel_research_plan(req: Request):
-    """Cancel a paused deep-research plan."""
-    try:
-        data = await req.json()
-    except Exception:
-        return {"error": "Invalid JSON body"}
-    plan_id = data.get("plan_id")
-    if not plan_id:
-        return {"error": "plan_id is required"}
-    ok = resolve_plan(str(plan_id), cancelled=True)
-    return {"status": "cancelled" if ok else "not_found"}
-
-
-# ── Research projects (3.5) ────────────────────────────────────────────────
-
-
-@app.get("/api/research/projects")
-async def get_research_projects():
-    return {"projects": await asyncio.to_thread(list_projects)}
-
-
-@app.post("/api/research/projects")
-async def create_research_project(req: Request):
-    try:
-        data = await req.json()
-    except Exception:
-        return {"error": "Invalid JSON body"}
-    title = str(data.get("title") or "Untitled Research")
-    query = str(data.get("query") or "")
-    return await asyncio.to_thread(create_project, title, query)
-
-
-@app.get("/api/research/projects/{project_id}")
-async def get_research_project(project_id: str):
-    project = await asyncio.to_thread(load_project, project_id)
-    if project is None:
-        return {"error": "Project not found"}
-    return project
-
-
-@app.put("/api/research/projects/{project_id}")
-async def put_research_project(project_id: str, req: Request):
-    try:
-        data = await req.json()
-    except Exception:
-        return {"error": "Invalid JSON body"}
-    project = await asyncio.to_thread(update_project, project_id, data)
-    if project is None:
-        return {"error": "Project not found"}
-    return project
-
-
-@app.delete("/api/research/projects/{project_id}")
-async def remove_research_project(project_id: str):
-    try:
-        removed = await asyncio.to_thread(delete_project, project_id)
-    except ValueError as exc:
-        return {"error": str(exc)}
-    return {"status": "success" if removed else "not_found"}
-
-
-@app.post("/api/research/projects/{project_id}/findings")
-async def add_research_finding(project_id: str, req: Request):
-    try:
-        data = await req.json()
-    except Exception:
-        return {"error": "Invalid JSON body"}
-    finding = await asyncio.to_thread(
-        add_finding, project_id, str(data.get("title") or "Finding"), str(data.get("content") or "")
-    )
-    if finding is None:
-        return {"error": "Project not found"}
-    return {"finding": finding}
-
-
-@app.post("/api/research/projects/{project_id}/sources")
-async def add_research_sources(project_id: str, req: Request):
-    try:
-        data = await req.json()
-    except Exception:
-        return {"error": "Invalid JSON body"}
-    sources = data.get("sources")
-    if not isinstance(sources, list):
-        return {"error": "sources must be a list"}
-    project = await asyncio.to_thread(add_sources, project_id, sources)
-    if project is None:
-        return {"error": "Project not found"}
-    return project
-
-
-@app.post("/api/research/projects/{project_id}/reports")
-async def add_research_report(project_id: str, req: Request):
-    try:
-        data = await req.json()
-    except Exception:
-        return {"error": "Invalid JSON body"}
-    project = await asyncio.to_thread(
-        add_report, project_id, str(data.get("query") or ""), str(data.get("report") or "")
-    )
-    if project is None:
-        return {"error": "Project not found"}
-    return project
-
-
-# ── Multi-model comparison (3.4) ───────────────────────────────────────────
-
-
-@app.get("/api/research/compare")
-async def compare_research(q: str, models: str = "", scope: str = "chat"):
-    """Stream the same question to up to 3 models, then compare their answers."""
-    model_list = [m.strip() for m in models.split(",") if m.strip()][:3]
-    if not q.strip():
-        return {"error": "query is required"}
-    if len(model_list) < 2:
-        return {"error": "Select at least two models to compare"}
-
-    config = _global_chat_config()
-    ollama_url = config.get("ollama_base_url", "http://localhost:11434")
-    num_ctx = config.get("num_ctx")
-
-    async def stream():
-        from palimind.llm.mixture_of_expert.llm import llm_chat_safe
-
-        yield f"data: {json.dumps({'type': 'compare_start', 'models': model_list})}\n\n"
-
-        system_prompt = (
-            "You are a rigorous research assistant. Answer the question thoroughly and "
-            "factually in a few well-structured paragraphs. State uncertainties explicitly."
-        )
-
-        async def answer_with(model: str) -> tuple[str, str]:
-            try:
-                result = await asyncio.to_thread(
-                    llm_chat_safe,
-                    [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": q},
-                    ],
-                    model,
-                    ollama_url,
-                    read_timeout=300.0,
-                    num_ctx=num_ctx,
-                    error_prefix="[compare error",
-                )
-                return model, result.get("content", "") or ""
-            except Exception as e:
-                return model, f"**Error:** {e}"
-
-        answers: dict[str, str] = {}
-        results = await asyncio.gather(*(answer_with(m) for m in model_list))
-        for model, answer in results:
-            answers[model] = answer
-            yield (
-                f"data: {json.dumps({'type': 'compare_model', 'model': model, 'answer': answer})}\n\n"
-            )
-
-        analysis = analyze_comparison(answers)
-        if len(model_list) >= 2:
-            contradictions = await find_contradictions(
-                q, answers, model=model_list[0], ollama_url=ollama_url, num_ctx=num_ctx or 8192
-            )
-            analysis["contradictions"] = contradictions
-        yield f"data: {json.dumps({'type': 'compare_result', **analysis})}\n\n"
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
-
-    return StreamingResponse(stream(), media_type="text/event-stream")
-
-
-@app.get("/api/research/x")
-async def x_social_research(q: str, max_results: int = 8):
-    """Real-time X/Twitter sentiment and trend signal for a topic."""
-    if not q.strip():
-        return {"error": "query is required"}
-    from palimind.agents.tools.x_search import x_search as _x_search
-
-    return await asyncio.to_thread(_x_search, q, max_results)
-
-
 @app.get("/api/events")
-async def events_stream():
-    queue = asyncio.Queue()
-    EVENT_LISTENERS.add(queue)
+async def events_stream(request: Request, once: bool = False):
+    """Global SSE feed with persisted IDs and ``Last-Event-ID`` replay.
+
+    ``once=true`` replays the missed range and closes (useful for clients that
+    only need a catch-up snapshot).
+    """
+    last_id = event_sse.last_event_id(request)
+    stream = "global"
+    queue = await event_hub.subscribe(stream)
 
     async def generator():
+        sent = last_id
         try:
+            if last_id:
+                missed = await asyncio.to_thread(event_store.replay, stream, last_id, 2000)
+                for event in missed:
+                    sent = max(sent, int(event["event_id"]))
+                    yield event_sse.format_event(event)
+            if once:
+                return
             while True:
                 try:
-                    data = await asyncio.wait_for(queue.get(), timeout=15.0)
-                    yield f"data: {json.dumps(data)}\n\n"
+                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
                 except TimeoutError:
                     yield ": ping\n\n"
+                    continue
+                if int(event.get("event_id") or 0) <= sent:
+                    continue
+                sent = int(event["event_id"])
+                yield event_sse.format_event(event)
         except asyncio.CancelledError:
             pass
         finally:
-            EVENT_LISTENERS.remove(queue)
+            await event_hub.unsubscribe(stream, queue)
+
+    return StreamingResponse(generator(), media_type="text/event-stream")
+
+
+@app.get("/api/streams/{stream_id}/events")
+async def stream_events(
+    stream_id: str,
+    request: Request,
+    tail: bool = False,
+):
+    """Replay/attach to a per-turn SSE stream (``chat:<stream_id>``).
+
+    The browser can reconnect with its last event id after a dropped
+    connection; ``tail=true`` keeps the connection open for live events.
+    """
+    stream = stream_id if ":" in stream_id else f"chat:{stream_id}"
+    last_id = event_sse.last_event_id(request)
+    queue = await event_hub.subscribe(stream) if tail else None
+
+    async def generator():
+        sent = last_id
+        try:
+            missed = await asyncio.to_thread(event_store.replay, stream, last_id, 5000)
+            for event in missed:
+                sent = max(sent, int(event["event_id"]))
+                yield event_sse.format_event(event)
+            if not tail or queue is None:
+                return
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
+                except TimeoutError:
+                    yield ": ping\n\n"
+                    continue
+                if int(event.get("event_id") or 0) <= sent:
+                    continue
+                sent = int(event["event_id"])
+                yield event_sse.format_event(event)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if queue is not None:
+                await event_hub.unsubscribe(stream, queue)
 
     return StreamingResponse(generator(), media_type="text/event-stream")
 
@@ -1651,18 +1483,30 @@ async def _resolve_chat_session(root: Path, session_id: str | None) -> str | Non
 
 
 async def _tracked_chat_sse(entry: _ChatStreamEntry, inner):
-    """Wrap a chat SSE body: announce the session, mirror the answer, honour Stop."""
+    """Wrap a chat SSE body: announce the session, mirror the answer, honour Stop.
+
+    Every frame is persisted under ``chat:<stream_id>`` with a monotonic event
+    id, so a dropped connection can resume with ``Last-Event-ID`` via
+    ``GET /api/streams/{stream_id}/events``.
+    """
+    stream_key = f"chat:{entry.stream_id}"
     try:
-        yield (
-            "data: "
-            + json.dumps({"type": "session", "id": entry.session_id, "stream_id": entry.stream_id})
-            + "\n\n"
-        )
+        session_event = {
+            "type": "session",
+            "id": entry.session_id,
+            "stream_id": entry.stream_id,
+        }
+        stored = await event_hub.publish(stream_key, session_event)
+        yield event_sse.format_event(stored)
         async for chunk in inner:
             # The generator has run past its user-message append once it yields.
             entry.started = True
             if entry.cancelled:
                 break
+            event = event_sse.parse_data(chunk)
+            if event is not None:
+                stored = await event_hub.publish(stream_key, event)
+                chunk = event_sse.format_event(stored)
             entry.observe(chunk)
             yield chunk
         if entry.cancelled:
@@ -1725,6 +1569,7 @@ async def chat_stream(
     q: str,
     session_id: str | None = None,
     files: str | None = None,
+    attachment_ids: str | None = None,
     chat_mode: str = "document",
     web_search: str = "false",
     llm_sub_mode: str | None = None,
@@ -1743,7 +1588,16 @@ async def chat_stream(
     entry = _register_chat_stream(stream_id)
     try:
         response = await _chat_stream_response(
-            entry, q, session_id, files, chat_mode, web_search, llm_sub_mode, scope, rerank
+            entry,
+            q,
+            session_id,
+            files,
+            attachment_ids,
+            chat_mode,
+            web_search,
+            llm_sub_mode,
+            scope,
+            rerank,
         )
     except BaseException:
         _unregister_chat_stream(entry)
@@ -1757,6 +1611,7 @@ async def _chat_stream_response(
     q: str,
     session_id: str | None,
     files: str | None,
+    attachment_ids: str | None,
     chat_mode: str,
     web_search: str,
     llm_sub_mode: str | None,
@@ -1790,6 +1645,23 @@ async def _chat_stream_response(
     embed_model = config.get("embed_model", "bge-m3")
     persona = persona_block(root) if not is_global_chat else ""
 
+    from palimind.uploads import build_attachment_context, resolve_attachments
+
+    resolved_attachments = await asyncio.to_thread(resolve_attachments, attachment_ids)
+    image_paths = list(resolved_attachments.get("image_paths") or [])
+    attachment_context = build_attachment_context(resolved_attachments)
+
+    # If the turn carries images and the selected chat model has no vision
+    # capability, route it to the configured local vision model.
+    if image_paths:
+        from palimind.model_capabilities import infer_from_name
+
+        if not infer_from_name(chat_model).supports_vision:
+            vision_model = str(config.get("vision_model") or "llava")
+            if vision_model:
+                print(f"[chat] image turn: routing {chat_model!r} -> {vision_model!r}")
+                chat_model = vision_model
+
     # ── @agent mention routing ────────────────────────────────────────
     stripped_q = q.lstrip()
     if stripped_q.startswith("@"):
@@ -1802,6 +1674,8 @@ async def _chat_stream_response(
             defn = get_registry().get(candidate)
             if defn is not None and defn.enabled:
                 agent_input = mention_parts[1].strip() if len(mention_parts) > 1 else ""
+                if attachment_context:
+                    agent_input = f"{agent_input}\n\n{attachment_context}".strip()
                 mention_session = await _resolve_chat_session(root, session_id)
                 entry.bind(
                     root, mention_session, mode="agent", mode_params={"agent_name": defn.name}
@@ -1868,6 +1742,8 @@ async def _chat_stream_response(
             long_term_episodes=long_term_episodes,
             persona=persona,
             rerank=rerank,
+            image_paths=image_paths,
+            attachment_context=attachment_context,
         )
 
     moe_sub_mode = (
@@ -1954,156 +1830,9 @@ async def _chat_stream_response(
         web_search,
         long_term_episodes=long_term_episodes,
         persona=persona,
+        image_paths=image_paths,
+        attachment_context=attachment_context,
     )
-
-
-_VIDEO_EXTS = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v"}
-
-
-def _resolve_media_path(path_str: str) -> Path:
-    """Resolve a media path against the active field and ensure it's inside it."""
-    if not state.active_field:
-        raise StarletteHTTPException(status_code=404, detail="No active field")
-    root = state.active_field.resolve()
-    candidate = Path(path_str)
-    if not candidate.is_absolute():
-        candidate = root / candidate
-    resolved = candidate.resolve()
-    if root != resolved and root not in resolved.parents:
-        raise StarletteHTTPException(status_code=403, detail="Path outside workspace")
-    return resolved
-
-
-@app.get("/api/media/info")
-async def media_info(path: str):
-    """Return content type + size for a workspace media file."""
-    try:
-        resolved = _resolve_media_path(path)
-    except StarletteHTTPException as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail) from e
-    if not resolved.is_file():
-        raise HTTPException(status_code=404, detail="Media file not found")
-    import mimetypes
-
-    mime = mimetypes.guess_type(resolved.name)[0] or "application/octet-stream"
-    return {"size": resolved.stat().st_size, "mime": mime}
-
-
-@app.get("/api/media/stream")
-async def media_stream(request: Request, path: str):
-    """Stream a local video/audio file from the active workspace with HTTP
-    range support so the frontend player can seek."""
-    from urllib.parse import unquote
-
-    try:
-        resolved = _resolve_media_path(unquote(path))
-    except StarletteHTTPException as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail) from e
-    if not resolved.is_file() or resolved.suffix.lower() not in _VIDEO_EXTS | {
-        ".mp3",
-        ".wav",
-        ".m4a",
-        ".flac",
-        ".ogg",
-    }:
-        raise HTTPException(status_code=404, detail="Media file not found")
-
-    import mimetypes
-
-    mime = mimetypes.guess_type(resolved.name)[0] or "application/octet-stream"
-    file_size = resolved.stat().st_size
-    range_header = request.headers.get("range")
-
-    if range_header:
-        range_val = range_header.strip().lower()
-        if range_val.startswith("bytes="):
-            parts = range_val[6:].split(",", 1)[0].strip().split("-", 1)
-            if not parts[0].strip() and len(parts) > 1 and parts[1].strip().isdigit():
-                # Suffix range ("bytes=-500"): the last N bytes.
-                start = max(0, file_size - int(parts[1].strip()))
-                end = file_size - 1
-            else:
-                start = int(parts[0]) if parts[0].strip().isdigit() else 0
-                end = (
-                    int(parts[1])
-                    if len(parts) > 1 and parts[1].strip().isdigit()
-                    else min(start + 4 * 1024 * 1024 - 1, file_size - 1)
-                )
-            end = min(end, file_size - 1)
-            if start >= file_size or end < start:
-                # Unsatisfiable: a negative Content-Length would crash the
-                # response mid-flight instead of telling the player.
-                return Response(status_code=416, headers={"Content-Range": f"bytes */{file_size}"})
-            content_len = end - start + 1
-
-            def _range_gen():
-                with resolved.open("rb") as f:
-                    f.seek(start)
-                    remaining = content_len
-                    while remaining > 0:
-                        chunk = f.read(min(1024 * 256, remaining))
-                        if not chunk:
-                            break
-                        remaining -= len(chunk)
-                        yield chunk
-
-            return StreamingResponse(
-                _range_gen(),
-                status_code=206,
-                headers={
-                    "Content-Range": f"bytes {start}-{end}/{file_size}",
-                    "Accept-Ranges": "bytes",
-                    "Content-Length": str(content_len),
-                    "Content-Type": mime,
-                },
-            )
-
-    def _full_gen():
-        with resolved.open("rb") as f:
-            while True:
-                chunk = f.read(1024 * 512)
-                if not chunk:
-                    break
-                yield chunk
-
-    return StreamingResponse(
-        _full_gen(),
-        headers={
-            "Accept-Ranges": "bytes",
-            "Content-Length": str(file_size),
-            "Content-Type": mime,
-        },
-    )
-
-
-@app.post("/api/voice/transcribe")
-async def voice_transcribe(request: Request):
-    wav_bytes = await request.body()
-    if not wav_bytes:
-        return {"error": "Empty audio data"}
-    try:
-        text = await asyncio.to_thread(transcribe_wav_bytes, wav_bytes)
-        return {"text": text}
-    except Exception:
-        return {"error": "Transcription failed"}
-
-
-@app.post("/api/voice/synthesize")
-async def voice_synthesize(request: Request):
-    try:
-        data = await request.json()
-        text = data.get("text")
-        voice = data.get("voice", "af_bella")
-        if not text:
-            return Response(status_code=400, content="Text is required")
-
-        wav_bytes = await asyncio.to_thread(text_to_speech_bytes, text, voice)
-        if not wav_bytes:
-            return Response(status_code=500, content="TTS synthesis failed")
-
-        return Response(content=wav_bytes, media_type="audio/wav")
-    except Exception:
-        return Response(status_code=500, content="Synthesis error")
 
 
 @app.get("/api/setup/status")
@@ -2166,457 +1895,6 @@ def _fetch_ollama_models_blocking(ollama_url: str) -> list[dict]:
             return local_result
 
     return []
-
-
-@app.get("/api/models")
-async def get_models():
-    """Fetch available models from configured Ollama instance."""
-    from palimind.config import load_config
-
-    if state.active_field:
-        config = load_config(state.active_field)
-    else:
-        config = _global_chat_config()
-    ollama_url = config.get("ollama_base_url", "http://localhost:11434")
-    current_model = config.get("chat_model", "gemma4:e2b")
-    try:
-        models = await asyncio.to_thread(_fetch_ollama_models_blocking, ollama_url)
-
-        from palimind.opencode.router import list_opencode_models
-
-        oc_models = await asyncio.to_thread(list_opencode_models)
-        seen = {m["model_id"] for m in models}
-        for oc in oc_models:
-            if oc["model_id"] not in seen:
-                models.append(oc)
-                seen.add(oc["model_id"])
-
-        return {
-            "models": models,
-            "current_model": current_model,
-            "ollama_url": ollama_url,
-            "status": "ok" if models else "empty",
-        }
-    except Exception:
-        return {
-            "error": "Failed to fetch models",
-            "models": [],
-            "current_model": current_model,
-            "status": "offline",
-        }
-
-
-@app.get("/api/models/pull")
-async def pull_model(model: str):
-    """Proxy Ollama's model-pull progress as SSE so the UI can show a bar.
-
-    Emits ``{"status","completed","total","percent","done"}`` frames and a
-    final ``{"done": true}``; ``{"error": ...}`` on failure.
-    """
-    from palimind.config import load_config
-
-    if not model or not model.strip():
-
-        async def err_stream():
-            yield f"data: {json.dumps({'error': 'model is required'})}\n\n"
-
-        return StreamingResponse(err_stream(), media_type="text/event-stream")
-
-    if state.active_field:
-        config = load_config(state.active_field)
-    else:
-        config = _global_chat_config()
-    ollama_url = config.get("ollama_base_url", "http://localhost:11434").rstrip("/")
-
-    async def gen():
-        try:
-            async with httpx.AsyncClient(timeout=None) as client:
-                async with client.stream(
-                    "POST",
-                    f"{ollama_url}/api/pull",
-                    json={"model": model.strip(), "stream": True},
-                    headers=proxy_auth_headers(ollama_url),
-                ) as resp:
-                    if resp.status_code >= 400:
-                        body = await resp.aread()
-                        detail = body[:200].decode("utf-8", errors="replace")
-                        yield f"data: {json.dumps({'error': f'Ollama HTTP {resp.status_code}: {detail}'})}\n\n"
-                        return
-                    async for line in resp.aiter_lines():
-                        if not line.strip():
-                            continue
-                        try:
-                            obj = json.loads(line)
-                        except json.JSONDecodeError:
-                            continue
-                        total = obj.get("total")
-                        completed = obj.get("completed")
-                        percent = (
-                            int(completed * 100 / total)
-                            if (total and completed is not None)
-                            else None
-                        )
-                        payload = {
-                            "status": obj.get("status", ""),
-                            "completed": completed,
-                            "total": total,
-                            "percent": percent,
-                            "done": obj.get("status") == "success",
-                        }
-                        if obj.get("error"):
-                            payload["error"] = obj["error"]
-                        yield f"data: {json.dumps(payload)}\n\n"
-            yield f"data: {json.dumps({'done': True})}\n\n"
-        except Exception:  # noqa: BLE001 - surface as an SSE error frame
-            yield f"data: {json.dumps({'error': 'Model pull failed'})}\n\n"
-
-    return StreamingResponse(gen(), media_type="text/event-stream")
-
-
-@app.patch("/api/config/model")
-async def update_model(req: Request, scope: str = "field"):
-    """Update the chat model for the current scope (field, chat or agent)."""
-    data = await req.json()
-    model_id = data.get("model_id")
-    if not model_id:
-        return {"error": "model_id is required"}
-
-    if scope.startswith("agent:"):
-        from palimind.agents.registry import get_registry
-
-        agent_id = scope.split(":", 1)[1].strip()
-        try:
-            get_registry().update(agent_id, {"model": model_id})
-        except Exception:
-            return {"error": "Failed to update agent model"}
-        return {"status": "success", "model": model_id}
-
-    from palimind.config import config_path, load_config, palimind_dir, save_config
-
-    if scope.startswith("project:"):
-        root = _chat_root(scope)
-        if root is None:
-            return {"error": "Project not found"}
-        cfg = load_config(root)
-        cfg["chat_model"] = model_id
-        save_config(root, cfg)
-        return {"status": "success", "model": model_id}
-
-    # Update field-level config
-    if state.active_field:
-        cfg = load_config(state.active_field)
-        cfg["chat_model"] = model_id
-        p_dir = palimind_dir(state.active_field)
-        p_dir.mkdir(parents=True, exist_ok=True)
-        cp = config_path(state.active_field)
-        cp.write_text(json.dumps(cfg, indent=2), "utf-8")
-
-    # Also update global config
-    try:
-        global_data = {}
-        if GLOBAL_CONFIG_PATH.exists():
-            global_data = json.loads(GLOBAL_CONFIG_PATH.read_text("utf-8"))
-        global_data["chat_model"] = model_id
-        _write_global_config(global_data)
-    except Exception:
-        pass
-
-    return {"status": "success", "model": model_id}
-
-
-@app.get("/api/document/graph")
-async def get_document_graph():
-    """Return the document knowledge graph for the active field (load-only)."""
-    if not state.active_field:
-        return {"error": "No active field", "nodes": [], "edges": []}
-    try:
-        from palimind.document.graph import DocGraph
-
-        graph = DocGraph.load(state.active_field)
-        needs_rebuild = False
-        if graph is None or len(graph.nodes) == 0:
-            from palimind.storage.db import get_all_files, get_connection
-
-            try:
-                conn = get_connection(state.active_field)
-                files = get_all_files(conn)
-                conn.close()
-                needs_rebuild = bool(files)
-            except Exception:
-                needs_rebuild = False
-            if graph is None:
-                graph = DocGraph(state.active_field)
-
-        nodes = []
-        for nid, ndata in graph.nodes.items():
-            nodes.append(
-                {
-                    "id": nid,
-                    "type": ndata.get("type", "unknown"),
-                    "label": ndata.get("label", nid),
-                    "file_path": ndata.get("file_path", ""),
-                }
-            )
-        edges = [
-            {"source": e["source"], "target": e["target"], "relation": e["relation"]}
-            for e in graph.edges
-        ]
-        return {
-            "nodes": nodes,
-            "edges": edges,
-            "node_count": len(nodes),
-            "edge_count": len(edges),
-            "indexed_files": len(graph.file_nodes),
-            "needs_rebuild": needs_rebuild,
-        }
-    except Exception:
-        return {"error": "Failed to get document graph", "nodes": [], "edges": []}
-
-
-@app.post("/api/document/graph/rebuild")
-async def rebuild_document_graph():
-    """Force rebuild the knowledge graph."""
-    if not state.active_field:
-        return {"error": "No active field"}
-    try:
-        from palimind.config import load_config as _lc
-        from palimind.document.graph import build_doc_graph
-
-        cfg = _lc(state.active_field)
-        ollama_url = cfg.get("ollama_base_url", "http://localhost:11434")
-        graph = await asyncio.to_thread(build_doc_graph, state.active_field, ollama_url)
-        return {
-            "status": "success",
-            "node_count": len(graph.nodes),
-            "edge_count": len(graph.edges),
-            "indexed_files": len(graph.file_nodes),
-        }
-    except Exception:
-        return {"error": "Failed to rebuild document graph"}
-
-
-@app.get("/api/config")
-async def get_config(scope: str = "field"):
-    """Return current config for the active scope."""
-    from palimind.config import load_config
-
-    if scope.startswith("agent:"):
-        from palimind.agents.registry import get_registry
-
-        base = _global_chat_config()
-        agent_id = scope.split(":", 1)[1].strip()
-        defn = get_registry().get_by_id(agent_id)
-        return {
-            "chat_model": (defn.model if defn and defn.model else base.get("chat_model", "llama3")),
-            "embed_model": base.get("embed_model", "bge-m3"),
-            "ollama_base_url": base.get("ollama_base_url", "http://localhost:11434"),
-            "moe_orchestrator_model": "",
-            "moe_worker_model": "",
-            "moe_sub_mode": "default",
-            "persona_name": defn.name if defn else "",
-            "persona_system_prompt": defn.system_prompt if defn else "",
-        }
-    if scope == "chat":
-        config = _global_chat_config()
-    elif scope.startswith("project:"):
-        root = _chat_root(scope)
-        config = load_config(root) if root else {}
-    elif state.active_field:
-        config = load_config(state.active_field)
-    else:
-        config = {}
-    return {
-        "chat_model": config.get("chat_model", "llama3"),
-        "embed_model": config.get("embed_model", "bge-m3"),
-        "ollama_base_url": config.get("ollama_base_url", "http://localhost:11434"),
-        "moe_orchestrator_model": config.get("moe_orchestrator_model", ""),
-        "moe_worker_model": config.get("moe_worker_model", ""),
-        "moe_sub_mode": config.get("moe_sub_mode", "default"),
-        "persona_name": config.get("persona_name", ""),
-        "persona_system_prompt": config.get("persona_system_prompt", ""),
-    }
-
-
-def _patch_field_config(data: dict) -> None:
-    from palimind.config import config_path, load_config, palimind_dir
-
-    if not state.active_field:
-        return
-    cfg = load_config(state.active_field)
-    cfg.update(data)
-    p_dir = palimind_dir(state.active_field)
-    p_dir.mkdir(parents=True, exist_ok=True)
-    cp = config_path(state.active_field)
-    cp.write_text(json.dumps(cfg, indent=2), "utf-8")
-
-
-@app.patch("/api/config/persona")
-async def update_persona(req: Request, scope: str = "field"):
-    """Set the per-scope persona (name + system prompt). Empty prompt disables."""
-    data = await req.json()
-    patch = {}
-    if "persona_name" in data:
-        patch["persona_name"] = str(data["persona_name"]).strip()
-    if "persona_system_prompt" in data:
-        patch["persona_system_prompt"] = str(data["persona_system_prompt"])
-    if scope.startswith("project:"):
-        from palimind.config import load_config, save_config
-
-        root = _chat_root(scope)
-        if root is None:
-            return {"error": "Project not found"}
-        cfg = load_config(root)
-        cfg.update(patch)
-        save_config(root, cfg)
-        return {"status": "success", **patch}
-    _patch_field_config(patch)
-    return {"status": "success", **patch}
-
-
-@app.patch("/api/config/moe")
-async def update_moe_config(req: Request, scope: str = "field"):
-    """Update MoE configuration for the active field (or global chat scope)."""
-    data = await req.json()
-    if scope.startswith("agent:"):
-        # MoE does not apply to a single agent — accept and ignore.
-        return {"status": "success", "note": "MoE settings do not apply to an agent"}
-    if scope == "chat":
-        global_data = {}
-        if GLOBAL_CONFIG_PATH.exists():
-            try:
-                global_data = json.loads(GLOBAL_CONFIG_PATH.read_text("utf-8"))
-            except Exception:
-                pass
-        for key in ("moe_orchestrator_model", "moe_worker_model", "moe_sub_mode"):
-            if key in data:
-                global_data[key] = data[key]
-        _write_global_config(global_data)
-        return {"status": "success"}
-    from palimind.config import config_path, load_config, palimind_dir, save_config
-
-    if scope.startswith("project:"):
-        root = _chat_root(scope)
-        if root is None:
-            return {"error": "Project not found"}
-        cfg = load_config(root)
-        for key in ("moe_orchestrator_model", "moe_worker_model", "moe_sub_mode"):
-            if key in data:
-                cfg[key] = data[key]
-        save_config(root, cfg)
-        return {"status": "success"}
-
-    if state.active_field:
-        cfg = load_config(state.active_field)
-        if "moe_orchestrator_model" in data:
-            cfg["moe_orchestrator_model"] = data["moe_orchestrator_model"]
-        if "moe_worker_model" in data:
-            cfg["moe_worker_model"] = data["moe_worker_model"]
-        if "moe_sub_mode" in data:
-            cfg["moe_sub_mode"] = data["moe_sub_mode"]
-        p_dir = palimind_dir(state.active_field)
-        p_dir.mkdir(parents=True, exist_ok=True)
-        cp = config_path(state.active_field)
-        cp.write_text(json.dumps(cfg, indent=2), "utf-8")
-    return {"status": "success"}
-
-
-@app.patch("/api/config/embed-model")
-async def update_embed_model(req: Request, scope: str = "field"):
-    """Update the embedding model for the active field (or global chat scope)."""
-    data = await req.json()
-    model_id = str(data.get("embed_model", "")).strip()
-    if not model_id:
-        return {"error": "embed_model is required"}
-
-    if scope.startswith("agent:"):
-        return {"status": "success", "note": "Embed model does not apply to an agent"}
-    if scope == "chat":
-        global_data = {}
-        if GLOBAL_CONFIG_PATH.exists():
-            try:
-                global_data = json.loads(GLOBAL_CONFIG_PATH.read_text("utf-8"))
-            except Exception:
-                pass
-        global_data["embed_model"] = model_id
-        _write_global_config(global_data)
-        return {"status": "success"}
-    from palimind.config import config_path, load_config, palimind_dir, save_config
-
-    if scope.startswith("project:"):
-        root = _chat_root(scope)
-        if root is None:
-            return {"error": "Project not found"}
-        cfg = load_config(root)
-        cfg["embed_model"] = model_id
-        save_config(root, cfg)
-        return {"status": "success"}
-
-    if state.active_field:
-        cfg = load_config(state.active_field)
-        cfg["embed_model"] = model_id
-        p_dir = palimind_dir(state.active_field)
-        p_dir.mkdir(parents=True, exist_ok=True)
-        cp = config_path(state.active_field)
-        cp.write_text(json.dumps(cfg, indent=2), "utf-8")
-    return {"status": "success"}
-
-
-@app.get("/api/moe/hardware-check")
-async def moe_hardware_check():
-    """Check hardware constraints for current MoE config."""
-    from palimind.config import load_config
-    from palimind.hwfit.hardware import detect_hardware
-    from palimind.llm.mixture_of_expert import estimate_hardware_requirements
-
-    config = {}
-    if state.active_field:
-        config = load_config(state.active_field)
-    orch = config.get("moe_orchestrator_model", "") or config.get("chat_model", "llama3")
-    worker = config.get("moe_worker_model", "") or config.get("chat_model", "llama3")
-    try:
-        hw = await asyncio.to_thread(detect_hardware)
-        # CPU-backend GPUs (iGPUs without an offload backend) can't hold the
-        # model in VRAM; same filter as palimind.hwfit.fit.
-        gpu_vram = max(
-            (g.vram_mb for g in hw.gpus if getattr(g, "backend", "") != "cpu"), default=0
-        )
-        sys_ram = hw.total_ram_mb
-        estimate = estimate_hardware_requirements(
-            orch, worker, num_workers=4, gpu_vram_mb=gpu_vram, system_ram_mb=sys_ram
-        )
-        return {
-            "fits_gpu": estimate.fits_gpu,
-            "fits_ram": estimate.fits_ram,
-            "vram_per_worker_mb": estimate.vram_per_worker_mb,
-            "vram_orchestrator_mb": estimate.vram_orchestrator_mb,
-            "total_vram_needed_mb": estimate.total_vram_needed_mb,
-            "total_ram_needed_mb": estimate.total_ram_needed_mb,
-            "suggested_worker": estimate.suggested_worker,
-            "suggested_orchestrator": estimate.suggested_orchestrator,
-            "gpu_vram_mb": gpu_vram,
-            "system_ram_mb": sys_ram,
-        }
-    except Exception:
-        return {"error": "Failed to check MoE hardware"}
-
-
-@app.get("/api/browser/screenshot")
-async def browser_screenshot_live():
-    """Return a PNG of the agent browser's current page for the live view.
-
-    404 when no browser session is open (or Playwright is unavailable), so the
-    UI can hide the panel without logging an error.
-    """
-    from palimind.agents.tools.browser.tool import screenshot_png
-
-    png = await asyncio.to_thread(screenshot_png)
-    if not png:
-        raise HTTPException(status_code=404, detail="No active browser session")
-    return Response(
-        content=png,
-        media_type="image/png",
-        headers={"Cache-Control": "no-store"},
-    )
 
 
 # -- Settings: OpenCode API Key --
@@ -2855,36 +2133,6 @@ async def update_voice_settings(req: Request):
     except Exception:
         return {"error": "Failed to update voice settings"}
     return {"status": "success", "stt_whisper_model": model}
-
-
-# -- Cookbook / Hardware Endpoints --
-
-
-@app.get("/api/cookbook/hardware")
-async def get_hardware():
-    """Detect and return hardware profile for cookbook recommendations."""
-    try:
-        from palimind.hwfit.hardware import detect_hardware
-
-        profile = await asyncio.to_thread(detect_hardware)
-        return profile.to_dict()
-    except Exception:
-        return {"error": "Failed to get recommendations"}
-
-
-@app.get("/api/cookbook/recommendations")
-async def get_recommendations(top: int = 20):
-    """Get hardware-aware model recommendations."""
-    try:
-        from palimind.hwfit.catalog import MODEL_CATALOG
-        from palimind.hwfit.fit import rank_models
-        from palimind.hwfit.hardware import detect_hardware
-
-        profile = await asyncio.to_thread(detect_hardware)
-        ranked = rank_models(profile, MODEL_CATALOG, top=top)
-        return {"recommendations": ranked, "hardware": profile.to_dict()}
-    except Exception:
-        return {"error": "Failed to get recommendations", "recommendations": []}
 
 
 def run_server(port: int = 8000, host: str | None = None):

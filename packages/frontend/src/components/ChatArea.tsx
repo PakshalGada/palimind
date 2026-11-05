@@ -14,8 +14,7 @@ import { useChatStreamContext } from '../stream/context';
 import StreamingTurn from '../stream/StreamingTurn';
 import { streamBelongsTo } from '../stream/reducer';
 import { HistoryActivity } from '@/components/activity/shell/HistoryActivity';
-import { SourcesList } from '@/components/activity/citations/SourcesList';
-import { resultsFromSources } from '@/components/activity/recorder';
+import { SourcesPanel } from '@/components/sources/SourcesPanel';
 import { isTerminal } from '@/components/activity/model';
 import { persistActivity } from '@/components/activity/store';
 import type { ActivityMode } from '../AppContext';
@@ -423,9 +422,7 @@ const MessageComponent = memo(function MessageComponent({
     );
   }
 
-  const historySources = !isUser
-    ? resultsFromSources(msg.citations ?? null, [], [])
-    : { sources: [], passages: [] };
+  const historySources = !isUser ? msg.sources ?? [] : [];
 
   return (
     <div className={`message ${isUser ? 'user-message' : 'system-message'} history-message`}>
@@ -445,7 +442,7 @@ const MessageComponent = memo(function MessageComponent({
           onOpenArtifact={onOpenArtifact}
         />
         {!isUser && (
-          <SourcesList sources={historySources.sources} passages={historySources.passages} />
+          <SourcesPanel citations={msg.citations} legacySources={historySources} />
         )}
         <MessageActions
           content={msg.content}

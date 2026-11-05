@@ -7,7 +7,14 @@ a new tool.
 """
 
 from palimind.agents.tools.base import FunctionTool, Tool, ToolContext, ToolResult
-from palimind.agents.tools.registry import discover_tools, get_registry, get_tool, list_tools
+from palimind.agents.tools.registry import (
+    discover_tools,
+    discover_user_tools,
+    get_registry,
+    get_tool,
+    list_tools,
+    reload_tools,
+)
 
 __all__ = [
     "FunctionTool",
@@ -15,7 +22,9 @@ __all__ = [
     "ToolContext",
     "ToolResult",
     "discover_tools",
+    "discover_user_tools",
     "get_registry",
     "get_tool",
     "list_tools",
+    "reload_tools",
 ]

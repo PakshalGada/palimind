@@ -395,3 +395,51 @@ html[data-motion="reduced"] .pixel-meter.is-indeterminate .pixel-meter__cell {
         padding-right: 16px;
     }
 }
+
+/* ── focus-visible on interactive cards and rows ───────────────────────── */
+:where(
+    .home-row,
+    .home-action,
+    .project-row,
+    .artifact-library-card,
+    .team-card,
+    .ah-card,
+    .runs__item-head,
+    .chat-hero__prompt,
+    .ui-card--interactive,
+    .dir-item,
+    .settings-theme-card,
+    .settings-nav-item
+):focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    position: relative;
+    z-index: 1;
+}
+
+/* ── mobile touch targets: 36–40px ─────────────────────────────────────── */
+@media (max-width: 760px) {
+    .ui-icon-btn,
+    .command-bar__icon,
+    .sb-icon-btn,
+    .icon-btn,
+    .msg-action-btn {
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+        min-height: 36px;
+    }
+    .sb-nav-item {
+        height: 38px;
+    }
+    .ui-btn--sm {
+        min-height: 34px;
+    }
+    .projects-tab,
+    .artifact-library-type-filter {
+        min-height: 30px;
+    }
+    .dir-item {
+        min-height: 40px;
+    }
+}

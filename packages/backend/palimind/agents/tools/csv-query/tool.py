@@ -99,9 +99,18 @@ TOOL_DEFINITION: dict[str, Any] = {
         'string (e.g. "amount > 100"). Returns matching rows as JSON.'
     ),
     "parameters": {
-        "file_path": "Path to the CSV file (workspace-relative or absolute)",
-        "query": "Optional: pandas query string to filter rows",
+        "file_path": {
+            "type": "string",
+            "description": "Path to the CSV file (workspace-relative or absolute)",
+        },
+        "query": {
+            "type": "string",
+            "description": "pandas query string to filter rows",
+            "required": False,
+        },
     },
     "tier": 1,
     "requires_approval": False,
+    "parallel_safe": True,
+    "idempotent": True,
 }

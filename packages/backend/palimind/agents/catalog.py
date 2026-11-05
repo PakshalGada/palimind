@@ -58,9 +58,16 @@ TOOL_PACKS: dict[str, list[str]] = {
         "grep_files",
         "write_file",
         "search_replace",
+        "apply_patch",
         "run_shell",
         "run_python",
         "summarize",
+        "git_status",
+        "git_diff",
+        "git_log",
+        "git_show",
+        "git_commit",
+        "git_branch",
     ],
     "data": [
         "read_file",
@@ -69,6 +76,10 @@ TOOL_PACKS: dict[str, list[str]] = {
         "grep_files",
         "csv_query",
         "sqlite_query",
+        "duckdb_query",
+        "xlsx_read",
+        "xlsx_write",
+        "chart_generate",
         "run_python",
         "summarize",
     ],
@@ -83,6 +94,25 @@ TOOL_PACKS: dict[str, list[str]] = {
         "fetch_rss",
         "summarize",
     ],
+    "office": [
+        "docx_read",
+        "docx_write",
+        "pptx_read",
+        "pptx_write",
+        "pdf_merge",
+        "pdf_split",
+        "pdf_rotate",
+        "pdf_read",
+        "summarize",
+    ],
+    "media": [
+        "image_generate",
+        "image_info",
+        "image_ocr",
+        "image_caption",
+        "audio_transcribe",
+        "video_frames",
+    ],
     "custom": [],
 }
 TOOL_PACK_CHOICES = tuple(TOOL_PACKS)
@@ -91,6 +121,7 @@ TOOL_PACK_CHOICES = tuple(TOOL_PACKS)
 def resolve_tool_pack(pack: str) -> list[str]:
     """Return the tool ids for *pack* (empty list means unrestricted)."""
     return list(TOOL_PACKS.get(pack or "auto", []))
+
 
 # Risky tools (write/shell/browser mutations) require human approval by
 # default. Kept for migration; new agents use ``autonomy_level`` instead.
@@ -308,17 +339,13 @@ class AgentDefinition:
         cleaned.setdefault("title", "")
         cleaned.setdefault("description", "")
         if not str(cleaned.get("display_name") or "").strip():
-            cleaned["display_name"] = str(
-                cleaned.get("title") or cleaned.get("name") or ""
-            )
+            cleaned["display_name"] = str(cleaned.get("title") or cleaned.get("name") or "")
         cleaned.setdefault("avatar_type", "bot")
         if cleaned.get("avatar_type") not in ("bot", "upload"):
             cleaned["avatar_type"] = "bot"
         cleaned.setdefault("avatar_upload", "")
         avatar_config = cleaned.get("avatar_config")
-        cleaned["avatar_config"] = (
-            dict(avatar_config) if isinstance(avatar_config, dict) else {}
-        )
+        cleaned["avatar_config"] = dict(avatar_config) if isinstance(avatar_config, dict) else {}
         cleaned.setdefault("goal", "")
         cleaned.setdefault("custom_instructions", "")
         cleaned.setdefault("personality_style", "")

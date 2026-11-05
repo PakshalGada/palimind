@@ -14,6 +14,8 @@ import {
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import AgentAvatar from '../../components/AgentAvatar';
+import { PixelGlyph } from '../../components/pixel/PixelGlyph';
+import { pixelForStatus } from '../../components/pixel/pixelStatus';
 import { Button, Chip, EmptyState, SkeletonList, TextArea } from '../../ui/primitives';
 import type { OverviewTarget, TargetStatus } from '../../types';
 import './AgentsHome.css';
@@ -82,7 +84,7 @@ function TargetCard({
           </span>
         </div>
         <span className={`ah-status ah-status--${target.status}`}>
-          <span className="ah-status__dot" />
+          <PixelGlyph sprite={pixelForStatus(target.status)} cell={1.25} />
           {STATUS_LABEL[target.status]}
         </span>
       </div>

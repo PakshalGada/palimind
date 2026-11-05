@@ -136,6 +136,17 @@ def llm_chat(
     if data.get("eval_count") is not None:
         usage["completion_tokens"] = int(data["eval_count"])
 
+    try:
+        from palimind import metrics
+
+        metrics.record_tokens(
+            model,
+            usage.get("prompt_tokens", 0),
+            usage.get("completion_tokens", 0),
+        )
+    except Exception:
+        pass
+
     return {"content": content, "tool_calls": tool_calls, "usage": usage}
 
 
@@ -252,6 +263,17 @@ def llm_chat_stream(
     except httpx.HTTPError as e:
         raise LLMError(f"LLM HTTP error: {e}", transient=True) from e
 
+    try:
+        from palimind import metrics
+
+        metrics.record_tokens(
+            model,
+            usage.get("prompt_tokens", 0),
+            usage.get("completion_tokens", 0),
+        )
+    except Exception:
+        pass
+
     content = "".join(content_parts)
     yield {"type": "tool_calls", "tool_calls": tool_calls, "content": content}
     yield {"type": "usage", "usage": usage, "content": content}
@@ -292,22 +314,18 @@ def llm_chat_safe(
 
 
 def ollama_tools_from_registry(registry: dict[str, dict]) -> list[dict]:
-    """Convert the MoE TOOL_REGISTRY into Ollama `tools` format."""
+    """Convert the MoE TOOL_REGISTRY into Ollama `tools` format.
+
+    Tool parameters may be declared as legacy strings or typed mappings; both
+    become a real JSON Schema so models can emit integers, booleans, arrays and
+    enum values instead of stringifying everything.
+    """
+    from palimind.agents.tools.base import parameters_to_schema
+
     tools: list[dict] = []
     for name, info in sorted(registry.items()):
-        params = info.get("parameters", {})
-        properties: dict[str, Any] = {}
-        required: list[str] = []
-        for pname, pdesc in params.items():
-            properties[pname] = {"type": "string", "description": pdesc}
-            if not pdesc.lower().startswith("optional") and "default" not in pdesc.lower():
-                required.append(pname)
-        schema: dict[str, Any] = {
-            "type": "object",
-            "properties": properties,
-        }
-        if required:
-            schema["required"] = required
+        params = info.get("parameters", {}) or {}
+        schema = parameters_to_schema(params)
         tools.append(
             {
                 "type": "function",

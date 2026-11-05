@@ -63,9 +63,19 @@ TOOL_DEFINITION: dict[str, Any] = {
         "relationships). Provide entity_name or file_path."
     ),
     "parameters": {
-        "entity_name": "Optional: an entity to look up in the graph",
-        "file_path": "Optional: a file path to look up in the graph",
+        "entity_name": {
+            "type": "string",
+            "description": "An entity to look up in the graph",
+            "required": False,
+        },
+        "file_path": {
+            "type": "string",
+            "description": "A file path to look up in the graph",
+            "required": False,
+        },
     },
     "tier": 1,
     "requires_approval": False,
+    "parallel_safe": True,
+    "idempotent": True,
 }

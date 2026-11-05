@@ -21,7 +21,7 @@ html[data-ui-style="pixel"] canvas {
 html[data-ui-style="pixel"] .app-main-panel {
     /* SVG pattern instead of a gradient: the strict mono guard allows no
        decorative gradients, and an SVG stays crisp at every DPR. */
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect x='0' y='0' width='1' height='1' fill='%23808080' fill-opacity='0.28'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect x='0' y='0' width='1' height='1' fill='%23808080' fill-opacity='0.16'/%3E%3C/svg%3E");
     background-size: 16px 16px;
     background-position: 8px 8px;
 }
@@ -40,7 +40,7 @@ html[data-ui-style="pixel"] .app-container::after {
     /* A 1×4 scanline tile, not a gradient. */
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='4'%3E%3Crect width='1' height='1' fill='%23808080' fill-opacity='0.22'/%3E%3C/svg%3E");
     background-size: 100% 4px;
-    opacity: 0.4;
+    opacity: 0.16;
     transform: translateY(-96px);
     animation: pixel-scan 16s steps(80, end) infinite;
     will-change: transform;

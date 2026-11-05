@@ -142,6 +142,38 @@ def init_db(root: Path) -> None:
             ON entity_mentions(entity_text, entity_type)
         """)
 
+        # ── incremental index runs ───────────────────────────────────────────
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS index_files (
+                run_id      TEXT NOT NULL,
+                path        TEXT NOT NULL,
+                md5         TEXT DEFAULT '',
+                status      TEXT NOT NULL DEFAULT 'queued',
+                error       TEXT DEFAULT '',
+                attempts    INTEGER NOT NULL DEFAULT 0,
+                updated_at  REAL,
+                PRIMARY KEY (run_id, path)
+            )
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_index_files_run
+            ON index_files(run_id, status)
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS index_events (
+                run_id      TEXT NOT NULL,
+                seq         INTEGER NOT NULL,
+                type        TEXT NOT NULL,
+                payload     TEXT NOT NULL DEFAULT '{}',
+                created_at  REAL NOT NULL,
+                PRIMARY KEY (run_id, seq)
+            )
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_index_events_run
+            ON index_events(run_id, seq)
+        """)
+
         conn.commit()
     finally:
         conn.close()

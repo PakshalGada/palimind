@@ -234,6 +234,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [shortcutOverrides, setShortcutOverridesState] = useState<ShortcutOverrides>(() => loadShortcutOverrides());
 
   const toastId = useRef(0);
+  const lastToastRef = useRef<{ message: string; at: number } | null>(null);
 
   const toggleSidebar = useCallback(() => setSidebarCollapsed((v) => !v), []);
 
@@ -310,6 +311,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addToast = useCallback((message: string, options: ToastOptions = {}) => {
+    const now = Date.now();
+    // Repeated failures (one per request) should not stack five identical
+    // notifications. The connection banner owns persistent errors.
+    if (
+      lastToastRef.current &&
+      lastToastRef.current.message === message &&
+      now - lastToastRef.current.at < 3000
+    ) {
+      return;
+    }
+    lastToastRef.current = { message, at: now };
     const id = ++toastId.current;
     const duration = options.duration ?? (options.action ? 8000 : 5000);
     const toast: Toast = {

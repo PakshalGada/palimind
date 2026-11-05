@@ -9,6 +9,8 @@ import { captionFor } from '../caption';
 import AgentAvatar from '../../AgentAvatar';
 import { botStateForRun, configFromSeed, type BotAvatarConfig } from '../../../bots/config';
 import { useActivitySettings, useMediaQuery } from '../hooks';
+import { PixelIcon } from '../../pixel/PixelIcon';
+import type { PixelSprite } from '../../pixel/sprites';
 import { Icon } from '../icons';
 import { Kbd } from '../primitives/Kbd';
 import { LiveTimer } from '../primitives/LiveTimer';
@@ -25,6 +27,26 @@ import type { ActivityAgentAvatar } from '../../../AppContext';
 
 const DEFAULT_SEED = 'palimind-assistant';
 const DEFAULT_AVATAR: BotAvatarConfig = configFromSeed(DEFAULT_SEED);
+
+const TOOL_PIXEL: Record<string, PixelSprite> = {
+  search: 'search',
+  page: 'book',
+  feed: 'graph',
+  file: 'folder',
+  tree: 'projects',
+  matches: 'search',
+  diff: 'terminal',
+  passages: 'book',
+  graph: 'graph',
+  data: 'package',
+  'code-run': 'terminal',
+  text: 'book',
+  subagent: 'bot',
+  browser: 'graph',
+  iot: 'terminal',
+  weather: 'sun',
+  generic: 'spark',
+};
 
 function distinctTools(steps: readonly ToolStep[]): string[] {
   const names: string[] = [];
@@ -178,7 +200,9 @@ export function ActivityPanel({
     // answer is the content.
     return (
       <>
-        {running && !state.answerStarted && <ThinkingIndicator />}
+        {running && !state.answerStarted && (
+          <ThinkingIndicator startedAt={state.startedAt} />
+        )}
         {children}
       </>
     );
@@ -192,12 +216,21 @@ export function ActivityPanel({
     avatar?.type === 'upload' ? undefined : avatar?.config ?? DEFAULT_AVATAR;
 
   const staticRunClass = staticRun ? ' act--static' : '';
+  const liveInline = running && !state.answerStarted && !staticRun;
+  const reasoningOnly =
+    liveInline &&
+    steps.length === 0 &&
+    Boolean(state.reasoning && !state.reasoning.done);
+  const showReasonHeader = !liveInline || steps.length === 0;
 
   return (
     <>
       <div
-        className={`act act-panel${state.status === 'error' ? ' act-panel--error' : ''}${staticRunClass}`.trim()}
+        className={`act act-panel${liveInline ? ' act-panel--inline' : ''}${
+          state.status === 'error' ? ' act-panel--error' : ''
+        }${staticRunClass}`.trim()}
       >
+        {!reasoningOnly && (
         <div className="act-panel__head">
           <button
             type="button"
@@ -206,10 +239,6 @@ export function ActivityPanel({
             aria-controls={bodyId}
             onClick={() => setManual(!open)}
           >
-            <span
-              className={`act-node act-node--${nodeStatus} act-caption__node`}
-              aria-hidden="true"
-            />
             {avatar?.type === 'upload' && avatar.upload ? (
               <span className="act-caption__avatar" aria-hidden="true">
                 <img src={avatar.upload} alt="" width={18} height={18} />
@@ -248,7 +277,11 @@ export function ActivityPanel({
             <span className="act-caption__strip" aria-hidden="true">
               {tools.slice(0, 3).map((name) => (
                 <span key={name} className="act-caption__toolicon">
-                  <Icon name={getToolDefinition(name).icon} size={12} />
+                  <PixelIcon
+                    name={TOOL_PIXEL[getToolDefinition(name).family] ?? 'spark'}
+                    size={16}
+                    state="idle"
+                  />
                 </span>
               ))}
               {tools.length > 3 && (
@@ -274,6 +307,7 @@ export function ActivityPanel({
             </span>
           </button>
 
+          {!liveInline && (
           <div className="act-overflow" ref={overflowRef}>
             <button
               type="button"
@@ -350,7 +384,9 @@ export function ActivityPanel({
               </div>
             )}
           </div>
+          )}
         </div>
+        )}
 
         {(running || open) && <PhaseSpine phase={state.phase} />}
 
@@ -363,6 +399,7 @@ export function ActivityPanel({
                   reasoning={state.reasoning}
                   startedAt={state.startedAt}
                   store={store}
+                  showHeader={showReasonHeader}
                 />
               )}
               {bodyExtra}

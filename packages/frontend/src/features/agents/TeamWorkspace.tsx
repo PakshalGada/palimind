@@ -14,6 +14,8 @@ import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import { useConfirm } from '../../components/ConfirmDialog';
 import AgentAvatar from '../../components/AgentAvatar';
+import { PixelGlyph } from '../../components/pixel/PixelGlyph';
+import { pixelForStatus } from '../../components/pixel/pixelStatus';
 import { Button, Chip, EmptyState, Field, Select, TextArea, TextInput } from '../../ui/primitives';
 import type { AgentListItem, Team, TeamMessage, TeamNote, TeamRun } from '../../types';
 import './TeamWorkspace.css';
@@ -263,7 +265,7 @@ export default function TeamWorkspace({
                   <div className="team-ws__live">
                     {Object.entries(liveMembers).map(([id, info]) => (
                       <div key={id} className="team-ws__live-row">
-                        <span className={`team-ws__live-dot${info.status === 'working' ? ' is-working' : ''}`} />
+                        <PixelGlyph sprite={pixelForStatus(info.status)} cell={1.25} />
                         <span className="team-ws__live-name">{info.name}</span>
                         <span className="team-ws__live-task">{info.task || info.status}</span>
                       </div>
@@ -346,7 +348,12 @@ export default function TeamWorkspace({
                 <details key={run.run_id} className="team-ws__run">
                   <summary>
                     <span className={`ah-status ah-status--${run.status === 'success' ? 'idle' : run.status === 'running' ? 'working' : 'error'}`}>
-                      <span className="ah-status__dot" />
+                      <PixelGlyph
+                        sprite={pixelForStatus(
+                          run.status === 'success' ? 'success' : run.status === 'running' ? 'running' : 'error',
+                        )}
+                        cell={1.25}
+                      />
                       {run.status}
                     </span>
                     <span className="team-ws__run-input">{run.input.slice(0, 120)}</span>

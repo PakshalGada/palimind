@@ -124,10 +124,20 @@ TOOL_DEFINITION: dict[str, Any] = {
         "page text, title and optionally a screenshot path."
     ),
     "parameters": {
-        "url": "The full URL to browse",
-        "max_chars": "Optional: maximum characters of page text (default 8000)",
-        "screenshot": "Optional: save a screenshot (true/false)",
+        "url": {"type": "string", "description": "The full URL to browse"},
+        "max_chars": {
+            "type": "integer",
+            "description": "Maximum characters of page text",
+            "default": 8000,
+        },
+        "screenshot": {
+            "type": "boolean",
+            "description": "Save a screenshot of the page",
+            "default": False,
+        },
     },
     "tier": 2,
     "requires_approval": True,
+    "parallel_safe": False,
+    "idempotent": True,
 }

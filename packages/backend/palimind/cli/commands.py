@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
 import typer
 
@@ -51,8 +52,14 @@ def npm_deps_stale(project_dir: Path) -> bool:
     )
 
 
-_FRONTEND_INPUTS = ("src", "public", "index.html", "package.json", "package-lock.json",
-                    "vite.config.ts")
+_FRONTEND_INPUTS = (
+    "src",
+    "public",
+    "index.html",
+    "package.json",
+    "package-lock.json",
+    "vite.config.ts",
+)
 
 
 def frontend_build_stale(frontend_dir: Path) -> bool:
@@ -74,6 +81,100 @@ def frontend_build_stale(frontend_dir: Path) -> bool:
 
 config_app = typer.Typer(help="Manage PaliMind configuration")
 app.add_typer(config_app, name="config")
+
+backup_app = typer.Typer(help="Local backup, verify and restore")
+app.add_typer(backup_app, name="backup")
+
+
+@backup_app.command("list")
+def backup_list():
+    """List local backup archives."""
+    from palimind.backup import list_backups
+
+    items = list_backups()
+    if not items:
+        print_info("No backups found.")
+        return
+    for item in items:
+        console.print(
+            f"  {item['name']}  {item['size']} bytes  "
+            f"{'encrypted' if item['encrypted'] else 'plain'}"
+        )
+
+
+@backup_app.command("create")
+def backup_create(
+    path: Optional[Path] = typer.Option(None, "--path", "-p", help="Output archive path"),
+    label: str = typer.Option("", "--label", help="Human-readable backup label"),
+    passphrase: str = typer.Option("", "--passphrase", help="Optional encryption passphrase"),
+    include_workspace: list[Path] = typer.Option(
+        [], "--include-workspace", help="Also back up a workspace's .palimind folder"
+    ),
+):
+    """Create a local backup archive."""
+    from palimind.backup import create_backup
+
+    try:
+        meta = create_backup(
+            path,
+            label=label,
+            passphrase=passphrase,
+            include_workspaces=list(include_workspace),
+        )
+    except Exception as exc:
+        print_error(str(exc))
+        raise typer.Exit(1) from exc
+    print_success(f"Backup created: {meta['path']} ({meta['files']} files)")
+    if meta.get("encrypted"):
+        print_info("Archive is encrypted.")
+
+
+@backup_app.command("verify")
+def backup_verify(
+    archive: Path = typer.Argument(..., help="Backup archive"),
+    passphrase: str = typer.Option("", "--passphrase"),
+):
+    """Validate a backup's manifest and file hashes."""
+    from palimind.backup import verify_backup
+
+    try:
+        result = verify_backup(archive, passphrase)
+    except Exception as exc:
+        print_error(str(exc))
+        raise typer.Exit(1) from exc
+    print_success(f"Backup is valid ({result['files']} files, version {result['version']})")
+
+
+@backup_app.command("restore")
+def backup_restore(
+    archive: Path = typer.Argument(..., help="Backup archive"),
+    target: Optional[Path] = typer.Option(None, "--target", help="Restore target home"),
+    passphrase: str = typer.Option("", "--passphrase"),
+    overwrite: bool = typer.Option(True, "--overwrite/--no-overwrite"),
+    restore_workspaces: bool = typer.Option(False, "--restore-workspaces"),
+    yes: bool = typer.Option(False, "--yes", help="Confirm overwriting local files"),
+):
+    """Restore a backup into the local PaliMind home."""
+    from palimind.backup import restore_backup
+
+    if not yes:
+        print_error("Restore requires --yes to confirm.")
+        raise typer.Exit(1)
+    try:
+        result = restore_backup(
+            archive,
+            passphrase=passphrase,
+            target_home=target,
+            overwrite=overwrite,
+            restore_workspaces=restore_workspaces,
+        )
+    except Exception as exc:
+        print_error(str(exc))
+        raise typer.Exit(1) from exc
+    print_success(
+        f"Restored {result['restored']} files to {result['target_home']} "
+        f"({result['skipped']} skipped)"
+    )
 
 
 @config_app.command("theme")
@@ -394,9 +495,9 @@ def ui(
             print_success("Ollama already running on :11434")
 
         if not port_up(port):
-            from palimind.settings import SERVER_HOST
-
             import tempfile
+
+            from palimind.settings import SERVER_HOST
 
             print_info(f"Starting API server on :{port}...")
             # Keep the server's output so a startup failure can be explained

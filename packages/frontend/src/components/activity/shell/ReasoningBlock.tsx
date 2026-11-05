@@ -3,6 +3,9 @@ import type { ReasoningState } from '../model';
 import { formatRunDuration } from '../model';
 import { useBuffer } from '../hooks';
 import { Icon } from '../icons';
+import { PixelIcon } from '../../pixel/PixelIcon';
+import { PixelCaret } from '../../pixel/PixelCaret';
+import { PixelLoader } from '../../pixel/PixelLoader';
 import { LiveTimer } from '../primitives/LiveTimer';
 import type { ActivityStore } from '../store';
 
@@ -16,10 +19,12 @@ function LiveTrace({
   store,
   fallback,
   startedAt,
+  showHeader,
 }: {
   store: ActivityStore;
   fallback: string;
   startedAt: number;
+  showHeader: boolean;
 }) {
   const snapshot = useBuffer(store, 'reasoning');
   const text = snapshot.text || fallback;
@@ -33,11 +38,19 @@ function LiveTrace({
   }, [text, pinned]);
 
   return (
-    <div className="act-reason">
-      <div className="act-reason__caption">
-        <span className="act-reason__caption-text">Reasoning</span>
-        <LiveTimer startedAt={startedAt} active />
-      </div>
+    <div className="act-reason act-reason--live">
+      {showHeader && (
+        <div className="act-reason__caption">
+          <span className="act-reason__glyph" aria-hidden="true">
+            <PixelIcon name="spark" size={16} state="busy" />
+          </span>
+          <span className="act-reason__caption-text">Thinking</span>
+          <span className="act-reason__loader" aria-hidden="true">
+            <PixelLoader cell={1.5} label="Thinking" />
+          </span>
+          <LiveTimer startedAt={startedAt} active />
+        </div>
+      )}
       <div
         className="act-reason__tail"
         ref={textRef}
@@ -46,7 +59,8 @@ function LiveTrace({
           setPinned(element.scrollHeight - element.scrollTop - element.clientHeight <= 4);
         }}
       >
-        {text}
+        <span className="act-reason__tail-text">{text}</span>
+        <PixelCaret />
       </div>
     </div>
   );
@@ -84,10 +98,12 @@ export function ReasoningBlock({
   reasoning,
   startedAt,
   store,
+  showHeader = true,
 }: {
   reasoning: ReasoningState;
   startedAt: number;
   store: ActivityStore;
+  showHeader?: boolean;
 }) {
   const [manual, setManual] = useState<boolean | null>(null);
   const active = !reasoning.done;
@@ -98,6 +114,7 @@ export function ReasoningBlock({
         store={store}
         fallback={reasoning.text}
         startedAt={reasoning.startedAt ?? startedAt}
+        showHeader={showHeader}
       />
     );
   }
@@ -115,6 +132,9 @@ export function ReasoningBlock({
         aria-expanded={open}
         onClick={() => setManual(!open)}
       >
+        <span className="act-reason__settled-icon" aria-hidden="true">
+          <PixelIcon name="check" size={16} state="done" />
+        </span>
         <span>{label}</span>
         <span className="act-chevron" data-open={open} aria-hidden="true">
           <Icon name="chevron-right" size={13} />

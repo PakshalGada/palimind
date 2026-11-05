@@ -159,9 +159,8 @@ export default function Sidebar() {
       if (data.is_indexing) {
         setIndexingStatus(data.indexing_status || "Indexing knowledge base...");
       }
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Could not reach the local backend.";
-      setFieldsError(message);
+    } catch {
+      setFieldsError('Could not load knowledge bases. Check that the local engine is running.');
     } finally {
       setFieldsLoading(false);
     }

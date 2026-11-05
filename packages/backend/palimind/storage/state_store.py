@@ -64,6 +64,13 @@ def _connect(path: Path | None = None) -> sqlite3.Connection:
     return conn
 
 
+def state_connection() -> sqlite3.Connection:
+    """Public connection helper for modules that own their own schema."""
+    conn = _connect()
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
 def _init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(
         """
@@ -132,6 +139,58 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_queue_target
             ON queue_items(target_type, target_id, status, priority);
+
+        CREATE TABLE IF NOT EXISTS jobs (
+            id                TEXT PRIMARY KEY,
+            kind              TEXT NOT NULL,
+            target            TEXT NOT NULL DEFAULT '',
+            payload           TEXT NOT NULL DEFAULT '{}',
+            status            TEXT NOT NULL,
+            priority          INTEGER NOT NULL DEFAULT 0,
+            run_at            REAL NOT NULL,
+            created_at        REAL NOT NULL,
+            started_at        REAL,
+            finished_at       REAL,
+            attempts          INTEGER NOT NULL DEFAULT 0,
+            max_attempts      INTEGER NOT NULL DEFAULT 3,
+            last_error        TEXT NOT NULL DEFAULT '',
+            lease_until       REAL,
+            worker_id         TEXT NOT NULL DEFAULT '',
+            idempotency_key   TEXT,
+            parent_id         TEXT NOT NULL DEFAULT '',
+            cron              TEXT NOT NULL DEFAULT '',
+            interval_seconds  INTEGER NOT NULL DEFAULT 0,
+            cancel_requested  INTEGER NOT NULL DEFAULT 0,
+            result            TEXT NOT NULL DEFAULT '',
+            updated_at        REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_jobs_due
+            ON jobs(status, run_at, priority);
+        CREATE INDEX IF NOT EXISTS idx_jobs_kind
+            ON jobs(kind, status);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_idempotency
+            ON jobs(idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key != '';
+
+        CREATE TABLE IF NOT EXISTS job_events (
+            job_id     TEXT NOT NULL,
+            seq        INTEGER NOT NULL,
+            type       TEXT NOT NULL,
+            payload    TEXT NOT NULL DEFAULT '{}',
+            created_at REAL NOT NULL,
+            PRIMARY KEY (job_id, seq)
+        );
+        CREATE INDEX IF NOT EXISTS idx_job_events_job
+            ON job_events(job_id, seq);
+
+        CREATE TABLE IF NOT EXISTS event_log (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            stream     TEXT NOT NULL,
+            type       TEXT NOT NULL DEFAULT '',
+            payload    TEXT NOT NULL,
+            created_at REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_event_log_stream
+            ON event_log(stream, id);
 
         CREATE TABLE IF NOT EXISTS schema_version (
             version INTEGER NOT NULL
@@ -474,7 +533,12 @@ def append_team_message(team_id: str, message: dict[str, Any], limit: int = 2000
         message = {**message, "seq": next_seq}
         conn.execute(
             "INSERT INTO team_messages(team_id, seq, value, timestamp) VALUES (?, ?, ?, ?)",
-            (str(team_id), next_seq, _json_dumps(message), float(message.get("created_at") or time.time())),
+            (
+                str(team_id),
+                next_seq,
+                _json_dumps(message),
+                float(message.get("created_at") or time.time()),
+            ),
         )
         conn.execute(
             """

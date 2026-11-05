@@ -19,8 +19,6 @@ import time
 from collections import OrderedDict
 from urllib.parse import urljoin, urlparse
 
-from ddgs import DDGS
-
 logger = logging.getLogger(__name__)
 
 # ── tunables ──────────────────────────────────────────────────────────────
@@ -49,8 +47,8 @@ _cache_lock = threading.Lock()
 _cache: OrderedDict[str, tuple[float, str]] = OrderedDict()
 
 
-def _cache_key(query: str, max_results: int, depth: str) -> str:
-    raw = f"{query.strip().lower()}::{max_results}::{depth}"
+def _cache_key(query: str, max_results: int, depth: str, provider: str = "auto") -> str:
+    raw = f"{query.strip().lower()}::{max_results}::{depth}::{provider}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -80,16 +78,6 @@ def _domain(url: str) -> str:
         return urlparse(url).netloc.lower().removeprefix("www.")
     except Exception:
         return ""
-
-
-def _ddg_search(query: str, max_results: int) -> list[dict]:
-    """Run one DuckDuckGo text search; never raises."""
-    try:
-        with DDGS() as ddgs:
-            return list(ddgs.text(query, max_results=max_results))
-    except Exception as e:
-        logger.warning(f"DDG search failed for '{query}': {e}")
-        return []
 
 
 def _dedupe_results(results: list[dict], limit: int) -> list[dict]:
@@ -143,7 +131,10 @@ def _is_safe_url(url: str) -> bool:
         except ValueError:
             try:
                 infos = socket.getaddrinfo(hostname, None)
-                ips = [ipaddress.ip_address(info[4][0].split("%", 1)[0]) for info in infos]
+                ips = [
+                    ipaddress.ip_address(str(info[4][0]).split("%", 1)[0])
+                    for info in infos
+                ]
             except (OSError, ValueError):
                 return False
         if not ips:
@@ -287,20 +278,20 @@ def perform_web_search(
     if not query or not query.strip():
         return "Error: empty web search query."
 
+    from palimind.core.search_providers import SearchRouter
+
+    router = SearchRouter()
     depth = "deep" if fetch_content else "snippets"
-    key = _cache_key(query, max_results, depth)
+    key = _cache_key(query, max_results, depth, router.requested)
     cached = _cache_get(key)
     if cached is not None:
         return cached
 
-    # 1. Multi-query DDG search
-    raw_results: list[dict] = []
-    for qv in _build_query_variants(query):
-        raw_results.extend(_ddg_search(qv, max_results))
-        if len(raw_results) >= max_results * 3:
-            break
-
-    results = _dedupe_results(raw_results, max_results)
+    # 1. Multi-query search through the configured provider (SearXNG or DDG).
+    variants = _build_query_variants(query)
+    raw_results, provider_name = router.search_many(variants, max_results)
+    raw_dicts = [result.to_dict() for result in raw_results]
+    results = _dedupe_results(raw_dicts, max_results)
     if not results:
         # Not cached: an empty result is usually a transient DDG failure or
         # rate-limit, which would otherwise stick for the whole cache TTL.
@@ -313,7 +304,10 @@ def perform_web_search(
         item["content"] = content if content else None
 
     # 3. Format
-    parts = [f"=== WEB SEARCH RESULTS FOR: '{query}' ===\n"]
+    parts = [
+        f"=== WEB SEARCH RESULTS FOR: '{query}' ===\n",
+        f"Provider: {provider_name}\n",
+    ]
     for idx, item in enumerate(results, start=1):
         parts.append(
             f"Source [{idx}]: {item['title']}\n"

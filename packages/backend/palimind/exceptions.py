@@ -15,6 +15,14 @@ class IndexExistsError(PalimindError):
     """Raised when initializing an index that already exists."""
 
 
+class IndexCancelledError(PalimindError):
+    """Raised when an incremental index run is cancelled between steps."""
+
+
+class ImageGenerationError(PalimindError):
+    """Raised when the configured local image backend is unavailable or fails."""
+
+
 class VectorIndexError(PalimindError):
     """Raised when a persisted vector index cannot be decoded.
 

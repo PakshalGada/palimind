@@ -87,14 +87,37 @@ TOOL_DEFINITION: dict[str, Any] = {
         "requires explicit opt-in in the agent's tool list."
     ),
     "parameters": {
-        "action": "Optional: 'publish' or 'subscribe' (default publish)",
-        "broker": "Optional: broker host (default localhost)",
-        "port": "Optional: broker port (default 1883)",
-        "topic": "The MQTT topic",
-        "message": "Message payload (publish only)",
-        "qos": "Optional: quality of service 0/1/2 (publish only)",
-        "timeout": "Optional: seconds to listen (subscribe only, default 10)",
+        "action": {
+            "type": "string",
+            "description": "Publish or subscribe",
+            "enum": ["publish", "subscribe"],
+            "default": "publish",
+        },
+        "broker": {
+            "type": "string",
+            "description": "Broker host",
+            "default": "localhost",
+        },
+        "port": {"type": "integer", "description": "Broker port", "default": 1883},
+        "topic": {"type": "string", "description": "The MQTT topic"},
+        "message": {
+            "type": "string",
+            "description": "Message payload (publish only)",
+            "required": False,
+        },
+        "qos": {
+            "type": "integer",
+            "description": "Quality of service 0/1/2 (publish only)",
+            "required": False,
+        },
+        "timeout": {
+            "type": "integer",
+            "description": "Seconds to listen (subscribe only)",
+            "default": 10,
+        },
     },
     "tier": 3,
     "requires_approval": True,
+    "parallel_safe": False,
+    "idempotent": False,
 }

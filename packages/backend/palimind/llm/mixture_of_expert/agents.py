@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import contextvars
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from palimind.llm.mixture_of_expert.llm import (
@@ -23,9 +25,12 @@ from palimind.llm.mixture_of_expert.tools import (
     call_tool,
 )
 from palimind.settings import (
+    MAX_PARALLEL_TOOLS,
     MOE_CONTEXT_BUDGET_TOKENS,
     MOE_MAX_AGENT_ITERATIONS,
     MOE_NUM_CTX,
+    TOOL_ROUTER,
+    TOOL_ROUTER_TOP_K,
 )
 
 
@@ -248,9 +253,7 @@ def _gate_tool(
         if not autonomy:
             # Backward compatibility for legacy definition-like objects.
             try:
-                legacy_threshold = float(
-                    getattr(definition, "human_in_loop_threshold", 0.0) or 0.0
-                )
+                legacy_threshold = float(getattr(definition, "human_in_loop_threshold", 0.0) or 0.0)
             except (TypeError, ValueError):
                 legacy_threshold = 0.0
             autonomy = "off" if legacy_threshold <= 0 else "semi"
@@ -352,6 +355,9 @@ def run_agent(
     reflect: bool = False,
     tool_context: dict[str, Any] | None = None,
     run_control: Any | None = None,
+    run_id: str = "",
+    resume_state: dict[str, Any] | None = None,
+    resume_from_run_id: str = "",
 ) -> str:
     """Run one agent loop.
 
@@ -396,9 +402,25 @@ def run_agent(
     streamed_answer = [False]
 
     allowed_tools = [t for t in sub_task.get("tools", []) if t in TOOL_REGISTRY]
+    # An empty allowlist means "unrestricted" (legacy MoE behaviour): route from
+    # the full registry instead of showing only the discovery tool.
+    visible_tools = list(allowed_tools or TOOL_REGISTRY.keys())
+    if TOOL_ROUTER and visible_tools:
+        from palimind.agents.tool_router import select_tools
+
+        visible_tools = select_tools(
+            str(sub_task.get("task", "")),
+            visible_tools,
+            TOOL_REGISTRY,
+            top_k=max(1, int(TOOL_ROUTER_TOP_K or 12)),
+        )
+    # Discovery must always be reachable, even when the agent uses a strict pack.
+    if "tool_search" in TOOL_REGISTRY and "tool_search" not in visible_tools:
+        visible_tools.append("tool_search")
+
     native_tools = (
-        ollama_tools_from_registry({name: TOOL_REGISTRY[name] for name in allowed_tools})
-        if allowed_tools
+        ollama_tools_from_registry({name: TOOL_REGISTRY[name] for name in visible_tools})
+        if visible_tools
         else None
     )
 
@@ -408,7 +430,10 @@ def run_agent(
 You execute assigned sub-tasks using available tools.
 
 Available tools:
-{AVAILABLE_TOOLS_DESC if not allowed_tools else chr(10).join(f"- {t}: {TOOL_REGISTRY[t]['description']}" for t in allowed_tools)}
+{AVAILABLE_TOOLS_DESC if not visible_tools else chr(10).join(f"- {t}: {TOOL_REGISTRY[t]['description']}" for t in visible_tools)}
+
+Use tool_search when you need a capability that is not listed above. The full
+tool allowlist is still enforced even if a tool is not shown.
 
 When native tool calls are available, call tools directly.
 
@@ -435,6 +460,9 @@ Be concise and effective."""
     ]
     live: list[dict] = []
     working_notes: list[str] = []
+    full_log: list[str] = []
+    recent_tool_calls: list[str] = []
+    start_iteration = 0
 
     usage: dict[str, int] = {"prompt_tokens": 0, "completion_tokens": 0}
 
@@ -581,14 +609,68 @@ Be concise and effective."""
         if usage_cb is not None:
             usage_cb(dict(usage))
 
-    def _cancelled_result() -> str:
+    def _cancelled_result(iteration: int = 0) -> str:
         # Stop requested: end the run without another LLM/tool call.
         _finish_usage()
+        _checkpoint(iteration, status="cancelled", output=CANCELLED_ANSWER)
         return CANCELLED_ANSWER
 
-    full_log: list[str] = []
-    recent_tool_calls: list[str] = []
-    for iteration in range(max_tool_iterations):
+    def _checkpoint(iteration: int, status: str = "running", output: str = "") -> None:
+        if not run_id:
+            return
+        try:
+            from palimind.agents import run_state as run_state_mod
+
+            run_state_mod.save_state(
+                {
+                    "run_id": run_id,
+                    "agent_id": str(
+                        sub_task.get("definition_id") or sub_task.get("agent_id") or agent_id
+                    ),
+                    "input": str(sub_task.get("task") or ""),
+                    "session_id": session_id,
+                    "model": worker_model,
+                    "ollama_url": ollama_url,
+                    "messages": live,
+                    "working_notes": working_notes,
+                    "recent_tool_calls": recent_tool_calls,
+                    "full_log": full_log,
+                    "usage": usage,
+                    "iteration": iteration,
+                    "status": status,
+                    "output": output,
+                    "resumed_from": resume_from_run_id,
+                }
+            )
+        except Exception as exc:  # noqa: BLE001 - checkpointing must never kill a run
+            print(f"[agents] checkpoint failed for {run_id}: {exc}")
+
+    if resume_state:
+        live = [
+            {"role": str(m.get("role") or "user"), "content": str(m.get("content") or "")}
+            for m in (resume_state.get("messages") or [])
+            if isinstance(m, dict)
+        ]
+        working_notes = [
+            str(n) for n in (resume_state.get("working_notes") or []) if str(n).strip()
+        ]
+        recent_tool_calls = [str(s) for s in (resume_state.get("recent_tool_calls") or [])]
+        full_log = [str(line) for line in (resume_state.get("full_log") or [])]
+        saved_usage = resume_state.get("usage") or {}
+        usage["prompt_tokens"] = int(saved_usage.get("prompt_tokens", 0) or 0)
+        usage["completion_tokens"] = int(saved_usage.get("completion_tokens", 0) or 0)
+        start_iteration = max(0, int(resume_state.get("iteration", 0) or 0))
+        if resume_from_run_id:
+            try:
+                from palimind.agents import run_state as run_state_mod
+
+                run_state_mod.mark_resumed(resume_from_run_id, run_id)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[agents] failed to mark {resume_from_run_id} resumed: {exc}")
+
+    _checkpoint(start_iteration)
+
+    for iteration in range(start_iteration, max_tool_iterations):
         if run_control is not None:
             while getattr(run_control, "paused", None) is not None and run_control.paused.is_set():
                 time.sleep(0.1)
@@ -608,7 +690,7 @@ Be concise and effective."""
             except Exception:
                 pass
         if _is_cancelled(run_control):
-            return _cancelled_result()
+            return _cancelled_result(iteration)
         result = _call(native_tools, stream_mode="detect" if token_stream else None)
         response = result["content"]
         _emit_event(
@@ -617,35 +699,35 @@ Be concise and effective."""
 
         # ── 1. Native tool calls (preferred) ──────────────────────────
         if result["tool_calls"]:
-            for tc in result["tool_calls"]:
-                if _is_cancelled(run_control):
-                    return _cancelled_result()
-                tool_name = tc["name"]
+            if _is_cancelled(run_control):
+                return _cancelled_result(iteration)
+            batch = _execute_tool_batch(
+                agent_id,
+                list(result["tool_calls"]),
+                sub_task,
+                on_step,
+                full_log,
+                definition=definition,
+                approval_provider=approval_provider,
+                response=response,
+                event_cb=event_cb,
+                run_control=run_control,
+            )
+            for tc, tool_result in batch:
+                call_name = str(tc.get("name") or "")
                 native_args = {k: v for k, v in (tc.get("arguments") or {}).items()}
-                tool_result = _execute_tool(
-                    agent_id,
-                    tool_name,
-                    native_args,
-                    sub_task,
-                    on_step,
-                    full_log,
-                    definition=definition,
-                    approval_provider=approval_provider,
-                    response=response,
-                    event_cb=event_cb,
-                )
                 live.append(
-                    {"role": "assistant", "content": response or f"[tool call: {tool_name}]"}
+                    {"role": "assistant", "content": response or f"[tool call: {call_name}]"}
                 )
                 live.append(
                     {
                         "role": "user",
                         "content": (
-                            f"Tool '{tool_name}' returned:\n{tool_result[:MAX_TOOL_RESULT_CHARS]}"
+                            f"Tool '{call_name}' returned:\n{tool_result[:MAX_TOOL_RESULT_CHARS]}"
                         ),
                     }
                 )
-                recent_tool_calls.append(_tool_signature(tool_name, native_args))
+                recent_tool_calls.append(_tool_signature(call_name, native_args))
             working_notes = _compact_context(live, working_notes, ctx_budget)
             if _is_looping(recent_tool_calls):
                 _emit_event(
@@ -655,13 +737,14 @@ Be concise and effective."""
                 )
                 live.append({"role": "assistant", "content": response})
                 live.append({"role": "user", "content": WRAP_UP_PROMPT})
+            _checkpoint(iteration + 1)
             continue
 
         # ── 2. Text-protocol tool call (fallback) ─────────────────────
         tool_name, tool_args = parse_tool_call(response)
         if tool_name:
             if _is_cancelled(run_control):
-                return _cancelled_result()
+                return _cancelled_result(iteration)
             tool_args = tool_args or {}
             # Same ordering/payloads as the native path: tool_call →
             # allow-list → approval gate → tool_result.
@@ -691,12 +774,14 @@ Be concise and effective."""
                 )
                 live.append({"role": "assistant", "content": response})
                 live.append({"role": "user", "content": WRAP_UP_PROMPT})
+            _checkpoint(iteration + 1)
             continue
 
         # ── 3. Final answer ───────────────────────────────────────────
         if "FINAL_ANSWER:" in response:
             final_answer = parse_agent_output(response)
             full_log.append(f"[Agent {agent_id}] Final answer ({len(final_answer)} chars)")
+            _checkpoint(iteration + 1, status="completed", output=final_answer)
             return _finalize(final_answer)
 
         live.append({"role": "assistant", "content": response})
@@ -710,9 +795,10 @@ Be concise and effective."""
                 ),
             }
         )
+        _checkpoint(iteration + 1)
 
     if _is_cancelled(run_control):
-        return _cancelled_result()
+        return _cancelled_result(max_tool_iterations)
 
     # The tool budget was used up without a FINAL_ANSWER. Run one last call
     # (no tools) that forces the model to synthesize a best-effort answer, so
@@ -734,17 +820,19 @@ Be concise and effective."""
     )
     final_answer = parse_agent_output(response)
     if final_answer and ("FINAL_ANSWER:" in response or not final_answer.startswith("[Agent ")):
+        _checkpoint(max_tool_iterations, status="completed", output=final_answer)
         return _finalize(final_answer)
     _finish_usage()
+    _checkpoint(
+        max_tool_iterations, status="error", output="[Agent timed out - max iterations reached]"
+    )
     return "[Agent timed out - max iterations reached]"
 
 
 # ── helper ────────────────────────────────────────────────────────────────
 
 
-def _tool_allowed(
-    tool_name: str, sub_task: dict[str, Any], definition: Any | None = None
-) -> bool:
+def _tool_allowed(tool_name: str, sub_task: dict[str, Any], definition: Any | None = None) -> bool:
     """Enforce the per-run allowlist on both native and text-protocol calls.
 
     ``tool_pack="auto"`` keeps the legacy behaviour: any tier-appropriate tool
@@ -756,11 +844,112 @@ def _tool_allowed(
         return True
     if tool_name in tools:
         return True
-    if tool_name in {"ask_agent", "post_to_team", "read_team_notes"}:
+    if tool_name in {"ask_agent", "post_to_team", "read_team_notes", "tool_search"}:
         return True
     if definition is not None and str(getattr(definition, "tool_pack", "auto")) == "auto":
         return True
     return False
+
+
+def _is_parallel_safe(
+    tool_name: str,
+    sub_task: dict[str, Any],
+    definition: Any | None = None,
+) -> bool:
+    """True when a tool call may run concurrently with other read-only calls.
+
+    Only registered, tier-1, approval-free, explicitly ``parallel_safe`` tools
+    qualify. Writes, shell, browser mutations and anything that needs human
+    approval always stay serial so they cannot race each other.
+    """
+    entry = TOOL_REGISTRY.get(tool_name)
+    if not entry:
+        return False
+    if not bool(entry.get("parallel_safe")):
+        return False
+    meta = entry.get("meta") or {}
+    if bool(meta.get("requires_approval")):
+        return False
+    if _tool_tier(tool_name) > 1:
+        return False
+    if not _tool_allowed(tool_name, sub_task, definition):
+        return False
+    return True
+
+
+def _execute_tool_batch(
+    agent_id: int,
+    calls: list[dict[str, Any]],
+    sub_task: dict[str, Any],
+    on_step: Callable[[str], None] | None,
+    full_log: list[str],
+    *,
+    definition: Any | None = None,
+    approval_provider: Callable[[dict], dict] | None = None,
+    response: str = "",
+    event_cb: Callable[[str, dict], Any] | None = None,
+    run_control: Any | None = None,
+) -> list[tuple[dict[str, Any], str]]:
+    """Execute a model's tool calls, parallelising the safe read-only ones.
+
+    Results are returned in the model's original call order, regardless of the
+    order in which parallel calls finish, so the follow-up transcript is stable.
+    """
+    if not calls:
+        return []
+
+    parallel: list[int] = []
+    serial: list[int] = []
+    for idx, tc in enumerate(calls):
+        name = str(tc.get("name") or "")
+        if _is_parallel_safe(name, sub_task, definition):
+            parallel.append(idx)
+        else:
+            serial.append(idx)
+
+    results: list[str | None] = [None] * len(calls)
+
+    def _run_one(index: int) -> str:
+        tc = calls[index]
+        if _is_cancelled(run_control):
+            return "Access denied: the run was cancelled."
+        return _execute_tool(
+            agent_id,
+            str(tc.get("name") or ""),
+            {k: v for k, v in (tc.get("arguments") or {}).items()},
+            sub_task,
+            on_step,
+            full_log,
+            definition=definition,
+            approval_provider=approval_provider,
+            response=response,
+            event_cb=event_cb,
+        )
+
+    if parallel:
+        limit = max(1, min(int(MAX_PARALLEL_TOOLS or 4), len(parallel)))
+        with ThreadPoolExecutor(max_workers=limit, thread_name_prefix="palimind-tool") as pool:
+            futures = {
+                pool.submit(contextvars.copy_context().run, _run_one, idx): idx for idx in parallel
+            }
+            for future in as_completed(futures):
+                idx = futures[future]
+                try:
+                    results[idx] = future.result()
+                except Exception as exc:  # noqa: BLE001 - one tool must not kill the batch
+                    results[idx] = f"Tool error: {exc}"
+
+    for idx in serial:
+        try:
+            results[idx] = _run_one(idx)
+        except Exception as exc:  # noqa: BLE001
+            results[idx] = f"Tool error: {exc}"
+
+    out: list[tuple[dict[str, Any], str]] = []
+    for i, call in enumerate(calls):
+        value = results[i]
+        out.append((call, value if value is not None else "Tool error: no result"))
+    return out
 
 
 def _execute_tool(
@@ -786,9 +975,7 @@ def _execute_tool(
     _emit_event(event_cb, "agent:tool_call", {"tool": tool_name, "args": tool_args})
 
     if not _tool_allowed(tool_name, sub_task, definition):
-        tool_result = (
-            f"Access denied: tool '{tool_name}' is not in this agent's tool allowlist."
-        )
+        tool_result = f"Access denied: tool '{tool_name}' is not in this agent's tool allowlist."
         _emit_event(
             event_cb,
             "agent:tool_result",

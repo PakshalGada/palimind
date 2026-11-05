@@ -138,6 +138,17 @@ def generate_response_stream(
 
     attempt = 0
     emitted = False
+    usage_prompt = 0
+    usage_completion = 0
+
+    def _record_usage() -> None:
+        try:
+            from palimind import metrics
+
+            metrics.record_tokens(chat_model, usage_prompt, usage_completion)
+        except Exception:
+            pass
+
     while True:
         try:
             with httpx.Client(
@@ -162,6 +173,10 @@ def generate_response_stream(
                         data = json.loads(line)
                         if data.get("error"):
                             raise ResponseError(f"LLM error: {data['error']}")
+                        if data.get("prompt_eval_count") is not None:
+                            usage_prompt = int(data["prompt_eval_count"])
+                        if data.get("eval_count") is not None:
+                            usage_completion = int(data["eval_count"])
                         message = data.get("message", {}) or {}
                         content = message.get("content")
                         if content:
@@ -176,6 +191,7 @@ def generate_response_stream(
                                 # replay (duplicate) the reasoning text.
                                 emitted = True
                                 on_reasoning(reasoning)
+            _record_usage()
             return
         except ResponseError:
             raise
@@ -210,6 +226,7 @@ def generate_response_stream(
                 content = message.get("content")
                 if content:
                     yield content
+                _record_usage()
                 return
             if isinstance(e, httpx.TimeoutException):
                 raise ResponseError(f"Response generation timed out: {e}") from e

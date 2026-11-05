@@ -27,9 +27,7 @@ def enqueue(target_type: str, target_id: str, input: str, priority: int = 0) -> 
         raise ValueError("target_id is required")
     # Only live items count: finished/cancelled history must not fill the queue.
     active = [
-        i
-        for i in state_store.list_queue_items(limit=1000)
-        if i.get("status") in _ACTIVE_STATUSES
+        i for i in state_store.list_queue_items(limit=1000) if i.get("status") in _ACTIVE_STATUSES
     ]
     if len(active) >= QUEUE_LIMIT:
         raise ValueError(f"queue limit reached ({QUEUE_LIMIT})")
@@ -45,8 +43,28 @@ def enqueue(target_type: str, target_id: str, input: str, priority: int = 0) -> 
         "finished_at": None,
         "run_id": None,
         "error": None,
+        "job_id": None,
     }
     state_store.upsert_queue_item(item)
+    try:
+        from palimind.jobs import enqueue as enqueue_job
+
+        job = enqueue_job(
+            "queued_run",
+            target_id,
+            {
+                "queue_item_id": item["id"],
+                "target_type": target_type,
+                "target_id": target_id,
+                "input": item["input"],
+            },
+            priority=priority,
+            idempotency_key=f"queue:{item['id']}",
+        )
+        item["job_id"] = job.get("id")
+        state_store.upsert_queue_item(item)
+    except Exception as exc:  # noqa: BLE001 - the queue item is still usable
+        print(f"[queue] could not enqueue durable job: {exc}")
     return item
 
 
@@ -76,6 +94,14 @@ def update_item(item_id: str, status: str | None = None, **changes: Any) -> dict
 
 
 def cancel_item(item_id: str) -> dict[str, Any]:
+    item = get_item(item_id)
+    if item and item.get("job_id"):
+        try:
+            from palimind.jobs import cancel_job
+
+            cancel_job(str(item["job_id"]))
+        except Exception:
+            pass
     return update_item(item_id, status="cancelled")
 
 
@@ -126,10 +152,10 @@ def recover_stale_running() -> int:
 
 
 async def _execute(item: dict[str, Any]) -> None:
+    from palimind.agents import teams
     from palimind.agents.registry import get_registry
     from palimind.agents.runtime import running_count
     from palimind.agents.service import run_agent
-    from palimind.agents import teams
     from palimind.agents.team_runtime import run_team
 
     target_type = str(item.get("target_type"))
@@ -188,19 +214,34 @@ async def _execute(item: dict[str, Any]) -> None:
 
 
 async def _queue_loop() -> None:
+    """Reconcile legacy/queued task-board items into durable jobs.
+
+    ``enqueue`` already creates a job for new items; this loop only backfills
+    items created before the job service existed (or whose job was removed).
+    """
     while True:
         try:
             await asyncio.sleep(5)
-            item = next_due()
-            if item is None:
-                continue
-            key = f"{item.get('target_type')}:{item.get('target_id')}"
-            lock = _locks.setdefault(key, asyncio.Lock())
-            if lock.locked():
-                continue
-            async with lock:
-                update_item(item["id"], status="running")
-                await _execute(item)
+            from palimind.jobs import enqueue as enqueue_job
+
+            for item in list_queue(limit=1000):
+                if item.get("status") != "queued":
+                    continue
+                if item.get("job_id"):
+                    continue
+                job = enqueue_job(
+                    "queued_run",
+                    str(item.get("target_id") or ""),
+                    {
+                        "queue_item_id": item["id"],
+                        "target_type": item.get("target_type"),
+                        "target_id": item.get("target_id"),
+                        "input": item.get("input"),
+                    },
+                    priority=int(item.get("priority") or 0),
+                    idempotency_key=f"queue:{item['id']}",
+                )
+                update_item(item["id"], job_id=job.get("id"))
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001

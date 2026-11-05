@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useApp } from './AppContext';
 import { api } from './api';
 import Sidebar from './components/Sidebar';
@@ -17,8 +17,8 @@ import TaskMonitor from './components/TaskMonitor';
 import ArtifactAutoOpen from './components/ArtifactAutoOpen';
 import AgentManager from './features/agents/AgentManager';
 import AgentsWorkspace from './features/agents/AgentsWorkspace';
-import BootScreen from './components/boot/BootScreen';
 import AppLayout from './components/layout/AppLayout';
+import ConnectionBanner from './components/layout/ConnectionBanner';
 import ResponsiveSidebar from './components/layout/ResponsiveSidebar';
 import SidePanel from './components/layout/SidePanel';
 import { useCommandHandlers } from './commands/useCommand';
@@ -38,7 +38,7 @@ export default function App() {
     activeProjectId,
     activeField, setActiveField, setSessions, setActiveSessionId,
     setCurrentModel, setLlmSubMode, setOrchestratorModel, setWorkerModel,
-    setIsIndexing, setIndexingStatus, addToast,
+    setIsIndexing, setIndexingStatus,
     isRecording, isTranscribing, isSpeaking,
     setActiveView, setAgentsView, setChatMode, theme, setTheme,
     chatMode,
@@ -50,7 +50,6 @@ export default function App() {
 
   useKeyboardShortcuts({ overrides: shortcutOverrides, disabled: commandPaletteOpen });
   usePixelMotion();
-  const [booted, setBooted] = useState(false);
 
   // Deep links: #home, #chat, #agents, #knowledge, #projects, #artifacts.
   // The view is reflected in the hash so a reload keeps context. Older
@@ -167,7 +166,15 @@ export default function App() {
       } catch (e) {
         if (cancelled) return;
         console.error('Init error:', e);
-        addToast('Failed to connect to backend');
+        window.dispatchEvent(
+          new CustomEvent('palimind:connection', {
+            detail: {
+              ok: false,
+              message:
+                'The local engine is not responding. Start PaliMind, then retry.',
+            },
+          }),
+        );
       }
     }
     init();
@@ -176,7 +183,7 @@ export default function App() {
     };
   }, [
     scope, setActiveField, setIsIndexing, setIndexingStatus, setCurrentModel,
-    setLlmSubMode, setOrchestratorModel, setWorkerModel, addToast,
+    setLlmSubMode, setOrchestratorModel, setWorkerModel,
   ]);
 
   useEffect(() => {
@@ -208,7 +215,6 @@ export default function App() {
 
   return (
     <ChatStreamProvider>
-      {!booted && <BootScreen onReady={() => setBooted(true)} />}
       <ArtifactAutoOpen />
       <AppLayout
         className={containerClass}
@@ -220,6 +226,7 @@ export default function App() {
         sidePanel={<SidePanel />}
       >
         <SetupProgress />
+        <ConnectionBanner />
         <div className="view-enter" key={activeView}>
           {activeView === 'home' && <HomeView />}
           {activeView === 'chat' && <ChatArea />}

@@ -24,83 +24,9 @@ def _spawn(coro: Any) -> None:
     task.add_done_callback(_fire_tasks.discard)
 
 
-# ── cron matcher (5-field, supports */n, lists, ranges) ───────────────────
+# ── cron matcher (shared with the durable job service) ─────────────────
 
-
-def _field_matches(expr: str, value: int, lo: int, hi: int) -> bool:
-    for atom in expr.split(","):
-        atom = atom.strip()
-        if atom == "*":
-            return True
-        if "/" in atom:
-            base, step_text = atom.split("/", 1)
-            try:
-                step_value = int(step_text)
-            except ValueError:
-                continue
-            if step_value <= 0:
-                continue
-            if base == "*":
-                # Steps count from the field minimum: "*/2" in day-of-month
-                # is 1,3,5,… and "*/3" in month is Jan,Apr,Jul,Oct.
-                if (value - lo) % step_value == 0:
-                    return True
-            else:
-                try:
-                    start = int(base)
-                except ValueError:
-                    continue
-                if value >= start and (value - start) % step_value == 0:
-                    return True
-            continue
-        if "-" in atom:
-            try:
-                a, b = atom.split("-", 1)
-                if lo <= int(a) <= int(b) <= hi and int(a) <= value <= int(b):
-                    return True
-            except ValueError:
-                continue
-            continue
-        try:
-            if int(atom) == value:
-                return True
-        except ValueError:
-            continue
-    return False
-
-
-def cron_matches(expr: str, dt: datetime | None = None) -> bool:
-    """Return True if the 5-field cron expression matches *dt* (default now)."""
-    if not expr:
-        return False
-    parts = expr.split()
-    if len(parts) != 5:
-        return False
-    now = dt or datetime.now()
-    # cron dow: 0/7 = Sunday .. 6 = Saturday; Python weekday: 0 = Monday
-    dow = (now.weekday() + 1) % 7
-    minute, hour, dom, month = now.minute, now.hour, now.day, now.month
-    if not _field_matches(parts[0], minute, 0, 59):
-        return False
-    if not _field_matches(parts[1], hour, 0, 23):
-        return False
-    if not _field_matches(parts[3], month, 1, 12):
-        return False
-    dom_ok = _field_matches(parts[2], dom, 1, 31)
-    # accept 7 as Sunday too
-    dow_ok = _field_matches(parts[4], dow, 0, 7) or (
-        dow == 0 and _field_matches(parts[4], 7, 0, 7)
-    )
-    # Standard cron: when both day-of-month and day-of-week are restricted,
-    # the job runs when *either* matches ("0 9 1 * 1" = the 1st and Mondays).
-    if _is_wildcard(parts[2]) or _is_wildcard(parts[4]):
-        return dom_ok and dow_ok
-    return dom_ok or dow_ok
-
-
-def _is_wildcard(expr: str) -> bool:
-    return expr.strip().startswith("*")
-
+from palimind.jobs.cron import _field_matches, cron_matches, next_cron_time  # noqa: E402,F401
 
 # ── results ───────────────────────────────────────────────────────────────
 
@@ -172,9 +98,10 @@ def recorded_run_status(agent_id: str, input: str, output: str) -> str:
         history = []
     match = None
     for rec in reversed(history):
-        if str(rec.get("output") or "") == output[:100_000] and str(
-            rec.get("input") or ""
-        ) == input[:2000]:
+        if (
+            str(rec.get("output") or "") == output[:100_000]
+            and str(rec.get("input") or "") == input[:2000]
+        ):
             match = rec
             break
     if match is None and history:
@@ -219,36 +146,38 @@ async def _tick_scheduled() -> None:
             if running_count(defn.id) >= max(1, int(defn.max_concurrent_runs or 1)):
                 continue
         input = f"[Scheduled trigger at {now.isoformat()}]\nExecute your scheduled task now."
-        _spawn(_fire_agent(defn, input, source="scheduled"))
+        from palimind.jobs import enqueue
+
+        enqueue(
+            "agent_run",
+            defn.id,
+            {"input": input, "source": "scheduled"},
+            idempotency_key=f"scheduled:{defn.id}:{now.strftime('%Y%m%d%H%M')}",
+        )
 
     await _tick_routines(now)
+    try:
+        from palimind.workflows import triggers as workflow_triggers
+
+        workflow_triggers.enqueue_due_cron(now)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[agents] workflow cron triggers failed: {exc}")
 
 
 async def _tick_routines(now: datetime) -> None:
     from palimind.agents import routines
+    from palimind.jobs import enqueue
 
     for routine in routines.due_routines(now):
-        key = f"routine:{routine.get('id')}:{now.strftime('%Y%m%d%H%M')}"
-        if key in _fired_keys:
-            continue
-        _fired_keys.append(key)
-
-        async def _run(r: dict[str, Any] = routine) -> None:
-            try:
-                await routines.run_routine(str(r.get("id")))
-                await post_routine_notification(r, "success")
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:  # noqa: BLE001
-                print(f"[agents] routine {r.get('id')} failed: {exc}")
-                await post_routine_notification(r, "error", str(exc))
-
-        _spawn(_run())
+        enqueue(
+            "routine_run",
+            str(routine.get("id")),
+            {"routine_id": str(routine.get("id"))},
+            idempotency_key=f"routine:{routine.get('id')}:{now.strftime('%Y%m%d%H%M')}",
+        )
 
 
-async def post_routine_notification(
-    routine: dict[str, Any], status: str, error: str = ""
-) -> None:
+async def post_routine_notification(routine: dict[str, Any], status: str, error: str = "") -> None:
     try:
         from palimind.agents import goals
 
@@ -331,10 +260,20 @@ def check_watcher_triggers(root: Path, changed_path: str = "") -> None:
         input = (
             f"[Watcher trigger] File changed: {rel}\nInvestigate the change and act accordingly."
         )
-        asyncio.run_coroutine_threadsafe(_fire_agent(defn, input, source="watcher"), _loop)
+        import time
+
+        from palimind.jobs import enqueue
+
+        enqueue(
+            "agent_run",
+            defn.id,
+            {"input": input, "source": "watcher"},
+            idempotency_key=f"watcher:{defn.id}:{rel}:{int(time.time())}",
+        )
 
     try:
         from palimind.agents import routines
+        from palimind.jobs import enqueue
 
         for routine in routines.list_routines(limit=1000):
             if not routine.get("enabled") or routine.get("run_mode") != "watcher":
@@ -344,14 +283,20 @@ def check_watcher_triggers(root: Path, changed_path: str = "") -> None:
                 continue
             if not (fnmatch.fnmatch(rel, pattern) or fnmatch.fnmatch(Path(rel).name, pattern)):
                 continue
+            import time
 
-            async def _run_routine(r: dict[str, Any] = routine) -> None:
-                try:
-                    await routines.run_routine(str(r.get("id")))
-                    await post_routine_notification(r, "success")
-                except Exception as exc:  # noqa: BLE001
-                    await post_routine_notification(r, "error", str(exc))
-
-            asyncio.run_coroutine_threadsafe(_run_routine(), _loop)
+            enqueue(
+                "routine_run",
+                str(routine.get("id")),
+                {"routine_id": str(routine.get("id"))},
+                idempotency_key=f"watcher-routine:{routine.get('id')}:{rel}:{int(time.time())}",
+            )
     except Exception as exc:  # noqa: BLE001
         print(f"[agents] watcher routine check failed: {exc}")
+
+    try:
+        from palimind.workflows import triggers as workflow_triggers
+
+        workflow_triggers.enqueue_file_triggers(root, rel)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[agents] workflow file triggers failed: {exc}")

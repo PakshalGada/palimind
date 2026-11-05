@@ -34,53 +34,6 @@
          offline-capable and never flashes a fallback from a network request. -->
   </head>
   <body>
-    <div id="boot-fallback" aria-hidden="true">
-      <svg width="48" height="48" viewBox="0 0 48 48" fill="currentColor" shape-rendering="crispEdges">
-        <rect x="0" y="0" width="18" height="6"/><rect x="24" y="0" width="12" height="6"/>
-        <rect x="0" y="6" width="6" height="24"/><rect x="18" y="6" width="6" height="6"/><rect x="30" y="6" width="6" height="6"/>
-        <rect x="0" y="30" width="18" height="6"/><rect x="24" y="30" width="12" height="6"/>
-        <rect x="0" y="36" width="6" height="6"/><rect x="0" y="42" width="6" height="6"/>
-      </svg>
-      <span class="boot-fallback__word">PALIMIND</span>
-      <span class="boot-fallback__bar"><i></i><i></i><i></i></span>
-    </div>
-    <style>
-      #boot-fallback {
-        position: fixed; inset: 0; z-index: 20001; display: flex;
-        align-items: center; justify-content: center; flex-direction: column;
-        gap: 14px; background: #050505; color: #f2f2f2;
-        font-family: ui-sans-serif, system-ui, sans-serif;
-        transition: opacity 160ms ease;
-      }
-      #boot-fallback svg { animation: boot-fallback-assemble 480ms steps(4, end) both; }
-      .boot-fallback__word {
-        font-size: 16px; font-weight: 700; letter-spacing: 0.16em;
-        color: #f2f2f2;
-      }
-      .boot-fallback__bar { display: flex; gap: 4px; }
-      .boot-fallback__bar i {
-        width: 10px; height: 8px; border: 1px solid #3a3a3a;
-        animation: boot-fallback-tick 900ms steps(1, end) infinite;
-      }
-      .boot-fallback__bar i:nth-child(1) { animation-delay: 0ms; }
-      .boot-fallback__bar i:nth-child(2) { animation-delay: 150ms; }
-      .boot-fallback__bar i:nth-child(3) { animation-delay: 300ms; }
-      @keyframes boot-fallback-assemble {
-        from { clip-path: inset(100% 0 0 0); }
-        to { clip-path: inset(0 0 0 0); }
-      }
-      @keyframes boot-fallback-tick {
-        0%, 32.99% { background: #f2f2f2; border-color: #f2f2f2; }
-        33%, 100% { background: transparent; border-color: #3a3a3a; }
-      }
-      @media (prefers-color-scheme: light) {
-        #boot-fallback { background: #fafafa; color: #0b0b0b; }
-        .boot-fallback__word { color: #0b0b0b; }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        #boot-fallback svg, .boot-fallback__bar i { animation: none !important; }
-      }
-    </style>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

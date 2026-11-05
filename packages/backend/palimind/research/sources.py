@@ -108,20 +108,35 @@ def dedupe_sources(sources: list[Source]) -> list[Source]:
 
 
 def sources_from_collected(items: list[dict]) -> list[Source]:
-    """Build sources from the raw dicts recorded by the web tools."""
+    """Build sources from the raw dicts recorded by web/document tools."""
     sources: list[Source] = []
     for item in items:
         url = (item.get("url") or "").strip()
-        if not url:
+        file = (item.get("file") or "").strip()
+        if not url and not file:
             continue
-        sources.append(
-            Source(
-                marker=0,
-                title=(item.get("title") or url).strip(),
-                kind="web",
-                url=url,
-                snippet=(item.get("snippet") or "").strip()[:600],
-                content=(item.get("content") or "").strip()[:4000],
+        if url:
+            sources.append(
+                Source(
+                    marker=0,
+                    title=(item.get("title") or url).strip(),
+                    kind="web",
+                    url=url,
+                    snippet=(item.get("snippet") or "").strip()[:600],
+                    content=(item.get("content") or "").strip()[:4000],
+                )
             )
-        )
+        else:
+            section = (item.get("section") or "").strip()
+            sources.append(
+                Source(
+                    marker=0,
+                    title=(item.get("title") or section or file.split("/")[-1]).strip(),
+                    kind="document",
+                    file=file,
+                    section=section,
+                    snippet=(item.get("snippet") or "").strip()[:600],
+                    content=(item.get("content") or "").strip()[:4000],
+                )
+            )
     return sources

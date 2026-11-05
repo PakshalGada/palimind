@@ -33,6 +33,8 @@ async def llm_mode_stream(
     web_search: str,
     long_term_episodes: list[dict] | None = None,
     persona: str = "",
+    image_paths: list[str] | None = None,
+    attachment_context: str = "",
 ) -> StreamingResponse:
     """PLAIN LLM MODE: Chat directly with the LLM using general knowledge only.
     No document context, no internet access, no code execution, no tools."""
@@ -68,12 +70,21 @@ async def llm_mode_stream(
         def on_reasoning(chunk: str) -> None:
             reasoning_parts.append(chunk)
 
+        query_for_model = q
+        if attachment_context:
+            query_for_model = f"{q}\n\n{attachment_context}"
+        if image_paths or attachment_context:
+            attached = len(image_paths or []) + (1 if attachment_context else 0)
+            yield (
+                f"data: {json.dumps({'type': 'reasoning', 'text': f'Using {attached} local attachment(s)'})}\n\n"
+            )
+
         try:
             num_ctx = load_config(active_field).get("num_ctx")
             stream = generate_response_stream(
-                query=q,
+                query=query_for_model,
                 context="",
-                image_paths=[],
+                image_paths=list(image_paths or []),
                 ollama_url=ollama_url,
                 chat_model=chat_model,
                 system_prompt=system_prompt,

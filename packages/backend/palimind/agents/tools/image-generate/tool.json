@@ -1,0 +1,11 @@
+{
+  "name": "image-generate",
+  "version": "1.0.0",
+  "description": "Generate a local image with ComfyUI or stable-diffusion.cpp",
+  "entrypoint": "tool.py",
+  "permissions": [
+    "fs-write"
+  ],
+  "timeout_s": 240,
+  "function": "image_generate"
+}

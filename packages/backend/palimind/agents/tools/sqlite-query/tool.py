@@ -69,9 +69,19 @@ TOOL_DEFINITION: dict[str, Any] = {
         "separately. Returns up to 200 rows as JSON."
     ),
     "parameters": {
-        "query": "The SELECT SQL statement (use ? placeholders)",
-        "params": "Optional: list of bound parameter values for the placeholders",
+        "query": {
+            "type": "string",
+            "description": "The SELECT SQL statement (use ? placeholders)",
+        },
+        "params": {
+            "type": "array",
+            "description": "Bound parameter values for the placeholders",
+            "items": {"type": ["string", "number", "boolean", "null"]},
+            "required": False,
+        },
     },
     "tier": 1,
     "requires_approval": False,
+    "parallel_safe": True,
+    "idempotent": True,
 }

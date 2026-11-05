@@ -235,9 +235,18 @@ def test_cancel_stops_worker_thread_blocked_on_approval(monkeypatch, _stub_run) 
 
 @pytest.fixture
 def _goal_files(monkeypatch, tmp_path: Path):
-    monkeypatch.setattr(goals, "GOALS_FILE", tmp_path / "goals.json")
-    monkeypatch.setattr(goals, "TASKS_FILE", tmp_path / "tasks.json")
-    monkeypatch.setattr(goals, "NOTIFICATIONS_FILE", tmp_path / "notifications.json")
+    from palimind.storage import state_store
+
+    paths = (
+        tmp_path / "goals.json",
+        tmp_path / "tasks.json",
+        tmp_path / "notifications.json",
+    )
+    for path in paths:
+        state_store.delete_json(goals._namespace(path), "items")
+    monkeypatch.setattr(goals, "GOALS_FILE", paths[0])
+    monkeypatch.setattr(goals, "TASKS_FILE", paths[1])
+    monkeypatch.setattr(goals, "NOTIFICATIONS_FILE", paths[2])
 
 
 def test_loop_task_cancelled_while_running_stays_cancelled(_goal_files) -> None:
@@ -263,12 +272,18 @@ def test_stale_running_tasks_are_recovered(_goal_files) -> None:
 def _queue_store(monkeypatch):
     items: dict[str, dict] = {}
     store = queue.state_store
-    monkeypatch.setattr(store, "upsert_queue_item", lambda item: items.__setitem__(item["id"], dict(item)))
-    monkeypatch.setattr(store, "get_queue_item", lambda item_id: dict(items[item_id]) if item_id in items else None)
+    monkeypatch.setattr(
+        store, "upsert_queue_item", lambda item: items.__setitem__(item["id"], dict(item))
+    )
+    monkeypatch.setattr(
+        store, "get_queue_item", lambda item_id: dict(items[item_id]) if item_id in items else None
+    )
     monkeypatch.setattr(
         store,
         "list_queue_items",
-        lambda target_type=None, target_id=None, limit=200: [dict(i) for i in items.values()][:limit],
+        lambda target_type=None, target_id=None, limit=200: [dict(i) for i in items.values()][
+            :limit
+        ],
     )
     return items
 

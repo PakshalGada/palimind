@@ -26,6 +26,8 @@ async def document_mode_stream(
     long_term_episodes: list[dict] | None = None,
     persona: str = "",
     rerank: bool | None = None,
+    image_paths: list[str] | None = None,
+    attachment_context: str = "",
 ) -> StreamingResponse:
     """STRICT DOCUMENT RAG MODE: Answers only from indexed documents
     using hybrid search + knowledge graph.  No internet access, no code
@@ -81,6 +83,17 @@ async def document_mode_stream(
             long_term_episodes=long_term_episodes,
             files_filter=files_filter,
         )
+
+        if attachment_context:
+            context["content"] = (
+                str(context.get("content") or "").rstrip() + "\n\n" + attachment_context
+            ).strip()
+            sources_list = context.setdefault("sources", [])
+            if "attachment" not in sources_list:
+                sources_list.append("attachment")
+            yield (
+                f"data: {json.dumps({'type': 'reasoning', 'text': 'Including attached document context'})}\n\n"
+            )
 
         sources = context.get("sources", [])
         total = context.get("total_results", 0)
@@ -153,6 +166,10 @@ async def document_mode_stream(
         yield (
             f"data: {json.dumps({'text': 'Generating answer from document context with source citations...', 'type': 'reasoning'})}\n\n"
         )
+        if image_paths:
+            yield (
+                f"data: {json.dumps({'type': 'reasoning', 'text': f'Using {len(image_paths)} attached image(s)'})}\n\n"
+            )
 
         full_text = ""
         final_text = ""
@@ -171,6 +188,7 @@ async def document_mode_stream(
                 mid_term_summary=mid_term_summary,
                 long_term_episodes=long_term_episodes,
                 on_reasoning=on_reasoning,
+                image_paths=image_paths,
             )
             from palimind.generative.responder import aiter_stream
 

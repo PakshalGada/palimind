@@ -1,0 +1,90 @@
+.connection-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  margin: 10px 16px 0;
+  padding: 9px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: var(--type-sm);
+  box-shadow: var(--shadow-xs);
+}
+.connection-banner__icon {
+  display: inline-flex;
+  color: var(--ink);
+  flex: 0 0 auto;
+}
+.connection-banner__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.connection-banner__text strong {
+  font-weight: var(--font-weight-medium);
+}
+.connection-banner__text span {
+  color: var(--ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.connection-banner__btn {
+  flex: 0 0 auto;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--type-xs);
+  cursor: pointer;
+}
+.connection-banner__btn:hover {
+  background: var(--surface-hover);
+}
+.connection-banner__btn--ghost {
+  border-color: transparent;
+  color: var(--ink-muted);
+}
+.connection-banner__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+}
+.connection-banner__close:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.connection-banner__details {
+  flex-basis: 100%;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: var(--type-2xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .connection-banner {
+    margin: 8px 12px 0;
+    flex-wrap: wrap;
+  }
+  .connection-banner__text span {
+    white-space: normal;
+  }
+}

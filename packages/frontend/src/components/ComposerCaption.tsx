@@ -3,6 +3,7 @@ import { captionFor, type Caption } from './activity/caption';
 import { useActivitySelector } from './activity/hooks';
 import { isTerminal, type ActivityState } from './activity/model';
 import { useOptionalActivitySurface } from '../stream/context';
+import { PixelIcon } from './pixel/PixelIcon';
 
 const captionSelector = (state: ActivityState | null): string => {
   if (!state || state.status === 'idle' || isTerminal(state.status)) return '';
@@ -35,7 +36,11 @@ export const ComposerCaption = memo(function ComposerCaption() {
   const approval = caption.kind === 'approval';
   const line = (
     <>
-      <span className="act-caption-dot" aria-hidden="true" data-live={caption.live} />
+      <PixelIcon
+        name={approval ? 'diamond' : caption.live ? 'spark' : 'check'}
+        size={16}
+        state={caption.live ? 'busy' : 'done'}
+      />
       <span className="act-caption-line__text">{caption.text}</span>
     </>
   );

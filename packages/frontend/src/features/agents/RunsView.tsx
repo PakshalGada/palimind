@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarClock, Clock, History, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { CalendarClock, Clock, History, Plus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
+import { PixelGlyph } from '../../components/pixel/PixelGlyph';
+import { pixelForStatus } from '../../components/pixel/pixelStatus';
 import { Button, Chip, Field, Modal, Select, SkeletonList, TextArea, TextInput, Toggle, InlineError } from '../../ui/primitives';
 import type { AgentListItem, RecentRun, Routine, Team } from '../../types';
 import './RunsView.css';
@@ -24,6 +26,7 @@ export default function RunsView() {
   const [filter, setFilter] = useState('all');
   const [builder, setBuilder] = useState<Partial<Routine> | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [resuming, setResuming] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,6 +96,21 @@ export default function RunsView() {
     }
   };
 
+  const resumeRun = async (run: RecentRun) => {
+    const key = `${run.agent_id}:${run.run_id}`;
+    setResuming(key);
+    try {
+      await api.agents.resumeRun(run.agent_id, run.run_id);
+      addToast('Run resumed', { tone: 'success' });
+      void refresh();
+      void refreshOverview();
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : 'Could not resume run', { tone: 'error' });
+    } finally {
+      setResuming(null);
+    }
+  };
+
   return (
     <div className="runs">
       <div className="runs__toolbar">
@@ -138,7 +156,12 @@ export default function RunsView() {
                   <article key={key} className={`runs__item runs__item--${run.status}`}>
                     <button type="button" className="runs__item-head" onClick={() => setExpanded(open ? null : key)}>
                       <span className={`ah-status ah-status--${run.status === 'success' ? 'idle' : run.status === 'running' ? 'working' : 'error'}`}>
-                        <span className="ah-status__dot" />
+                        <PixelGlyph
+                          sprite={pixelForStatus(
+                            run.status === 'success' ? 'success' : run.status === 'running' ? 'running' : 'error',
+                          )}
+                          cell={1.25}
+                        />
                         {run.status}
                       </span>
                       <span className="runs__item-name">{run.agent_name}</span>
@@ -155,6 +178,9 @@ export default function RunsView() {
                             </Chip>
                           )}
                           {run.effort?.level && <Chip tone="muted">{run.effort.level}</Chip>}
+                          {run.resumable && (
+                            <Chip tone="muted">checkpoint @ step {run.checkpoint_step ?? '?'}</Chip>
+                          )}
                         </div>
                         <div className="runs__item-block">
                           <span>Input</span>
@@ -165,6 +191,16 @@ export default function RunsView() {
                           <pre>{run.output}</pre>
                         </div>
                         <div className="runs__item-actions">
+                          {run.resumable && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={resuming === key}
+                              onClick={() => void resumeRun(run)}
+                            >
+                              <RotateCcw size={13} /> {resuming === key ? 'Resuming…' : 'Resume'}
+                            </Button>
+                          )}
                           <Button size="sm" variant="secondary" onClick={() => saveAsRoutine(run)}>
                             <CalendarClock size={13} /> Save as routine
                           </Button>

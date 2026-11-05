@@ -10,6 +10,7 @@ import { ComposerCaption } from '../src/components/ComposerCaption';
 import { PhaseSpine } from '../src/components/activity/shell/PhaseSpine';
 import { ActivityStore } from '../src/components/activity/store';
 import { RunSurface } from '../src/components/activity/shell/RunSurface';
+import { SourcesPanel } from '../src/components/sources/SourcesPanel';
 import { ActivitySurfaceContext } from '../src/stream/context';
 import type { ActivityState } from '../src/components/activity/model';
 
@@ -212,7 +213,7 @@ const composerHtml = renderToStaticMarkup(
     React.createElement(ComposerCaption),
   ),
 );
-check('composer caption', composerHtml, ['Needs approval', 'act-caption-line', 'act-caption-dot']);
+check('composer caption', composerHtml, ['Needs approval', 'act-caption-line', 'pixel-icon']);
 
 // 7. Phase spine renders three equal segments.
 const spineHtml = renderToStaticMarkup(React.createElement(PhaseSpine, { phase: 'reading' }));
@@ -261,6 +262,60 @@ for (const mode of ['default', 'moe', 'knowledge_base', 'agent'] as const) {
   );
   check(`mode: ${mode}`, html, ['act-panel', 'act-caption']);
 }
+
+// 9. Sources panel: inline chips for web/document/media citations.
+const sourcesHtml = renderToStaticMarkup(
+  React.createElement(SourcesPanel, {
+    citations: {
+      citations: [],
+      bibliography: '',
+      accuracy: 0,
+      coverage: 0,
+      mean_score: 0,
+      cited_markers: [],
+      sources: [
+        {
+          marker: 1,
+          title: 'Retrieval paper',
+          kind: 'web',
+          url: 'https://arxiv.org/abs/1',
+          file: '',
+          section: '',
+          snippet: 'A web result',
+          content: '',
+          score: 1,
+        },
+        {
+          marker: 2,
+          title: 'notes.md',
+          kind: 'document',
+          url: '',
+          file: 'docs/notes.md',
+          section: 'Intro',
+          snippet: 'A local passage',
+          content: '',
+          score: 1,
+        },
+      ],
+    },
+    mediaCitations: [{ file: 'media/talk.mp4', start: 65, end: 70 }],
+    onOpenVideo: noop,
+  }),
+);
+check(
+  'sources panel',
+  sourcesHtml,
+  [
+    'sources-panel__chips',
+    'Retrieval paper',
+    'notes.md',
+    'Sources · 3',
+    'href="https://arxiv.org/abs/1"',
+    'href="/api/files/open?path=docs%2Fnotes.md&amp;section=Intro"',
+    'talk.mp4 @ 1:05',
+  ],
+  ['sources-drawer__backdrop'],
+);
 
 console.log(failures === 0 ? 'SMOKE OK' : `SMOKE FAILED (${failures})`);
 process.exit(failures === 0 ? 0 : 1);

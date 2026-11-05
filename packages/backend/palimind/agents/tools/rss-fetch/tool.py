@@ -101,9 +101,15 @@ TOOL_DEFINITION: dict[str, Any] = {
         "{title, link, summary, published} entries."
     ),
     "parameters": {
-        "feed_url": "The RSS/Atom feed URL",
-        "limit": "Optional: maximum number of entries (default 10)",
+        "feed_url": {"type": "string", "description": "The RSS/Atom feed URL"},
+        "limit": {
+            "type": "integer",
+            "description": "Maximum number of entries",
+            "default": 10,
+        },
     },
     "tier": 1,
     "requires_approval": False,
+    "parallel_safe": True,
+    "idempotent": True,
 }

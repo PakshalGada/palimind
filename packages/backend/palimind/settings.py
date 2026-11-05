@@ -84,6 +84,20 @@ TOOL_TIMEOUT_S: int = _env_int("PALIMIND_TOOL_TIMEOUT", 120)
 # overridden per-user in Settings (Voice) — see palimind.audio.stt.
 STT_WHISPER_MODEL: str = _env_str("PALIMIND_STT_WHISPER_MODEL", "base.en") or "base.en"
 
+# ── backups ───────────────────────────────────────────────────────────────
+
+# Where local backups are written (empty = ~/.palimind/backups).
+BACKUP_DIR: str = _env_str("PALIMIND_BACKUP_DIR", "") or ""
+
+# ── web search providers ─────────────────────────────────────────────────
+
+# auto = local SearXNG when reachable, otherwise DuckDuckGo; or force one.
+SEARCH_PROVIDER: str = _env_str("PALIMIND_SEARCH_PROVIDER", "auto") or "auto"
+SEARXNG_URL: str = _env_str("PALIMIND_SEARXNG_URL", "http://127.0.0.1:8080") or (
+    "http://127.0.0.1:8080"
+)
+SEARCH_TIMEOUT: float = _env_float("PALIMIND_SEARCH_TIMEOUT", 8.0)
+
 # ── browser tools ─────────────────────────────────────────────────────────
 
 # Domains the browser may visit. When ALLOWED is non-empty the browser is
@@ -115,8 +129,16 @@ AGENT_RUN_HISTORY_LIMIT: int = _env_int("PALIMIND_AGENT_RUN_HISTORY_LIMIT", 200)
 # How many conversation messages to keep per agent chat log.
 AGENT_CHAT_LIMIT: int = _env_int("PALIMIND_AGENT_CHAT_LIMIT", 300)
 
-# How many relevant memory entries to inject before a run (lexical recall).
+# How many relevant memory entries to inject before a run (hybrid recall).
 AGENT_MEMORY_RECALL_LIMIT: int = _env_int("PALIMIND_AGENT_MEMORY_RECALL_LIMIT", 8)
+
+# Memory 2.0: local vector recall. "hash" is dependency-free and offline;
+# "ollama" uses the configured local embedding model when available.
+MEMORY_EMBEDDINGS: str = _env_str("PALIMIND_MEMORY_EMBEDDINGS", "hash") or "hash"
+MEMORY_SEMANTIC_WEIGHT: float = _env_float("PALIMIND_MEMORY_SEMANTIC_WEIGHT", 0.65)
+MEMORY_LEXICAL_WEIGHT: float = _env_float("PALIMIND_MEMORY_LEXICAL_WEIGHT", 0.30)
+MEMORY_RECENCY_WEIGHT: float = _env_float("PALIMIND_MEMORY_RECENCY_WEIGHT", 0.05)
+MEMORY_CONSOLIDATE_THRESHOLD: float = _env_float("PALIMIND_MEMORY_CONSOLIDATE_THRESHOLD", 0.92)
 
 # Extract durable facts from a successful run into agent memory (one extra
 # light-model call, run in the background).
@@ -138,6 +160,41 @@ MOE_MAX_CONCURRENCY: int = _env_int("PALIMIND_MOE_MAX_CONCURRENCY", 0)
 
 # Hard ceiling on tool iterations per agent (adaptive budget clamps to this).
 MOE_MAX_AGENT_ITERATIONS: int = _env_int("PALIMIND_MOE_MAX_AGENT_ITERATIONS", 12)
+
+# Maximum number of independent read-only tool calls executed concurrently
+# within one agent step. Writes/approval-gated calls always run serially.
+MAX_PARALLEL_TOOLS: int = _env_int("PALIMIND_MAX_PARALLEL_TOOLS", 4)
+
+# Local chat attachments (images/PDF/text). Bytes are stored content-addressed
+# under ~/.palimind/uploads; these limits keep a bad file from exhausting RAM.
+UPLOAD_MAX_MB: int = _env_int("PALIMIND_UPLOAD_MAX_MB", 25)
+UPLOAD_TEXT_LIMIT: int = _env_int("PALIMIND_UPLOAD_TEXT_LIMIT", 30_000)
+
+# Tool routing: show the model only the most relevant tool schemas instead of
+# every registered tool. The full allowlist is still enforced by the runtime.
+TOOL_ROUTER: bool = _env_bool("PALIMIND_TOOL_ROUTER", True)
+TOOL_ROUTER_TOP_K: int = _env_int("PALIMIND_TOOL_ROUTER_TOP_K", 12)
+
+# Local MCP servers (configured in ~/.palimind/mcp.json). Each server must be
+# explicitly trusted before its tools are exposed to agents.
+MCP_ENABLE: bool = _env_bool("PALIMIND_MCP_ENABLE", True)
+
+# Durable job service: worker count, poll interval and lease duration.
+JOB_CONCURRENCY: int = _env_int("PALIMIND_JOB_CONCURRENCY", 2)
+JOB_POLL_INTERVAL: float = _env_float("PALIMIND_JOB_POLL_INTERVAL", 2.0)
+JOB_LEASE_SECONDS: float = _env_float("PALIMIND_JOB_LEASE_SECONDS", 300.0)
+
+# Local image generation. Backends are opt-in; "off" keeps the feature hidden
+# and avoids downloading/starting anything.
+IMAGE_BACKEND: str = _env_str("PALIMIND_IMAGE_BACKEND", "off") or "off"
+COMFYUI_URL: str = _env_str("PALIMIND_COMFYUI_URL", "http://127.0.0.1:8188") or (
+    "http://127.0.0.1:8188"
+)
+COMFYUI_CHECKPOINT: str = _env_str("PALIMIND_COMFYUI_CHECKPOINT", "") or ""
+SDCPP_BINARY: str = _env_str("PALIMIND_SDCPP_BINARY", "sd") or "sd"
+SDCPP_MODEL: str = _env_str("PALIMIND_SDCPP_MODEL", "") or ""
+IMAGE_TIMEOUT: float = _env_float("PALIMIND_IMAGE_TIMEOUT", 240.0)
+IMAGE_MAX_SIDE: int = _env_int("PALIMIND_IMAGE_MAX_SIDE", 1024)
 
 # Run the post-synthesis verification/critique pass (uses the light model).
 MOE_VERIFY: bool = _env_bool("PALIMIND_MOE_VERIFY", True)

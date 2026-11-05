@@ -24,7 +24,7 @@ export function Disclosure({
 }) {
   const id = useId();
   return (
-    <div className={`act-disclosure ${className}`.trim()} data-open={open}>
+    <div className={className}>
       <button
         type="button"
         className={summaryClassName}
@@ -40,8 +40,10 @@ export function Disclosure({
           </span>
         )}
       </button>
-      <div className="act-disclosure__inner" id={id} inert={open ? undefined : true}>
-        <div className={contentClassName}>{children}</div>
+      <div className="act-disclosure" data-open={open}>
+        <div className="act-disclosure__inner" id={id} inert={open ? undefined : true}>
+          <div className={contentClassName}>{children}</div>
+        </div>
       </div>
     </div>
   );

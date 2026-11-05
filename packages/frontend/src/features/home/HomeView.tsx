@@ -11,6 +11,7 @@ import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import { runCommand } from '../../commands/registry';
 import { PixelGlyph } from '../../components/pixel/PixelGlyph';
+import { PixelLoader } from '../../components/pixel/PixelLoader';
 import { PixelStamp } from '../../components/pixel/PixelStamp';
 import AgentAvatar from '../../components/AgentAvatar';
 import { EmptyState } from '../../ui/primitives';
@@ -55,6 +56,9 @@ export default function HomeView() {
     return [...overview.agents, ...overview.teams].slice(0, 8);
   }, [overview]);
 
+  const isFresh =
+    recentChats.length === 0 && recentRuns.length === 0 && team.length === 0;
+
   const openChat = async (id: string) => {
     setActiveView('chat');
     try {
@@ -89,7 +93,11 @@ export default function HomeView() {
       <div className="home-view__scroll">
         <section className="home-hero">
           <div className="home-hero__eyebrow">
-            <span className={`home-hero__dot${isIndexing ? ' is-busy' : ''}`} aria-hidden="true" />
+            {isIndexing ? (
+              <PixelLoader cell={1.25} label="Indexing" />
+            ) : (
+              <PixelGlyph sprite="checker" cell={1.25} />
+            )}
             {statusLine}
           </div>
           <h1 className="home-hero__title">{greeting()}</h1>
@@ -98,36 +106,38 @@ export default function HomeView() {
             agent, or start from a clean page.
           </p>
 
-          <div className="home-actions">
-            <button type="button" className="home-action home-action--primary" onClick={newChat}>
-              <Plus size={15} />
-              New chat
-            </button>
-            <button
-              type="button"
-              className="home-action"
-              onClick={() => setActiveView('agents')}
-            >
-              <Bot size={15} />
-              Ask an agent
-            </button>
-            <button
-              type="button"
-              className="home-action"
-              onClick={() => setActiveView('projects')}
-            >
-              <FolderOpen size={15} />
-              Projects
-            </button>
-            <button
-              type="button"
-              className="home-action"
-              onClick={() => setCommandPaletteOpen(true)}
-            >
-              <Search size={15} />
-              Search
-            </button>
-          </div>
+          {!isFresh && (
+            <div className="home-actions">
+              <button type="button" className="home-action home-action--primary" onClick={newChat}>
+                <Plus size={15} />
+                New chat
+              </button>
+              <button
+                type="button"
+                className="home-action"
+                onClick={() => setActiveView('agents')}
+              >
+                <Bot size={15} />
+                Ask an agent
+              </button>
+              <button
+                type="button"
+                className="home-action"
+                onClick={() => setActiveView('projects')}
+              >
+                <FolderOpen size={15} />
+                Projects
+              </button>
+              <button
+                type="button"
+                className="home-action"
+                onClick={() => setCommandPaletteOpen(true)}
+              >
+                <Search size={15} />
+                Search
+              </button>
+            </div>
+          )}
         </section>
 
         <section className="home-paper" aria-label="Current workspace">
@@ -156,6 +166,48 @@ export default function HomeView() {
           </button>
         </section>
 
+        {isFresh ? (
+          <section className="home-start" aria-label="Start here">
+            <div className="home-start__head">
+              <span className="home-start__glyph" aria-hidden="true">
+                <PixelGlyph sprite="spark" cell={3} />
+              </span>
+              <div>
+                <h2>Start here</h2>
+                <p>
+                  Pick one thing and the workspace will fill in around you. Everything
+                  stays on this machine.
+                </p>
+              </div>
+            </div>
+            <div className="home-start__actions">
+              <button type="button" className="home-action home-action--primary" onClick={newChat}>
+                <Plus size={15} /> New chat
+              </button>
+              <button
+                type="button"
+                className="home-action"
+                onClick={() => setActiveView('projects')}
+              >
+                <FolderOpen size={15} /> Create a project
+              </button>
+              <button
+                type="button"
+                className="home-action"
+                onClick={() => {
+                  setActiveView('agents');
+                  window.dispatchEvent(new CustomEvent('palimind:new-agent'));
+                }}
+              >
+                <Bot size={15} /> Create an agent
+              </button>
+            </div>
+            <div className="home-start__hint">
+              Tip: press <kbd>⌘K</kbd> to search commands, chats and files.
+            </div>
+          </section>
+        ) : (
+          <>
         <div className="home-grid">
           <section className="home-panel">
             <header className="home-panel__head">
@@ -304,7 +356,7 @@ export default function HomeView() {
                       ) : member.status === 'error' ? (
                         <PixelGlyph sprite="cross" cell={1.25} />
                       ) : (
-                        <PixelGlyph sprite="dot" cell={1.25} />
+                        <PixelGlyph sprite="tick" cell={1.25} />
                       )}
                     </span>
                     {member.status}
@@ -314,6 +366,8 @@ export default function HomeView() {
             </ul>
           )}
         </section>
+          </>
+        )}
 
         <footer className="home-foot">
           <PixelGlyph sprite="spark" cell={1.25} />

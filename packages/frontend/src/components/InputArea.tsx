@@ -25,6 +25,20 @@ import {
 } from "./prompt-kit/prompt-input";
 import { Button } from "../ui/primitives";
 
+async function fileToBase64(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+const TEXT_ATTACHMENT_RE =
+  /\.(txt|md|markdown|csv|tsv|json|jsonl|yaml|yml|toml|ini|xml|html?|py|js|ts|tsx|jsx|sql|log|rst)$/i;
+
 function InputArea() {
   const {
     chatMode,
@@ -374,21 +388,52 @@ function InputArea() {
 
     sendingRef.current = true;
     try {
-      // Index dropped attachments as captures so document-mode RAG can find them.
+      // Upload attachments for multimodal chat (images/PDFs/text). Separately,
+      // index text-like files as captures so document-mode RAG can find them.
+      const attachmentIds: string[] = [];
       if (files.length > 0) {
-        try {
-          await Promise.all(
-            files.map(async (file) => {
-              const content = await file.text();
-              await fetch("/api/capture/file", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: file.name, content }),
-              });
-            }),
-          );
-        } catch (e) {
-          console.error("attachment upload failed:", e);
+        const uploaded = await Promise.all(
+          files.map(async (file) => {
+            try {
+              const data = await fileToBase64(file);
+              const res = await api.uploads.create(
+                file.name,
+                file.type || "application/octet-stream",
+                data,
+              );
+              if (res.error) {
+                addToast(`${file.name}: ${res.error}`);
+                return null;
+              }
+              return res.upload?.id ?? null;
+            } catch (e) {
+              addToast(
+                `${file.name}: ${e instanceof Error ? e.message : String(e)}`,
+              );
+              return null;
+            }
+          }),
+        );
+        attachmentIds.push(...uploaded.filter((id): id is string => Boolean(id)));
+
+        const textFiles = files.filter(
+          (file) => file.type.startsWith("text/") || TEXT_ATTACHMENT_RE.test(file.name),
+        );
+        if (textFiles.length > 0) {
+          try {
+            await Promise.all(
+              textFiles.map(async (file) => {
+                const content = await file.text();
+                await fetch("/api/capture/file", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ name: file.name, content }),
+                });
+              }),
+            );
+          } catch (e) {
+            console.error("attachment capture upload failed:", e);
+          }
         }
       }
 
@@ -442,6 +487,7 @@ function InputArea() {
         sessionId: activeSessionId,
         subMode: mode === "llm" ? llmSubMode : undefined,
         files: selectedFiles.size > 0 ? Array.from(selectedFiles) : undefined,
+        attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
         activity: {
           mode: actMode,
           title: actTitle,
@@ -475,6 +521,7 @@ function InputArea() {
     activeView,
     selectedAgentId,
     sendMessage,
+    addToast,
   ]);
 
   const findLastMessage = useCallback(

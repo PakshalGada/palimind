@@ -393,7 +393,7 @@ export default function ArtifactLibrary({
           </div>
         </div>
 
-        <div className="artifact-library-layout">
+        <div className={`artifact-library-layout${selectedEntry ? '' : ' is-single'}`}>
           <section className="artifact-library-browser" aria-label="Artifact list">
             <div className="artifact-library-toolbar">
               <label className="artifact-library-search">
@@ -544,6 +544,7 @@ export default function ArtifactLibrary({
             )}
           </section>
 
+          {selectedEntry && previewArtifact && (
           <aside className="artifact-library-preview" aria-label="Artifact preview">
             {selectedEntry && previewArtifact ? (
               <>
@@ -598,6 +599,7 @@ export default function ArtifactLibrary({
               </div>
             )}
           </aside>
+          )}
         </div>
 
         <div className="artifact-library-storage">

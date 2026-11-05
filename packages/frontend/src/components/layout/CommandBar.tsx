@@ -13,17 +13,6 @@ import { PixelLoader } from '../pixel/PixelLoader';
 import type { AgentsView } from '../../types';
 import './CommandBar.css';
 
-const BRAND_ROWS = [
-  '11111100',
-  '10000110',
-  '10000010',
-  '10000110',
-  '11111100',
-  '10000000',
-  '10000000',
-  '10000000',
-];
-
 const VIEW_LABEL: Record<string, string> = {
   home: 'Home',
   chat: 'Chat',
@@ -75,7 +64,7 @@ export default function CommandBar() {
     ? { busy: true, label: indexingStatus || 'Indexing' }
     : working > 0
       ? { busy: true, label: `${working} working` }
-      : { busy: false, label: 'Local · idle' };
+      : { busy: false, label: 'Local' };
 
   const primary = (() => {
     switch (activeView) {
@@ -92,6 +81,9 @@ export default function CommandBar() {
     }
   })();
 
+  const titledSurface =
+    activeView === 'projects' || activeView === 'knowledge' || activeView === 'artifacts';
+
   return (
     <header className="command-bar" role="banner">
       <button
@@ -105,14 +97,13 @@ export default function CommandBar() {
       </button>
 
       <div className="command-bar__brand">
-        <span className="command-bar__mark" aria-hidden="true">
-          <PixelGlyph rows={BRAND_ROWS} cell={2} />
-        </span>
         <span className="command-bar__wordmark">PaliMind</span>
       </div>
 
       <nav className="command-bar__context" aria-label="Current context">
-        <span className="command-bar__view">{VIEW_LABEL[activeView] ?? activeView}</span>
+        <span className={`command-bar__view${titledSurface ? ' is-implicit' : ''}`}>
+          {VIEW_LABEL[activeView] ?? activeView}
+        </span>
         {activeProjectId && (
           <span className="command-bar__project" title={activeProjectName ?? 'Active project'}>
             <PixelGlyph sprite="folder" cell={1.25} />

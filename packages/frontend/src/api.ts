@@ -2,6 +2,13 @@ import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentLis
 
 const BASE = '/api';
 
+function reportConnection(ok: boolean, message?: string) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(
+    new CustomEvent('palimind:connection', { detail: { ok, message } }),
+  );
+}
+
 async function parse<T>(res: Response, label: string): Promise<T> {
   let data: unknown = null;
   try {
@@ -12,8 +19,19 @@ async function parse<T>(res: Response, label: string): Promise<T> {
       (data as { detail?: string; error?: string } | null)?.detail ||
       (data as { error?: string } | null)?.error ||
       `${res.status} ${res.statusText}`;
+    const connectionIssue =
+      res.status === 401 || res.status === 403 || res.status >= 500;
+    if (connectionIssue) {
+      reportConnection(
+        false,
+        res.status === 401 || res.status === 403
+          ? 'The local engine needs authentication. Restart PaliMind to refresh its token.'
+          : detail,
+      );
+    }
     throw new Error(`${label} failed: ${detail}`);
   }
+  reportConnection(true);
   return (data ?? {}) as T;
 }
 
@@ -70,6 +88,12 @@ export const api = {
     tree: () => get<{ tree?: TreeNode[]; error?: string }>('/files/tree'),
     treeSub: (path: string) => get<{ children?: TreeNode[]; error?: string }>(`/files/tree/sub?path=${encodeURIComponent(path)}`),
   },
+  uploads: {
+    create: (name: string, mime: string, data: string) =>
+      post<{ upload?: { id: string; name: string; kind: string }; error?: string }>('/uploads', { name, mime, data }),
+    list: () => get<{ uploads?: { id: string; name: string; kind: string }[] }>('/uploads'),
+    remove: (id: string) => del<{ status?: string }>(`/uploads/${encodeURIComponent(id)}`),
+  },
   config: {
     get: (scope = 'field') => get<{ chat_model?: string; embed_model?: string; moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string; persona_name?: string; persona_system_prompt?: string }>(`/config?scope=${scope}`),
     setModel: (modelId: string, scope = 'field') => patch<{ error?: string }>(`/config/model?scope=${scope}`, { model_id: modelId }),
@@ -110,6 +134,20 @@ export const api = {
       post<{ entries: MemoryEntry[] }>(`/agents/${agentId}/recall-preview`, { query, k }),
     run: (agentId: string, runId: string) =>
       get<RunRecord & { error?: string }>(`/agents/${agentId}/runs/${encodeURIComponent(runId)}`),
+    resumeRun: async (agentId: string, runId: string, input?: string) => {
+      const res = await fetch(
+        `${BASE}/agents/${agentId}/runs/${encodeURIComponent(runId)}/resume`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input ? { input } : {}),
+        },
+      );
+      const text = await res.text();
+      if (!res.ok) throw new Error(`Resume failed: ${res.status}`);
+      return { text };
+    },
     validateCron: (schedule: string) => post<{ valid: boolean; error?: string | null }>('/agents/validate-cron', { schedule }),
     memory: (agentId: string, page = 1, perPage = 20) =>
       get<{ entries: MemoryEntry[]; total: number; page: number; per_page: number }>(

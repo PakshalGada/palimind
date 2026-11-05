@@ -12,9 +12,21 @@ from palimind.agents import goals as g
 
 @pytest.fixture(autouse=True)
 def _isolated_state(monkeypatch, tmp_path: Path):
-    monkeypatch.setattr(g, "GOALS_FILE", tmp_path / "goals.json")
-    monkeypatch.setattr(g, "TASKS_FILE", tmp_path / "tasks.json")
-    monkeypatch.setattr(g, "NOTIFICATIONS_FILE", tmp_path / "notifications.json")
+    from palimind.storage import state_store
+
+    paths = (
+        tmp_path / "goals.json",
+        tmp_path / "tasks.json",
+        tmp_path / "notifications.json",
+    )
+    # State is keyed by resolved path in ~/.palimind/state.db. pytest reuses
+    # tmp_path directories across sessions, so clear stale rows explicitly to
+    # keep this module deterministic.
+    for path in paths:
+        state_store.delete_json(g._namespace(path), "items")
+    monkeypatch.setattr(g, "GOALS_FILE", paths[0])
+    monkeypatch.setattr(g, "TASKS_FILE", paths[1])
+    monkeypatch.setattr(g, "NOTIFICATIONS_FILE", paths[2])
     yield
 
 

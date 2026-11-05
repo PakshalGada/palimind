@@ -59,6 +59,7 @@ export interface SendRequest {
   sessionId: string | null;
   subMode?: string;
   files?: string[];
+  attachmentIds?: string[];
   activity: ActivityInfo;
   agentLoading?: { seed: string; name: string } | null;
 }
@@ -221,6 +222,7 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
       if (request.subMode) params.set('llm_sub_mode', request.subMode);
       if (request.sessionId) params.set('session_id', request.sessionId);
       if (request.files?.length) params.set('files', request.files.join(','));
+      if (request.attachmentIds?.length) params.set('attachment_ids', request.attachmentIds.join(','));
       // The server echoes this in its first `session` event; Stop uses it.
       let streamKey = makeStreamKey();
       params.set('stream_id', streamKey);

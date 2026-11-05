@@ -66,16 +66,49 @@ def bwrap_path() -> str | None:
     return shutil.which("bwrap")
 
 
-def sandbox_available() -> bool:
-    return bwrap_path() is not None or _unsandboxed_allowed()
+def sandbox_exec_path() -> str | None:
+    """Return the macOS ``sandbox-exec`` binary, if this is macOS."""
+    if sys.platform != "darwin":
+        return None
+    return shutil.which("sandbox-exec") or (
+        "/usr/bin/sandbox-exec" if Path("/usr/bin/sandbox-exec").is_file() else None
+    )
 
 
-def describe_sandbox() -> str:
+def windows_sandbox_available() -> bool:
+    """True when the Windows Job Object backend can be constructed."""
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+
+        return bool(hasattr(ctypes, "windll"))
+    except Exception:
+        return False
+
+
+def sandbox_backend() -> str:
+    """Return the strongest available backend name for this platform."""
+    if sys.platform == "darwin" and sandbox_exec_path():
+        return "macos-sandbox-exec"
+    if sys.platform == "win32" and windows_sandbox_available():
+        return "windows-job-object"
     if bwrap_path():
         return "bubblewrap"
     if _unsandboxed_allowed():
-        return "unsandboxed (explicitly enabled)"
+        return "unsandboxed"
     return "unavailable"
+
+
+def sandbox_available() -> bool:
+    return sandbox_backend() != "unavailable"
+
+
+def describe_sandbox() -> str:
+    backend = sandbox_backend()
+    if backend == "unsandboxed":
+        return "unsandboxed (explicitly enabled)"
+    return backend
 
 
 def _minimal_env(root: Path, *, allow_network: bool) -> dict[str, str]:
@@ -188,6 +221,191 @@ def _bwrap_argv(
     return argv
 
 
+def _quote_sandbox_path(path: str) -> str:
+    return str(path).replace("\\", "\\\\").replace('"', '\\"')
+
+
+def macos_sandbox_profile(
+    root: Path,
+    *,
+    allow_network: bool = False,
+    allow_write: bool = False,
+) -> str:
+    """Build a deny-by-default ``sandbox-exec`` profile for agent code."""
+    root = Path(root).resolve()
+    read_paths = [
+        "/usr",
+        "/bin",
+        "/sbin",
+        "/System",
+        "/Library",
+        "/private/etc",
+        "/private/var/db/dyld",
+        "/dev/null",
+        "/dev/zero",
+        "/dev/urandom",
+        str(sys.prefix),
+        str(sys.base_prefix),
+        str(root),
+    ]
+    write_paths = ["/private/tmp", "/private/var/folders"]
+    if allow_write:
+        write_paths.append(str(root))
+    lines = [
+        "(version 1)",
+        "(deny default)",
+        "(allow process*)",
+        "(allow sysctl-read)",
+        "(allow file-read-metadata)",
+    ]
+    for path in dict.fromkeys(read_paths):
+        if path and path != "/":
+            lines.append(f'(allow file-read* (subpath "{_quote_sandbox_path(path)}"))')
+    for path in dict.fromkeys(write_paths):
+        if path and path != "/":
+            lines.append(f'(allow file-write* (subpath "{_quote_sandbox_path(path)}"))')
+    lines.append('(allow file-write* (literal "/dev/null"))')
+    if allow_network:
+        lines.append("(allow network*)")
+    return "\n".join(lines) + "\n"
+
+
+def _macos_argv(
+    command: list[str],
+    root: Path,
+    *,
+    allow_network: bool,
+    allow_write: bool,
+) -> list[str]:
+    sandbox_exec = sandbox_exec_path()
+    if not sandbox_exec:
+        raise SandboxUnavailable("macOS sandbox-exec is not available.")
+    profile = macos_sandbox_profile(root, allow_network=allow_network, allow_write=allow_write)
+    return [sandbox_exec, "-p", profile, *command]
+
+
+def _run_windows_sandbox(
+    command: list[str],
+    *,
+    root: Path,
+    timeout_s: int,
+    allow_network: bool,
+    allow_write: bool,
+    limits: SandboxLimits,
+    env: dict[str, str],
+) -> subprocess.CompletedProcess[str]:
+    """Run a command under a Windows Job Object with memory/process limits.
+
+    Windows has no unprivileged mount namespace, so workspace confinement is
+    enforced with a Job Object (process/memory limits and kill-on-close) plus a
+    minimal environment. The child is never given an inherited console. If the
+    Job Object cannot be created or assigned, the call fails closed.
+    """
+    if not windows_sandbox_available():
+        raise SandboxUnavailable("Windows Job Object sandbox is not available.")
+    import ctypes
+    from ctypes import wintypes
+
+    class _IO_COUNTERS(ctypes.Structure):
+        _fields_ = [
+            ("ReadOperationCount", ctypes.c_ulonglong),
+            ("WriteOperationCount", ctypes.c_ulonglong),
+            ("OtherOperationCount", ctypes.c_ulonglong),
+            ("ReadTransferCount", ctypes.c_ulonglong),
+            ("WriteTransferCount", ctypes.c_ulonglong),
+            ("OtherTransferCount", ctypes.c_ulonglong),
+        ]
+
+    class _JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("PerProcessUserTimeLimit", ctypes.c_int64),
+            ("PerJobUserTimeLimit", ctypes.c_int64),
+            ("LimitFlags", wintypes.DWORD),
+            ("MinimumWorkingSetSize", ctypes.c_size_t),
+            ("MaximumWorkingSetSize", ctypes.c_size_t),
+            ("ActiveProcessLimit", wintypes.DWORD),
+            ("Affinity", ctypes.c_size_t),
+            ("PriorityClass", wintypes.DWORD),
+            ("SchedulingClass", wintypes.DWORD),
+        ]
+
+    class _JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("BasicLimitInformation", _JOBOBJECT_BASIC_LIMIT_INFORMATION),
+            ("IoInfo", _IO_COUNTERS),
+            ("ProcessMemoryLimit", ctypes.c_size_t),
+            ("JobMemoryLimit", ctypes.c_size_t),
+            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+            ("PeakJobMemoryUsed", ctypes.c_size_t),
+        ]
+
+    JOB_OBJECT_LIMIT_PROCESS_MEMORY = 0x00000100
+    JOB_OBJECT_LIMIT_JOB_MEMORY = 0x00000200
+    JOB_OBJECT_LIMIT_ACTIVE_PROCESS = 0x00000008
+    JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
+    JobObjectExtendedLimitInformation = 9
+    CREATE_NO_WINDOW = 0x08000000
+    CREATE_NEW_PROCESS_GROUP = 0x00000200
+
+    kernel32 = getattr(ctypes, "windll").kernel32  # noqa: B009
+    job = kernel32.CreateJobObjectW(None, None)
+    if not job:
+        raise SandboxUnavailable("Could not create a Windows Job Object.")
+    proc: subprocess.Popen | None = None
+    out_f = tempfile.TemporaryFile()
+    err_f = tempfile.TemporaryFile()
+    try:
+        info = _JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+        info.BasicLimitInformation.LimitFlags = (
+            JOB_OBJECT_LIMIT_PROCESS_MEMORY
+            | JOB_OBJECT_LIMIT_JOB_MEMORY
+            | JOB_OBJECT_LIMIT_ACTIVE_PROCESS
+            | JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        )
+        memory = max(64, int(limits.memory_mb)) * 1024 * 1024
+        info.ProcessMemoryLimit = memory
+        info.JobMemoryLimit = memory
+        info.BasicLimitInformation.ActiveProcessLimit = max(1, int(limits.processes))
+        if not kernel32.SetInformationJobObject(
+            job,
+            JobObjectExtendedLimitInformation,
+            ctypes.byref(info),
+            ctypes.sizeof(info),
+        ):
+            raise SandboxUnavailable("Could not configure the Windows Job Object.")
+        proc = subprocess.Popen(  # noqa: S603 - argv list, no shell
+            command,
+            cwd=str(root),
+            stdin=subprocess.DEVNULL,
+            stdout=out_f,
+            stderr=err_f,
+            env=env,
+            creationflags=CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP,
+        )
+        if not kernel32.AssignProcessToJobObject(job, int(proc._handle)):  # type: ignore[attr-defined]
+            proc.kill()
+            raise SandboxUnavailable("Could not assign the process to the Job Object.")
+        try:
+            proc.wait(timeout=timeout_s)
+        except subprocess.TimeoutExpired:
+            kernel32.TerminateJobObject(job, 1)
+            proc.kill()
+            raise
+        return subprocess.CompletedProcess(
+            command, int(proc.returncode), _read_tail(out_f), _read_tail(err_f)
+        )
+    finally:
+        try:
+            kernel32.CloseHandle(job)
+        except Exception:
+            pass
+        try:
+            out_f.close()
+            err_f.close()
+        except Exception:
+            pass
+
+
 def _preexec(limits: SandboxLimits):
     """Return a preexec hook applying resource limits (POSIX only)."""
 
@@ -239,22 +457,40 @@ def run_command(
         cpu_seconds=cpu_seconds,
     )
 
-    if bwrap_path():
+    backend = sandbox_backend()
+    env = _minimal_env(root, allow_network=allow_network)
+    if backend == "windows-job-object":
+        return _run_windows_sandbox(
+            command,
+            root=root,
+            timeout_s=timeout_s,
+            allow_network=allow_network,
+            allow_write=allow_write,
+            limits=limits,
+            env=env,
+        )
+    if backend == "macos-sandbox-exec":
+        argv = _macos_argv(
+            command,
+            root,
+            allow_network=allow_network,
+            allow_write=allow_write,
+        )
+    elif backend == "bubblewrap":
         argv = _bwrap_argv(
             command,
             root,
             allow_network=allow_network,
             allow_write=allow_write,
         )
-        env = _minimal_env(root, allow_network=allow_network)
-    elif _unsandboxed_allowed():
+    elif backend == "unsandboxed":
         argv = command
-        env = _minimal_env(root, allow_network=allow_network)
     else:
         raise SandboxUnavailable(
-            "No sandbox is available. Install bubblewrap ('bwrap') or set "
-            "PALIMIND_ALLOW_UNSANDBOXED_EXEC=1 to explicitly accept running agent "
-            "code directly on the host."
+            "No sandbox is available. Install bubblewrap ('bwrap') on Linux or "
+            "ensure sandbox-exec exists on macOS; on Windows the Job Object "
+            "backend is required. Set PALIMIND_ALLOW_UNSANDBOXED_EXEC=1 to "
+            "explicitly accept running agent code directly on the host."
         )
 
     # Output goes to temp files rather than pipes: the child's RLIMIT_FSIZE

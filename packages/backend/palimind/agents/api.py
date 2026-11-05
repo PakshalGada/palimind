@@ -18,6 +18,7 @@ from palimind.agents.runtime import (
     get_last_run,
     get_run,
     get_run_history,
+    is_running,
     resolve_approval,
 )
 from palimind.agents.service import stream_agent
@@ -99,6 +100,8 @@ async def delete_agent(agent_id: str):
 @router.get("/tools")
 async def agent_tools():
     _register_plugin_tools()
+    from palimind.agents.tools.base import parameters_to_schema
+
     tools: dict[str, dict[str, Any]] = {}
     for name in sorted(TOOL_REGISTRY):
         info = TOOL_REGISTRY[name]
@@ -106,11 +109,32 @@ async def agent_tools():
         tools[name] = {
             "id": name,
             "description": info.get("description", ""),
-            "parameters": info.get("parameters", {}),
+            "parameters": parameters_to_schema(info.get("parameters") or {}),
             "tier": int(meta.get("tier", 3)),
             "requires_approval": bool(meta.get("requires_approval", True)),
+            "timeout_s": int(info.get("timeout_s") or 0),
+            "parallel_safe": bool(info.get("parallel_safe", False)),
+            "idempotent": bool(info.get("idempotent", False)),
+            "source": str(info.get("source", "builtin")),
         }
     return {"tools": tools}
+
+
+@router.post("/tools/reload")
+async def reload_agent_tools():
+    """Re-scan built-in and ~/.palimind/tools drop-in tools without a restart."""
+    from palimind.agents.tools.registry import reload_tools
+
+    try:
+        discovered = reload_tools()
+        _register_plugin_tools(force=True)
+        return {
+            "status": "success",
+            "discovered": len(discovered),
+            "tools": sorted(TOOL_REGISTRY),
+        }
+    except Exception as exc:
+        return {"error": f"Failed to reload tools: {exc}"}
 
 
 @router.get("/skills")
@@ -519,9 +543,19 @@ async def recent_runs(limit: int = 30):
     """Recent runs across every agent and team, newest first (traces stripped)."""
     cap = max(1, min(int(limit or 30), 100))
     items: list[dict] = []
+    from palimind.agents import run_state as run_state_mod
+
     for defn in get_registry().all():
         for record in get_run_history(defn.id, limit=cap):
             stripped = {k: v for k, v in record.items() if k != "trace"}
+            checkpoint = run_state_mod.load_state(str(record.get("run_id") or ""))
+            if checkpoint:
+                stripped["checkpoint_status"] = checkpoint.get("status")
+                stripped["checkpoint_step"] = checkpoint.get("iteration")
+                stripped["resumable"] = bool(checkpoint.get("resumable")) or (
+                    str(checkpoint.get("status") or "") in run_state_mod.RESUMABLE_STATUSES
+                    and bool(checkpoint.get("messages"))
+                )
             items.append({"agent_id": defn.id, "agent_name": defn.name, **stripped})
     try:
         from palimind.agents import teams
@@ -560,9 +594,7 @@ async def agent_webhook(token: str, req: Request):
     payload = str(body.get("input") or body.get("q") or "").strip() or "Run your task."
     from palimind.agents.service import run_agent
 
-    output = await run_agent(
-        defn, payload, session_id="_webhook", interactive=False
-    )
+    output = await run_agent(defn, payload, session_id="_webhook", interactive=False)
     return {"status": "success", "output": output}
 
 
@@ -644,6 +676,76 @@ async def agent_run_detail(agent_id: str, run_id: str):
     return record
 
 
+@router.get("/{agent_id}/runs/{run_id}/state")
+async def agent_run_state(agent_id: str, run_id: str):
+    """Return the persisted checkpoint for a run (if one exists)."""
+    from palimind.agents import run_state
+
+    state = run_state.load_state(run_id)
+    if state is None:
+        return {"error": "run state not found"}
+    if state.get("agent_id") and str(state["agent_id"]) != agent_id:
+        return {"error": "run does not belong to this agent"}
+    status = str(state.get("status") or "")
+    resumable = bool(state.get("resumable")) or (
+        status in run_state.RESUMABLE_STATUSES and bool(state.get("messages"))
+    )
+    return {
+        "state": state,
+        "resumable": resumable,
+        "running": is_running(agent_id),
+    }
+
+
+@router.post("/{agent_id}/runs/{run_id}/resume")
+async def resume_agent_run(agent_id: str, run_id: str, req: Request):
+    """Resume a checkpointed run from its last completed step.
+
+    Streams the same ``agent:*`` SSE events as ``POST /{agent_id}/run``. The
+    resumed run gets a new run id and is linked back to the original checkpoint.
+    """
+    import json
+
+    from palimind.agents import run_state
+
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+
+    state = run_state.load_state(run_id)
+    if state is None:
+        return {"error": "run state not found"}
+    if state.get("agent_id") and str(state["agent_id"]) != agent_id:
+        return {"error": "run does not belong to this agent"}
+    status = str(state.get("status") or "")
+    if status not in run_state.RESUMABLE_STATUSES or not state.get("messages"):
+        return {"error": f"run is not resumable (status={status or 'unknown'})"}
+    defn = get_registry().get_by_id(agent_id)
+    if defn is None:
+        return {"error": "Agent not found"}
+    if not defn.enabled:
+        return {"error": "Agent is disabled"}
+    if status == "running" and is_running(agent_id):
+        return {"error": "run is still active; stop it before resuming"}
+
+    input_text = str(body.get("input") or state.get("input") or "Run your task.").strip()
+    session_id = str(body.get("session_id") or state.get("session_id") or "")
+
+    async def gen():
+        async for ev in stream_agent(
+            defn,
+            input_text,
+            session_id,
+            resume_state=state,
+            resume_from_run_id=run_id,
+        ):
+            yield f"data: {json.dumps(ev)}\n\n"
+        yield 'data: {"type": "done"}\n\n'
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
 @router.post("/{agent_id}/run")
 async def run_agent(agent_id: str, req: Request):
     body = await req.json()
@@ -691,10 +793,9 @@ async def run_agent_now(agent_id: str, req: Request):
     if not defn.enabled:
         return {"error": "Agent is disabled"}
 
+    from palimind.agents.runtime import running_count
     from palimind.agents.scheduler import post_result, recorded_run_status
     from palimind.agents.service import run_agent as run_once
-
-    from palimind.agents.runtime import running_count
 
     if running_count(defn.id) >= max(1, int(defn.max_concurrent_runs or 1)):
         try:
@@ -707,9 +808,7 @@ async def run_agent_now(agent_id: str, req: Request):
 
     async def _run():
         try:
-            output = await run_once(
-                defn, agent_input, session_id="_manual", interactive=False
-            )
+            output = await run_once(defn, agent_input, session_id="_manual", interactive=False)
             status = recorded_run_status(defn.id, agent_input, output)
             await post_result(defn, output, status, "manual")
         except asyncio.CancelledError:

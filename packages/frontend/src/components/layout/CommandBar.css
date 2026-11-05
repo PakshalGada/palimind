@@ -26,26 +26,6 @@
   flex: 0 0 auto;
 }
 
-.command-bar__mark {
-  display: inline-flex;
-  color: var(--ink);
-  padding: 2px;
-  border-radius: var(--radius-xs);
-}
-.command-bar__mark:hover .pixel-glyph {
-  animation: brand-blink 480ms steps(2, end) 1;
-}
-@keyframes brand-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  25%,
-  75% {
-    opacity: 0.35;
-  }
-}
-
 .command-bar__wordmark {
   font-family: var(--font-heading);
   font-size: var(--type-md);
@@ -71,6 +51,13 @@
   letter-spacing: -0.02em;
   color: var(--ink);
   white-space: nowrap;
+}
+
+/* Surfaces with their own compact header already name themselves. */
+@media (min-width: 901px) {
+  .command-bar__view.is-implicit {
+    display: none;
+  }
 }
 
 .command-bar__project,
@@ -183,7 +170,7 @@
   flex: 0 0 auto;
   font-family: var(--font-mono);
   font-size: var(--type-2xs);
-  color: var(--ink-faint);
+  color: var(--ink-muted);
   border: 1px solid var(--line);
   border-radius: var(--radius-xs);
   padding: 0 4px;
@@ -353,6 +340,10 @@
     display: inline-flex;
   }
   .command-bar__context {
+    max-width: 150px;
+  }
+  .command-bar__project,
+  .command-bar__session {
     display: none;
   }
   .command-bar__center {
@@ -388,9 +379,6 @@
 
 @media (max-width: 640px) {
   .command-bar__wordmark {
-    display: none;
-  }
-  .command-bar__mark {
     display: none;
   }
   .command-bar__tabs {

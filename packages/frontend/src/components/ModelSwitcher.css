@@ -480,3 +480,9 @@
         flex-basis: 100%;
     }
 }
+
+@media (max-width: 760px) {
+  .model-switcher-pill {
+    min-height: 32px;
+  }
+}

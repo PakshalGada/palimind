@@ -232,18 +232,21 @@ def summarize_sentiment(posts: list[dict]) -> dict[str, Any]:
 
 
 def _ddg_site_search(query: str, site: str, max_results: int) -> list[dict]:
-    from palimind.core.web_search import _ddg_search
+    from palimind.core.search_providers import DuckDuckGoProvider
 
-    raw = _ddg_search(f"site:{site} {query}", max_results)
+    try:
+        raw = DuckDuckGoProvider().search(f"site:{site} {query}", max_results)
+    except Exception:
+        return []
     out: list[dict] = []
     for item in raw:
-        url = (item.get("href") or item.get("url") or "").strip()
+        url = item.url.strip()
         if not url:
             continue
         out.append(
             {
-                "text": (item.get("title") or "").strip(),
-                "snippet": (item.get("body") or item.get("snippet") or "").strip(),
+                "text": item.title.strip(),
+                "snippet": item.snippet.strip(),
                 "url": url,
                 "author": _author_from_url(url),
             }

@@ -1,7 +1,5 @@
 import MessageContent from '../components/MessageContent';
-import { SourcesList } from '@/components/activity/citations/SourcesList';
-import { MediaCitations } from '@/components/activity/citations/MediaCitations';
-import { resultsFromSources } from '@/components/activity/recorder';
+import { SourcesPanel } from '@/components/sources/SourcesPanel';
 import type { StreamState, VideoTarget } from './types';
 
 /**
@@ -23,12 +21,6 @@ export default function StreamingMessage({
   const content = state.error
     ? `${state.answer}${state.answer ? '\n\n' : ''}**Error:** ${state.error}`
     : state.answer;
-  const { sources, passages } = resultsFromSources(
-    state.citations,
-    state.textCitations,
-    state.mediaCitations,
-  );
-
   return (
     <div className="live-answer">
       {hasAnswer && (
@@ -40,10 +32,13 @@ export default function StreamingMessage({
           onOpenArtifact={onOpenArtifact}
         />
       )}
-      <SourcesList sources={sources} passages={passages} />
-      {onOpenVideo && (
-        <MediaCitations citations={state.mediaCitations} onOpen={onOpenVideo} />
-      )}
+      <SourcesPanel
+        citations={state.citations}
+        textCitations={state.textCitations}
+        mediaCitations={state.mediaCitations}
+        legacySources={state.sources}
+        onOpenVideo={onOpenVideo}
+      />
     </div>
   );
 }

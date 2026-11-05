@@ -14,6 +14,29 @@ import { normalizePassages, normalizeResults, textOf } from '../toolOutput';
 import { getToolDefinition, previewForTool, toolDisplayName } from '../toolRegistry';
 import { ToolBody } from '../bodies/ToolBody';
 import { PermissionGrant, type GrantDecision } from './PermissionGrant';
+import { PixelIcon } from '../../pixel/PixelIcon';
+import type { PixelSprite } from '../../pixel/sprites';
+import type { ToolFamily } from '../model';
+
+const FAMILY_PIXEL: Record<ToolFamily, PixelSprite> = {
+  search: 'search',
+  page: 'book',
+  feed: 'graph',
+  file: 'folder',
+  tree: 'projects',
+  matches: 'search',
+  diff: 'terminal',
+  passages: 'book',
+  graph: 'graph',
+  data: 'package',
+  'code-run': 'terminal',
+  text: 'book',
+  subagent: 'bot',
+  browser: 'graph',
+  iot: 'terminal',
+  weather: 'sun',
+  generic: 'spark',
+};
 
 function inputText(args: unknown): string {
   if (args == null) return '';
@@ -89,7 +112,11 @@ export const ToolRow = memo(function ToolRow({
           <>
             <StatusIcon status={step.status} animate={step.status !== 'running' || shimmer} />
             <span className="act-row__toolicon">
-              <Icon name={definition.icon} size={14} />
+              <PixelIcon
+                name={FAMILY_PIXEL[definition.family] ?? 'spark'}
+                size={16}
+                state={running ? 'busy' : step.status === 'success' ? 'done' : 'idle'}
+              />
             </span>
             <span className="act-row__label">
               {running && shimmer ? (

@@ -3,6 +3,7 @@ import type { ToolStatus, ToolStep } from '../model';
 import { formatToolDuration } from '../model';
 import { useNow, useMediaQuery } from '../hooks';
 import { Icon } from '../icons';
+import { PixelIcon } from '../../pixel/PixelIcon';
 import { Disclosure } from '../primitives/Disclosure';
 import { Rail, RailItem } from '../primitives/Rail';
 import type { ActivityStore } from '../store';
@@ -51,7 +52,11 @@ function Gantt({ steps, running }: { steps: readonly ToolStep[]; running: boolea
         return (
           <div key={step.id} className="act-gantt__row">
             <span className="act-gantt__label">
-              <Icon name={definition.icon} size={13} />
+              <PixelIcon
+                name={definition.family === 'search' ? 'search' : definition.family === 'file' ? 'folder' : 'terminal'}
+                size={16}
+                state={isRunning ? 'busy' : error ? 'idle' : 'done'}
+              />
               <span>{definition.done}</span>
             </span>
             <span className="act-gantt__track">
@@ -106,11 +111,7 @@ function BrowserUnit({ unit }: { unit: TimelineUnit }) {
         contentClassName="act-row__body"
         summary={
           <>
-            <Icon
-              name={running ? 'loader-2' : 'app-window'}
-              size={14}
-              className={running ? 'act-spin' : ''}
-            />
+            <PixelIcon name="graph" size={16} state={running ? 'busy' : 'done'} />
             <span className="act-row__label">{running ? 'Browsing' : 'Browser'}</span>
             {(pageTitle || domain) && <span className="act-row__preview">{pageTitle || domain}</span>}
             <span className="act-row__trail">
@@ -152,7 +153,7 @@ function ParallelUnit({
         contentClassName="act-row__body"
         summary={
           <>
-            <Icon name="layers" size={14} />
+            <PixelIcon name="projects" size={16} />
             <span className="act-row__label">Ran {unit.steps.length} tools</span>
           </>
         }
@@ -176,10 +177,10 @@ function ParallelUnit({
   );
 }
 
-const CLUSTER_STYLE: Record<StepIntent, { icon: 'search' | 'file-pen' | 'terminal-square'; running: string; done: string }> = {
-  research: { icon: 'search', running: 'Searching', done: 'Searched' },
-  writing: { icon: 'file-pen', running: 'Writing', done: 'Wrote' },
-  running: { icon: 'terminal-square', running: 'Running', done: 'Ran' },
+const CLUSTER_STYLE: Record<StepIntent, { pixel: 'search' | 'book' | 'terminal'; running: string; done: string }> = {
+  research: { pixel: 'search', running: 'Searching', done: 'Searched' },
+  writing: { pixel: 'book', running: 'Writing', done: 'Wrote' },
+  running: { pixel: 'terminal', running: 'Running', done: 'Ran' },
 };
 
 function clusterSummary(unit: TimelineUnit): string {
@@ -235,7 +236,7 @@ function ClusterUnit({
         contentClassName="act-row__body"
         summary={
           <>
-            <Icon name={style.icon} size={14} className={live ? 'act-spin' : ''} />
+            <PixelIcon name={style.pixel} size={16} state={live ? 'busy' : 'done'} />
             <span className="act-row__label">{clusterSummary(unit)}</span>
             {errors > 0 && (
               <span className="act-chip act-chip--error act-tabular">
