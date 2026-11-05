@@ -5,6 +5,7 @@ import type { BotAvatarConfig } from './bots/config';
 import type { ShortcutOverrides } from './utils/shortcuts';
 import { loadShortcutOverrides, saveShortcutOverrides } from './utils/shortcuts';
 import { useTheme } from './design/ThemeProvider';
+import { resolveScope } from './lib/scope';
 
 export type ToastTone = 'default' | 'success' | 'warning' | 'error' | 'info';
 
@@ -38,7 +39,7 @@ export interface AgentState {
   steps: string[];
 }
 
-export type ActivityMode = 'llm' | 'document' | 'moe' | 'deep_research' | 'agent';
+export type ActivityMode = 'llm' | 'document' | 'moe' | 'agent';
 export type ActivityStatus = 'pending' | 'active' | 'done' | 'error';
 
 export interface ActivityStep {
@@ -78,6 +79,7 @@ interface AppState {
   agentsView: AgentsView;
   activeField: string | null;
   activeProjectId: string | null;
+  activeProjectName: string | null;
   activeSessionId: string | null;
   sessions: { id: string; name: string; created_at?: number; messages: { role: string; content: string; timestamp?: number; sources?: string[]; citations?: CitationPayload }[] }[];
   selectedFiles: Set<string>;
@@ -113,6 +115,7 @@ interface AppContextType extends AppState {
   setAgentsView: (view: AgentsView) => void;
   setActiveField: (field: string | null) => void;
   setActiveProjectId: (id: string | null) => void;
+  setActiveProjectName: (name: string | null) => void;
   setActiveSessionId: (id: string | null) => void;
   setSessions: (sessions: AppState['sessions']) => void;
   toggleSelectedFile: (path: string) => void;
@@ -182,13 +185,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // there is no flash of Home before the hash effect runs.
     if (typeof window === 'undefined') return 'home';
     const value = window.location.hash.replace(/^#\/?/, '');
-    const views = ['home', 'chat', 'agents', 'knowledge', 'projects', 'artifacts', 'research'];
+    const views = ['home', 'chat', 'agents', 'knowledge', 'projects', 'artifacts'];
     return views.includes(value) ? (value as AppView) : 'home';
   });
   const [agentsView, setAgentsView] = useState<AgentsView>('home');
   const [activeField, setActiveField] = useState<string | null>(null);
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(
     () => localStorage.getItem('palimind:active-project'),
+  );
+  const [activeProjectName, setActiveProjectNameState] = useState<string | null>(
+    () => localStorage.getItem('palimind:active-project-name'),
   );
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<AppState['sessions']>([]);
@@ -236,6 +242,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       if (id) localStorage.setItem('palimind:active-project', id);
       else localStorage.removeItem('palimind:active-project');
+    } catch {
+      // ignore unavailable storage
+    }
+  }, []);
+
+  const setActiveProjectName = useCallback((name: string | null) => {
+    setActiveProjectNameState(name);
+    try {
+      if (name) localStorage.setItem('palimind:active-project-name', name);
+      else localStorage.removeItem('palimind:active-project-name');
     } catch {
       // ignore unavailable storage
     }
@@ -330,20 +346,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // One canonical scope per view, matching the scope App loads sessions for
-  // (Home shows the global chat history). The Agents view is deliberately
-  // empty when no agent is selected — it must never fall back to global/field
-  // chat.
-  const sessionScope =
-    activeView === 'agents'
-      ? selectedAgentId
-        ? `agent:${selectedAgentId}`
-        : ''
-      : activeView === 'chat' || activeView === 'home'
-        ? 'chat'
-        : activeView === 'knowledge'
-          ? 'field'
-          : '';
+  // One canonical scope per view, matching the scope App loads sessions for.
+  // The Agents view is deliberately empty when no agent is selected — it must
+  // never fall back to global/field chat.
+  const sessionScope = resolveScope(activeView, {
+    agentId: selectedAgentId,
+    projectId: activeProjectId,
+  });
 
   const sessionScopeRef = useRef(sessionScope);
   useEffect(() => {
@@ -419,6 +428,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     agentsView, setAgentsView,
     activeField, setActiveField,
     activeProjectId, setActiveProjectId,
+    activeProjectName, setActiveProjectName,
     activeSessionId, setActiveSessionId,
     sessions, setSessions,
     selectedFiles, toggleSelectedFile, clearSelectedFiles,
@@ -449,7 +459,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     openArtifactLibrary, openArtifact, clearArtifactTarget,
     shortcutOverrides, setShortcutOverride, resetShortcut, resetAllShortcuts,
   }), [
-    activeView, agentsView, activeField, activeProjectId, activeSessionId, sessions, selectedFiles,
+    activeView, agentsView, activeField, activeProjectId, activeProjectName, activeSessionId, sessions, selectedFiles,
     chatMode, isGenerating, theme, currentModel, llmSubMode,
     orchestratorModel, workerModel, isIndexing, indexingStatus,
     toasts, dismissToast, attachedFiles, isRecording, isTranscribing, isSpeaking,
@@ -459,7 +469,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     artifactPanelOpen, artifactLibraryOpen, artifactTarget, shortcutOverrides,
     toggleSidebar, setShortcutOverride, resetShortcut, resetAllShortcuts,
     openArtifactLibrary, openArtifact, clearArtifactTarget,
-    setActiveProjectId, setTheme, refreshFields, addToast, clearSelectedFiles,
+    setActiveProjectId, setActiveProjectName, setTheme, refreshFields, addToast, clearSelectedFiles,
     refreshFileTree, refreshSessions, toggleSelectedFile,
   ]);
 

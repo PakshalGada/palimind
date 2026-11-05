@@ -1236,3 +1236,36 @@
     max-height: calc(100dvh - 16px);
   }
 }
+
+/* ── v3 micro-motion ───────────────────────────────────────────────────── */
+.ui-skeleton {
+  animation: ui-skeleton-tick 1.4s steps(2, end) infinite;
+}
+@keyframes ui-skeleton-tick {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.ui-btn:not(:disabled) {
+  transition:
+    background-color var(--dur-2) var(--ease-out),
+    border-color var(--dur-2) var(--ease-out),
+    color var(--dur-2) var(--ease-out),
+    transform var(--dur-1) var(--ease-out),
+    opacity var(--dur-2) var(--ease-out);
+}
+.ui-btn--primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.ui-tab.is-active::after {
+  animation: ui-tab-ink 180ms var(--ease-out) both;
+}
+@keyframes ui-tab-ink {
+  from { transform: scaleX(0.2); opacity: 0.4; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-skeleton, .ui-tab.is-active::after { animation: none !important; }
+  .ui-btn--primary:hover:not(:disabled) { transform: none; }
+}
+html[data-motion="reduced"] .ui-skeleton,
+html[data-motion="reduced"] .ui-tab.is-active::after { animation: none !important; }

@@ -242,13 +242,7 @@ function modeState(mode: ActivityState['mode']): ActivityState {
         : [],
     answerStarted: false,
     phase: mode === 'moe' ? 'analyzing' : 'searching',
-    plan:
-      mode === 'deep_research'
-        ? [
-            { id: 'p1', label: 'Map the field', status: 'done' },
-            { id: 'p2', label: 'Compare methods', status: 'running' },
-          ]
-        : undefined,
+    plan: undefined,
     experts:
       mode === 'moe'
         ? [
@@ -259,7 +253,7 @@ function modeState(mode: ActivityState['mode']): ActivityState {
   };
 }
 
-for (const mode of ['default', 'moe', 'deep_research', 'knowledge_base', 'agent'] as const) {
+for (const mode of ['default', 'moe', 'knowledge_base', 'agent'] as const) {
   const state = modeState(mode);
   const store = new ActivityStore(state);
   const html = renderToStaticMarkup(

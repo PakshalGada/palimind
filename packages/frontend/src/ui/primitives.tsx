@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   type ButtonHTMLAttributes,
@@ -29,6 +30,7 @@ export function Button({
 }) {
   return (
     <button
+      type="button"
       {...rest}
       className={`ui-btn ui-btn--${variant} ui-btn--${size} ${className}`.trim()}
     />
@@ -42,6 +44,7 @@ export function IconButton({
 }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
   return (
     <button
+      type="button"
       {...rest}
       aria-label={label}
       title={label}
@@ -759,6 +762,24 @@ export function Toast({
   );
 }
 
+let openDialogCount = 0;
+let dialogOverflow = '';
+
+function lockBodyScroll() {
+  if (openDialogCount === 0) {
+    dialogOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
+  openDialogCount += 1;
+}
+
+function unlockBodyScroll() {
+  openDialogCount = Math.max(0, openDialogCount - 1);
+  if (openDialogCount === 0) {
+    document.body.style.overflow = dialogOverflow;
+  }
+}
+
 export function Dialog({
   open,
   onClose,
@@ -780,6 +801,7 @@ export function Dialog({
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
   // Callers pass inline `onClose` arrows. Reading it through a ref keeps the
   // effect below tied to `open` only; otherwise every parent re-render (e.g. a
   // keystroke in a dialog input) re-ran it, bouncing focus out of the field.
@@ -791,8 +813,7 @@ export function Dialog({
   useEffect(() => {
     if (!open) return;
     restoreRef.current = document.activeElement as HTMLElement | null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    lockBodyScroll();
 
     const focusable = () =>
       Array.from(
@@ -824,11 +845,15 @@ export function Dialog({
       }
     };
     window.addEventListener('keydown', onKey);
+    const dialogEl = dialogRef.current;
     return () => {
-      document.body.style.overflow = previousOverflow;
+      unlockBodyScroll();
       window.removeEventListener('keydown', onKey);
-      // Return focus to the control that opened the dialog.
-      restoreRef.current?.focus?.();
+      // Return focus only when focus is still inside this dialog; a parent
+      // that unmounts the dialog should not have focus stolen from it.
+      if (dialogEl?.contains(document.activeElement)) {
+        restoreRef.current?.focus?.();
+      }
     };
   }, [open]);
 
@@ -840,13 +865,13 @@ export function Dialog({
         className={`ui-modal ${className}`.trim()}
         role="dialog"
         aria-modal="true"
-        aria-label={typeof title === 'string' ? title : undefined}
+        aria-labelledby={titleId}
         style={{ width }}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="ui-modal__head">
           <div className="ui-modal__heading">
-            <div className="ui-modal__title">{title}</div>
+            <div className="ui-modal__title" id={titleId}>{title}</div>
             {subtitle != null && <div className="ui-modal__subtitle">{subtitle}</div>}
           </div>
           <IconButton label="Close" onClick={onClose}>

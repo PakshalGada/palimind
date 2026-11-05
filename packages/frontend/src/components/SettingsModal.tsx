@@ -131,6 +131,8 @@ export default function SettingsModal() {
   useEffect(() => {
     if (!open) return;
     restoreRef.current = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     const focusable = () =>
       Array.from(
         dialogRef.current?.querySelectorAll<HTMLElement>(
@@ -159,6 +161,7 @@ export default function SettingsModal() {
     };
     window.addEventListener('keydown', onKey);
     return () => {
+      document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', onKey);
       restoreRef.current?.focus?.();
     };

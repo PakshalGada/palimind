@@ -3,7 +3,7 @@ import { ArrowRight, Plus, Users } from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import AgentAvatar from '../../components/AgentAvatar';
-import { Button, Chip, EmptyState } from '../../ui/primitives';
+import { Button, Chip, EmptyState, InlineError, SkeletonList } from '../../ui/primitives';
 import type { Team } from '../../types';
 import TeamWorkspace from './TeamWorkspace';
 import './TeamWorkspace.css';
@@ -11,13 +11,18 @@ import './TeamWorkspace.css';
 export default function TeamsPanel() {
   const { selectedTeamId, setSelectedTeamId } = useApp();
   const [teams, setTeams] = useState<Team[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       const data = await api.teams.list();
       setTeams(data.teams || []);
-    } catch {
-      // best effort
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load teams.');
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -47,13 +52,10 @@ export default function TeamsPanel() {
 
   return (
     <div className="teams-panel">
-      <header className="teams-panel__head">
-        <div>
-          <h1 className="ah-title">Teams</h1>
-          <p className="ah-sub">
-            Groups of specialists with a manager, a shared thread and durable shared notes.
-          </p>
-        </div>
+      <div className="teams-panel__toolbar">
+        <p className="ah-sub">
+          Groups of specialists with a manager, a shared thread and durable shared notes.
+        </p>
         <Button
           variant="primary"
           size="sm"
@@ -61,10 +63,14 @@ export default function TeamsPanel() {
         >
           <Plus size={14} /> New team
         </Button>
-      </header>
+      </div>
 
       <div className="teams-panel__scroll">
-        {teams.length === 0 ? (
+        {loading ? (
+          <SkeletonList rows={4} />
+        ) : error ? (
+          <InlineError title="Couldn't load teams" message={error} onRetry={() => void refresh()} />
+        ) : teams.length === 0 ? (
           <EmptyState
             icon={<Users size={26} />}
             title="No teams yet"

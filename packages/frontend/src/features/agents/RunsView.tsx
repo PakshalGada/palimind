@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarClock, Clock, History, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
-import { Button, Chip, Field, Modal, Select, TextArea, TextInput, Toggle } from '../../ui/primitives';
+import { Button, Chip, Field, Modal, Select, SkeletonList, TextArea, TextInput, Toggle, InlineError } from '../../ui/primitives';
 import type { AgentListItem, RecentRun, Routine, Team } from '../../types';
 import './RunsView.css';
 
@@ -24,6 +24,8 @@ export default function RunsView() {
   const [filter, setFilter] = useState('all');
   const [builder, setBuilder] = useState<Partial<Routine> | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -37,8 +39,11 @@ export default function RunsView() {
       setRoutines(routineRes.routines || []);
       setAgents(agentRes.agents || []);
       setTeams(teamRes.teams || []);
-    } catch {
-      // best effort
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load runs.');
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -90,17 +95,20 @@ export default function RunsView() {
 
   return (
     <div className="runs">
-      <header className="runs__head">
-        <div>
-          <h1 className="ah-title">Runs &amp; routines</h1>
-          <p className="ah-sub">Every run across your agents and teams, and the work that repeats.</p>
-        </div>
+      <div className="runs__toolbar">
+        <p className="ah-sub">Every run across your agents and teams, and the work that repeats.</p>
         <Button size="sm" variant="secondary" onClick={() => void refresh()}>
           <RefreshCw size={13} /> Refresh
         </Button>
-      </header>
+      </div>
 
       <div className="runs__scroll">
+        {loading ? (
+          <SkeletonList rows={5} />
+        ) : error ? (
+          <InlineError title="Couldn't load runs" message={error} onRetry={() => void refresh()} />
+        ) : (
+          <>
         <section className="runs__section">
           <div className="runs__section-head">
             <h2>
@@ -209,6 +217,8 @@ export default function RunsView() {
             </div>
           )}
         </section>
+          </>
+        )}
       </div>
 
       <RoutineBuilder

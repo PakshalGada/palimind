@@ -4,15 +4,14 @@ import { api } from '../api';
 import { useCommandHandler } from '../commands/useCommand';
 import type { ModelItem, Recommendation, HardwareData } from '../types';
 import LoadingSpinner from './LoadingSpinner';
+import { resolveScope } from '../lib/scope';
 
 export default function ModelSwitcher() {
-  const { currentModel, setCurrentModel, addToast, activeView, selectedAgentId } = useApp();
-  const scope =
-    activeView === 'agents' && selectedAgentId
-      ? `agent:${selectedAgentId}`
-      : activeView === 'chat'
-        ? 'chat'
-        : 'field';
+  const { currentModel, setCurrentModel, addToast, activeView, activeProjectId, selectedAgentId } = useApp();
+  const scope = resolveScope(activeView, {
+    agentId: selectedAgentId,
+    projectId: activeProjectId,
+  });
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'models' | 'cookbook'>('models');
   const [models, setModels] = useState<ModelItem[]>([]);

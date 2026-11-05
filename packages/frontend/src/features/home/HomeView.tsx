@@ -15,6 +15,7 @@ import { PixelStamp } from '../../components/pixel/PixelStamp';
 import AgentAvatar from '../../components/AgentAvatar';
 import { EmptyState } from '../../ui/primitives';
 import { greeting, relativeTime, exactTime } from '../../utils/time';
+import { resolveScope } from '../../lib/scope';
 import './home.css';
 
 const MAX_RECENT = 5;
@@ -26,13 +27,26 @@ export default function HomeView() {
     setActiveSessionId,
     setActiveView,
     activeField,
+    activeProjectName,
+    activeProjectId,
+    selectedAgentId,
     overview,
     isIndexing,
     indexingStatus,
     setCommandPaletteOpen,
   } = useApp();
 
-  const recentChats = useMemo(() => sessions.slice(0, MAX_RECENT), [sessions]);
+  const recentChats = useMemo(
+    () =>
+      [...sessions]
+        .sort((a, b) => {
+          const aTime = a.messages[a.messages.length - 1]?.timestamp ?? a.created_at ?? 0;
+          const bTime = b.messages[b.messages.length - 1]?.timestamp ?? b.created_at ?? 0;
+          return bTime - aTime;
+        })
+        .slice(0, MAX_RECENT),
+    [sessions],
+  );
   const recentRuns = useMemo(() => (overview?.recent ?? []).slice(0, MAX_RECENT), [overview]);
   const counts = overview?.counts;
 
@@ -44,7 +58,10 @@ export default function HomeView() {
   const openChat = async (id: string) => {
     setActiveView('chat');
     try {
-      const data = await api.sessions.setActive(id, 'chat');
+      const data = await api.sessions.setActive(
+        id,
+        resolveScope('home', { agentId: selectedAgentId, projectId: activeProjectId }),
+      );
       if (!data.error) {
         setSessions(data.sessions as typeof sessions);
         setActiveSessionId(data.active_session_id);
@@ -97,10 +114,10 @@ export default function HomeView() {
             <button
               type="button"
               className="home-action"
-              onClick={() => setActiveView('knowledge')}
+              onClick={() => setActiveView('projects')}
             >
               <FolderOpen size={15} />
-              Open workspace
+              Projects
             </button>
             <button
               type="button"
@@ -115,18 +132,26 @@ export default function HomeView() {
 
         <section className="home-paper" aria-label="Current workspace">
           <div className="home-paper__main">
-            <span className="home-paper__label">Workspace</span>
+            <span className="home-paper__label">{activeProjectId ? 'Active project' : 'Workspace'}</span>
             <span className="home-paper__name">
-              {activeField ? activeField.split(/[\\/]/).filter(Boolean).pop() : 'No workspace selected'}
+              {activeProjectId
+                ? activeProjectName || 'Project'
+                : activeField
+                  ? activeField.split(/[\\/]/).filter(Boolean).pop()
+                  : 'No workspace selected'}
             </span>
-            <span className="home-paper__path">{activeField ?? 'Add a folder to index documents locally.'}</span>
+            <span className="home-paper__path">
+              {activeProjectId
+                ? 'Sessions, knowledge and artifacts are scoped to this project.'
+                : activeField ?? 'Add a folder to index documents locally.'}
+            </span>
           </div>
           <button
             type="button"
             className="home-paper__action"
-            onClick={() => setActiveView('knowledge')}
+            onClick={() => setActiveView(activeProjectId ? 'projects' : 'knowledge')}
           >
-            {activeField ? 'Manage knowledge' : 'Add a folder'}
+            {activeProjectId ? 'Manage project' : activeField ? 'Manage knowledge' : 'Add a folder'}
             <ArrowRight size={14} />
           </button>
         </section>
@@ -145,11 +170,6 @@ export default function HomeView() {
                 glyph={<PixelGlyph sprite="terminal" cell={3} />}
                 title="No conversations yet"
                 description="Start a chat and it will show up here."
-                action={
-                  <button type="button" className="home-action home-action--sm" onClick={newChat}>
-                    <Plus size={13} /> New chat
-                  </button>
-                }
               />
             ) : (
               <ul className="home-list">
@@ -166,7 +186,7 @@ export default function HomeView() {
                         <span className="home-row__body">
                           <span className="home-row__title">{session.name}</span>
                           <span className="home-row__meta">
-                            {last ? `${last.role} · ` : ''}
+                            {last ? `${last.role === 'user' ? 'You' : 'Assistant'} · ` : ''}
                             {relativeTime(last?.timestamp ?? session.created_at)}
                           </span>
                         </span>

@@ -1,4 +1,4 @@
-import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, Approval, BackgroundTask, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, LibraryArtifact, MarketplaceSkill, MemoryEntry, ModelItem, Overview, PlanTemplate, Project, ProjectArtifact, ProjectKbStatus, ProjectScope, QueueItem, RecentRun, Recommendation, ResearchFinding, ResearchProject, ResearchProjectSummary, Routine, RunRecord, SetupTask, SkillCommand, SkillMeta, SocialSignal, Team, TeamMessage, TeamNote, TeamRun, ToolMeta, TreeNode, VerificationReport, WorkspaceFile } from './types';
+import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, Approval, BackgroundTask, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, LibraryArtifact, MarketplaceSkill, MemoryEntry, ModelItem, Overview, PlanTemplate, Project, ProjectArtifact, ProjectKbStatus, ProjectScope, QueueItem, RecentRun, Recommendation, Routine, RunRecord, SetupTask, SkillCommand, SkillMeta, Team, TeamMessage, TeamNote, TeamRun, ToolMeta, TreeNode, VerificationReport, WorkspaceFile } from './types';
 
 const BASE = '/api';
 
@@ -45,16 +45,6 @@ async function patch<T>(path: string, body: unknown): Promise<T> {
   return parse<T>(res, `PATCH ${path}`);
 }
 
-async function put<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    method: 'PUT',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  return parse<T>(res, `PUT ${path}`);
-}
-
 async function del<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { method: 'DELETE', credentials: 'include' });
   return parse<T>(res, `DELETE ${path}`);
@@ -81,7 +71,7 @@ export const api = {
     treeSub: (path: string) => get<{ children?: TreeNode[]; error?: string }>(`/files/tree/sub?path=${encodeURIComponent(path)}`),
   },
   config: {
-    get: (scope = 'field') => get<{ chat_model?: string; embed_model?: string; moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string; deep_research_model?: string; persona_name?: string; persona_system_prompt?: string }>(`/config?scope=${scope}`),
+    get: (scope = 'field') => get<{ chat_model?: string; embed_model?: string; moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string; persona_name?: string; persona_system_prompt?: string }>(`/config?scope=${scope}`),
     setModel: (modelId: string, scope = 'field') => patch<{ error?: string }>(`/config/model?scope=${scope}`, { model_id: modelId }),
     setEmbedModel: (modelId: string, scope = 'field') => patch<{ error?: string }>(`/config/embed-model?scope=${scope}`, { embed_model: modelId }),
     setMoe: (data: { moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string }, scope = 'field') => patch<{ error?: string }>(`/config/moe?scope=${scope}`, data),
@@ -671,28 +661,6 @@ export const api = {
     },
     exportUrl: (artifactId: string) =>
       `${BASE}/artifacts/${encodeURIComponent(artifactId)}/export`,
-  },
-  research: {
-    approve: (planId: string, plan: unknown[]) =>
-      post<{ status?: string; error?: string }>('/research/approve', { plan_id: planId, plan }),
-    cancel: (planId: string) =>
-      post<{ status?: string; error?: string }>('/research/cancel', { plan_id: planId }),
-    social: (q: string, maxResults = 8) =>
-      get<SocialSignal>(`/research/x?q=${encodeURIComponent(q)}&max_results=${maxResults}`),
-    projects: {
-      list: () => get<{ projects: ResearchProjectSummary[] }>('/research/projects'),
-      create: (title: string, query = '') => post<ResearchProject>('/research/projects', { title, query }),
-      get: (id: string) => get<ResearchProject & { error?: string }>(`/research/projects/${encodeURIComponent(id)}`),
-      update: (id: string, changes: { title?: string; query?: string; notes?: string }) =>
-        put<ResearchProject & { error?: string }>(`/research/projects/${encodeURIComponent(id)}`, changes),
-      remove: (id: string) => del<{ status?: string; error?: string }>(`/research/projects/${encodeURIComponent(id)}`),
-      addFinding: (id: string, title: string, content: string) =>
-        post<{ finding?: ResearchFinding; error?: string }>(`/research/projects/${encodeURIComponent(id)}/findings`, { title, content }),
-      addSources: (id: string, sources: unknown[]) =>
-        post<ResearchProject & { error?: string }>(`/research/projects/${encodeURIComponent(id)}/sources`, { sources }),
-      addReport: (id: string, query: string, report: string) =>
-        post<ResearchProject & { error?: string }>(`/research/projects/${encodeURIComponent(id)}/reports`, { query, report }),
-    },
   },
   voice: {
     synthesize: (text: string, voice = 'af_bella') =>

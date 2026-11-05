@@ -15,6 +15,7 @@ import { useCommandHandlers } from "../commands/useCommand";
 import { useChatStreamActions } from "../stream/context";
 import { exportWAV } from "../utils/audio";
 import { api } from "../api";
+import { resolveScope } from "../lib/scope";
 import type { AgentListItem, ModelItem } from "../types";
 import {
   PromptInput,
@@ -42,6 +43,7 @@ function InputArea() {
     setAttachedFiles,
     currentModel,
     activeView,
+    activeProjectId,
     selectedAgentId,
     isRecording,
     setIsRecording,
@@ -55,14 +57,10 @@ function InputArea() {
   const isChatView = activeView === 'chat' || activeView === 'agents';
   // The Agents view reuses this exact composer but targets the selected
   // agent's own scope (separate sessions + model), not global chat.
-  const scope =
-    activeView === 'agents'
-      ? selectedAgentId
-        ? `agent:${selectedAgentId}`
-        : ''
-      : isChatView
-        ? 'chat'
-        : 'field';
+  const scope = resolveScope(activeView, {
+    agentId: selectedAgentId,
+    projectId: activeProjectId,
+  });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState("");
@@ -329,7 +327,7 @@ function InputArea() {
   }, [moePopupOpen, models.length, fetchModels]);
 
   const handleSubModeChange = useCallback(
-    async (mode: "default" | "moe" | "deep_research") => {
+    async (mode: "default" | "moe") => {
       setLlmSubMode(mode);
       try {
         await api.config.setMoe({ moe_sub_mode: mode }, scope);
@@ -414,9 +412,6 @@ function InputArea() {
       } else if (llmSubMode === "moe") {
         actMode = "moe";
         actTitle = "Mixture of Experts";
-      } else if (llmSubMode === "deep_research") {
-        actMode = "deep_research";
-        actTitle = "Deep Research";
       }
 
       // When an agent is invoked in this PaliSpace, surface the same animated
@@ -550,7 +545,7 @@ function InputArea() {
     return () => window.removeEventListener('palimind:regenerate-message', handler);
   }, []);
 
-  // Research projects can pre-fill the composer to continue prior work.
+  // Surfaces can pre-fill the composer (e.g. "continue" actions).
   useEffect(() => {
     const handler = (e: Event) => {
       const text = (e as CustomEvent).detail?.text as string | undefined;
@@ -614,7 +609,6 @@ function InputArea() {
   };
 
   const isMoeActive = chatMode === "llm" && llmSubMode === "moe";
-  const isDeepResearchActive = chatMode === "llm" && llmSubMode === "deep_research";
 
   return (
     <div className="input-area">
@@ -755,7 +749,7 @@ function InputArea() {
                 onClick={() => setMoePopupOpen(!moePopupOpen)}
               >
                 <span className="moe-btn-label">
-                  {isMoeActive ? "Mixture of Experts" : isDeepResearchActive ? "Deep Research" : "Default"}
+                  {isMoeActive ? "Mixture of Experts" : "Default"}
                 </span>
                 <svg
                   className="moe-btn-chevron"
@@ -827,38 +821,6 @@ function InputArea() {
                       </span>
                     </div>
                     {llmSubMode === "moe" && (
-                      <svg
-                        className="moe-popup-check"
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                  </div>
-
-                  <div
-                    className="moe-popup-option"
-                    onClick={() => {
-                      handleSubModeChange("deep_research");
-                      setMoePopupOpen(false);
-                    }}
-                  >
-                    <div className="moe-popup-option-info">
-                      <span className="moe-popup-option-name">
-                        Deep Research
-                      </span>
-                      <span className="moe-popup-option-desc">
-                        Multi-agent research pipeline with synthesis
-                      </span>
-                    </div>
-                    {llmSubMode === "deep_research" && (
                       <svg
                         className="moe-popup-check"
                         width="14"

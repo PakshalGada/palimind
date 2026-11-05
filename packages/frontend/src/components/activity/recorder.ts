@@ -178,7 +178,7 @@ export class RunRecorder {
           });
           this.store.dispatch({ type: 'phase', phase: 'analyzing' });
         }
-        if (this.mode === 'deep_research' && this.store.getState()?.plan?.length) {
+        if (this.store.getState()?.plan?.length) {
           this.store.dispatch({
             type: 'plan.step',
             id: `plan-${event.agent_id}`,
@@ -296,23 +296,6 @@ export class RunRecorder {
         break;
       }
 
-      case 'research_plan': {
-        const plan = event.plan;
-        if (!Array.isArray(plan)) break;
-        this.store.dispatch({
-          type: 'plan.set',
-          steps: plan.map((entry, index) => {
-            const record = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : {};
-            const label =
-              (typeof record.title === 'string' && record.title) ||
-              (typeof record.research_question === 'string' && record.research_question) ||
-              `Sub-topic ${index + 1}`;
-            return { id: `plan-${index}`, label: String(label) };
-          }),
-        });
-        break;
-      }
-
       case 'sources': {
         (event.sources ?? []).forEach((source, index) => {
           this.store.dispatch({
@@ -408,7 +391,7 @@ export class RunRecorder {
     if (!trimmed) return;
     const phase = phaseFromText(trimmed);
     if (phase) this.store.dispatch({ type: 'phase', phase });
-    if (this.mode === 'deep_research' || this.mode === 'knowledge_base' || this.mode === 'moe') {
+    if (this.mode === 'knowledge_base' || this.mode === 'moe') {
       return;
     }
     this.appendReasoning(`${trimmed}\n`);

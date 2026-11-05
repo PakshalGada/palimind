@@ -14,7 +14,7 @@ import {
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import AgentAvatar from '../../components/AgentAvatar';
-import { Button, Chip, EmptyState, TextArea } from '../../ui/primitives';
+import { Button, Chip, EmptyState, SkeletonList, TextArea } from '../../ui/primitives';
 import type { OverviewTarget, TargetStatus } from '../../types';
 import './AgentsHome.css';
 
@@ -236,15 +236,12 @@ export default function AgentsHome() {
 
   return (
     <div className="ah">
-      <header className="ah-head">
-        <div>
-          <h1 className="ah-title">Team overview</h1>
-          <p className="ah-sub">
-            {overview
-              ? `${overview.counts.agents} teammates · ${overview.counts.teams} teams · ${overview.counts.working} working · ${overview.counts.waiting} waiting on you`
-              : 'Loading your team…'}
-          </p>
-        </div>
+      <div className="ah-toolbar">
+        <p className="ah-sub">
+          {overview
+            ? `${overview.counts.agents} teammates · ${overview.counts.teams} teams · ${overview.counts.working} working · ${overview.counts.waiting} waiting on you`
+            : 'Loading your team…'}
+        </p>
         <div className="ah-head__actions">
           <Button size="sm" variant="ghost" onClick={() => setAgentsView('runs')}>
             <Clock size={14} /> Runs
@@ -257,10 +254,12 @@ export default function AgentsHome() {
             <Users size={14} /> New team
           </Button>
         </div>
-      </header>
+      </div>
 
       <div className="ah-scroll">
-        {isEmpty ? (
+        {!overview ? (
+          <SkeletonList rows={5} />
+        ) : isEmpty ? (
           <div className="ah-empty">
             <EmptyState
               icon={<Sparkles size={28} />}

@@ -314,6 +314,7 @@ export default function KnowledgeGraph() {
   const visRef = useRef<VisModules | null>(null);
 
   const [visReady, setVisReady] = useState(false);
+  const [open, setOpen] = useState(false);
   const [stats, setStats] = useState('');
   const [showSections, setShowSections] = useState(false);
   const [search, setSearch] = useState('');
@@ -624,8 +625,7 @@ export default function KnowledgeGraph() {
 
   const close = useCallback(() => {
     destroyNetwork();
-    const modal = document.getElementById('graph-modal');
-    if (modal) modal.style.display = 'none';
+    setOpen(false);
   }, [destroyNetwork]);
 
   const loadGraph = useCallback(async () => {
@@ -654,6 +654,7 @@ export default function KnowledgeGraph() {
 
   useEffect(() => {
     const openHandler = () => {
+      setOpen(true);
       // Fetch the renderer in parallel with the graph payload the first time
       // the modal is opened, then re-render once both are ready.
       void loadVisModules()
@@ -671,21 +672,18 @@ export default function KnowledgeGraph() {
   }, [loadGraph]);
 
   useEffect(() => {
-    const modal = document.getElementById('graph-modal');
-    if (!modal) return;
-    const handler = (e: MouseEvent) => {
-      if (e.target === modal) close();
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close();
     };
-    const keyHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && modal.style.display !== 'none') close();
-    };
-    modal.addEventListener('click', handler);
-    window.addEventListener('keydown', keyHandler);
+    window.addEventListener('keydown', onKey);
     return () => {
-      modal.removeEventListener('click', handler);
-      window.removeEventListener('keydown', keyHandler);
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKey);
     };
-  }, [close]);
+  }, [open, close]);
 
   useEffect(() => () => destroyNetwork(), [destroyNetwork]);
 
@@ -710,9 +708,20 @@ export default function KnowledgeGraph() {
   const hasGraph = data.nodes.length > 0;
   const noMatches = hasGraph && searchFiltered.nodes.length === 0;
 
+  if (!open) return null;
+
   return (
-    <div id="graph-modal" className="modal" role="dialog" aria-modal="true" aria-labelledby="graph-title" style={{ display: 'none' }}>
-      <div className="modal-content graph-modal-content">
+    <div
+      id="graph-modal"
+      className="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="graph-title"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
+    >
+      <div className="modal-content graph-modal-content" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-header graph-modal-header">
           <h2 id="graph-title">Document Knowledge Graph</h2>
           <div className="graph-toolbar">

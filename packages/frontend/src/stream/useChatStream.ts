@@ -280,14 +280,6 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
             break;
           }
 
-          case 'research_plan':
-            window.dispatchEvent(
-              new CustomEvent('palimind:research-plan', {
-                detail: { plan_id: event.plan_id, plan: event.plan, query: request.text },
-              }),
-            );
-            break;
-
           case 'sources': {
             const sources = event.sources ?? [];
             if (sources.length) {

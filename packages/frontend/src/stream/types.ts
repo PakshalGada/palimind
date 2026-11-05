@@ -87,7 +87,6 @@ export type StreamEvent =
   | { type: 'agent:token'; text?: string; reset?: boolean; stream?: boolean }
   | { type: 'agent:completed'; output?: string; status?: string }
   | { type: 'progress'; text?: string }
-  | { type: 'research_plan'; plan_id?: string; plan?: unknown }
   | { type: 'answer_final'; text?: string }
   | { type: 'done' }
   | { type: 'error'; text?: string }

@@ -12,7 +12,7 @@ import {
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import { useConfirm } from '../../components/ConfirmDialog';
-import PageTitle from '../../components/layout/PageTitle';
+import SurfaceHeader from '../../components/layout/SurfaceHeader';
 import { PixelGlyph } from '../../components/pixel/PixelGlyph';
 import { PixelMeter } from '../../components/pixel/PixelMeter';
 import { Dialog, EmptyState, InlineError, SkeletonList } from '../../ui/primitives';
@@ -23,7 +23,15 @@ import './projects.css';
 type Tab = 'overview' | 'sessions' | 'artifacts';
 
 export default function ProjectsView() {
-  const { addToast, activeProjectId, setActiveProjectId, setActiveView } = useApp();
+  const {
+    addToast,
+    activeProjectId,
+    setActiveProjectId,
+    setActiveView,
+    setSessions: setGlobalSessions,
+    setActiveSessionId,
+    setActiveProjectName,
+  } = useApp();
   const confirm = useConfirm();
 
   const [projects, setProjects] = useState<Project[]>([]);
@@ -36,8 +44,14 @@ export default function ProjectsView() {
   const [tab, setTab] = useState<Tab>('overview');
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newDescription, setNewDescription] = useState('');
   const [newPath, setNewPath] = useState('');
   const [syncing, setSyncing] = useState(false);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<'recent' | 'name'>('recent');
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -110,9 +124,11 @@ export default function ProjectsView() {
     try {
       const created = await api.projects.create({
         name,
+        description: newDescription.trim() || undefined,
         workspace_path: newPath.trim() || undefined,
       });
       setNewName('');
+      setNewDescription('');
       setNewPath('');
       setCreateOpen(false);
       await load();
@@ -120,6 +136,35 @@ export default function ProjectsView() {
     } catch {
       addToast('Could not create project.', { tone: 'error' });
     }
+  };
+
+  const updateMeta = async () => {
+    if (!project) return;
+    const name = editName.trim();
+    if (!name) return;
+    try {
+      const updated = await api.projects.update(project.id, {
+        name,
+        description: editDescription.trim(),
+      });
+      if (updated.error) {
+        addToast(updated.error, { tone: 'error' });
+        return;
+      }
+      setProject(updated);
+      setEditOpen(false);
+      addToast('Project updated', { tone: 'success' });
+      await load();
+    } catch {
+      addToast('Could not update project.', { tone: 'error' });
+    }
+  };
+
+  const openEdit = () => {
+    if (!project) return;
+    setEditName(project.name);
+    setEditDescription(project.description || '');
+    setEditOpen(true);
   };
 
   const remove = async (target: Project) => {
@@ -137,7 +182,10 @@ export default function ProjectsView() {
         setProject(null);
       }
       // Don't leave chat pointed at a project that no longer exists.
-      if (activeProjectId === target.id) setActiveProjectId(null);
+      if (activeProjectId === target.id) {
+        setActiveProjectId(null);
+        setActiveProjectName(null);
+      }
       await load();
     } catch {
       addToast('Could not delete project.', { tone: 'error' });
@@ -159,30 +207,81 @@ export default function ProjectsView() {
     }
   };
 
-  const openInChat = () => {
+  const openInChat = async () => {
+    if (!project) return;
+    try {
+      const opened = await api.projects.open(project.id);
+      setActiveProjectId(project.id);
+      setActiveProjectName(project.name);
+      const sessionData = opened.sessions;
+      if (sessionData?.sessions) setGlobalSessions(sessionData.sessions as never);
+      if (sessionData?.active_session_id !== undefined) {
+        setActiveSessionId(sessionData.active_session_id);
+      }
+      setActiveView('chat');
+    } catch {
+      addToast('Could not open project chat.', { tone: 'error' });
+    }
+  };
+
+  const openProjectSession = (sessionId: string) => {
     if (!project) return;
     setActiveProjectId(project.id);
+    setActiveProjectName(project.name);
+    setGlobalSessions(sessions as never);
+    setActiveSessionId(sessionId);
     setActiveView('chat');
   };
 
   const kb = project?.kb_status;
-  const kbRatio = kb && kb.chunks > 0 ? Math.min(1, kb.indexed_files / Math.max(1, kb.chunks)) : 0;
+  const indexed = kb?.has_index || (kb?.indexed_files ?? 0) > 0;
+
+  const visibleProjects = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = q
+      ? projects.filter(
+          (item) =>
+            item.name.toLowerCase().includes(q) ||
+            (item.description || '').toLowerCase().includes(q) ||
+            (item.workspace_path || '').toLowerCase().includes(q),
+        )
+      : projects;
+    return [...list].sort((a, b) =>
+      sort === 'name'
+        ? a.name.localeCompare(b.name)
+        : (b.last_opened_at ?? b.updated_at) - (a.last_opened_at ?? a.updated_at),
+    );
+  }, [projects, query, sort]);
 
   const headerActions = useMemo(
     () => (
-      <button type="button" className="ui-btn ui-btn--sm" onClick={() => void load()}>
-        <RefreshCw size={13} /> Refresh
-      </button>
+      <>
+        <button
+          type="button"
+          className="ui-btn ui-btn--primary ui-btn--sm"
+          onClick={() => setCreateOpen(true)}
+        >
+          <Plus size={13} /> New project
+        </button>
+        <button type="button" className="ui-btn ui-btn--sm" onClick={() => void load()}>
+          <RefreshCw size={13} /> Refresh
+        </button>
+      </>
     ),
     [load],
   );
 
   return (
     <div className="projects-view">
-      <PageTitle
-        eyebrow="Workspace"
+      <SurfaceHeader
         title="Projects"
-        subtitle="Persistent workspaces with their own sessions, knowledge and artifacts."
+        meta={
+          loading
+            ? 'Loading…'
+            : error
+              ? 'Unavailable'
+              : `${projects.length} ${projects.length === 1 ? 'workspace' : 'workspaces'}`
+        }
         actions={headerActions}
       />
 
@@ -209,26 +308,52 @@ export default function ProjectsView() {
               }
             />
           ) : (
-            <ul className="projects-list__items">
-              {projects.map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    className={`project-row${item.id === selectedId ? ' is-active' : ''}`}
-                    onClick={() => void select(item.id)}
-                  >
-                    <FolderKanban size={15} className="project-row__icon" />
-                    <span className="project-row__body">
-                      <span className="project-row__name">{item.name}</span>
-                      <span className="project-row__meta">
-                        {item.kb?.indexed_files ? `${item.kb.indexed_files} files · ` : ''}
-                        {relativeTime(item.last_opened_at ?? item.updated_at)}
+            <>
+              <div className="projects-list__tools">
+                <input
+                  className="ui-input"
+                  value={query}
+                  placeholder="Filter projects…"
+                  aria-label="Filter projects"
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="ui-icon-btn"
+                  title={sort === 'recent' ? 'Sort by name' : 'Sort by recent'}
+                  aria-label={sort === 'recent' ? 'Sort by name' : 'Sort by recent'}
+                  onClick={() => setSort(sort === 'recent' ? 'name' : 'recent')}
+                >
+                  <RefreshCw size={13} style={{ transform: sort === 'name' ? 'rotate(90deg)' : undefined }} />
+                </button>
+              </div>
+              <ul className="projects-list__items">
+                {visibleProjects.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      className={`project-row${item.id === selectedId ? ' is-active' : ''}`}
+                      onClick={() => void select(item.id)}
+                    >
+                      <FolderKanban size={15} className="project-row__icon" />
+                      <span className="project-row__body">
+                        <span className="project-row__name">{item.name}</span>
+                        {item.description && (
+                          <span className="project-row__desc">{item.description}</span>
+                        )}
+                        <span className="project-row__meta">
+                          {item.kb?.indexed_files ? `${item.kb.indexed_files} files · ` : ''}
+                          {relativeTime(item.last_opened_at ?? item.updated_at)}
+                        </span>
                       </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+                    </button>
+                  </li>
+                ))}
+                {visibleProjects.length === 0 && (
+                  <li className="projects-list__empty">No projects match “{query}”.</li>
+                )}
+              </ul>
+            </>
           )}
         </aside>
 
@@ -247,10 +372,13 @@ export default function ProjectsView() {
                   <div className="projects-detail__path">{project.workspace_path || 'No folder linked'}</div>
                 </div>
                 <div className="projects-detail__actions">
+                  <button type="button" className="ui-btn ui-btn--sm" onClick={openEdit}>
+                    <FolderOpen size={13} /> Edit
+                  </button>
                   <button type="button" className="ui-btn ui-btn--sm" onClick={() => void sync()} disabled={syncing}>
                     <RefreshCw size={13} /> {syncing ? 'Syncing…' : 'Sync knowledge'}
                   </button>
-                  <button type="button" className="ui-btn ui-btn--primary ui-btn--sm" onClick={openInChat}>
+                  <button type="button" className="ui-btn ui-btn--primary ui-btn--sm" onClick={() => void openInChat()}>
                     <MessageSquare size={13} /> Open in chat
                   </button>
                   <button
@@ -264,6 +392,25 @@ export default function ProjectsView() {
                   </button>
                 </div>
               </header>
+
+              <div className="projects-stats">
+                <div>
+                  <span className="projects-stats__value">{sessions.length}</span>
+                  <span className="projects-stats__label">Sessions</span>
+                </div>
+                <div>
+                  <span className="projects-stats__value">{artifacts.length}</span>
+                  <span className="projects-stats__label">Artifacts</span>
+                </div>
+                <div>
+                  <span className="projects-stats__value">{kb?.indexed_files ?? 0}</span>
+                  <span className="projects-stats__label">Files indexed</span>
+                </div>
+                <div>
+                  <span className="projects-stats__value">{kb?.chunks ?? 0}</span>
+                  <span className="projects-stats__label">Chunks</span>
+                </div>
+              </div>
 
               <div className="projects-detail__tabs">
                 {(['overview', 'sessions', 'artifacts'] as Tab[]).map((id) => (
@@ -297,15 +444,16 @@ export default function ProjectsView() {
                     <div>
                       <dt>Index health</dt>
                       <dd>
-                        <PixelMeter
-                          value={kbRatio}
-                          label={
-                            kb
-                              ? `${kb.indexed_files} files · ${kb.chunks} chunks`
-                              : 'Not indexed'
-                          }
-                          showPercent={false}
-                        />
+                        {syncing ? (
+                          <PixelMeter value={null} label="Syncing…" />
+                        ) : indexed ? (
+                          <span className="projects-health is-ready">
+                            <PixelGlyph sprite="check" cell={1.5} />
+                            {kb?.indexed_files ?? 0} files · {kb?.chunks ?? 0} chunks
+                          </span>
+                        ) : (
+                          <span className="projects-health">Not indexed yet</span>
+                        )}
                       </dd>
                     </div>
                     <div>
@@ -337,9 +485,15 @@ export default function ProjectsView() {
                   )}
                   {sessions.map((session) => (
                     <li key={session.id} className="projects-row">
-                      <MessageSquare size={14} />
-                      <span className="projects-row__title">{session.name}</span>
-                      <span className="projects-row__meta">{session.messages.length} messages</span>
+                      <button
+                        type="button"
+                        className="projects-row__open"
+                        onClick={() => openProjectSession(session.id)}
+                      >
+                        <MessageSquare size={14} />
+                        <span className="projects-row__title">{session.name}</span>
+                        <span className="projects-row__meta">{session.messages.length} messages</span>
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -394,11 +548,21 @@ export default function ProjectsView() {
               className="ui-input"
               value={newName}
               autoFocus
-              placeholder="Research notes"
+              placeholder="Product notes"
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void create();
               }}
+            />
+          </label>
+          <label className="ui-field">
+            <span className="ui-field__label">Description (optional)</span>
+            <textarea
+              className="ui-textarea"
+              value={newDescription}
+              placeholder="What kind of work lives here?"
+              rows={3}
+              onChange={(e) => setNewDescription(e.target.value)}
             />
           </label>
           <label className="ui-field">
@@ -410,6 +574,50 @@ export default function ProjectsView() {
               onChange={(e) => setNewPath(e.target.value)}
             />
             <span className="ui-field__hint">Leave empty to start without a knowledge folder.</span>
+          </label>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        title="Edit project"
+        subtitle="Rename the workspace or update its description."
+        width={520}
+        footer={
+          <>
+            <button type="button" className="ui-btn" onClick={() => setEditOpen(false)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="ui-btn ui-btn--primary"
+              onClick={() => void updateMeta()}
+              disabled={!editName.trim()}
+            >
+              Save changes
+            </button>
+          </>
+        }
+      >
+        <div className="projects-form">
+          <label className="ui-field">
+            <span className="ui-field__label">Name</span>
+            <input
+              className="ui-input"
+              value={editName}
+              autoFocus
+              onChange={(e) => setEditName(e.target.value)}
+            />
+          </label>
+          <label className="ui-field">
+            <span className="ui-field__label">Description</span>
+            <textarea
+              className="ui-textarea"
+              value={editDescription}
+              rows={3}
+              onChange={(e) => setEditDescription(e.target.value)}
+            />
           </label>
         </div>
       </Dialog>

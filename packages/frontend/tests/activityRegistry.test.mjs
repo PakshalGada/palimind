@@ -66,7 +66,7 @@ test('preview extractors pick the useful argument', () => {
 test('mode mapping covers every product area', () => {
   assert.equal(modeFromActivityMode('document'), 'knowledge_base');
   assert.equal(modeFromActivityMode('moe'), 'moe');
-  assert.equal(modeFromActivityMode('deep_research'), 'deep_research');
+  assert.equal(modeFromActivityMode('deep_research'), 'default');
   assert.equal(modeFromActivityMode('agent'), 'agent');
   assert.equal(modeFromActivityMode('llm'), 'default');
   assert.equal(modeFromSubMode('moe'), 'moe');

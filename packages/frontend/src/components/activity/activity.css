@@ -2019,3 +2019,34 @@
     gap: 6px;
     min-width: 0;
 }
+
+/* ── pixel polish for tool calls ─────────────────────────────────────────── */
+.act-row {
+  animation: act-row-in 180ms var(--ease-out) both;
+}
+@keyframes act-row-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+.act-status__glyph--live {
+  color: var(--act-text);
+}
+.act-row__head:hover .act-row__toolicon {
+  transform: translateX(1px);
+}
+.act-row__toolicon {
+  transition: transform var(--dur-2) var(--ease-out);
+}
+.act-row--error .act-row__head {
+  box-shadow: inset 2px 0 0 var(--act-text);
+}
+.act-row--queued {
+  opacity: 0.65;
+}
+.act-btn--ghost:hover {
+  background: var(--act-recessed-strong);
+}
+@media (prefers-reduced-motion: reduce) {
+  .act-row { animation: none !important; }
+}
+html[data-motion="reduced"] .act-row { animation: none !important; }

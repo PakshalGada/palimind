@@ -269,19 +269,19 @@ mobile sidebar scrim, and gradients in strict files.
 | 2 | Shell, top bar, navigation, view state | **done** |
 | 3 | Chat surface, composer, empty state | **done** |
 | 4 | Agents suite | **done** (reskin + suite tabs) |
-| 5 | Knowledge, Projects, Artifacts, Research | **done** (promoted to views) |
+| 5 | Knowledge, Projects, Artifacts | **done** (promoted to views) |
 | 6 | Overlays + settings appearance | **done** |
 | 7 | Polish, responsive, a11y, strict guard | **done** |
 | v2 | De-boxing, single CommandBar, expanded pixel motion | **done** |
 
 ### What changed in Phases 2–7
 
-- `AppView` is now `home | chat | agents | knowledge | projects | artifacts |
-  research`. Projects, Artifacts and Research are routed views, not modals.
+- `AppView` is now `home | chat | agents | knowledge | projects | artifacts`.
+  Projects and Artifacts are routed views, not modals.
 - `AppLayout` gained a persistent 48px top bar (`AppTopBar`) with the pixel
   brand mark, breadcrumb, live status, command palette trigger, inbox and theme.
-- `ViewHeader` is the single page header: eyebrow, title, subtitle, actions and
-  inverted tabs. Home, Projects, Artifacts, Research and Knowledge use it.
+- `SurfaceHeader` is the compact content header used by Projects, Artifacts and
+  Knowledge. Home uses its own editorial greeting.
 - Hash deep links (`#chat`, `#projects`, …) so a reload keeps context.
 - Chat: inverted user turns, 760px reading column, solid bordered composer,
   pixel-caret streaming, dither + prompt rows in the empty state, slim chat head.

@@ -9,11 +9,7 @@ export default function WelcomeScreen() {
   const greeting = useMemo(() => getGreeting(name), [name]);
 
   const openPicker = () => {
-    const modal = document.getElementById('dir-picker-modal');
-    if (modal) {
-      modal.style.display = 'flex';
-      window.dispatchEvent(new CustomEvent('palimind:open-dir-picker'));
-    }
+    window.dispatchEvent(new CustomEvent('palimind:open-dir-picker'));
   };
 
   return (

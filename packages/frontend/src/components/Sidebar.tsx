@@ -14,7 +14,6 @@ import {
   Plus,
   RefreshCw,
   Settings,
-  X,
   type LucideIcon,
 } from "lucide-react";
 import { useApp } from "../AppContext";
@@ -25,8 +24,12 @@ import { useCommandHandlers } from "../commands/useCommand";
 import { getCommand } from "../commands/catalog";
 import { runCommand } from "../commands/registry";
 import { formatShortcut } from "../utils/shortcuts";
+import { resolveScope } from "../lib/scope";
+import { PixelIcon } from "./pixel/PixelIcon";
+import type { PixelSprite } from "./pixel/sprites";
 import {
   Avatar,
+  Dialog,
   EmptyState,
   InlineError,
   Kbd,
@@ -116,16 +119,12 @@ export default function Sidebar() {
     toggleSidebar,
     setSidebarCollapsed,
     shortcutOverrides,
+    activeProjectId,
+    activeProjectName,
   } = useApp();
 
   const chatScope = () =>
-    activeView === 'agents'
-      ? selectedAgentId
-        ? `agent:${selectedAgentId}`
-        : ''
-      : activeView === 'knowledge'
-        ? 'field'
-        : 'chat';
+    resolveScope(activeView, { agentId: selectedAgentId, projectId: activeProjectId });
 
   // Session requests resolve after the user may have switched views/agents.
   // Each request captures its scope and a sequence number; a response is only
@@ -282,8 +281,6 @@ export default function Sidebar() {
   };
 
   const handleOpenGraph = () => {
-    const modal = document.getElementById("graph-modal");
-    if (modal) modal.style.display = "flex";
     window.dispatchEvent(new CustomEvent("palimind:open-graph"));
   };
 
@@ -311,6 +308,15 @@ export default function Sidebar() {
   const shortcutFor = (commandId: string): string => {
     const combo = shortcutOverrides[commandId] ?? getCommand(commandId)?.defaultShortcut ?? "";
     return combo ? formatShortcut(combo) : "";
+  };
+
+  const navPixel: Record<string, PixelSprite> = {
+    home: "home",
+    chat: "chat",
+    agents: "bot",
+    knowledge: "book",
+    projects: "projects",
+    artifacts: "package",
   };
 
   const navItems: NavItem[] = [
@@ -368,22 +374,10 @@ export default function Sidebar() {
       shortcutId: "nav.artifacts",
       onSelect: () => setActiveView("artifacts"),
     },
-    {
-      id: "research",
-      label: "Research",
-      icon: Network,
-      active: activeView === "research",
-      shortcutId: "research.projects",
-      onSelect: () => setActiveView("research"),
-    },
   ];
 
   const openDirPicker = () => {
-    const modal = document.getElementById("dir-picker-modal");
-    if (modal) {
-      modal.style.display = "flex";
-      window.dispatchEvent(new CustomEvent("palimind:open-dir-picker"));
-    }
+    window.dispatchEvent(new CustomEvent("palimind:open-dir-picker"));
   };
 
   const showFieldMenu = (e: React.MouseEvent, path: string) => {
@@ -554,12 +548,30 @@ export default function Sidebar() {
     <aside className="sidebar" id="main-sidebar" aria-label="Primary navigation">
       <div className="sb-header">
         <div className="sb-brand">
-          <span className="sb-workspace">
-            <span className="sb-workspace__label sb-collapsible">Workspace</span>
-            <span className="sb-workspace__name sb-collapsible">
-              {activeField ? activeField.split(/[\\/]+/).filter(Boolean).pop() : "Local"}
+          <button
+            type="button"
+            className="sb-workspace sb-workspace--button sb-collapsible"
+            title={activeProjectId ? `Project: ${activeProjectName ?? 'Project'}` : 'Open workspace'}
+            onClick={() => setActiveView(activeProjectId ? 'projects' : 'knowledge')}
+          >
+            <PixelIcon
+              name={activeProjectId ? "projects" : "folder"}
+              size={16}
+              state={activeProjectId ? "active" : "idle"}
+            />
+            <span className="sb-workspace__text">
+              <span className="sb-workspace__label">
+                {activeProjectId ? "Project" : "Workspace"}
+              </span>
+              <span className="sb-workspace__name">
+                {activeProjectId
+                  ? activeProjectName || "Project"
+                  : activeField
+                    ? activeField.split(/[\\/]+/).filter(Boolean).pop()
+                    : "Local"}
+              </span>
             </span>
-          </span>
+          </button>
         </div>
         <button
           type="button"
@@ -574,7 +586,6 @@ export default function Sidebar() {
 
       <nav className="sb-nav" aria-label="Workspace">
         {navItems.map((item) => {
-          const Icon = item.icon;
           const shortcut = shortcutFor(item.shortcutId);
           return (
             <button
@@ -591,7 +602,11 @@ export default function Sidebar() {
               }}
             >
               <span className="sb-nav-item__icon">
-                <Icon size={16} />
+                <PixelIcon
+                  name={navPixel[item.id] ?? "dot"}
+                  size={16}
+                  state={item.active ? "active" : "idle"}
+                />
               </span>
               <span className="sb-nav-item__label sb-collapsible">{item.label}</span>
               {shortcut && (
@@ -632,26 +647,17 @@ export default function Sidebar() {
       </div>
 
       {treeField && (
-        <div className="modal" onClick={() => setTreeField(null)}>
-          <div
-            className="modal-content file-tree-modal-content"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-header">
-              <h2>Workspace Files</h2>
-              <button
-                className="icon-btn"
-                onClick={() => setTreeField(null)}
-                aria-label="Close"
-              >
-                <X size={15} />
-              </button>
-            </div>
-            <div className="modal-body file-tree-modal-body">
-              <FileTreeView modal />
-            </div>
+        <Dialog
+          open={Boolean(treeField)}
+          onClose={() => setTreeField(null)}
+          title="Workspace files"
+          subtitle={treeField}
+          width={720}
+        >
+          <div className="file-tree-modal-body">
+            <FileTreeView modal />
           </div>
-        </div>
+        </Dialog>
       )}
 
       {ctxMenu && (

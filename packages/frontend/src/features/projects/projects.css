@@ -11,8 +11,8 @@
   background: var(--bg);
 }
 
-.projects-view > .page-title {
-  padding: 18px 24px 4px;
+.projects-view > .surface-header {
+  border-bottom: 1px solid var(--line);
 }
 
 .projects-body {
@@ -34,6 +34,63 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.projects-list__tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.projects-list__tools .ui-input {
+  height: 30px;
+  font-size: var(--type-sm);
+}
+.projects-list__empty {
+  padding: 18px 8px;
+  color: var(--ink-muted);
+  font-size: var(--type-sm);
+}
+
+.projects-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.projects-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+.projects-stats__value {
+  font-family: var(--font-heading);
+  font-size: var(--type-lg);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.projects-stats__label {
+  font-family: var(--font-mono);
+  font-size: var(--type-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
+.projects-health {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--type-sm);
+  color: var(--ink-secondary);
+}
+.projects-health.is-ready {
+  color: var(--ink);
 }
 
 .project-row {
@@ -133,6 +190,7 @@
   align-items: center;
   gap: 6px;
   flex: 0 0 auto;
+  flex-wrap: wrap;
 }
 
 .projects-detail__tabs {
@@ -304,7 +362,65 @@
   .projects-detail {
     padding: 16px;
   }
-  .projects-view > .page-title {
-    padding: 14px 16px 2px;
+  .projects-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* ── micro-motion ───────────────────────────────────────────────────────── */
+.project-row {
+  transition:
+    background-color var(--dur-2) var(--ease-out),
+    transform var(--dur-2) var(--ease-out),
+    box-shadow var(--dur-2) var(--ease-out);
+}
+.project-row:hover {
+  transform: translateX(1px);
+}
+.project-row.is-active {
+  animation: project-active 220ms var(--ease-out) both;
+}
+@keyframes project-active {
+  from { opacity: 0.7; transform: translateX(-2px); }
+  to { opacity: 1; transform: none; }
+}
+.projects-stats > div {
+  transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
+}
+.projects-stats > div:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+@media (prefers-reduced-motion: reduce) {
+  .project-row.is-active, .project-row:hover, .projects-stats > div:hover {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+.projects-row__open {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 0;
+  padding: 8px 4px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.projects-row__open:hover {
+  background: var(--surface-hover);
+}
+
+.project-row__desc {
+  font-size: var(--type-xs);
+  color: var(--ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

@@ -1,0 +1,70 @@
+/* ==========================================================================
+   SurfaceHeader — one compact content row. No background, no second bar.
+   ========================================================================== */
+
+.surface-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 56px;
+  padding: 12px 24px;
+  flex: 0 0 auto;
+  min-width: 0;
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.surface-header__text {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.surface-header__title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: var(--type-lg);
+  line-height: 1.15;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.025em;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.surface-header__meta {
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--type-2xs);
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.surface-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 760px) {
+  .surface-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+  .surface-header__text {
+    width: 100%;
+  }
+  .surface-header__actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+}

@@ -1,9 +1,10 @@
-import { BookOpen, FolderPlus, Network, RefreshCw } from 'lucide-react';
+import { FolderPlus, Network, RefreshCw } from 'lucide-react';
 import ChatArea from '../../components/ChatArea';
-import PageTitle from '../../components/layout/PageTitle';
+import SurfaceHeader from '../../components/layout/SurfaceHeader';
 import { useApp } from '../../AppContext';
 import { runCommand } from '../../commands/registry';
-import { PixelSweep } from '../../components/pixel/PixelSweep';
+import { EmptyState } from '../../ui/primitives';
+import { PixelGlyph } from '../../components/pixel/PixelGlyph';
 import '../view.css';
 
 function leaf(path: string): string {
@@ -16,67 +17,68 @@ export default function KnowledgeView() {
 
   return (
     <div className="view-frame">
-      <PageTitle
-        eyebrow="Knowledge"
+      <SurfaceHeader
         title={activeField ? leaf(activeField) : 'Knowledge'}
-        subtitle={
+        meta={
           activeField
             ? isIndexing
               ? indexingStatus || 'Indexing documents…'
               : 'Indexed locally · semantic search ready'
-            : 'Add a folder to index documents on this device.'
+            : 'Add a folder to index documents on this device'
         }
         actions={
-          <>
-            <button
-              type="button"
-              className="ui-btn ui-btn--sm"
-              onClick={() => {
-                const modal = document.getElementById('dir-picker-modal');
-                if (modal) {
-                  modal.style.display = 'flex';
+          activeField ? (
+            <>
+              <button
+                type="button"
+                className="ui-btn ui-btn--sm"
+                onClick={() => {
                   window.dispatchEvent(new CustomEvent('palimind:open-dir-picker'));
-                }
-              }}
-            >
-              <FolderPlus size={13} /> Add folder
-            </button>
-            <button
-              type="button"
-              className="ui-btn ui-btn--sm"
-              onClick={() => runCommand('nav.graph')}
-              disabled={!activeField}
-            >
-              <Network size={13} /> Graph
-            </button>
-            <button
-              type="button"
-              className="ui-btn ui-btn--primary ui-btn--sm"
-              onClick={() => runCommand('nav.sync')}
-              disabled={!activeField || isIndexing}
-            >
-              <RefreshCw size={13} /> {isIndexing ? 'Indexing…' : 'Sync'}
-            </button>
-          </>
+                }}
+              >
+                <FolderPlus size={13} /> Add folder
+              </button>
+              <button
+                type="button"
+                className="ui-btn ui-btn--sm"
+                onClick={() => runCommand('nav.graph')}
+              >
+                <Network size={13} /> Graph
+              </button>
+              <button
+                type="button"
+                className="ui-btn ui-btn--primary ui-btn--sm"
+                onClick={() => runCommand('nav.sync')}
+                disabled={isIndexing}
+              >
+                <RefreshCw size={13} /> {isIndexing ? 'Indexing…' : 'Sync'}
+              </button>
+            </>
+          ) : undefined
         }
       />
-      {activeField && (
-        <div className="view-meta">
-          {isIndexing ? (
-            <PixelSweep label={indexingStatus || 'Indexing'}>
-              <BookOpen size={13} />
-            </PixelSweep>
-          ) : (
-            <BookOpen size={13} />
-          )}
-          <span className="view-meta__path" title={activeField}>
-            {activeField}
-          </span>
+      {activeField ? (
+        <div className="view-frame__chat">
+          <ChatArea />
+        </div>
+      ) : (
+        <div className="view-frame__body">
+          <EmptyState
+            glyph={<PixelGlyph sprite="book" cell={4} />}
+            title="Add your first knowledge folder"
+            description="Point PaliMind at a folder of notes, PDFs or code. Everything is indexed on this device and answers cite the source files."
+            action={
+              <button
+                type="button"
+                className="ui-btn ui-btn--primary"
+                onClick={() => window.dispatchEvent(new CustomEvent('palimind:open-dir-picker'))}
+              >
+                <FolderPlus size={14} /> Add folder
+              </button>
+            }
+          />
         </div>
       )}
-      <div className="view-frame__chat">
-        <ChatArea />
-      </div>
     </div>
   );
 }

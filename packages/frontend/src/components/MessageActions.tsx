@@ -3,7 +3,6 @@ import {
   Check,
   ChevronDown,
   Copy,
-  FlaskConical,
   Pencil,
   RefreshCw,
   Share2,
@@ -22,8 +21,6 @@ export interface MessageActionsProps {
   onRegenerate?: () => void;
   /** Enter inline edit mode (user messages only). */
   onEdit?: () => void;
-  /** Save this message into a research project. */
-  onSaveResearch?: () => void;
   onDelete: () => void;
   onShare: () => void;
   onToggleBookmark: () => void;
@@ -53,7 +50,6 @@ export default function MessageActions({
   bookmarked,
   onRegenerate,
   onEdit,
-  onSaveResearch,
   onDelete,
   onShare,
   onToggleBookmark,
@@ -143,18 +139,6 @@ export default function MessageActions({
           onClick={onEdit}
         >
           <Pencil size={14} />
-        </button>
-      )}
-
-      {!isUser && onSaveResearch && (
-        <button
-          type="button"
-          className="msg-action-btn"
-          title="Save to Research"
-          aria-label="Save message to a research project"
-          onClick={onSaveResearch}
-        >
-          <FlaskConical size={14} />
         </button>
       )}
 

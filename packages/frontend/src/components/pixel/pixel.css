@@ -349,3 +349,50 @@ html[data-motion="reduced"] .pixel-ticker__block {
 html[data-motion="reduced"] .pixel-burst__bit {
   opacity: 0;
 }
+
+/* ── icon wrapper ────────────────────────────────────────────────────────── */
+.pixel-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  color: currentColor;
+  transition:
+    color var(--dur-2) var(--ease-out),
+    transform var(--dur-2) var(--ease-out);
+}
+.pixel-icon--active .pixel-glyph {
+  animation: pixel-icon-tick 260ms steps(2, end) both;
+}
+.pixel-icon--busy {
+  animation: pixel-icon-pulse 900ms steps(2, end) infinite;
+}
+.pixel-icon--done .pixel-glyph {
+  animation: pixel-icon-stamp 240ms steps(2, end) both;
+}
+@keyframes pixel-icon-tick {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-1px); }
+  100% { transform: translateY(0); }
+}
+@keyframes pixel-icon-pulse {
+  0%, 49.99% { opacity: 1; }
+  50%, 100% { opacity: 0.55; }
+}
+@keyframes pixel-icon-stamp {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pixel-icon--active .pixel-glyph,
+  .pixel-icon--busy,
+  .pixel-icon--done .pixel-glyph {
+    animation: none !important;
+  }
+}
+html[data-motion="reduced"] .pixel-icon--active .pixel-glyph,
+html[data-motion="reduced"] .pixel-icon--busy,
+html[data-motion="reduced"] .pixel-icon--done .pixel-glyph {
+  animation: none !important;
+}

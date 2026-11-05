@@ -20,6 +20,7 @@ import { isTerminal } from '@/components/activity/model';
 import { persistActivity } from '@/components/activity/store';
 import type { ActivityMode } from '../AppContext';
 import type { CitationPayload } from '../types';
+import { resolveScope } from '../lib/scope';
 
 interface ChatMessage {
   role: string;
@@ -33,6 +34,7 @@ export default function ChatArea() {
     sessions,
     activeSessionId,
     activeView,
+    activeProjectId,
     isGenerating,
     selectedAgentId,
     chatMode,
@@ -94,14 +96,10 @@ export default function ChatArea() {
 
   const { isBookmarked, toggle: toggleBookmark } = useBookmarks(activeSessionId);
 
-  const scope =
-    activeView === 'agents'
-      ? selectedAgentId
-        ? `agent:${selectedAgentId}`
-        : ''
-      : activeView === 'chat'
-        ? 'chat'
-        : 'field';
+  const scope = resolveScope(activeView, {
+    agentId: selectedAgentId,
+    projectId: activeProjectId,
+  });
 
   const activityMode: ActivityMode =
     activeView === 'agents'
@@ -110,9 +108,7 @@ export default function ChatArea() {
         ? 'document'
         : llmSubMode === 'moe'
           ? 'moe'
-          : llmSubMode === 'deep_research'
-            ? 'deep_research'
-            : 'llm';
+          : 'llm';
 
   const applySessions = useCallback(
     (data: { sessions?: unknown[]; active_session_id?: string; error?: string }) => {
@@ -221,12 +217,6 @@ export default function ChatArea() {
       .catch(() => addToast('Could not access the clipboard'));
   }, [currentSess, addToast]);
 
-  const handleSaveResearch = useCallback((content: string, sources: unknown[]) => {
-    window.dispatchEvent(
-      new CustomEvent('palimind:save-research', { detail: { content, sources } }),
-    );
-  }, []);
-
   // Track whether the user is pinned to the bottom of the conversation.
   // We only auto-scroll when they're already near the bottom so that
   // scrolling up to read earlier messages isn't interrupted by background
@@ -294,7 +284,6 @@ export default function ChatArea() {
               onDelete={handleDelete}
               onShare={handleShare}
               onOpenArtifact={openArtifact}
-              onSaveResearch={handleSaveResearch}
               onToggleBookmark={toggleBookmark}
               activityMode={activityMode}
               sessionId={activeSessionId}
@@ -363,7 +352,6 @@ interface MessageComponentProps {
   onDelete: (index: number) => void;
   onShare: () => void;
   onOpenArtifact: (artifactId: string) => void;
-  onSaveResearch: (content: string, sources: unknown[]) => void;
   onToggleBookmark: (msg: ChatMessage) => void;
   activityMode: ActivityMode;
   sessionId: string | null;
@@ -378,7 +366,6 @@ const MessageComponent = memo(function MessageComponent({
   onDelete,
   onShare,
   onOpenArtifact,
-  onSaveResearch,
   onToggleBookmark,
   activityMode,
   sessionId,
@@ -466,7 +453,6 @@ const MessageComponent = memo(function MessageComponent({
           bookmarked={bookmarked}
           onRegenerate={!isUser ? () => onRegenerate(index) : undefined}
           onEdit={isUser ? () => setEditing(true) : undefined}
-          onSaveResearch={!isUser ? () => onSaveResearch(msg.content, msg.citations?.sources ?? []) : undefined}
           onDelete={() => onDelete(index)}
           onShare={onShare}
           onToggleBookmark={() => onToggleBookmark(msg)}

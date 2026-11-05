@@ -3,7 +3,6 @@ import {
   Menu,
   Moon,
   Plus,
-  RefreshCw,
   Search,
   Sun,
 } from 'lucide-react';
@@ -32,7 +31,6 @@ const VIEW_LABEL: Record<string, string> = {
   knowledge: 'Knowledge',
   projects: 'Projects',
   artifacts: 'Artifacts',
-  research: 'Research',
 };
 
 const AGENT_TABS: { id: AgentsView; label: string }[] = [
@@ -59,6 +57,10 @@ export default function CommandBar() {
     overview,
     toggleSidebar,
     currentModel,
+    activeProjectId,
+    activeProjectName,
+    setActiveProjectId,
+    setActiveProjectName,
   } = useApp();
 
   const sessionName =
@@ -77,7 +79,6 @@ export default function CommandBar() {
 
   const primary = (() => {
     switch (activeView) {
-      case 'home':
       case 'chat':
         return { label: 'New chat', icon: Plus, run: () => runCommand('chat.new') };
       case 'agents':
@@ -85,14 +86,6 @@ export default function CommandBar() {
           label: 'New agent',
           icon: Plus,
           run: () => window.dispatchEvent(new CustomEvent('palimind:new-agent')),
-        };
-      case 'knowledge':
-        return { label: 'Sync', icon: RefreshCw, run: () => runCommand('nav.sync') };
-      case 'projects':
-        return {
-          label: 'New project',
-          icon: Plus,
-          run: () => window.dispatchEvent(new CustomEvent('palimind:new-project')),
         };
       default:
         return null;
@@ -118,21 +111,35 @@ export default function CommandBar() {
         <span className="command-bar__wordmark">PaliMind</span>
       </div>
 
-      <nav className="command-bar__crumbs" aria-label="Breadcrumb">
-        <span className="command-bar__crumb">Local workspace</span>
-        <span className="command-bar__sep" aria-hidden="true">
-          /
-        </span>
-        <span className="command-bar__crumb is-current" aria-current="page">
-          {VIEW_LABEL[activeView] ?? activeView}
-        </span>
-        {sessionName && (
-          <>
-            <span className="command-bar__sep" aria-hidden="true">
-              /
+      <nav className="command-bar__context" aria-label="Current context">
+        <span className="command-bar__view">{VIEW_LABEL[activeView] ?? activeView}</span>
+        {activeProjectId && (
+          <span className="command-bar__project" title={activeProjectName ?? 'Active project'}>
+            <PixelGlyph sprite="folder" cell={1.25} />
+            <span className="command-bar__project-name">
+              {activeProjectName ?? 'Project'}
             </span>
-            <span className="command-bar__crumb is-final">{sessionName}</span>
-          </>
+            <button
+              type="button"
+              className="command-bar__project-leave"
+              title="Leave project context"
+              aria-label="Leave project context"
+              onClick={() => {
+                setActiveProjectId(null);
+                setActiveProjectName(null);
+              }}
+            >
+              ×
+            </button>
+          </span>
+        )}
+        {sessionName && activeView === 'chat' && (
+          <span className="command-bar__session" title={sessionName}>
+            {sessionName}
+          </span>
+        )}
+        {activeView === 'agents' && !activeProjectId && (
+          <span className="command-bar__session">Local agents</span>
         )}
       </nav>
 

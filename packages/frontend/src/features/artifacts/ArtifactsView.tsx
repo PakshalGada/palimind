@@ -1,4 +1,4 @@
-import PageTitle from '../../components/layout/PageTitle';
+import SurfaceHeader from '../../components/layout/SurfaceHeader';
 import ArtifactLibrary from '../../components/ArtifactLibrary';
 import { queueArtifactOpen } from '../../components/artifact/pendingOpen';
 import { useApp } from '../../AppContext';
@@ -9,10 +9,9 @@ export default function ArtifactsView() {
 
   return (
     <main className="view-frame">
-      <PageTitle
-        eyebrow="Library"
+      <SurfaceHeader
         title="Artifacts"
-        subtitle="Everything you have saved: documents, code, slides and visual pieces."
+        meta="Saved outputs"
       />
       <div className="view-frame__body view-frame__body--flush">
         <ArtifactLibrary

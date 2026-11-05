@@ -172,15 +172,6 @@ export const COMMANDS: CommandDef[] = [
     defaultShortcut: 'Mod+Shift+F',
   },
   {
-    id: 'research.projects',
-    title: 'Go to Research',
-    category: 'Navigation',
-    icon: 'brain',
-    description: 'Persistent research workspaces with notes, findings and sources',
-    keywords: ['projects', 'findings', 'sources', 'library', 'timeline'],
-    defaultShortcut: 'Mod+Shift+P',
-  },
-  {
     id: 'nav.projects',
     title: 'Go to Projects',
     category: 'Navigation',
@@ -195,23 +186,6 @@ export const COMMANDS: CommandDef[] = [
     icon: 'package',
     description: 'Browse and preview everything you have saved',
     keywords: ['library', 'documents', 'download'],
-  },
-  {
-    id: 'research.compare',
-    title: 'Compare Models',
-    category: 'Navigation',
-    icon: 'layers',
-    description: 'Run the same research question across multiple models side by side',
-    keywords: ['comparison', 'consensus', 'contradictions', 'models', 'multi-model'],
-    defaultShortcut: 'Mod+Shift+K',
-  },
-  {
-    id: 'research.social',
-    title: 'X / Twitter Signals',
-    category: 'Navigation',
-    icon: 'network',
-    description: 'Real-time social sentiment, trends and cited posts',
-    keywords: ['twitter', 'social', 'sentiment', 'trends', 'x'],
   },
 
   // ── View ────────────────────────────────────────────────────────────

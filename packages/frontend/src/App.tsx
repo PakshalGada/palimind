@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from './AppContext';
 import { api } from './api';
 import Sidebar from './components/Sidebar';
@@ -10,11 +10,6 @@ import ToastContainer from './components/ToastContainer';
 import SetupProgress from './components/SetupProgress';
 import ShortcutsModal from './components/ShortcutsModal';
 import CommandPalette from './components/CommandPalette';
-import ResearchPlanModal from './components/ResearchPlanModal';
-import ResearchManager from './components/ResearchManager';
-import SaveToResearchModal from './components/SaveToResearchModal';
-import ComparisonView from './components/ComparisonView';
-import SocialSignals from './components/SocialSignals';
 import AgentGraph from './components/AgentGraph';
 import SkillManager from './components/SkillManager';
 import PlanReview from './components/PlanReview';
@@ -22,23 +17,25 @@ import TaskMonitor from './components/TaskMonitor';
 import ArtifactAutoOpen from './components/ArtifactAutoOpen';
 import AgentManager from './features/agents/AgentManager';
 import AgentsWorkspace from './features/agents/AgentsWorkspace';
+import BootScreen from './components/boot/BootScreen';
 import AppLayout from './components/layout/AppLayout';
 import ResponsiveSidebar from './components/layout/ResponsiveSidebar';
 import SidePanel from './components/layout/SidePanel';
 import { useCommandHandlers } from './commands/useCommand';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { usePixelMotion } from './design/usePixelMotion';
+import { resolveScope } from './lib/scope';
 import { ChatStreamProvider } from './stream/ChatStream';
 import HomeView from './features/home/HomeView';
 import ProjectsView from './features/projects/ProjectsView';
 import ArtifactsView from './features/artifacts/ArtifactsView';
-import ResearchView from './features/research/ResearchView';
 import KnowledgeView from './features/knowledge/KnowledgeView';
 
 export default function App() {
   const {
     activeView,
     selectedAgentId,
+    activeProjectId,
     activeField, setActiveField, setSessions, setActiveSessionId,
     setCurrentModel, setLlmSubMode, setOrchestratorModel, setWorkerModel,
     setIsIndexing, setIndexingStatus, addToast,
@@ -53,13 +50,19 @@ export default function App() {
 
   useKeyboardShortcuts({ overrides: shortcutOverrides, disabled: commandPaletteOpen });
   usePixelMotion();
+  const [booted, setBooted] = useState(false);
 
-  // Deep links: #home, #chat, #agents, #knowledge, #projects, #artifacts,
-  // #research. The view is reflected in the hash so a reload keeps context.
+  // Deep links: #home, #chat, #agents, #knowledge, #projects, #artifacts.
+  // The view is reflected in the hash so a reload keeps context. Older
+  // #research links are migrated to Projects instead of dead-ending.
   useEffect(() => {
     const fromHash = () => {
-      const value = window.location.hash.replace(/^#\/?/, '');
-      const views = ['home', 'chat', 'agents', 'knowledge', 'projects', 'artifacts', 'research'];
+      let value = window.location.hash.replace(/^#\/?/, '');
+      if (value === 'research') {
+        value = 'projects';
+        window.history.replaceState(null, '', '#projects');
+      }
+      const views = ['home', 'chat', 'agents', 'knowledge', 'projects', 'artifacts'];
       if (views.includes(value)) setActiveView(value as typeof activeView);
     };
     fromHash();
@@ -99,18 +102,9 @@ export default function App() {
     'nav.projects': () => setActiveView('projects'),
     'nav.artifacts': () => setActiveView('artifacts'),
     'nav.graph': () => {
-      const modal = document.getElementById('graph-modal');
-      if (modal) modal.style.display = 'flex';
       window.dispatchEvent(new CustomEvent('palimind:open-graph'));
     },
     'nav.search': () => setCommandPaletteOpen(true),
-    'research.projects': () => setActiveView('research'),
-    'research.compare': () => {
-      window.dispatchEvent(new CustomEvent('palimind:open-compare'));
-    },
-    'research.social': () => {
-      window.dispatchEvent(new CustomEvent('palimind:open-social'));
-    },
     'chat.toggle-mode': () => setChatMode(chatMode === 'llm' ? 'document' : 'llm'),
     'agents.new': () => {
       window.dispatchEvent(new CustomEvent('palimind:new-agent'));
@@ -134,19 +128,13 @@ export default function App() {
   });
 
   // The Agents area reuses the global chat surface but is backed by the
-  // selected agent's own scope (separate sessions, model and settings). With
-  // no agent selected the scope is intentionally empty — it must never fall
-  // back to global or knowledge-base chat.
-  const scope =
-    activeView === 'agents'
-      ? selectedAgentId
-        ? `agent:${selectedAgentId}`
-        : ''
-      : activeView === 'chat' || activeView === 'home'
-        ? 'chat'
-        : activeView === 'knowledge'
-          ? 'field'
-          : '';
+  // selected agent's own scope (separate sessions, model and settings). A
+  // project context wins for chat/knowledge so project sessions, config and
+  // knowledge stay isolated. One resolver keeps every surface consistent.
+  const scope = resolveScope(activeView, {
+    agentId: selectedAgentId,
+    projectId: activeProjectId,
+  });
 
   useEffect(() => {
     // A late config response from a scope we already left must not overwrite
@@ -220,6 +208,7 @@ export default function App() {
 
   return (
     <ChatStreamProvider>
+      {!booted && <BootScreen onReady={() => setBooted(true)} />}
       <ArtifactAutoOpen />
       <AppLayout
         className={containerClass}
@@ -231,24 +220,20 @@ export default function App() {
         sidePanel={<SidePanel />}
       >
         <SetupProgress />
-        {activeView === 'home' && <HomeView />}
-        {activeView === 'chat' && <ChatArea />}
-        {activeView === 'agents' && <AgentsWorkspace />}
-        {activeView === 'knowledge' && <KnowledgeView />}
-        {activeView === 'projects' && <ProjectsView />}
-        {activeView === 'artifacts' && <ArtifactsView />}
-        {activeView === 'research' && <ResearchView />}
+        <div className="view-enter" key={activeView}>
+          {activeView === 'home' && <HomeView />}
+          {activeView === 'chat' && <ChatArea />}
+          {activeView === 'agents' && <AgentsWorkspace />}
+          {activeView === 'knowledge' && <KnowledgeView />}
+          {activeView === 'projects' && <ProjectsView />}
+          {activeView === 'artifacts' && <ArtifactsView />}
+        </div>
         <AgentManager />
         <SettingsModal />
         <DirectoryPicker />
         <KnowledgeGraph />
         <ShortcutsModal />
         <CommandPalette />
-        <ResearchPlanModal />
-        <ResearchManager />
-        <SaveToResearchModal />
-        <ComparisonView />
-        <SocialSignals />
         <AgentGraph />
         <SkillManager />
         <PlanReview />

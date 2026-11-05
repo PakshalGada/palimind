@@ -10,7 +10,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  height: 56px;
+  height: 48px;
   padding: 0 12px 0 14px;
   background: var(--bg);
   border-bottom: 1px solid var(--line);
@@ -55,34 +55,87 @@
   white-space: nowrap;
 }
 
-.command-bar__crumbs {
+.command-bar__context {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   min-width: 0;
-  max-width: 260px;
+  max-width: min(46vw, 520px);
   overflow: hidden;
 }
 
-.command-bar__crumb {
-  font-size: var(--type-sm);
-  color: var(--ink-muted);
+.command-bar__view {
+  font-family: var(--font-heading);
+  font-size: var(--type-base);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.command-bar__project,
+.command-bar__session {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  color: var(--ink-secondary);
+  font-size: var(--type-xs);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.command-bar__crumb.is-current {
-  color: var(--ink-secondary);
-}
-.command-bar__crumb.is-final {
+
+.command-bar__project {
+  padding-right: 3px;
   color: var(--ink);
-  font-weight: var(--font-weight-medium);
 }
 
-.command-bar__sep {
-  color: var(--ink-faint);
-  font-family: var(--font-mono);
+.command-bar__project-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.command-bar__project-leave {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.command-bar__project-leave:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.command-bar__context-link {
+  min-height: 0;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
   font-size: var(--type-xs);
+  cursor: pointer;
+}
+.command-bar__context-link:hover {
+  background: transparent;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ── centre: tabs or command field ────────────────────────────────────── */
@@ -282,21 +335,24 @@
   .command-bar__wordmark {
     display: none;
   }
-  .command-bar__crumbs {
-    max-width: 200px;
+  .command-bar__context {
+    max-width: 240px;
+  }
+  .command-bar__project-name {
+    max-width: 100px;
   }
 }
 
 @media (max-width: 900px) {
   .command-bar {
-    height: 52px;
+    height: 48px;
     padding: 0 8px;
     gap: 8px;
   }
   .command-bar__icon.command-bar__menu {
     display: inline-flex;
   }
-  .command-bar__crumbs {
+  .command-bar__context {
     display: none;
   }
   .command-bar__center {

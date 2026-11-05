@@ -49,56 +49,6 @@ export interface CitationPayload {
   cited_markers: number[];
 }
 
-export interface ResearchSubTopic {
-  subtopic_id: number;
-  title: string;
-  research_question: string;
-  search_queries: string[];
-}
-
-export interface ResearchFinding {
-  id: string;
-  title: string;
-  content: string;
-  created_at: number;
-}
-
-export interface ResearchTimelineEntry {
-  at: number;
-  type: string;
-  text: string;
-}
-
-export interface ResearchReport {
-  id: string;
-  query: string;
-  report: string;
-  created_at: number;
-}
-
-export interface ResearchProject {
-  id: string;
-  title: string;
-  query: string;
-  created_at: number;
-  updated_at: number;
-  notes: string;
-  findings: ResearchFinding[];
-  sources: CitationSource[];
-  timeline: ResearchTimelineEntry[];
-  reports: ResearchReport[];
-}
-
-export interface ResearchProjectSummary {
-  id: string;
-  title: string;
-  query: string;
-  created_at: number;
-  updated_at: number;
-  source_count: number;
-  finding_count: number;
-}
-
 // ── First-class projects (isolated sessions, KB and artifacts) ───────────
 
 export type ProjectScope = `project:${string}`;
@@ -301,7 +251,7 @@ export interface Recommendation {
 }
 
 export type ChatMode = 'document' | 'llm';
-export type LlmSubMode = 'default' | 'moe' | 'deep_research';
+export type LlmSubMode = 'default' | 'moe';
 export type Theme = 'dark' | 'light';
 
 export type AppView =
@@ -310,8 +260,7 @@ export type AppView =
   | 'agents'
   | 'knowledge'
   | 'projects'
-  | 'artifacts'
-  | 'research';
+  | 'artifacts';
 
 /** Sub-views inside the Agents workspace. */
 export type AgentsView = 'home' | 'chat' | 'teams' | 'kanban' | 'runs';

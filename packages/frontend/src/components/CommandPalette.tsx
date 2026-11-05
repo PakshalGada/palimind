@@ -8,6 +8,7 @@ import { runCommand } from '../commands/registry';
 import { useAvailableCommands, useCommandRegistryVersion } from '../commands/useCommand';
 import { formatShortcut } from '../utils/shortcuts';
 import { fuzzyRank } from '../utils/fuzzy';
+import { resolveScope } from '../lib/scope';
 import type { AgentListItem, TreeNode } from '../types';
 import './CommandPalette.css';
 
@@ -62,6 +63,7 @@ export default function CommandPalette() {
     setCommandPaletteOpen,
     activeView,
     activeField,
+    activeProjectId,
     selectedAgentId,
     setSelectedAgentId,
     setActiveView,
@@ -83,14 +85,10 @@ export default function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const scope =
-    activeView === 'agents'
-      ? selectedAgentId
-        ? `agent:${selectedAgentId}`
-        : ''
-      : activeView === 'chat'
-        ? 'chat'
-        : 'field';
+  const scope = resolveScope(activeView, {
+    agentId: selectedAgentId,
+    projectId: activeProjectId,
+  });
 
   const close = useCallback(() => {
     setCommandPaletteOpen(false);

@@ -3,7 +3,7 @@
  * reducer own these types; UI components never read raw backend payloads.
  */
 
-export type RunMode = 'default' | 'moe' | 'deep_research' | 'agent' | 'knowledge_base';
+export type RunMode = 'default' | 'moe' | 'agent' | 'knowledge_base';
 
 export type RunStatus =
   | 'idle'
