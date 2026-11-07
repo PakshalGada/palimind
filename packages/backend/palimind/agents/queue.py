@@ -15,20 +15,39 @@ from typing import Any
 from palimind.storage import state_store
 
 QUEUE_LIMIT = 100
+TARGET_TYPES = ("agent", "team", "task", "channel")
 _ACTIVE_STATUSES = ("queued", "running", "paused")
 _loop_task: asyncio.Task | None = None
 _locks: dict[str, asyncio.Lock] = {}
 
 
-def enqueue(target_type: str, target_id: str, input: str, priority: int = 0) -> dict[str, Any]:
-    if target_type not in ("agent", "team"):
-        raise ValueError("target_type must be agent or team")
+def enqueue(
+    target_type: str,
+    target_id: str,
+    input: str,
+    priority: int = 0,
+    *,
+    lane: str = "",
+    task_id: str = "",
+    idempotency_key: str = "",
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if target_type not in TARGET_TYPES:
+        raise ValueError(f"target_type must be one of {', '.join(TARGET_TYPES)}")
     if not target_id:
         raise ValueError("target_id is required")
     # Only live items count: finished/cancelled history must not fill the queue.
     active = [
-        i for i in state_store.list_queue_items(limit=1000) if i.get("status") in _ACTIVE_STATUSES
+        i for i in state_store.list_queue_items(limit=2000) if i.get("status") in _ACTIVE_STATUSES
     ]
+    if idempotency_key:
+        for item in active:
+            if (
+                item.get("idempotency_key") == idempotency_key
+                and item.get("target_type") == target_type
+                and item.get("target_id") == target_id
+            ):
+                return item
     if len(active) >= QUEUE_LIMIT:
         raise ValueError(f"queue limit reached ({QUEUE_LIMIT})")
     item = {
@@ -44,6 +63,11 @@ def enqueue(target_type: str, target_id: str, input: str, priority: int = 0) -> 
         "run_id": None,
         "error": None,
         "job_id": None,
+        "lane": str(lane or ""),
+        "task_id": str(task_id or ""),
+        "idempotency_key": str(idempotency_key or ""),
+        "hold_reason": "",
+        "metadata": dict(metadata or {}),
     }
     state_store.upsert_queue_item(item)
     try:
@@ -57,9 +81,12 @@ def enqueue(target_type: str, target_id: str, input: str, priority: int = 0) -> 
                 "target_type": target_type,
                 "target_id": target_id,
                 "input": item["input"],
+                "lane": item.get("lane") or "",
+                "task_id": item.get("task_id") or "",
+                "delivery_id": (item.get("metadata") or {}).get("delivery_id") or "",
             },
             priority=priority,
-            idempotency_key=f"queue:{item['id']}",
+            idempotency_key=idempotency_key or f"queue:{item['id']}",
         )
         item["job_id"] = job.get("id")
         state_store.upsert_queue_item(item)
@@ -119,14 +146,34 @@ def clear_target(target_type: str, target_id: str) -> None:
 
 def _target_busy(item: dict[str, Any]) -> bool:
     """True when the item's target is at its concurrency limit right now."""
-    if item.get("target_type") == "team":
+    target_type = str(item.get("target_type") or "agent")
+    target_id = str(item.get("target_id") or "")
+    if target_type == "team":
         from palimind.agents.team_runtime import is_team_running
 
-        return is_team_running(str(item.get("target_id")))
+        return is_team_running(target_id)
+    if target_type == "task":
+        from palimind.agents import tasks
+
+        task = tasks.get_task(target_id)
+        if task is None:
+            return False
+        if task.get("status") not in ("open", "running"):
+            return True
+        from palimind.agents.runtime import running_count
+
+        return running_count(str(task.get("agent_id") or "")) >= 1 and task.get("status") == "running"
+    if target_type == "channel":
+        try:
+            from palimind.agents import channels
+
+            return channels.is_busy(target_id)
+        except Exception:
+            return False
     from palimind.agents.registry import get_registry
     from palimind.agents.runtime import running_count
 
-    defn = get_registry().get_by_id(str(item.get("target_id")))
+    defn = get_registry().get_by_id(target_id)
     if defn is None:
         return False  # _execute marks it failed
     return running_count(defn.id) >= max(1, int(defn.max_concurrent_runs or 1))
@@ -134,7 +181,7 @@ def _target_busy(item: dict[str, Any]) -> bool:
 
 def next_due() -> dict[str, Any] | None:
     for item in list_queue(limit=1000):
-        if item.get("status") == "queued" and not _target_busy(item):
+        if item.get("status") == "queued" and not item.get("hold_reason") and not _target_busy(item):
             return item
     return None
 
@@ -160,6 +207,64 @@ async def _execute(item: dict[str, Any]) -> None:
 
     target_type = str(item.get("target_type"))
     target_id = str(item.get("target_id"))
+
+    if target_type == "task":
+        from palimind.agents import mailbox, tasks
+        from palimind.agents.scheduler import recorded_run_status
+
+        task = tasks.get_task(target_id)
+        if task is None:
+            update_item(item["id"], status="failed", error="Task not found")
+            return
+        if task.get("status") in ("completed", "failed", "cancelled", "closed"):
+            update_item(item["id"], status="done")
+            return
+        defn = get_registry().get_by_id(str(task.get("agent_id") or ""))
+        if defn is None:
+            tasks.fail_task(target_id, "Agent not found")
+            update_item(item["id"], status="failed", error="Agent not found")
+            return
+        delivery_id = str((item.get("metadata") or {}).get("delivery_id") or "")
+        tasks.mark_running(target_id)
+        if delivery_id:
+            mailbox.mark_running(delivery_id)
+        try:
+            agent_input = str(item.get("input") or task.get("input") or "")
+            output = await run_agent(
+                defn, agent_input, session_id=f"_task:{target_id}", interactive=False, task_id=target_id
+            )
+            run_status = recorded_run_status(defn.id, agent_input, output)
+            if run_status != "success":
+                tasks.fail_task(target_id, output[:1000] or run_status)
+                if delivery_id:
+                    mailbox.fail(delivery_id, output[:1000] or run_status)
+                update_item(item["id"], status="failed", error=output[:500] or run_status)
+                return
+            tasks.complete_task(target_id, output)
+            if delivery_id:
+                mailbox.complete(delivery_id, output)
+            update_item(item["id"], status="done", error=None)
+        except Exception as exc:  # noqa: BLE001
+            tasks.fail_task(target_id, str(exc))
+            if delivery_id:
+                mailbox.fail(delivery_id, str(exc))
+            update_item(item["id"], status="failed", error=str(exc))
+        return
+
+    if target_type == "channel":
+        from palimind.agents import channels
+
+        try:
+            result = await channels.run_queued(target_id, str(item.get("input") or ""))
+            update_item(
+                item["id"],
+                status="done" if result.get("status") == "success" else "failed",
+                error=result.get("error"),
+            )
+        except Exception as exc:  # noqa: BLE001
+            update_item(item["id"], status="failed", error=str(exc))
+        return
+
     if target_type == "agent":
         defn = get_registry().get_by_id(target_id)
         if defn is None:
@@ -237,9 +342,12 @@ async def _queue_loop() -> None:
                         "target_type": item.get("target_type"),
                         "target_id": item.get("target_id"),
                         "input": item.get("input"),
+                        "lane": item.get("lane") or "",
+                        "task_id": item.get("task_id") or "",
+                        "delivery_id": (item.get("metadata") or {}).get("delivery_id") or "",
                     },
                     priority=int(item.get("priority") or 0),
-                    idempotency_key=f"queue:{item['id']}",
+                    idempotency_key=item.get("idempotency_key") or f"queue:{item['id']}",
                 )
                 update_item(item["id"], job_id=job.get("id"))
         except asyncio.CancelledError:

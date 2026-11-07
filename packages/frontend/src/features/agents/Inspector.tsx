@@ -815,6 +815,7 @@ export default function Inspector({
                       <option value="code">Code</option>
                       <option value="data">Data</option>
                       <option value="web">Web</option>
+                      <option value="desktop">Computer use — desktop tools</option>
                       <option value="custom">Custom — only pinned tools</option>
                     </Select>
                   </Field>
@@ -830,6 +831,20 @@ export default function Inspector({
                     description="Run sandboxed Python and shell commands."
                     checked={!!draft.shell_access}
                     onChange={(v) => patch({ shell_access: v })}
+                  />
+                  <Toggle
+                    title="Desktop access"
+                    description="Observe Linux apps through the accessibility tree."
+                    checked={!!draft.desktop_access}
+                    onChange={(v) =>
+                      patch(v ? { desktop_access: true } : { desktop_access: false, desktop_control: false })
+                    }
+                  />
+                  <Toggle
+                    title="Desktop control"
+                    description="Click, type and launch apps; mutating actions need approval."
+                    checked={!!draft.desktop_control}
+                    onChange={(v) => patch(v ? { desktop_control: true, desktop_access: true } : { desktop_control: false })}
                   />
                   <Toggle
                     title="Self-critique"

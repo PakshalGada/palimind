@@ -32,6 +32,7 @@ export type CommandIcon =
   | 'sync'
   | 'model'
   | 'home'
+  | 'monitor'
   | 'package';
 
 export interface CommandDef {
@@ -305,6 +306,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'View and customise key bindings',
     keywords: ['hotkeys', 'cheat sheet', 'bindings'],
     defaultShortcut: 'Mod+/',
+  },
+  {
+    id: 'general.computer-use',
+    title: 'Computer Use',
+    category: 'General',
+    icon: 'monitor',
+    description: 'Set up desktop access or open the Computer Use popup',
+    keywords: ['desktop', 'at-spi', 'screen', 'control', 'accessibility'],
   },
   {
     id: 'general.settings',

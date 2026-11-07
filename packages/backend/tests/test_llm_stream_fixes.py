@@ -262,6 +262,51 @@ def test_moe_stream_disconnect_cancels_pipeline(monkeypatch) -> None:
     assert state["cancelled"]
 
 
+def test_deep_research_stream_emits_reviewable_plan(monkeypatch) -> None:
+    import palimind.llm.deep_research as dr_pkg
+    from palimind.research.plan_registry import resolve_plan
+
+    plan = [
+        {
+            "subtopic_id": 1,
+            "title": "Background",
+            "research_question": "What is it?",
+            "search_queries": ["what is it"],
+        }
+    ]
+
+    async def fake_pipeline(**kw):
+        reviewed = await kw["on_plan"](plan)
+        assert reviewed and reviewed[0]["title"] == "Edited"
+        return {
+            "plan": reviewed,
+            "outputs": [],
+            "synthesis": "final report",
+            "citations": None,
+        }
+
+    monkeypatch.setattr(dr_pkg, "run_deep_research_pipeline", fake_pipeline)
+
+    async def main():
+        resp = await llm_stream.deep_research_mode_stream(
+            "topic", None, None, None, None, "http://x", "m", Path("/nonexistent"), "on"
+        )
+        it = resp.body_iterator
+        first = await it.__anext__()
+        assert json.loads(first[len("data: ") :])["type"] == "reasoning"
+        # The stream pauses on the plan until the user approves it.
+        plan_event = json.loads((await it.__anext__())[len("data: ") :])
+        assert plan_event["type"] == "research_plan"
+        assert plan_event["query"] == "topic"
+        assert plan_event["plan"][0]["title"] == "Background"
+        resolve_plan(plan_event["plan_id"], plan=[{**plan[0], "title": "Edited"}])
+        return [chunk async for chunk in it]
+
+    events = _sse_events(asyncio.run(main()))
+    tokens = "".join(e.get("text", "") for e in events if e["type"] == "token")
+    assert "final report" in tokens
+
+
 # ── MoE orchestrator robustness ───────────────────────────────────────────
 
 

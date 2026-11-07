@@ -679,6 +679,40 @@ export function triggerDownload(blob: Blob, filename: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+/**
+ * Artifact kinds allowed to pop the side panel automatically.
+ *
+ * The panel is intentionally not opened for every detected block: tables and
+ * short snippets should stay in the chat. Web pages, Markdown/Word-style
+ * documents, slide decks and previewable code files open themselves.
+ */
+const AUTO_OPEN_TYPES: ReadonlySet<ArtifactType> = new Set<ArtifactType>([
+  'html',
+  'svg',
+  'mermaid',
+  'react',
+  'markdown',
+  'document',
+  'slide-outline',
+  'code',
+  'code-file',
+  'multi-file',
+]);
+
+export function shouldAutoOpenArtifact(
+  artifact: Pick<Artifact, 'type' | 'filePaths'>,
+): boolean {
+  if (artifact.type === 'table') return false;
+  if (AUTO_OPEN_TYPES.has(artifact.type)) return true;
+  // File-backed artifacts follow their extension even when the detector
+  // classified them generically.
+  return (artifact.filePaths ?? []).some((path) =>
+    /\.(md|markdown|mdx|docx|html?|css|js|jsx|ts|tsx|py|json|ya?ml|toml|rs|go|java|kt|swift|c|cc|cpp|cs|php|rb|sh|sql)$/i.test(
+      path,
+    ),
+  );
+}
+
 /** True for artifacts that render as a web preview. */
 export function isPreviewable(type: ArtifactType): boolean {
   return (

@@ -178,12 +178,20 @@ export class RunRecorder {
           });
           this.store.dispatch({ type: 'phase', phase: 'analyzing' });
         }
-        if (this.store.getState()?.plan?.length) {
-          this.store.dispatch({
-            type: 'plan.step',
-            id: `plan-${event.agent_id}`,
-            status: (event.status || 'working') === 'complete' ? 'done' : 'running',
-          });
+        const plan = this.store.getState()?.plan ?? [];
+        if (plan.length) {
+          // Plans come from MoE (`moe-1`) and deep research (`research-1`);
+          // match the agent id through any of those prefixes.
+          const target =
+            plan.find((step) => step.id === `plan-${event.agent_id}`) ??
+            plan.find((step) => step.id.endsWith(`-${event.agent_id}`));
+          if (target) {
+            this.store.dispatch({
+              type: 'plan.step',
+              id: target.id,
+              status: (event.status || 'working') === 'complete' ? 'done' : 'running',
+            });
+          }
         }
         break;
       }
@@ -227,9 +235,15 @@ export class RunRecorder {
       }
 
       case 'agent:tool_result': {
-        if (!this.lastToolId) break;
-        const toolId = this.lastToolId;
-        const toolName = this.lastToolName;
+        const toolName = normalizeToolName(String(event.tool || this.lastToolName || 'tool'));
+        // Parallel tools finish out of order; match the result to the oldest
+        // still-running row with the same tool name instead of whichever
+        // call happened to start last.
+        const running = (this.store.getState()?.steps ?? []).find(
+          (step) => step.name === toolName && step.status === 'running',
+        );
+        const toolId = running?.id ?? this.lastToolId;
+        if (!toolId) break;
         const status =
           typeof event.result === 'string' && /^error:/i.test(event.result.trim())
             ? 'error'
@@ -276,6 +290,27 @@ export class RunRecorder {
         break;
       }
 
+      case 'agent:todo': {
+        const items = Array.isArray(event.items) ? event.items : [];
+        this.store.dispatch({
+          type: 'plan.set',
+          steps: items.map((item, index) => {
+            const status =
+              item.status === 'completed'
+                ? 'done'
+                : item.status === 'in_progress'
+                  ? 'running'
+                  : 'pending';
+            return {
+              id: item.id || `todo-${index}`,
+              label: item.label || `Step ${index + 1}`,
+              status,
+            };
+          }),
+        });
+        break;
+      }
+
       case 'agent:plan': {
         const steps = Array.isArray(event.steps) ? event.steps : [];
         this.store.dispatch({
@@ -293,6 +328,30 @@ export class RunRecorder {
             return { id: `plan-${index}`, label: `Step ${index + 1}` };
           }),
         });
+        break;
+      }
+
+      case 'research_plan': {
+        // Deep research pauses for plan review: mirror the sub-topics into the
+        // plan model so the activity panel shows the approved research plan.
+        const plan = Array.isArray((event as { plan?: unknown[] }).plan)
+          ? ((event as { plan?: unknown[] }).plan as unknown[])
+          : [];
+        this.store.dispatch({
+          type: 'plan.set',
+          steps: plan.map((item, index) => {
+            const record = (item && typeof item === 'object' ? item : {}) as Record<
+              string,
+              unknown
+            >;
+            const label =
+              (typeof record.title === 'string' && record.title) ||
+              (typeof record.research_question === 'string' && record.research_question) ||
+              `Research area ${index + 1}`;
+            return { id: `research-${record.subtopic_id ?? index + 1}`, label };
+          }),
+        });
+        this.store.dispatch({ type: 'phase', phase: 'routing' });
         break;
       }
 
@@ -391,7 +450,7 @@ export class RunRecorder {
     if (!trimmed) return;
     const phase = phaseFromText(trimmed);
     if (phase) this.store.dispatch({ type: 'phase', phase });
-    if (this.mode === 'knowledge_base' || this.mode === 'moe') {
+    if (this.mode === 'knowledge_base' || this.mode === 'moe' || this.mode === 'deep_research') {
       return;
     }
     this.appendReasoning(`${trimmed}\n`);

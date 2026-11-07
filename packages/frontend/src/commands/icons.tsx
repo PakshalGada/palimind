@@ -11,6 +11,7 @@ import {
   Keyboard,
   Layers,
   MessageSquare,
+  Monitor,
   Network,
   PanelLeft,
   Package,
@@ -46,6 +47,7 @@ const ICONS: Record<CommandIcon, IconComponent> = {
   sync: RefreshCw,
   model: Cpu,
   home: House,
+  monitor: Monitor,
   package: Package,
 };
 

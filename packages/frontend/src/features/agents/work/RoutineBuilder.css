@@ -1,0 +1,8 @@
+.ag-modal-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 560px) {
+  .ag-modal-grid2 { grid-template-columns: 1fr; }
+}

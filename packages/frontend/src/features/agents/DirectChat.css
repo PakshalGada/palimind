@@ -1,0 +1,127 @@
+.ag-chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.ag-thread {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px 20px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ag-chat-empty {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 360px;
+  padding: 40px 16px;
+  text-align: center;
+}
+.ag-chat-empty h2 {
+  margin: 4px 0 0;
+  font-family: var(--font-heading);
+  font-size: var(--type-lg);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.ag-chat-empty p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--type-sm);
+  line-height: 1.5;
+}
+.ag-chat-empty__prompts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.ag-chat-empty__prompts button {
+  padding: 5px 10px;
+  min-height: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  color: var(--ink-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--type-xs);
+  cursor: pointer;
+}
+.ag-chat-empty__prompts button:hover { background: var(--surface-hover); color: var(--ink); }
+.ag-chat-empty__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  color: var(--ink-muted);
+  font-size: var(--type-2xs);
+}
+.ag-at-hint { display: inline-flex; }
+
+.ag-takeover-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 20px 0;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.ag-takeover-banner__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--ink);
+  flex-shrink: 0;
+}
+.ag-takeover-banner__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+.ag-takeover-banner__text strong {
+  color: var(--ink);
+  font-size: var(--type-sm);
+  font-weight: var(--weight-medium);
+}
+.ag-takeover-banner__text span {
+  color: var(--ink-muted);
+  font-size: var(--type-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ag-takeover-banner button {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 11px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--inverse-bg);
+  color: var(--inverse-ink);
+  font-family: var(--font-sans);
+  font-size: var(--type-xs);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .ag-thread { padding: 16px 12px 4px; }
+  .ag-takeover-banner { margin: 8px 12px 0; }
+}

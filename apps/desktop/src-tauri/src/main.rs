@@ -20,7 +20,9 @@ use tauri::{
     tray::TrayIconBuilder,
     AppHandle, Manager,
 };
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, ShortcutState};
+
+mod computer_use;
 
 // ── Python backend process holder ────────────────────────────────────────────
 
@@ -232,8 +234,22 @@ fn main() {
     } else {
         "Ctrl+Shift+Space"
     };
+    // Computer-use surfaces. The Stop accelerator is deliberately distinct
+    // from the main-window toggle; it releases held input and cancels the run.
+    let popup_hotkey = if is_mac {
+        "Command+Shift+C"
+    } else {
+        "Super+Shift+C"
+    };
+    let stop_hotkey = if is_mac {
+        "Command+Shift+Escape"
+    } else {
+        "Ctrl+Shift+Escape"
+    };
+    let api_base_for_hotkey = api_base.clone();
 
     tauri::Builder::default()
+        .manage(computer_use::ApiBase(api_base.clone()))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -261,21 +277,24 @@ fn main() {
                 });
             }
 
-            // ── Global shortcut ──────────────────────────────────────────
-            let h1 = handle.clone();
-
+            // ── Global shortcuts ─────────────────────────────────────────
             // Unregister any stale shortcuts from a previously crashed instance
             let _ = app.global_shortcut().unregister_all();
 
-            let shortcut_result =
-                app.global_shortcut()
-                    .on_shortcuts([space_hotkey], move |_app, shortcut, event| {
-                        if event.state() != ShortcutState::Pressed {
-                            return;
+            let popup_base = api_base_for_hotkey.clone();
+            let shortcut_result = app.global_shortcut().on_shortcuts(
+                [space_hotkey, popup_hotkey, stop_hotkey],
+                move |app, shortcut, event| {
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    match shortcut.key {
+                        Code::Escape => computer_use::hotkey_stop(app),
+                        Code::KeyC => {
+                            let _ = computer_use::open_popup(app, &popup_base);
                         }
-                        if shortcut.to_string().contains("Space") {
-                            // Toggle main window
-                            if let Some(win) = h1.get_webview_window("main") {
+                        Code::Space => {
+                            if let Some(win) = app.get_webview_window("main") {
                                 if win.is_visible().unwrap_or(false) {
                                     let _ = win.hide();
                                 } else {
@@ -284,16 +303,27 @@ fn main() {
                                 }
                             }
                         }
-                    });
+                        _ => {}
+                    }
+                },
+            );
             if let Err(e) = shortcut_result {
                 eprintln!("[Palimind] Global shortcut registration failed (non-fatal): {e}");
             }
 
             // ── Tray icon menu (works on all platforms including Wayland) ──
             let tray_h = handle.clone();
+            let tray_base = api_base_for_hotkey.clone();
             let open_item = MenuItem::with_id(app, "open", "Open Palimind", true, None::<&str>)?;
+            let computer_item =
+                MenuItem::with_id(app, "computer", "Computer Use", true, None::<&str>)?;
+            let stop_item =
+                MenuItem::with_id(app, "stop-desktop", "Stop desktop control", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open_item, &quit_item])?;
+            let menu = Menu::with_items(
+                app,
+                &[&open_item, &computer_item, &stop_item, &quit_item],
+            )?;
 
             TrayIconBuilder::new()
                 .menu(&menu)
@@ -304,6 +334,12 @@ fn main() {
                             let _ = win.set_focus();
                         }
                     }
+                    "computer" => {
+                        let _ = computer_use::open_popup(app, &tray_base);
+                    }
+                    "stop-desktop" => {
+                        computer_use::stop_desktop_control(app, &tray_base);
+                    }
                     "quit" => {
                         app.exit(0);
                     }
@@ -313,6 +349,16 @@ fn main() {
 
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            computer_use::open_computer_use,
+            computer_use::hide_computer_use,
+            computer_use::show_region_overlay,
+            computer_use::hide_region_overlay,
+            computer_use::focus_main_window,
+            computer_use::stop_computer_use,
+            computer_use::show_ghost_cursor,
+            computer_use::hide_ghost_cursor,
+        ])
         .on_window_event(move |window, event| {
             if let tauri::WindowEvent::Destroyed = event {
                 if window.label() == "main" {

@@ -14,22 +14,26 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import threading
 import time
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urljoin, urlparse
 
 logger = logging.getLogger(__name__)
 
 # ── tunables ──────────────────────────────────────────────────────────────
-MAX_RESULTS_DEFAULT = 4  # DDG results used per query
-MAX_PAGES_TO_FETCH = 3  # pages actually fetched for content
-PAGE_CONTENT_CHARS = 2500  # extracted text kept per page
-SNIPPET_CHARS = 400  # snippet text kept when fetch fails
+MAX_RESULTS_DEFAULT = 5  # search results used per query
+MAX_PAGES_TO_FETCH = 4  # pages actually fetched for content
+PAGE_CONTENT_CHARS = 3000  # extracted text kept per page
+SNIPPET_CHARS = 500  # snippet text kept when fetch fails
 CACHE_TTL_SECONDS = 15 * 60  # 15 minutes
 CACHE_MAX_ENTRIES = 128  # LRU bound
 MAX_RESULTS_PER_DOMAIN = 2
 FETCH_TIMEOUT_SECONDS = 15
+MAX_FETCH_WORKERS = 4
+MAX_QUERY_VARIANTS = 3
 
 # Boilerplate/spam domains worth deprioritizing
 _LOW_QUALITY_DOMAINS = {
@@ -80,14 +84,96 @@ def _domain(url: str) -> str:
         return ""
 
 
-def _dedupe_results(results: list[dict], limit: int) -> list[dict]:
-    """Dedupe by URL, cap per domain, deprioritize low-quality domains."""
+_QUERY_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "can",
+    "do",
+    "does",
+    "for",
+    "from",
+    "how",
+    "i",
+    "in",
+    "is",
+    "it",
+    "of",
+    "on",
+    "or",
+    "please",
+    "tell",
+    "me",
+    "the",
+    "to",
+    "was",
+    "what",
+    "when",
+    "where",
+    "which",
+    "who",
+    "why",
+    "with",
+    "you",
+    "your",
+}
+
+# Domains that usually carry authoritative primary information.
+_QUALITY_DOMAINS = {
+    "arxiv.org",
+    "github.com",
+    "wikipedia.org",
+    "nature.com",
+    "science.org",
+    "acm.org",
+    "ieee.org",
+    "nih.gov",
+    "who.int",
+    "europa.eu",
+}
+
+
+def _query_terms(query: str) -> set[str]:
+    return {
+        token.lower()
+        for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9'+-]{1,}", query)
+        if token.lower() not in _QUERY_STOPWORDS
+    }
+
+
+def _relevance(item: dict, terms: set[str]) -> float:
+    """Cheap lexical relevance + domain/position prior used for re-ranking."""
+    if not terms:
+        return 0.0
+    title = str(item.get("title") or "").lower()
+    snippet = str(item.get("snippet") or "").lower()
+    url = str(item.get("url") or "").lower()
+    haystack = f"{title} {snippet} {url}"
+    overlap = sum(1 for term in terms if term in haystack)
+    score = overlap / max(1, len(terms))
+    if any(term in title for term in terms):
+        score += 0.35
+    dom = _domain(url)
+    if dom in _QUALITY_DOMAINS or dom.endswith(".gov") or dom.endswith(".edu"):
+        score += 0.25
+    if dom in _LOW_QUALITY_DOMAINS:
+        score -= 0.6
+    return score
+
+
+def _dedupe_results(results: list[dict], limit: int, query: str = "") -> list[dict]:
+    """Dedupe by URL, cap per domain, then rank by relevance and quality."""
     seen_urls: set[str] = set()
     domain_counts: dict[str, int] = {}
-    good: list[dict] = []
-    lowq: list[dict] = []
+    unique: list[dict] = []
+    terms = _query_terms(query)
 
-    for res in results:
+    for position, res in enumerate(results):
         url = (res.get("href") or res.get("url") or "").strip()
         if not url.startswith(("http://", "https://")):
             continue
@@ -103,13 +189,14 @@ def _dedupe_results(results: list[dict], limit: int) -> list[dict]:
             "url": url,
             "snippet": (res.get("body") or res.get("snippet") or "").strip(),
         }
-        if dom in _LOW_QUALITY_DOMAINS:
-            lowq.append(item)
-        else:
-            good.append(item)
+        item["_score"] = _relevance(item, terms) + max(0.0, 0.12 - position * 0.01)
+        unique.append(item)
 
-    ranked = good + lowq
-    return ranked[:limit]
+    # Stable sort: provider order breaks ties.
+    unique.sort(key=lambda item: item.get("_score", 0.0), reverse=True)
+    for item in unique:
+        item.pop("_score", None)
+    return unique[:limit]
 
 
 def _is_safe_url(url: str) -> bool:
@@ -236,9 +323,14 @@ def _fetch_page_fallback(url: str) -> str:
         if resp is None or resp.is_redirect or resp.status_code >= 400:
             return ""
         soup = BeautifulSoup(resp.text, "html.parser")
-        for tag in soup(["script", "style", "nav", "header", "footer", "aside", "noscript"]):
+        for tag in soup(
+            ["script", "style", "nav", "header", "footer", "aside", "noscript", "form"]
+        ):
             tag.decompose()
-        text = soup.get_text(separator="\n")
+        # Prefer the main content region when the page marks one; this drops
+        # menus, cookie banners and related-link blocks from the extract.
+        main = soup.find("article") or soup.find("main") or soup.find(attrs={"role": "main"})
+        text = (main or soup).get_text(separator="\n")
         return text
     except Exception as e:
         logger.info(f"Fallback fetch failed for {url}: {e}")
@@ -253,13 +345,40 @@ def fetch_url_content(url: str, max_chars: int = PAGE_CONTENT_CHARS) -> str:
     return f"=== CONTENT FOR: {url} ===\n{content[:max_chars]}\n{'=' * 39}\n"
 
 
+_QUESTION_PREFIX_RE = re.compile(
+    r"^(?:(?:please|can you|could you|tell me|explain|what is|what are|how do|"
+    r"how does|how to|why is|why are|who is|who are|when did|where is)\s+)+",
+    re.IGNORECASE,
+)
+_FRESHNESS_RE = re.compile(
+    r"\b(latest|current|today|news|recent|this year|now|update|release|price)\b",
+    re.IGNORECASE,
+)
+
+
 def _build_query_variants(query: str) -> list[str]:
-    """Cheap deterministic query variants (no LLM call)."""
-    variants = [query]
+    """Cheap deterministic query variants (no LLM call).
+
+    Search engines respond better to the keywords than to a full question, and
+    a year-qualified variant surfaces fresher pages for time-sensitive asks.
+    """
+    variants: list[str] = []
+
+    def add(value: str) -> None:
+        value = " ".join(value.split()).strip()
+        if value and value.lower() not in {v.lower() for v in variants}:
+            variants.append(value)
+
+    add(query)
     stripped = query.strip().rstrip("?.!")
-    if stripped and stripped.lower() != query.lower():
-        variants.append(stripped)
-    return variants
+    keyword_query = _QUESTION_PREFIX_RE.sub("", stripped).strip()
+    keyword_query = re.sub(r"^(?:the|a|an)\s+", "", keyword_query, flags=re.IGNORECASE)
+    # Prefer the keyword and freshness variants over a punctuation-only copy.
+    add(keyword_query)
+    if _FRESHNESS_RE.search(query) and not re.search(r"\b20\d{2}\b", query):
+        add(f"{keyword_query or stripped} {time.gmtime().tm_year}")
+    add(stripped)
+    return variants[:MAX_QUERY_VARIANTS]
 
 
 def perform_web_search(
@@ -288,25 +407,32 @@ def perform_web_search(
         return cached
 
     # 1. Multi-query search through the configured provider (SearXNG or DDG).
+    # Ask for a wider candidate set than we need, then re-rank locally by
+    # lexical relevance, domain quality and provider position.
     variants = _build_query_variants(query)
-    raw_results, provider_name = router.search_many(variants, max_results)
+    candidate_limit = max(max_results, min(max_results * 3, 15))
+    raw_results, provider_name = router.search_many(variants, candidate_limit)
     raw_dicts = [result.to_dict() for result in raw_results]
-    results = _dedupe_results(raw_dicts, max_results)
+    results = _dedupe_results(raw_dicts, max_results, query)
     if not results:
         # Not cached: an empty result is usually a transient DDG failure or
         # rate-limit, which would otherwise stick for the whole cache TTL.
         return f"No web search results found for query: '{query}'"
 
-    # 2. Fetch page content for top results
-    pages_to_fetch = results[:MAX_PAGES_TO_FETCH] if fetch_content else []
-    for item in pages_to_fetch:
-        content = _fetch_page_content(item["url"])
-        item["content"] = content if content else None
+    # 2. Fetch page content for top results in parallel: search latency stays
+    # close to the slowest page instead of the sum of every page.
+    if fetch_content:
+        pages_to_fetch = results[:MAX_PAGES_TO_FETCH]
+        with ThreadPoolExecutor(max_workers=min(MAX_FETCH_WORKERS, len(pages_to_fetch))) as pool:
+            contents = list(pool.map(lambda item: _fetch_page_content(item["url"]), pages_to_fetch))
+        for item, content in zip(pages_to_fetch, contents, strict=True):
+            item["content"] = content if content else None
 
     # 3. Format
     parts = [
         f"=== WEB SEARCH RESULTS FOR: '{query}' ===\n",
         f"Provider: {provider_name}\n",
+        f"Sources: {len(results)}\n",
     ]
     for idx, item in enumerate(results, start=1):
         parts.append(

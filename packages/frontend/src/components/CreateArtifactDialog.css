@@ -1,0 +1,99 @@
+.create-artifact-kinds {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.create-artifact-kind {
+    display: grid;
+    grid-template-columns: 20px 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 8px;
+    row-gap: 2px;
+    align-items: center;
+    text-align: left;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    color: var(--ink);
+    cursor: pointer;
+    transition:
+        border-color var(--dur-2) var(--ease-out),
+        background-color var(--dur-2) var(--ease-out);
+}
+
+.create-artifact-kind:hover {
+    background: var(--surface-hover);
+}
+
+.create-artifact-kind.is-selected {
+    border-color: var(--ink);
+    background: var(--surface-active);
+}
+
+.create-artifact-kind svg {
+    grid-row: 1 / span 2;
+    color: var(--ink-muted);
+}
+
+.create-artifact-kind.is-selected svg {
+    color: var(--ink);
+}
+
+.create-artifact-kind__label {
+    font-size: var(--type-sm);
+    font-weight: 600;
+}
+
+.create-artifact-kind__desc {
+    font-size: var(--type-xs);
+    color: var(--text-muted);
+    line-height: 1.35;
+}
+
+.create-artifact-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: var(--type-sm);
+    color: var(--text-secondary);
+}
+
+.create-artifact-field textarea {
+    width: 100%;
+    resize: vertical;
+    min-height: 76px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    color: var(--ink);
+    font: inherit;
+    line-height: 1.5;
+}
+
+.create-artifact-field textarea:focus {
+    outline: none;
+    border-color: var(--ink);
+}
+
+.create-artifact-hint {
+    margin: 10px 0 0;
+    font-size: var(--type-xs);
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.create-artifact-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+@media (max-width: 620px) {
+    .create-artifact-kinds {
+        grid-template-columns: 1fr;
+    }
+}

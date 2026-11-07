@@ -90,7 +90,7 @@ async def run_routine_job(job: dict[str, Any]) -> dict[str, Any]:
     if routine is None:
         return {"status": "error", "output": f"Routine not found: {routine_id}"}
     try:
-        run_id = await routines.run_routine(routine_id)
+        run_id = await routines.run_routine(routine_id, str(payload.get("payload") or ""))
         await post_routine_notification(routine, "success")
         return {"status": "success", "output": run_id}
     except Exception as exc:  # noqa: BLE001 - notification still matters

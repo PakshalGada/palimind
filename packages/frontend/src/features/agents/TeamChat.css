@@ -1,0 +1,55 @@
+.ag-team-live {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2px 0 2px 33px;
+  color: var(--ink-muted);
+  font-size: var(--type-xs);
+}
+.ag-team-live__pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--ink-secondary);
+  animation: ag-pulse 1.6s steps(2, end) infinite;
+}
+@keyframes ag-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+.ag-msg--system {
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--ink-muted);
+  font-size: var(--type-xs);
+  padding: 2px 0;
+}
+.ag-msg--system span { max-width: 560px; text-align: center; }
+.ag-msg--system time { font-size: var(--type-2xs); }
+
+.ag-team-stop {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 20px 4px;
+  width: 100%;
+}
+.ag-team-stop button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  min-height: 0;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--type-xs);
+  cursor: pointer;
+}
+.ag-team-stop button:hover { color: var(--ink); background: var(--surface-hover); }

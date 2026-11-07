@@ -1,10 +1,18 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the main window, served from the local FastAPI backend on any loopback port",
-  "windows": ["main"],
+  "description": "Permissions for the main window, computer-use popup, region overlay and ghost cursor, served from the local FastAPI backend on any loopback port",
+  "windows": [
+    "main",
+    "computer-use",
+    "region-overlay",
+    "cursor-ghost"
+  ],
   "remote": {
-    "urls": ["http://127.0.0.1:*/**", "http://localhost:*/**"]
+    "urls": [
+      "http://127.0.0.1:*/**",
+      "http://localhost:*/**"
+    ]
   },
   "permissions": [
     "core:default",
@@ -12,6 +20,10 @@
     "core:event:allow-unlisten",
     "core:window:allow-hide",
     "core:window:allow-show",
-    "core:window:allow-set-focus"
+    "core:window:allow-set-focus",
+    "core:event:allow-emit",
+    "core:window:allow-close",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-set-ignore-cursor-events"
   ]
 }

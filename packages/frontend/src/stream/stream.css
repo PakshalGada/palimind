@@ -49,3 +49,46 @@
     border-radius: 8px;
     background: var(--bg-color);
 }
+
+/* ── live run metadata and follow-ups ─────────────────────────────────── */
+
+.live-run-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.live-run-meta__chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    border: 1px solid var(--line-subtle);
+    border-radius: var(--radius-full, 999px);
+    color: var(--ink-muted);
+    font-size: var(--type-2xs);
+}
+
+.live-followups {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.live-followups__chip {
+    padding: 5px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-full, 999px);
+    background: transparent;
+    color: var(--ink-secondary);
+    font-family: var(--font-sans);
+    font-size: var(--type-xs);
+    cursor: pointer;
+    transition: background var(--dur-2, 120ms) var(--ease-out), color var(--dur-2, 120ms) var(--ease-out);
+}
+
+.live-followups__chip:hover {
+    background: var(--surface-hover);
+    color: var(--ink);
+}

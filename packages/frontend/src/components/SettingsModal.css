@@ -519,3 +519,33 @@
 .settings-card .ui-segmented {
   margin-top: 2px;
 }
+
+
+/* Computer use: in-panel how-to */
+.settings-howto {
+  margin: 4px 0 12px;
+  padding-left: 20px;
+  color: var(--color-text-secondary);
+  font-size: var(--type-sm);
+  line-height: var(--leading-relaxed);
+}
+
+.settings-howto li {
+  margin: 0 0 7px;
+  padding-left: 2px;
+}
+
+.settings-howto strong {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.settings-howto code,
+.settings-howto kbd {
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--color-text-primary);
+}

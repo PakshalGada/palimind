@@ -61,14 +61,23 @@ import httpx
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from palimind import config as _palimind_config
 from palimind.agents.api import router as agents_router
+from palimind.agents.browser_profiles_api import router as browser_profiles_router
+from palimind.agents.channels_api import router as channels_router
+from palimind.agents.flows_api import router as flows_router
 from palimind.agents.memory_api import router as memory_router
+from palimind.agents.providers_api import router as providers_router
+from palimind.agents.sharing_api import router as sharing_router
+from palimind.agents.tasks_api import router as agent_tasks_router
 from palimind.agents.teams_api import router as teams_router
+from palimind.agents.usage_api import router as usage_router
+from palimind.agents.visuals_api import router as visuals_router
+from palimind.agents.webhooks_api import router as webhooks_router
 from palimind.api import (
     IndexNotFoundError,
     initialize_index,
@@ -81,6 +90,7 @@ from palimind.api_routers.routers.config import (
 )
 from palimind.api_routers.routers.config import router as config_router
 from palimind.api_routers.routers.cookbook import router as cookbook_router
+from palimind.api_routers.routers.desktop import router as desktop_router
 from palimind.api_routers.routers.document import router as document_router
 from palimind.api_routers.routers.files import router as files_router
 from palimind.api_routers.routers.images import router as images_router
@@ -101,6 +111,20 @@ from palimind.events import hub as event_hub
 from palimind.events import sse as event_sse
 from palimind.events import store as event_store
 from palimind.llm.stream import deep_research_mode_stream, llm_mode_stream, moe_mode_stream
+
+# `@agent-name` mention anywhere in a chat turn. Emails (a@b) do not match
+# because the `@` must follow whitespace or the start of the message.
+_AGENT_MENTION_RE = re.compile(r"(^|\s)@([A-Za-z0-9][A-Za-z0-9_-]*)")
+
+
+def _split_agent_mention(text: str) -> tuple[str | None, str]:
+    """Return (mentioned agent name, input without the mention token)."""
+    match = _AGENT_MENTION_RE.search(text or "")
+    if not match:
+        return None, text
+    name = match.group(2).strip()
+    stripped = (text[: match.start()] + text[match.end() :]).strip()
+    return name or None, stripped
 from palimind.memory.session_store import (
     add_new_session,
     delete_session,
@@ -147,7 +171,16 @@ app.add_middleware(MetricsMiddleware)
 
 app.include_router(teams_router)
 app.include_router(agents_router)
+app.include_router(agent_tasks_router)
+app.include_router(channels_router)
+app.include_router(browser_profiles_router)
+app.include_router(providers_router)
+app.include_router(flows_router)
+app.include_router(usage_router)
 app.include_router(memory_router)
+app.include_router(sharing_router)
+app.include_router(visuals_router)
+app.include_router(webhooks_router)
 app.include_router(projects_router)
 app.include_router(artifacts_router)
 app.include_router(openai_router)
@@ -163,6 +196,7 @@ app.include_router(jobs_router)
 app.include_router(document_router)
 app.include_router(files_router)
 app.include_router(cookbook_router)
+app.include_router(desktop_router)
 app.include_router(config_router)
 app.include_router(backup_router)
 app.include_router(media_router)
@@ -197,6 +231,14 @@ class SPAStaticFiles(StaticFiles):
         if response.headers.get("content-type", "").startswith("text/html"):
             response.headers["Cache-Control"] = "no-store"
         return response
+
+
+@app.get("/client", response_class=HTMLResponse, include_in_schema=False)
+async def thin_web_client() -> HTMLResponse:
+    """Public HTML shell for phones/tablets; API calls still need the token."""
+    from palimind.web_client import CLIENT_HTML
+
+    return HTMLResponse(CLIENT_HTML, headers={"Cache-Control": "no-store"})
 
 
 if UI_DIR.exists():
@@ -686,6 +728,14 @@ async def startup_event():
 
     set_registry_field(state.active_field)
     try:
+        from palimind.agents import threads
+
+        created = await asyncio.to_thread(threads.ensure_all_chat_threads)
+        if created:
+            print(f"[agents] created {created} chat thread(s)")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[startup] agent thread backfill failed: {exc}")
+    try:
         from palimind.agents.lifecycle import remove_legacy_presets
 
         await asyncio.to_thread(remove_legacy_presets)
@@ -705,6 +755,17 @@ async def startup_event():
         start_queue_runner()
     except Exception as exc:  # noqa: BLE001
         print(f"[startup] queue runner failed: {exc}")
+    try:
+        from palimind import settings as _settings
+        from palimind.agents import automation
+        from palimind.agents.registry import get_registry as _get_registry
+
+        if _settings.AGENT_AUTOMATION_ENABLE and any(
+            bool(getattr(defn, "allow_automation", False)) for defn in _get_registry().all()
+        ):
+            automation.start_server()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[startup] automation listener failed: {exc}")
 
     if state.active_field:
         # Surface embedding/index mismatches at startup instead of letting
@@ -746,6 +807,12 @@ async def shutdown_event():
         pass
     try:
         stop_queue_runner()
+    except Exception:
+        pass
+    try:
+        from palimind.agents import automation
+
+        automation.stop_server()
     except Exception:
         pass
     if state.watcher:
@@ -1331,10 +1398,12 @@ async def _agent_scope_chat(
     session_id: str | None,
     entry: "_ChatStreamEntry | None" = None,
 ) -> StreamingResponse:
-    """Route a chat directly to the agent named by ``scope="agent:<id>"``.
+    """Route a chat to an agent, or to any agent mentioned in the message.
 
     The agent's conversations are stored in its own private session store, so
-    they never mix with global or knowledge-base chat.
+    they never mix with global or knowledge-base chat. A message may call a
+    different agent with ``@name``; the reply stays in the same conversation
+    and records the responding agent in its message metadata.
     """
     from palimind.agents.registry import get_registry
     from palimind.agents.service import agent_sse_stream
@@ -1352,23 +1421,38 @@ async def _agent_scope_chat(
 
         return StreamingResponse(err_stream(), media_type="text/event-stream")
 
+    responder = defn
+    agent_input = q
+    candidate, stripped = _split_agent_mention(q)
+    if candidate:
+        other = get_registry().get(candidate)
+        if other is not None and other.enabled:
+            responder = other
+            agent_input = stripped
+
     _ensure_agent_sessions(agent_id)
     global_cfg = load_global_config()
     ollama_url = global_cfg.get("ollama_base_url", "http://localhost:11434")
-    model = defn.model or global_cfg.get("chat_model", "llama3")
+    model = responder.model or global_cfg.get("chat_model", "llama3")
     agent_root = _agent_chat_root(agent_id)
     session_id = await _resolve_chat_session(agent_root, session_id)
     if entry is not None:
-        entry.bind(agent_root, session_id, mode="agent", mode_params={"agent_name": defn.name})
+        entry.bind(
+            agent_root,
+            session_id,
+            mode="agent",
+            mode_params={"agent_name": responder.name, "agent_id": responder.id},
+        )
     return await agent_sse_stream(
         agent_root,
-        defn.name,
-        q,
+        responder.name,
+        agent_input or "Run your task.",
         session_id,
         await asyncio.to_thread(resolve_model_url, model, ollama_url),
         model,
         working_root=None,
         prefix_mention=False,
+        chat_style=True,
     )
 
 
@@ -1571,7 +1655,7 @@ async def chat_stream(
     files: str | None = None,
     attachment_ids: str | None = None,
     chat_mode: str = "document",
-    web_search: str = "false",
+    web_search: str = "true",
     llm_sub_mode: str | None = None,
     scope: str = "field",
     rerank: bool | None = None,
@@ -1663,17 +1747,19 @@ async def _chat_stream_response(
                 chat_model = vision_model
 
     # ── @agent mention routing ────────────────────────────────────────
-    stripped_q = q.lstrip()
-    if stripped_q.startswith("@"):
-        mention_parts = stripped_q[1:].split(None, 1)
-        candidate = mention_parts[0].strip() if mention_parts else ""
+    # A mention routes the whole turn to that agent. It is recognized anywhere
+    # in the message (not only at the start), so "summarise @researcher on X"
+    # works, and the mention token is removed from the agent's input.
+    mention = _AGENT_MENTION_RE.search(q)
+    if mention:
+        candidate = mention.group(2).strip()
         if candidate:
             from palimind.agents.registry import get_registry
             from palimind.agents.service import agent_sse_stream
 
             defn = get_registry().get(candidate)
             if defn is not None and defn.enabled:
-                agent_input = mention_parts[1].strip() if len(mention_parts) > 1 else ""
+                agent_input = (q[: mention.start()] + q[mention.end() :]).strip()
                 if attachment_context:
                     agent_input = f"{agent_input}\n\n{attachment_context}".strip()
                 mention_session = await _resolve_chat_session(root, session_id)
@@ -1688,6 +1774,7 @@ async def _chat_stream_response(
                     ollama_url,
                     chat_model,
                     working_root=root if not is_global_chat else None,
+                    chat_style=True,
                 )
 
     moe_sub_mode = (

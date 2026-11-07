@@ -5,6 +5,7 @@ import { useActivityState } from '../hooks';
 import type { GrantDecision } from './PermissionGrant';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { AgentMode, DefaultMode, type ModeProps } from '../modes/DefaultMode';
+import { DeepResearchMode } from '../modes/DeepResearchMode';
 import { KnowledgeBaseMode } from '../modes/KnowledgeBaseMode';
 import { MoeMode } from '../modes/MoeMode';
 
@@ -40,6 +41,7 @@ export function RunSurface({
     children,
   };
   if (state.mode === 'moe') return <MoeMode {...props} />;
+  if (state.mode === 'deep_research') return <DeepResearchMode {...props} />;
   if (state.mode === 'knowledge_base') return <KnowledgeBaseMode {...props} />;
   if (state.mode === 'agent') return <AgentMode {...props} />;
   return <DefaultMode {...props} />;

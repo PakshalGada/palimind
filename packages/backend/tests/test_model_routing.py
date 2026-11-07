@@ -1,65 +1,91 @@
-"""Unit tests for model routing / availability fallback (no network)."""
+"""Tests for capability-aware model routing."""
 
 from __future__ import annotations
 
-from palimind.opencode import router
+from palimind.agents.model_routing import infer_needs, route_model
 
 
-def _patch(monkeypatch, local: set[str], opencode: set[str] | None = None) -> None:
-    monkeypatch.setattr(router, "fetch_ollama_model_ids", lambda url, timeout=8: set(local))
-    monkeypatch.setattr(router, "opencode_model_ids", lambda: set(opencode or set()))
+def test_routing_off_keeps_requested_model() -> None:
+    route = route_model("do anything", "qwen3.5:4b", routing_mode="off")
+    assert route.model == "qwen3.5:4b"
+    assert route.unchanged is True
 
 
-def test_resolve_model_keeps_installed_local_model(monkeypatch) -> None:
-    _patch(monkeypatch, {"gemma4:e2b", "llama3:8b"})
-    model, url, note = router.resolve_model(
-        "gemma4:e2b", "http://localhost:11434", fallback_model="gemma4:e2b"
+def test_task_requirements_detect_tools_vision_code_and_complexity() -> None:
+    needs = infer_needs(
+        "Fix the Python bug and compare the results",
+        tools=["read_file", "search_replace"],
+        attachments=["screenshot.png"],
+        complexity="high",
     )
-    assert (model, url, note) == ("gemma4:e2b", "http://localhost:11434", "")
+    assert needs.tools
+    assert needs.vision
+    assert needs.code
+    assert needs.reasoning
+    assert needs.complexity == "high"
 
 
-def test_resolve_model_falls_back_to_field_default(monkeypatch) -> None:
-    _patch(monkeypatch, {"gemma4:e2b"})
-    model, url, note = router.resolve_model(
-        "deepseek-v4-flash", "http://localhost:11434", fallback_model="gemma4:e2b"
+def test_vision_task_routes_to_a_vision_capable_model() -> None:
+    route = route_model(
+        "describe this screenshot",
+        "qwen3.5:4b",
+        candidates=["qwen2.5-vl:7b"],
+        attachments=["screen.png"],
+        tools=["read_file"],
     )
-    assert model == "gemma4:e2b"
-    assert url == "http://localhost:11434"
-    assert "deepseek-v4-flash" in note and "gemma4:e2b" in note
+    assert route.model == "qwen2.5-vl:7b"
+    assert route.unchanged is False
+    assert "capability" in route.reason
 
 
-def test_resolve_model_falls_back_to_first_installed(monkeypatch) -> None:
-    _patch(monkeypatch, {"zeta:1", "alpha:1"})
-    model, _url, note = router.resolve_model("ghost", "http://localhost:11434")
-    assert model == "alpha:1"
-    assert "ghost" in note
-
-
-def test_resolve_model_routes_opencode_model_to_proxy(monkeypatch) -> None:
-    """With a valid key the model is served by OpenCode and must NOT fall back."""
-    _patch(monkeypatch, {"gemma4:e2b"}, opencode={"deepseek-v4-flash"})
-    model, url, note = router.resolve_model(
-        "deepseek-v4-flash",
-        "http://localhost:11434",
-        fallback_model="gemma4:e2b",
+def test_hard_task_on_small_local_model_uses_configured_frontier() -> None:
+    route = route_model(
+        "Investigate and compare these research reports end to end",
+        "qwen3.5:4b",
+        candidates=["qwen3.5:4b"],
+        complexity="high",
+        frontier_models=["grok-4"],
+        hosted_models={"grok-4"},
+        tools=["web_search"],
     )
-    assert model == "deepseek-v4-flash"
-    assert url == router.PROXY_URL
-    assert note == ""
+    assert route.model == "grok-4"
+    assert route.provider == "hosted"
+    assert route.unchanged is False
 
 
-def test_resolve_model_picks_local_when_opencode_preferred(monkeypatch) -> None:
-    """A user may choose a local Ollama model even with a key configured."""
-    _patch(monkeypatch, {"gemma4:e2b"}, opencode={"deepseek-v4-flash"})
-    model, url, note = router.resolve_model("gemma4:e2b", "http://localhost:11434")
-    assert (model, url, note) == ("gemma4:e2b", "http://localhost:11434", "")
+def test_reasoning_capable_local_model_is_preferred_before_hosted() -> None:
+    route = route_model(
+        "Analyse and compare the reports carefully",
+        "gemma:2b",
+        candidates=["gemma:2b", "deepseek-r1:7b"],
+        complexity="high",
+        hosted_models={"grok-4"},
+        tools=["web_search"],
+    )
+    assert route.model == "deepseek-r1:7b"
+    assert route.provider == "local"
 
 
-def test_resolve_model_best_effort_when_check_fails(monkeypatch) -> None:
-    def boom(url, timeout=8):
-        raise RuntimeError("offline")
+def test_frontier_mode_can_use_hosted_candidates_without_explicit_list() -> None:
+    route = route_model(
+        "Analyse this deeply",
+        "gemma:2b",
+        candidates=["gemma:2b"],
+        complexity="max",
+        hosted_models={"gpt-frontier"},
+        routing_mode="frontier",
+        tools=["web_search"],
+    )
+    assert route.model == "gpt-frontier"
+    assert route.provider == "hosted"
 
-    monkeypatch.setattr(router, "fetch_ollama_model_ids", boom)
-    monkeypatch.setattr(router, "opencode_model_ids", lambda: set())
-    model, url, note = router.resolve_model("whatever", "http://localhost:11434")
-    assert (model, url, note) == ("whatever", "http://localhost:11434", "")
+
+def test_no_candidate_keeps_requested_model() -> None:
+    route = route_model(
+        "describe this screenshot",
+        "gemma:2b",
+        candidates=["gemma:2b"],
+        attachments=["screen.png"],
+    )
+    assert route.model == "gemma:2b"
+    assert "no candidate" in route.reason

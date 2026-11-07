@@ -23,11 +23,8 @@ const VIEW_LABEL: Record<string, string> = {
 };
 
 const AGENT_TABS: { id: AgentsView; label: string }[] = [
-  { id: 'home', label: 'Overview' },
   { id: 'chat', label: 'Chat' },
-  { id: 'teams', label: 'Teams' },
-  { id: 'kanban', label: 'Tasks' },
-  { id: 'runs', label: 'Runs' },
+  { id: 'work', label: 'Work' },
 ];
 
 export default function CommandBar() {

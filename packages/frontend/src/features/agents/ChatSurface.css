@@ -1,0 +1,153 @@
+.ag-welcome {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 520px;
+  padding: 40px 20px;
+  text-align: center;
+}
+.ag-welcome__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  color: var(--ink-secondary);
+}
+.ag-welcome h1 {
+  margin: 6px 0 0;
+  font-family: var(--font-heading);
+  font-size: var(--type-xl);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+.ag-welcome p {
+  margin: 0;
+  max-width: 360px;
+  color: var(--ink-muted);
+  font-size: var(--type-sm);
+  line-height: 1.55;
+}
+.ag-welcome p code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  padding: 1px 4px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.ag-welcome__actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; justify-content: center; }
+
+.ag-team-settings-fab {
+  position: absolute;
+  top: 13px;
+  right: 118px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  z-index: 2;
+}
+.ag-team-settings-fab:hover { background: var(--surface-hover); color: var(--ink); }
+
+.ag-modal-form { display: flex; flex-direction: column; gap: 14px; }
+.ag-modal-error {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--alert);
+  font-size: var(--type-xs);
+}
+.ag-modal-foot { display: flex; align-items: center; gap: 8px; width: 100%; }
+.ag-modal-members { display: flex; flex-direction: column; gap: 7px; }
+.ag-modal-members > span {
+  color: var(--ink-muted);
+  font-size: var(--type-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.ag-modal-members > div:not(.ag-modal-members__list) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.ag-modal-members label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-secondary);
+  font-size: var(--type-sm);
+}
+.ag-modal-members input { accent-color: var(--inverse-bg); }
+.ag-modal-members__list { display: flex; flex-direction: column; gap: 2px; }
+.ag-modal-member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.ag-modal-member span { flex: 1; color: var(--ink); font-size: var(--type-sm); }
+.ag-modal-member em {
+  color: var(--ink-muted);
+  font-style: normal;
+  font-size: var(--type-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ag-modal-inline { display: flex; gap: 6px; }
+.ag-modal-inline .ui-select { flex: 1; }
+.ag-modal-empty { margin: 0; color: var(--ink-muted); font-size: var(--type-sm); }
+.ag-modal-notes { display: flex; flex-direction: column; gap: 2px; }
+.ag-modal-note {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--ink-secondary);
+  font-size: var(--type-sm);
+}
+.ag-modal-note span { min-width: 0; overflow-wrap: anywhere; }
+.ag-modal-note em { flex-shrink: 0; color: var(--ink-muted); font-style: normal; font-size: var(--type-2xs); }
+
+.ag-modal-agents {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.ag-modal-agent {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+.ag-modal-agent:hover { background: var(--surface-hover); }
+.ag-modal-agent.is-on { box-shadow: 0 0 0 1px var(--focus); }
+.ag-modal-agent-name { color: var(--ink); font-size: var(--type-sm); font-weight: var(--weight-medium); }
+.ag-modal-agent-role { color: var(--ink-muted); font-size: var(--type-xs); line-height: 1.35; }
+.ag-modal-agent .ui-chip { position: absolute; top: 6px; right: 6px; }

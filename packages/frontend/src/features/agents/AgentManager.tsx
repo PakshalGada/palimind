@@ -15,7 +15,7 @@ import './AgentManager.css';
  * "New Agent" / settings actions still have somewhere to go.
  */
 export default function AgentManager() {
-  const { setSelectedAgentId, selectedAgentId, addToast, setActiveView } = useApp();
+  const { setSelectedAgentId, selectedAgentId, addToast, setActiveView, setAgentsView } = useApp();
   const [creating, setCreating] = useState(false);
   const [configId, setConfigId] = useState<string | null>(null);
   const [configSection, setConfigSection] = useState<InspectorSection>('identity');
@@ -76,6 +76,7 @@ export default function AgentManager() {
         onCreated={(id) => {
           setCreating(false);
           setActiveView('agents');
+          setAgentsView('chat');
           if (id) setSelectedAgentId(id);
           addToast('Agent created');
           window.dispatchEvent(new CustomEvent('palimind:agents-changed'));

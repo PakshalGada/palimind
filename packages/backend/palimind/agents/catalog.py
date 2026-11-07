@@ -22,7 +22,7 @@ EFFORT_CHOICES = ("off", "auto", "minimal", "standard", "high", "max")
 PLANNING_CHOICES = ("off", "review", "auto")
 ORCHESTRATION_CHOICES = ("off", "fan_out", "arena")
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 _NAME_RE = re.compile(r"^[\w-]{1,64}$")
 
@@ -39,6 +39,8 @@ TOOL_PACKS: dict[str, list[str]] = {
         "browser_navigate",
         "browser_extract",
         "browser_screenshot",
+        "browser_request_takeover",
+        "browser_list_profiles",
         "document_search",
         "arxiv_search",
         "research_search",
@@ -90,6 +92,8 @@ TOOL_PACKS: dict[str, list[str]] = {
         "browser_navigate",
         "browser_extract",
         "browser_screenshot",
+        "browser_request_takeover",
+        "browser_list_profiles",
         "x_search",
         "fetch_rss",
         "summarize",
@@ -112,6 +116,17 @@ TOOL_PACKS: dict[str, list[str]] = {
         "image_caption",
         "audio_transcribe",
         "video_frames",
+    ],
+    "desktop": [
+        "desktop_status",
+        "desktop_apps",
+        "desktop_snapshot",
+        "desktop_find",
+        "desktop_wait",
+        "desktop_act",
+        "desktop_screenshot",
+        "desktop_launch",
+        "desktop_browser",
     ],
     "custom": [],
 }
@@ -187,6 +202,21 @@ class AgentDefinition:
     workspace_dir: str = ""
     team_ids: list[str] = field(default_factory=list)
     tool_pack: str = "auto"
+    # ── Computer use (Linux) ────────────────────────────────────────────
+    desktop_access: bool = False
+    desktop_control: bool = False
+    desktop_allowed_apps: list[str] = field(default_factory=list)
+    # ── Provider, tasks, browser, sections, automation ──────────────────
+    provider: str = "ollama"
+    provider_account_id: str = ""
+    backup_models: list[dict[str, Any]] = field(default_factory=list)
+    browser_profile: str = "shared"
+    section_id: str = ""
+    hidden_at: str = ""
+    task_limit: int = 2
+    busy_message_mode: str = "queue"
+    allow_automation: bool = False
+    notifications: dict[str, Any] = field(default_factory=dict)
 
     @property
     def label(self) -> str:
@@ -240,6 +270,19 @@ class AgentDefinition:
         workspace_dir: str = "",
         team_ids: list[str] | None = None,
         tool_pack: str = "auto",
+        desktop_access: bool = False,
+        desktop_control: bool = False,
+        desktop_allowed_apps: list[str] | None = None,
+        provider: str = "ollama",
+        provider_account_id: str = "",
+        backup_models: list[dict[str, Any]] | None = None,
+        browser_profile: str = "shared",
+        section_id: str = "",
+        hidden_at: str = "",
+        task_limit: int = 2,
+        busy_message_mode: str = "queue",
+        allow_automation: bool = False,
+        notifications: dict[str, Any] | None = None,
     ) -> AgentDefinition:
         return cls(
             id=str(uuid.uuid4()),
@@ -285,6 +328,19 @@ class AgentDefinition:
             workspace_dir=workspace_dir,
             team_ids=list(team_ids or []),
             tool_pack=tool_pack,
+            desktop_access=desktop_access or desktop_control,
+            desktop_control=desktop_control,
+            desktop_allowed_apps=list(desktop_allowed_apps or []),
+            provider=provider,
+            provider_account_id=provider_account_id,
+            backup_models=list(backup_models or []),
+            browser_profile=browser_profile,
+            section_id=section_id,
+            hidden_at=hidden_at,
+            task_limit=task_limit,
+            busy_message_mode=busy_message_mode,
+            allow_automation=allow_automation,
+            notifications=dict(notifications or {}),
         )
 
     # ── serialization ───────────────────────────────────────────────────
@@ -327,6 +383,19 @@ class AgentDefinition:
         cleaned.setdefault("workspace_dir", "")
         cleaned.setdefault("team_ids", [])
         cleaned.setdefault("tool_pack", "auto")
+        cleaned.setdefault("desktop_access", False)
+        cleaned.setdefault("desktop_control", False)
+        cleaned.setdefault("desktop_allowed_apps", [])
+        cleaned.setdefault("provider", "ollama")
+        cleaned.setdefault("provider_account_id", "")
+        cleaned.setdefault("backup_models", [])
+        cleaned.setdefault("browser_profile", "shared")
+        cleaned.setdefault("section_id", "")
+        cleaned.setdefault("hidden_at", "")
+        cleaned.setdefault("task_limit", 2)
+        cleaned.setdefault("busy_message_mode", "queue")
+        cleaned.setdefault("allow_automation", False)
+        cleaned.setdefault("notifications", {})
 
         try:
             schema = int(cleaned.get("schema_version") or 1)
@@ -385,12 +454,37 @@ class AgentDefinition:
         }
         cleaned.setdefault("max_concurrent_runs", 1)
 
-        for key in ("always_allow_tools", "team_ids"):
+        for key in ("always_allow_tools", "team_ids", "desktop_allowed_apps"):
             value = cleaned.get(key)
             cleaned[key] = [str(v) for v in value] if isinstance(value, list) else []
+        cleaned["desktop_access"] = bool(cleaned.get("desktop_access"))
+        # Control implies observation: an agent that may act must first see.
+        cleaned["desktop_control"] = bool(cleaned.get("desktop_control"))
+        if cleaned["desktop_control"]:
+            cleaned["desktop_access"] = True
         cleaned["workspace_dir"] = str(cleaned.get("workspace_dir") or "")
         if cleaned.get("tool_pack") not in TOOL_PACK_CHOICES:
             cleaned["tool_pack"] = "auto"
+        cleaned["provider"] = str(cleaned.get("provider") or "ollama")
+        cleaned["provider_account_id"] = str(cleaned.get("provider_account_id") or "")
+        cleaned["browser_profile"] = str(cleaned.get("browser_profile") or "shared")
+        cleaned["section_id"] = str(cleaned.get("section_id") or "")
+        cleaned["hidden_at"] = str(cleaned.get("hidden_at") or "")
+        try:
+            cleaned["task_limit"] = max(1, min(int(cleaned.get("task_limit") or 2), 8))
+        except (TypeError, ValueError):
+            cleaned["task_limit"] = 2
+        if cleaned.get("busy_message_mode") not in ("queue", "steer"):
+            cleaned["busy_message_mode"] = "queue"
+        cleaned["allow_automation"] = bool(cleaned.get("allow_automation"))
+        cleaned["notifications"] = (
+            cleaned.get("notifications") if isinstance(cleaned.get("notifications"), dict) else {}
+        )
+        cleaned["backup_models"] = (
+            [m for m in (cleaned.get("backup_models") or []) if isinstance(m, dict)]
+            if isinstance(cleaned.get("backup_models"), list)
+            else []
+        )
 
         cleaned["schema_version"] = SCHEMA_VERSION
         if not cleaned.get("webhook_token"):
@@ -408,6 +502,10 @@ def validate_definition(defn: AgentDefinition) -> str | None:
         return f"tier_policy must be one of {TIER_POLICIES}"
     if defn.autonomy_level not in AUTONOMY_CHOICES:
         return f"autonomy_level must be one of {AUTONOMY_CHOICES}"
+    if not (1 <= int(defn.task_limit or 2) <= 8):
+        return "task_limit must be between 1 and 8"
+    if defn.busy_message_mode not in ("queue", "steer"):
+        return "busy_message_mode must be 'queue' or 'steer'"
     if defn.memory_mode not in MEMORY_MODES:
         return f"memory_mode must be one of {MEMORY_MODES}"
     scope = defn.knowledge_scope or {}
@@ -451,6 +549,8 @@ def validate_definition(defn: AgentDefinition) -> str | None:
         return "verify_confidence_threshold must be in [0.0, 1.0]"
     if defn.tool_pack not in TOOL_PACK_CHOICES:
         return f"tool_pack must be one of {TOOL_PACK_CHOICES}"
+    if defn.desktop_control and not defn.desktop_access:
+        return "desktop_control requires desktop_access"
     if len(defn.always_allow_tools or []) > 64:
         return "too many always-allow tools"
     if len(str(defn.workspace_dir or "")) > 512:

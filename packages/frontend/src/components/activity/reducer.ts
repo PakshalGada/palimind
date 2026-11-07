@@ -113,7 +113,7 @@ export function reduceActivity(state: ActivityState, event: ActivityEvent): Acti
       const plan: PlanStep[] = event.steps.map((step) => ({
         id: step.id,
         label: step.label,
-        status: previous.get(step.id) ?? 'pending',
+        status: step.status ?? previous.get(step.id) ?? 'pending',
       }));
       return { ...state, plan, status: deriveStatus(state) };
     }

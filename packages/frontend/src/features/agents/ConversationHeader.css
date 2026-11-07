@@ -1,0 +1,94 @@
+.ag-chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  height: 52px;
+  padding: 0 14px 0 18px;
+  border-bottom: 1px solid var(--line-subtle);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.ag-chat-head__id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ag-chat-head__team {
+  display: inline-flex;
+  align-items: center;
+  width: 34px;
+  flex-shrink: 0;
+  color: var(--ink-muted);
+}
+.ag-chat-head__team > * + * { margin-left: -8px; }
+
+.ag-chat-head__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--ink-secondary);
+  flex-shrink: 0;
+}
+
+.ag-chat-head__text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ag-chat-head__name {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--type-base);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ag-chat-head__meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--type-xs);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ag-chat-head__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.ag-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  min-height: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: background var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
+}
+.ag-icon-btn:hover { background: var(--surface-hover); color: var(--ink); }
+.ag-icon-btn.is-on { background: var(--surface-2); color: var(--ink); }
+
+@media (max-width: 640px) {
+  .ag-chat-head { padding: 0 8px 0 12px; }
+  .ag-chat-head__meta { max-width: 150px; }
+}

@@ -22,6 +22,13 @@ export interface VerificationReport {
   reasoning?: string;
 }
 
+/** Token usage and a locally-computed cost estimate for one run. */
+export interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  estimated_cost_usd?: number;
+}
+
 export interface ApprovalPrompt {
   agentId: string;
   runId?: string;
@@ -54,6 +61,17 @@ export type StreamEvent =
   | { type: 'citations'; citations?: TextCitation[] }
   | ({ type: 'citation_map' } & Partial<CitationPayload>)
   | {
+      type: 'research_plan';
+      plan_id?: string;
+      query?: string;
+      plan?: {
+        subtopic_id?: number;
+        title?: string;
+        research_question?: string;
+        search_queries?: string[];
+      }[];
+    }
+  | {
       type: 'agent_progress';
       agent_id: number;
       status?: 'working' | 'complete';
@@ -64,6 +82,10 @@ export type StreamEvent =
   | { type: 'agent:thought'; text?: string; iteration?: number }
   | { type: 'agent:tool_call'; tool?: string; args?: unknown }
   | { type: 'agent:tool_result'; tool?: string; result?: unknown }
+  | {
+      type: 'agent:todo';
+      items?: { id?: string; label?: string; status?: string }[];
+    }
   | { type: 'agent:effort'; level?: string; indicator?: string }
   | {
       type: 'agent:plan';
@@ -85,7 +107,23 @@ export type StreamEvent =
       threshold?: number;
     }
   | { type: 'agent:token'; text?: string; reset?: boolean; stream?: boolean }
-  | { type: 'agent:completed'; output?: string; status?: string }
+  | ({ type: 'agent:usage' } & Partial<TokenUsage>)
+  | {
+      type: 'agent:escalation';
+      from?: string;
+      to?: string;
+      reason?: string;
+      iteration?: number;
+      skipped?: boolean;
+    }
+  | { type: 'agent:suggestions'; suggestions?: string[] }
+  | {
+      type: 'agent:completed';
+      output?: string;
+      status?: string;
+      usage?: Partial<TokenUsage>;
+      suggestions?: string[];
+    }
   | { type: 'progress'; text?: string }
   | { type: 'answer_final'; text?: string }
   | { type: 'done' }
@@ -117,6 +155,12 @@ export interface StreamState {
   approval: ApprovalPrompt | null;
   error: string | null;
   thoughtDuration: string | null;
+  /** Tokens/cost for the live run, updated as model steps complete. */
+  usage: TokenUsage | null;
+  /** Suggested next actions after a settled answer. */
+  suggestions: string[];
+  /** Set when a run was escalated to a stronger model near the step limit. */
+  escalation: string | null;
   answerStarted: boolean;
   /** Bumped on every visible change so consumers can auto-scroll cheaply. */
   revision: number;
@@ -136,6 +180,9 @@ export const initialStreamState: StreamState = {
   approval: null,
   error: null,
   thoughtDuration: null,
+  usage: null,
+  suggestions: [],
+  escalation: null,
   answerStarted: false,
   revision: 0,
 };
@@ -151,6 +198,9 @@ export type StreamAction =
   | { type: 'setTextCitations'; citations: TextCitation[] }
   | { type: 'setCitations'; citations: CitationPayload | null }
   | { type: 'setApproval'; approval: ApprovalPrompt | null }
+  | { type: 'setUsage'; usage: TokenUsage | null }
+  | { type: 'setSuggestions'; suggestions: string[] }
+  | { type: 'setEscalation'; escalation: string | null }
   | { type: 'setDuration'; duration: string }
   | { type: 'answerStarted' }
   | { type: 'error'; text: string }

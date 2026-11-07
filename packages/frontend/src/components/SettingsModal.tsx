@@ -15,7 +15,7 @@ import { applyUiStyle, readUiStyle, type UiStyle } from '../design/uiStyle';
 import { getUserName, setUserName } from '../utils/userName';
 import SettingsSelect from './SettingsSelect';
 
-type SectionKey = 'appearance' | 'opencode' | 'models';
+type SectionKey = 'appearance' | 'opencode' | 'models' | 'desktop';
 
 interface SectionDef {
   key: SectionKey;
@@ -54,6 +54,17 @@ const SECTIONS: SectionDef[] = [
       </svg>
     ),
   },
+  {
+    key: 'desktop',
+    label: 'Computer use',
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="4" width="20" height="13" rx="2" />
+        <path d="M8 21h8M12 17v4" />
+        <path d="m9 9 2 2-2 2M13 13h3" />
+      </svg>
+    ),
+  },
 ];
 
 function SectionHeader({ title, children }: { title: string; children: ReactNode }) {
@@ -72,6 +83,30 @@ function Feedback({ message, isError }: { message: string; isError: boolean }) {
       {message}
     </span>
   );
+}
+
+interface DesktopStatusData {
+  platform?: string;
+  session_type?: string;
+  state_root?: string;
+  permissions?: { accessibility?: { state?: string } };
+  kernel_input?: { accessible?: boolean; detail?: string };
+  capabilities?: Record<string, boolean | string>;
+  policy?: {
+    enabled?: boolean;
+    allow_all?: boolean;
+    allowed_apps?: string[];
+    rate_limit_per_min?: number;
+    stopped?: boolean;
+  };
+  session_id?: string | null;
+}
+
+interface DesktopStatusView {
+  ok: boolean;
+  enabled: boolean;
+  status?: DesktopStatusData;
+  error?: unknown;
 }
 
 export default function SettingsModal() {
@@ -102,6 +137,13 @@ export default function SettingsModal() {
   const [pixelAccents, setPixelAccents] = useState<PixelAccents>(readPixelAccents);
   const [motion, setMotion] = useState<MotionSetting>(readMotion);
   const [uiStyle, setUiStyle] = useState<UiStyle>(readUiStyle);
+  const [desktop, setDesktop] = useState<DesktopStatusView | null>(null);
+  const [desktopBusy, setDesktopBusy] = useState(false);
+  const [desktopMsg, setDesktopMsg] = useState('');
+  const [desktopAudit, setDesktopAudit] = useState<Record<string, unknown>[]>([]);
+  const [ghostCursor, setGhostCursor] = useState(
+    () => typeof localStorage !== 'undefined' && localStorage.getItem('palimind:ghost-cursor') === '1',
+  );
 
   useEffect(() => {
     api.settings.opencodeKey.status().then((s) => {
@@ -122,8 +164,34 @@ export default function SettingsModal() {
     setShowKey(false);
   };
 
+  const refreshDesktop = async () => {
+    setDesktopBusy(true);
+    try {
+      const view = await api.desktop.status();
+      setDesktop(view);
+      setDesktopMsg('');
+      const audit = await api.desktop.audit(6).catch(() => null);
+      setDesktopAudit(audit?.data?.entries || []);
+    } catch (error) {
+      setDesktopMsg(String(error));
+    } finally {
+      setDesktopBusy(false);
+    }
+  };
+
   useEffect(() => {
-    const openSettings = () => setOpen(true);
+    if (open && section === 'desktop' && !desktop) void refreshDesktop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, section]);
+
+  useEffect(() => {
+    const openSettings = (event: Event) => {
+      const requested = (event as CustomEvent<{ section?: SectionKey }>).detail?.section;
+      if (requested && SECTIONS.some((item) => item.key === requested)) {
+        setSection(requested);
+      }
+      setOpen(true);
+    };
     window.addEventListener('palimind:open-settings', openSettings);
     return () => window.removeEventListener('palimind:open-settings', openSettings);
   }, []);
@@ -593,6 +661,196 @@ export default function SettingsModal() {
               <p className="settings-hint-inline">
                 Pull a model first with <code>ollama pull &lt;model&gt;</code> if it is not installed.
                 After changing the embedding model, re-index your folders to apply.
+              </p>
+            </div>
+
+            <div
+              className="settings-section"
+              id="settings-panel-desktop"
+              role="tabpanel"
+              aria-labelledby="settings-tab-desktop"
+              hidden={section !== 'desktop'}
+            >
+              <SectionHeader title="Computer use">
+                Let an agent see and operate any app on your Linux desktop through the
+                accessibility tree. On by default; protected system apps are always
+                excluded and every action is audited.
+              </SectionHeader>
+
+              <div className="settings-card">
+                <div className="settings-card-title">How to use</div>
+                <ol className="settings-howto">
+                  <li>
+                    <strong>Already on.</strong> Computer use is enabled by default and
+                    works with any app. Set <code>PALIMIND_DESKTOP_ENABLE=0</code> to turn
+                    it off.
+                  </li>
+                  <li>
+                    <strong>Pick any app.</strong> Open the popup and choose a window from
+                    the <strong>Target</strong> list — or drag a screen area. Shells,
+                    keyrings, polkit prompts, lock screens and Palimind itself are always
+                    excluded.
+                  </li>
+                  <li>
+                    <strong>Ask or Act.</strong> Ask is read-only. Act performs the task
+                    and shows an <strong>Approve / Deny</strong> card for every mutating
+                    step.
+                  </li>
+                  <li>
+                    <strong>Optional allowlist.</strong> To restrict the agent, set{' '}
+                    <code>PALIMIND_DESKTOP_ALLOWED_APPS</code> and restart the backend.
+                    Empty means any app.
+                  </li>
+                  <li>
+                    <strong>Stop instantly.</strong> Press{' '}
+                    <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Escape</kbd>, the popup's
+                    Stop button, or the tray item to release held input.
+                  </li>
+                </ol>
+                <div className="settings-actions-row">
+                  <button
+                    className="action-btn primary"
+                    onClick={() => {
+                      void import('@tauri-apps/api/core')
+                        .then(({ invoke }) => invoke('open_computer_use'))
+                        .catch(() => setDesktopMsg('Open the desktop app to use the popup.'));
+                    }}
+                  >
+                    Open Computer Use
+                  </button>
+                </div>
+              </div>
+
+              <div className="settings-card">
+                <div className="settings-card-title">Status</div>
+                {desktop?.ok && desktop.status ? (
+                  <ul className="settings-hint-inline" style={{ lineHeight: 1.7 }}>
+                    <li>
+                      Session: <strong>{desktop.status.platform}</strong> /{' '}
+                      {desktop.status.session_type}
+                    </li>
+                    <li>
+                      Accessibility:{' '}
+                      <strong>{desktop.status.permissions?.accessibility?.state ?? 'unknown'}</strong>
+                    </li>
+                    <li>
+                      Kernel input:{' '}
+                      <strong>
+                        {desktop.status.kernel_input?.accessible
+                          ? 'available'
+                          : desktop.status.kernel_input?.detail ?? 'unavailable'}
+                      </strong>
+                    </li>
+                    <li>
+                      Enabled: <strong>{String(desktop.status.policy?.enabled)}</strong> · Actions:{' '}
+                      {desktop.status.policy?.rate_limit_per_min ?? 30}/min · Stopped:{' '}
+                      {String(desktop.status.policy?.stopped)}
+                    </li>
+                  </ul>
+                ) : (
+                  <p className="settings-hint-inline">
+                    {desktop?.enabled
+                      ? 'The native daemon is unavailable. Build it with `make desktop-native`.'
+                      : 'Computer use is off. It is on by default; check PALIMIND_DESKTOP_ENABLE.'}
+                  </p>
+                )}
+                <div className="settings-actions-row">
+                  <button className="action-btn" onClick={refreshDesktop} disabled={desktopBusy}>
+                    {desktopBusy ? 'Checking…' : 'Check again'}
+                  </button>
+                  <button
+                    className="action-btn"
+                    onClick={async () => {
+                      await api.desktop.stop().catch(() => {});
+                      await refreshDesktop();
+                    }}
+                    disabled={desktopBusy || !desktop?.enabled}
+                  >
+                    Stop desktop control
+                  </button>
+                  <Feedback message={desktopMsg} isError={!!desktopMsg} />
+                </div>
+              </div>
+
+              <div className="settings-card">
+                <div className="settings-card-title">Ghost cursor</div>
+                <Toggle
+                  title="Show a click-through target hint"
+                  description="Draws a crosshair/highlight at a selected region without moving the real pointer. The hint never receives clicks."
+                  checked={ghostCursor}
+                  onChange={(value) => {
+                    setGhostCursor(value);
+                    localStorage.setItem('palimind:ghost-cursor', value ? '1' : '0');
+                    if (!value) {
+                      void import('@tauri-apps/api/core')
+                        .then(({ invoke }) => invoke('hide_ghost_cursor'))
+                        .catch(() => {});
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="settings-card">
+                <div className="settings-card-title">Allowed apps</div>
+                <p className="settings-hint-inline">
+                  Any app is allowed by default (protected processes stay excluded). To
+                  restrict the agent to a few apps, set this and restart the backend:
+                </p>
+                <pre className="settings-hint-inline">
+{`PALIMIND_DESKTOP_ALLOWED_APPS=gnome-calculator,gnome-text-editor`}
+                </pre>
+                <p className="settings-hint-inline">
+                  System shells, keyrings, polkit prompts, lock screens and Palimind
+                  itself cannot be allowed. A per-agent{' '}
+                  <strong>desktop_allowed_apps</strong> list narrows this further.
+                </p>
+              </div>
+
+              <div className="settings-card">
+                <div className="settings-card-title">Kernel input (optional)</div>
+                <p className="settings-hint-inline">
+                  Semantic accessibility actions work without it. Kernel input is needed
+                  for reliable physical key/pointer delivery on Wayland:
+                </p>
+                <pre className="settings-hint-inline">
+{`sudo scripts/install-uinput-udev.sh
+# then sign out and back in
+PALIMIND_DESKTOP_INPUT_BACKEND=uinput`}
+                </pre>
+                <p className="settings-hint-inline">
+                  Palimind never ships a setuid helper. System shells, keyrings, polkit
+                  prompts, lock screens and Palimind itself are always blocked.
+                </p>
+              </div>
+
+              <div className="settings-card">
+                <div className="settings-card-title">Recent actions</div>
+                {desktopAudit.length === 0 ? (
+                  <p className="settings-hint-inline">No actions have been recorded yet.</p>
+                ) : (
+                  <ul className="settings-hint-inline" style={{ lineHeight: 1.7 }}>
+                    {desktopAudit.map((entry, index) => (
+                      <li key={`${String(entry.ts_ms)}-${index}`}>
+                        {new Date(Number(entry.ts_ms)).toLocaleTimeString()} ·{' '}
+                        <strong>{String(entry.command)}</strong>
+                        {entry.action ? ` ${String(entry.action)}` : ''}
+                        {entry.app ? ` on ${String(entry.app)}` : ''} ·{' '}
+                        {entry.ok ? 'ok' : `denied (${String(entry.code)})`}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="settings-hint-inline">
+                  Audit entries never contain typed text or field values, only a salted
+                  fingerprint and length.
+                </p>
+              </div>
+
+              <p className="settings-hint-inline">
+                Agent access is granted per agent in the agent wizard:{' '}
+                <strong>desktop_access</strong> to observe and{' '}
+                <strong>desktop_control</strong> to act. Mutating actions still ask for
+                approval and can be stopped at any time.
               </p>
             </div>
           </div>

@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../AppContext';
 import { useChatStreamContext } from '../stream/context';
-import { collectArtifacts, nextAssistantMessageIndex, parseArtifacts } from '../utils/artifacts';
+import {
+  collectArtifacts,
+  nextAssistantMessageIndex,
+  parseArtifacts,
+  shouldAutoOpenArtifact,
+} from '../utils/artifacts';
 
 /**
  * Opens the artifact panel as soon as the model closes a new artifact fence.
@@ -31,7 +36,9 @@ export default function ArtifactAutoOpen() {
       previousSession.current = sessionKey;
       seen.current = new Set();
     }
-    const fresh = historical.filter(artifact => !seen.current.has(artifact.id));
+    const fresh = historical.filter(
+      artifact => shouldAutoOpenArtifact(artifact) && !seen.current.has(artifact.id),
+    );
     for (const artifact of historical) seen.current.add(artifact.id);
     if (!initialised.current) {
       initialised.current = true;
@@ -54,7 +61,10 @@ export default function ArtifactAutoOpen() {
       { streaming: true },
     );
     const fresh = artifacts.filter(
-      artifact => !artifact.streaming && !seen.current.has(artifact.id),
+      artifact =>
+        !artifact.streaming &&
+        shouldAutoOpenArtifact(artifact) &&
+        !seen.current.has(artifact.id),
     );
     if (fresh.length === 0) return;
     for (const artifact of fresh) seen.current.add(artifact.id);

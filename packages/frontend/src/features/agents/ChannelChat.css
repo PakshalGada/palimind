@@ -1,0 +1,4 @@
+/* Channel chats reuse the shared compact message styles. */
+.ag-chat .ag-msg--agent .ag-msg__handle {
+  color: var(--ink-muted);
+}

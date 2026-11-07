@@ -1,0 +1,49 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "name": "status_x11",
+      "ok": true,
+      "details": {
+        "session_type": "x11",
+        "capabilities": {
+          "accessibility": true,
+          "kernel_input": false,
+          "physical_input": true,
+          "screenshot": true,
+          "semantic_actions": true,
+          "wayland_pointer_targeting": "screen_coordinates_available"
+        }
+      }
+    },
+    {
+      "name": "snapshot_refs_and_bounds",
+      "ok": true,
+      "details": {
+        "nodes": 49,
+        "refs": 30
+      }
+    },
+    {
+      "name": "semantic_calculator_7_plus_8",
+      "ok": true,
+      "details": {
+        "nodes": 57
+      }
+    },
+    {
+      "name": "x11_screenshot",
+      "ok": true,
+      "details": {
+        "path": "/home/pakshal/.palimind/desktop/artifacts/shot-296235-4617.png",
+        "width": 1600,
+        "height": 1200
+      }
+    }
+  ],
+  "session": {
+    "type": "x11",
+    "display": ":50",
+    "wayland": false
+  }
+}

@@ -1,4 +1,5 @@
 import { formatMarkdown } from './markdown';
+import { parseSlides } from './slides';
 import { renderMermaid } from './artifactMermaid';
 import {
   artifactFilename,
@@ -227,6 +228,16 @@ interface SlideSpec {
 }
 
 function parseSlideOutline(artifact: ExportableArtifact): SlideSpec[] {
+  // Use the same parser as the in-app slide preview so PPTX export matches
+  // exactly what the user approved on screen.
+  if (artifact.type === 'slide-outline') {
+    const parsed = parseSlides(artifact.content).map((slide) => ({
+      title: slide.title,
+      bullets: slide.bullets,
+    }));
+    if (parsed.length > 0) return parsed;
+  }
+
   const slides: SlideSpec[] = [];
   let current: SlideSpec | null = null;
   const startSlide = (title: string): SlideSpec => {

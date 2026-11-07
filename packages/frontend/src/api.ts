@@ -102,6 +102,61 @@ export const api = {
     setPersona: (data: { persona_name?: string; persona_system_prompt?: string }) =>
       patch<{ error?: string; status?: string }>('/config/persona', data),
   },
+  desktop: {
+    apps: (kind: 'apps' | 'windows' | 'displays' = 'windows') =>
+      get<{
+        ok: boolean;
+        kind?: string;
+        items?: Record<string, unknown>[];
+        error?: unknown;
+      }>(`/desktop/apps?kind=${kind}`),
+    health: () =>
+      get<{
+        ok: boolean;
+        ready: boolean;
+        enabled: boolean;
+        stopped: boolean;
+        session_type?: string;
+        accessibility?: { state?: string };
+        default_allow?: boolean;
+      }>('/desktop/health'),
+    status: () =>
+      get<{
+        ok: boolean;
+        enabled: boolean;
+        error?: unknown;
+        status?: Record<string, unknown>;
+        summary?: string;
+      }>('/desktop/status'),
+    session: () =>
+      post<{ ok: boolean; session_id?: string | null; status?: Record<string, unknown>; error?: unknown }>(
+        '/desktop/session',
+        {},
+      ),
+    stop: () => post<{ ok?: boolean; data?: Record<string, unknown>; error?: unknown }>('/desktop/stop', {}),
+    resume: () => post<{ ok?: boolean }>('/desktop/resume', {}),
+    audit: (limit = 20) =>
+      get<{ ok?: boolean; data?: { entries?: Record<string, unknown>[] } }>(`/desktop/audit?limit=${limit}`),
+    screenshot: (body: Record<string, unknown>) =>
+      post<{
+        ok?: boolean;
+        data?: {
+          path?: string;
+          image?: string;
+          width?: number;
+          height?: number;
+          screenshot_id?: string;
+        };
+        error?: { code?: string; message?: string; hint?: string };
+      }>('/desktop/screenshot', body),
+    ask: (body: Record<string, unknown>) =>
+      fetch(`${BASE}/desktop/ask`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+  },
   settings: {
     opencodeKey: {
       status: () => get<{ configured: boolean; masked?: string | null }>('/settings/opencode-key'),
@@ -643,6 +698,15 @@ export const api = {
       },
     },
   },
+  research: {
+    approve: (planId: string, plan?: import('./types').ResearchSubTopic[]) =>
+      post<{ status?: string; error?: string }>('/research/approve', {
+        plan_id: planId,
+        plan,
+      }),
+    cancel: (planId: string) =>
+      post<{ status?: string; error?: string }>('/research/cancel', { plan_id: planId }),
+  },
   artifacts: {
     list: (q = '', projectId = '', includeContent = false) => {
       const params = new URLSearchParams();
@@ -716,6 +780,109 @@ export const api = {
         headers: { 'Content-Type': 'application/octet-stream' },
         body: wavBlob,
       }).then(res => res.json() as Promise<{ text?: string; error?: string }>),
+  },
+  agentTasks: {
+    list: (agentId: string, includeClosed = false) =>
+      get<{ tasks?: Record<string, unknown>[]; error?: string }>(
+        `/agents/${agentId}/tasks?include_closed=${includeClosed}`,
+      ),
+    create: (agentId: string, data: { title?: string; input?: string; parent_task_id?: string; priority?: number }) =>
+      post<{ task?: Record<string, unknown>; queued?: Record<string, unknown>; error?: string }>(
+        `/agents/${agentId}/tasks`,
+        data,
+      ),
+    get: (agentId: string, taskId: string) =>
+      get<{ task?: Record<string, unknown>; error?: string }>(`/agents/${agentId}/tasks/${taskId}`),
+    update: (agentId: string, taskId: string, changes: Record<string, unknown>) =>
+      patch<{ task?: Record<string, unknown>; error?: string }>(`/agents/${agentId}/tasks/${taskId}`, changes),
+    remove: (agentId: string, taskId: string) =>
+      del<{ deleted?: boolean; error?: string }>(`/agents/${agentId}/tasks/${taskId}`),
+    send: (agentId: string, taskId: string, text: string) =>
+      post<{ delivery?: Record<string, unknown>; error?: string }>(
+        `/agents/${agentId}/tasks/${taskId}/send`,
+        { text },
+      ),
+    stop: (agentId: string, taskId: string) =>
+      post<{ task?: Record<string, unknown>; error?: string }>(`/agents/${agentId}/tasks/${taskId}/stop`),
+    close: (agentId: string, taskId: string) =>
+      post<{ task?: Record<string, unknown>; error?: string }>(`/agents/${agentId}/tasks/${taskId}/close`),
+    reopen: (agentId: string, taskId: string) =>
+      post<{ task?: Record<string, unknown>; error?: string }>(`/agents/${agentId}/tasks/${taskId}/reopen`),
+  },
+  channels: {
+    list: (includeArchived = true) =>
+      get<{ channels?: Record<string, unknown>[]; error?: string }>(`/channels?include_archived=${includeArchived}`),
+    create: (data: Record<string, unknown>) =>
+      post<{ channel?: Record<string, unknown>; error?: string }>('/channels', data),
+    get: (channelId: string) =>
+      get<{ channel?: Record<string, unknown>; error?: string }>(`/channels/${channelId}`),
+    update: (channelId: string, changes: Record<string, unknown>) =>
+      patch<{ channel?: Record<string, unknown>; error?: string }>(`/channels/${channelId}`, changes),
+    remove: (channelId: string) => del<{ deleted?: boolean; error?: string }>(`/channels/${channelId}`),
+    archive: (channelId: string) => post<{ channel?: Record<string, unknown> }>(`/channels/${channelId}/archive`),
+    restore: (channelId: string) => post<{ channel?: Record<string, unknown> }>(`/channels/${channelId}/restore`),
+    messages: (channelId: string, limit = 100) =>
+      get<{ messages?: Record<string, unknown>[]; error?: string }>(`/channels/${channelId}/messages?limit=${limit}`),
+    send: (channelId: string, text: string, opts: { agent_id?: string; reply_to_task_id?: string; operation_id?: string } = {}) =>
+      post<{ message?: Record<string, unknown>; task?: Record<string, unknown>; error?: string }>(
+        `/channels/${channelId}/messages`,
+        { text, ...opts },
+      ),
+    tasks: (channelId: string) =>
+      get<{ tasks?: Record<string, unknown>[]; error?: string }>(`/channels/${channelId}/tasks`),
+    stop: (channelId: string, taskId: string) =>
+      post<{ task?: Record<string, unknown> }>(`/channels/${channelId}/tasks/${taskId}/stop`),
+    reassign: (channelId: string, taskId: string, agentId: string) =>
+      post<{ task?: Record<string, unknown> }>(`/channels/${channelId}/tasks/${taskId}/reassign`, { agent_id: agentId }),
+    addMember: (channelId: string, agentId: string, role = '') =>
+      post<{ member?: Record<string, unknown>; error?: string }>(`/channels/${channelId}/members`, { agent_id: agentId, role }),
+    removeMember: (channelId: string, agentId: string) =>
+      del<{ removed?: boolean }>(`/channels/${channelId}/members/${agentId}`),
+    setLead: (channelId: string, agentId: string) =>
+      post<{ channel?: Record<string, unknown> }>(`/channels/${channelId}/lead`, { agent_id: agentId }),
+    memories: (channelId: string) =>
+      get<{ memories?: Record<string, unknown>[] }>(`/channels/${channelId}/memories`),
+    setMemory: (channelId: string, key: string, value: string) =>
+      post<{ channel_id?: string; key?: string; value?: string }>(`/channels/${channelId}/memories`, { key, value }),
+  },
+  providers: {
+    list: () => get<{ providers?: Record<string, unknown>[]; models?: Record<string, unknown>[] }>('/providers'),
+    models: () => get<{ providers?: Record<string, unknown>[]; models?: Record<string, unknown>[] }>('/providers/models'),
+  },
+  usage: {
+    get: (agentId = '', start = '', end = '') =>
+      get<Record<string, unknown>>(
+        `/usage?agent_id=${encodeURIComponent(agentId)}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
+      ),
+  },
+  browser: {
+    profiles: () => get<{ profiles?: Record<string, unknown>[]; error?: string }>('/browser/profiles'),
+    createProfile: (name: string, color = '') =>
+      post<{ profile?: Record<string, unknown>; error?: string }>('/browser/profiles', { name, color }),
+    removeProfile: (profileId: string) => del<{ deleted?: boolean }>(`/browser/profiles/${profileId}`),
+    tabs: (profileId = '', agentId = '') =>
+      get<{ tabs?: Record<string, unknown>[]; error?: string }>(`/browser/tabs?profile_id=${encodeURIComponent(profileId)}&agent_id=${encodeURIComponent(agentId)}`),
+    state: (agentId = '') =>
+      get<import('./types').BrowserState>(`/browser/state${agentId ? `?agent_id=${encodeURIComponent(agentId)}` : ''}`),
+    action: (action: string, payload: Record<string, unknown> = {}) =>
+      post<import('./types').BrowserState & { error?: string }>('/browser/action', { action, ...payload }),
+    claimControl: (agentId = '', takeoverId = '') =>
+      post<{ control?: Record<string, string>; error?: string }>('/browser/control/claim', {
+        agent_id: agentId,
+        takeover_id: takeoverId,
+      }),
+    releaseControl: () =>
+      post<{ control?: Record<string, string>; error?: string }>('/browser/control/release'),
+    frameUrl: (nonce = Date.now(), quality = 70) =>
+      `${BASE}/browser/frame?quality=${quality}&t=${nonce}`,
+    takeovers: (agentId = '', status = '') =>
+      get<{ takeovers?: Record<string, unknown>[]; error?: string }>(`/browser/takeovers?agent_id=${encodeURIComponent(agentId)}&status=${encodeURIComponent(status)}`),
+    requestTakeover: (agentId: string, reason: string, tabId = '') =>
+      post<{ takeover?: Record<string, unknown>; error?: string }>('/browser/takeovers', { agent_id: agentId, reason, tab_id: tabId }),
+    acceptTakeover: (takeoverId: string) =>
+      post<{ takeover?: Record<string, unknown>; error?: string }>(`/browser/takeovers/${takeoverId}/accept`, {}),
+    resolveTakeover: (takeoverId: string, status = 'completed') =>
+      post<{ takeover?: Record<string, unknown>; error?: string }>(`/browser/takeovers/${takeoverId}/resolve`, { status }),
   },
   tasks: {
     list: () => get<{ tasks: import('./types').KanbanTask[] }>('/tasks'),

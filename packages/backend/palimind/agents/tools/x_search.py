@@ -259,15 +259,82 @@ def _author_from_url(url: str) -> str:
     return match.group(1) if match else ""
 
 
+def posts_from_x_api(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Convert an X API v2 recent-search payload into post dictionaries."""
+    users = {
+        str(user.get("id")): str(user.get("username") or "")
+        for user in ((data.get("includes") or {}).get("users") or [])
+        if isinstance(user, dict)
+    }
+    posts: list[dict[str, Any]] = []
+    for tweet in data.get("data") or []:
+        if not isinstance(tweet, dict):
+            continue
+        tweet_id = str(tweet.get("id") or "")
+        if not tweet_id:
+            continue
+        author_id = str(tweet.get("author_id") or "")
+        handle = users.get(author_id, "")
+        url = f"https://x.com/{handle or 'i/web'}/status/{tweet_id}"
+        text = str(tweet.get("text") or "").strip()
+        posts.append(
+            {
+                "text": text,
+                "snippet": "",
+                "url": url,
+                "author": handle or author_id,
+                "created_at": tweet.get("created_at") or "",
+                "metrics": tweet.get("public_metrics") or {},
+            }
+        )
+    return posts
+
+
+def _x_api_search(query: str, max_results: int) -> list[dict]:
+    """Search X API v2 when a bearer token is configured; [] on any failure."""
+    from palimind.settings import X_API_MAX_RESULTS, X_BEARER_TOKEN
+
+    if not X_BEARER_TOKEN:
+        return []
+    try:
+        import httpx
+
+        limit = max(10, min(int(max_results or 10), int(X_API_MAX_RESULTS or 40), 100))
+        response = httpx.get(
+            "https://api.x.com/2/tweets/search/recent",
+            headers={"Authorization": f"Bearer {X_BEARER_TOKEN}"},
+            params={
+                "query": f"({query}) -is:retweet lang:en",
+                "max_results": limit,
+                "tweet.fields": "created_at,public_metrics,lang",
+                "expansions": "author_id",
+                "user.fields": "username",
+            },
+            timeout=httpx.Timeout(connect=5.0, read=15.0, write=5.0, pool=5.0),
+        )
+        if response.status_code >= 400:
+            return []
+        data = response.json()
+        return posts_from_x_api(data if isinstance(data, dict) else {})
+    except Exception:
+        return []
+
+
 def x_search(query: str, max_results: int = 8) -> dict[str, Any]:
-    """Search X/Twitter via the web index and return analysed posts."""
+    """Search X (API when configured, public index otherwise)."""
     if not query or not query.strip():
         return {"error": "empty query", "posts": [], "sentiment": {}, "trends": {}}
 
-    per_site = max(2, max_results // 2)
-    posts = _ddg_site_search(query, "x.com", per_site) + _ddg_site_search(
-        query, "twitter.com", per_site
-    )
+    api_posts = _x_api_search(query, max_results)
+    source = "x_api"
+    if api_posts:
+        posts = api_posts
+    else:
+        source = "web_index"
+        per_site = max(2, max_results // 2)
+        posts = _ddg_site_search(query, "x.com", per_site) + _ddg_site_search(
+            query, "twitter.com", per_site
+        )
 
     # Deduplicate by URL.
     seen: set[str] = set()
@@ -289,6 +356,7 @@ def x_search(query: str, max_results: int = 8) -> dict[str, Any]:
         "sentiment": summarize_sentiment(unique),
         "trends": detect_trends(unique),
         "count": len(unique),
+        "source": source,
     }
 
 
@@ -304,6 +372,7 @@ def format_x_report(result: dict[str, Any]) -> str:
     trends = result.get("trends", {})
     lines = [
         f"=== X/TWITTER SIGNAL FOR: '{result.get('query', '')}' ===",
+        f"Source: {result.get('source', 'web_index')}",
         f"Overall sentiment: {sentiment.get('label')} ({sentiment.get('score')})",
     ]
     hashtags = trends.get("hashtags") or []

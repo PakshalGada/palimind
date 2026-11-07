@@ -220,6 +220,7 @@ function normalizePersisted(state: ActivityState): ActivityState {
 export function modeForTitle(mode: RunMode): string {
   if (mode === 'agent') return 'Agent';
   if (mode === 'moe') return 'Mixture of experts';
+  if (mode === 'deep_research') return 'Deep research';
   if (mode === 'knowledge_base') return 'Knowledge base';
   return 'Chat';
 }

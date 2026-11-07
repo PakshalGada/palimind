@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextvars
 import inspect
 import json
+import re
 import threading
 import time
 from pathlib import Path
@@ -24,10 +25,16 @@ _DEFAULT_TOOL_CONTEXT: dict[str, Any] = {
     "delegate_depth": 0,
     "agent_id": "",
     "session_id": "",
+    "run_id": "",
     "write_access": False,
+    "desktop_access": False,
+    "desktop_control": False,
+    "desktop_allowed_apps": [],
     "allow_network": False,
     "team_id": "",
     "team_run_id": "",
+    "channel_id": "",
+    "task_id": "",
     "team_emit": None,
     "team_loop": None,
 }
@@ -75,11 +82,17 @@ def make_tool_context(
     read_only_roots: list[Path] | None = None,
     agent_id: str = "",
     session_id: str = "",
+    run_id: str = "",
     write_access: bool = False,
+    desktop_access: bool = False,
+    desktop_control: bool = False,
+    desktop_allowed_apps: list[str] | None = None,
     allow_network: bool = False,
     delegate_depth: int = 0,
     team_id: str = "",
     team_run_id: str = "",
+    channel_id: str = "",
+    task_id: str = "",
     team_emit: Any = None,
     team_loop: Any = None,
 ) -> dict[str, Any]:
@@ -97,10 +110,16 @@ def make_tool_context(
         "delegate_depth": int(delegate_depth or 0),
         "agent_id": str(agent_id or ""),
         "session_id": str(session_id or ""),
+        "run_id": str(run_id or ""),
         "write_access": bool(write_access),
+        "desktop_access": bool(desktop_access),
+        "desktop_control": bool(desktop_control),
+        "desktop_allowed_apps": list(desktop_allowed_apps or []),
         "allow_network": bool(allow_network),
         "team_id": str(team_id or ""),
         "team_run_id": str(team_run_id or ""),
+        "channel_id": str(channel_id or ""),
+        "task_id": str(task_id or ""),
         "team_emit": team_emit,
         "team_loop": team_loop,
     }
@@ -117,11 +136,17 @@ def set_tool_context(
     read_only_roots: list[Path] | None = None,
     agent_id: str = "",
     session_id: str = "",
+    run_id: str = "",
     write_access: bool = False,
+    desktop_access: bool = False,
+    desktop_control: bool = False,
+    desktop_allowed_apps: list[str] | None = None,
     allow_network: bool = False,
     delegate_depth: int = 0,
     team_id: str = "",
     team_run_id: str = "",
+    channel_id: str = "",
+    task_id: str = "",
     team_emit: Any = None,
     team_loop: Any = None,
 ) -> None:
@@ -140,11 +165,17 @@ def set_tool_context(
         read_only_roots=read_only_roots,
         agent_id=agent_id,
         session_id=session_id,
+        run_id=run_id,
         write_access=write_access,
+        desktop_access=desktop_access,
+        desktop_control=desktop_control,
+        desktop_allowed_apps=desktop_allowed_apps,
         allow_network=allow_network,
         delegate_depth=delegate_depth,
         team_id=team_id,
         team_run_id=team_run_id,
+        channel_id=channel_id,
+        task_id=task_id,
         team_emit=team_emit,
         team_loop=team_loop,
     )
@@ -736,6 +767,158 @@ def tool_search(query: str, limit: int = 8) -> str:
     return json.dumps(items, indent=2, ensure_ascii=False)
 
 
+# ── run checklist (todo) ─────────────────────────────────────────────────
+#
+# Multi-step work goes better when the model externalises its plan and marks
+# items off as it goes. The list lives in the per-run tool context, so
+# parallel agents never see each other's checklists.
+
+_TODO_STATUSES = {"pending", "in_progress", "completed"}
+_TODO_ALIASES = {
+    "todo": "pending",
+    "open": "pending",
+    "not_started": "pending",
+    "doing": "in_progress",
+    "active": "in_progress",
+    "running": "in_progress",
+    "in-progress": "in_progress",
+    "done": "completed",
+    "complete": "completed",
+    "finished": "completed",
+}
+
+
+def _normalize_todos(items: Any) -> list[dict[str, str]]:
+    """Accept the shapes local models tend to emit and return a clean list."""
+    if items is None:
+        return []
+    if isinstance(items, str):
+        text = items.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, (list, dict)):
+                return _normalize_todos(parsed)
+        except (TypeError, ValueError):
+            pass
+        # A newline/;-separated list is a common fallback.
+        parts = [p.strip(" -•\t") for p in re.split(r"[\n;]+", text) if p.strip()]
+        return [{"id": str(i + 1), "label": p[:500], "status": "pending"} for i, p in enumerate(parts)]
+    if isinstance(items, dict):
+        items = items.get("items") or items.get("todos") or [items]
+    if not isinstance(items, (list, tuple)):
+        return []
+
+    out: list[dict[str, str]] = []
+    for index, item in enumerate(items):
+        if isinstance(item, str):
+            label, status = item, "pending"
+        elif isinstance(item, dict):
+            label = str(
+                item.get("label")
+                or item.get("title")
+                or item.get("text")
+                or item.get("task")
+                or ""
+            )
+            status = str(item.get("status") or "pending").strip().lower()
+            status = _TODO_ALIASES.get(status, status)
+        else:
+            continue
+        label = " ".join(label.split())[:500]
+        if not label:
+            continue
+        if status not in _TODO_STATUSES:
+            status = "pending"
+        out.append({"id": str(index + 1), "label": label, "status": status})
+    return out[:50]
+
+
+def _format_todos(items: list[dict[str, str]]) -> str:
+    if not items:
+        return "Todo list cleared."
+    done = sum(1 for item in items if item["status"] == "completed")
+    marks = {"completed": "[x]", "in_progress": "[~]", "pending": "[ ]"}
+    lines = [f"Todo list — {done}/{len(items)} completed"]
+    for item in items:
+        lines.append(f"{marks[item['status']]} {item['id']}. {item['label']}")
+    lines.append("Next: mark an item in_progress before starting it and completed when done.")
+    return "\n".join(lines)
+
+
+# Checklists are keyed by run so parallel agents never share a list. Tool
+# execution happens on a sandbox thread whose context mirrors the run id.
+_todo_store: dict[str, list[dict[str, str]]] = {}
+_todo_stats: dict[str, dict[str, int]] = {}
+_todo_lock = threading.Lock()
+_TODO_STORE_LIMIT = 200
+# Local models can spend an entire step budget rewriting the checklist. After
+# this many updates only calls that reduce the number of open items (or clear
+# the list) are accepted.
+_TODO_UPDATE_LIMIT = 4
+
+
+def _todo_key() -> str:
+    ctx = _get_context()
+    run_id = str(ctx.get("run_id") or "")
+    if run_id:
+        return run_id
+    parts = (ctx.get("agent_id"), ctx.get("session_id"))
+    key = "|".join(str(part or "") for part in parts)
+    return key if key.strip("|") else "default"
+
+
+def todo_write(items: Any = None, note: str = "") -> str:
+    """Create or replace this run's task checklist.
+
+    The checklist is surfaced to the UI as a live progress list. Send the
+    *whole* list each call; this replaces the previous one so statuses stay
+    authoritative.
+    """
+    normalized = _normalize_todos(items)
+    key = _todo_key()
+    open_items = sum(1 for item in normalized if item["status"] != "completed")
+    with _todo_lock:
+        stats = _todo_stats.get(key, {"updates": 0, "open": open_items})
+        if stats["updates"] >= _TODO_UPDATE_LIMIT and open_items >= stats["open"]:
+            return (
+                "Checklist update limit reached. Stop rewriting the checklist; "
+                "execute the next item with a real work tool, or complete the "
+                "remaining items (a call that reduces open items is still accepted)."
+            )
+        _todo_store[key] = normalized
+        _todo_stats[key] = {"updates": stats["updates"] + 1, "open": open_items}
+        if len(_todo_store) > _TODO_STORE_LIMIT:
+            for stale in list(_todo_store)[: len(_todo_store) - _TODO_STORE_LIMIT]:
+                _todo_store.pop(stale, None)
+    text = _format_todos(normalized)
+    if note and str(note).strip():
+        text += f"\nNote: {str(note).strip()[:500]}"
+    return text
+
+
+def get_todo_items() -> list[dict[str, str]]:
+    """Return the current run's checklist (used by the agent event bridge)."""
+    with _todo_lock:
+        return list(_todo_store.get(_todo_key()) or [])
+
+
+def clear_todo(run_id: str = "") -> None:
+    """Drop a finished run's checklist.
+
+    With no *run_id* this clears the whole in-memory store. Production callers
+    always pass the run id; the no-argument form is for tests and bulk cleanup.
+    """
+    with _todo_lock:
+        if not run_id:
+            _todo_store.clear()
+            _todo_stats.clear()
+        else:
+            _todo_store.pop(run_id, None)
+            _todo_stats.pop(run_id, None)
+
+
 def summarize(text: str, max_chars: int = 1000) -> str:
     """Summarize long text with the light model."""
     if len(text) <= max_chars:
@@ -876,6 +1059,39 @@ TOOL_REGISTRY: dict[str, dict] = {
         },
         "meta": _meta(1, False),
         "parallel_safe": True,
+        "idempotent": True,
+    },
+    "todo_write": {
+        "fn": todo_write,
+        "description": (
+            "Create or update a short task checklist for multi-step work. "
+            "Send the full list each time; mark items pending, in_progress or "
+            "completed so progress is visible and nothing is forgotten."
+        ),
+        "parameters": {
+            "items": _p(
+                type="array",
+                description=(
+                    "The complete checklist. Each item is an object like "
+                    '{"label": "Find sources", "status": "completed"} '
+                    "(status: pending | in_progress | completed)."
+                ),
+                items={
+                    "type": "object",
+                    "properties": {
+                        "label": {"type": "string"},
+                        "status": {"type": "string"},
+                    },
+                    "required": ["label"],
+                },
+            ),
+            "note": _p(
+                description="Optional short note about what changed",
+                required=False,
+            ),
+        },
+        "meta": _meta(1, False),
+        "parallel_safe": False,
         "idempotent": True,
     },
     "web_search": {
@@ -1115,11 +1331,21 @@ _PLUGIN_TOOLS: list[tuple[str, str, str]] = [
 # mapping (name -> {fn, description, parameters, tier, requires_approval, ...}).
 _MULTI_TOOL_PLUGINS: list[str] = [
     "palimind.agents.tools.browser.tool",
+    "palimind.agents.tools.desktop.tool",
     "palimind.agents.tools.research.tool",
     "palimind.agents.tools.git.tool",
     "palimind.agents.tools.apply-patch.tool",
     "palimind.agents.tools.office.tool",
     "palimind.agents.tools.data.tool",
+    "palimind.agents.task_tools",
+    "palimind.agents.channel_tools",
+    "palimind.agents.wait_tools",
+    "palimind.agents.flow_tools",
+    "palimind.agents.routine_tools",
+    "palimind.agents.mcp_tools",
+    "palimind.agents.secrets_tools",
+    "palimind.agents.visual_tools",
+    "palimind.agents.browser_profile_tools",
 ]
 
 # Names of drop-in user tools currently merged into TOOL_REGISTRY. Tracked so a
@@ -1285,7 +1511,7 @@ def get_tool_names() -> list[str]:
     return sorted(TOOL_REGISTRY.keys())
 
 
-def call_tool(name: str, **kwargs: Any) -> str:
+def call_tool(name: str, /, **kwargs: Any) -> str:
     """Execute a registered tool under the sandbox (timeout, output clamp and
     audit), returning a string. Never raises — errors come back as text so the
     agent loop can feed them back to the model."""

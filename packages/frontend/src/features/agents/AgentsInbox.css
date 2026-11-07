@@ -20,6 +20,13 @@
 .inbox__close { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-subtle); background: transparent; color: var(--text-secondary); cursor: pointer; }
 .inbox__close:hover { color: var(--text-main); background: var(--accent-bg, rgba(127,127,127,0.1)); }
 .inbox__body { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.inbox__group {
+  color: var(--text-muted);
+  font-size: var(--type-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 2px 0;
+}
 .inbox__item { border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--panel-bg); padding: 12px; display: flex; flex-direction: column; gap: 9px; }
 .inbox__item-head { display: flex; align-items: center; gap: 9px; }
 .inbox__item-id { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }

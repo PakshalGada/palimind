@@ -192,6 +192,264 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_event_log_stream
             ON event_log(stream, id);
 
+        -- ── Agent threads, tasks, mailbox and agent management ───────────
+        CREATE TABLE IF NOT EXISTS agent_threads (
+            id                  TEXT PRIMARY KEY,
+            agent_id            TEXT NOT NULL,
+            kind                TEXT NOT NULL DEFAULT 'chat',
+            provider            TEXT NOT NULL DEFAULT '',
+            provider_session_id TEXT NOT NULL DEFAULT '',
+            status              TEXT NOT NULL DEFAULT 'active',
+            value               TEXT NOT NULL DEFAULT '{}',
+            created_at          REAL NOT NULL,
+            updated_at          REAL NOT NULL,
+            archived_at         REAL
+        );
+        CREATE INDEX IF NOT EXISTS idx_agent_threads_agent
+            ON agent_threads(agent_id, kind, updated_at);
+
+        CREATE TABLE IF NOT EXISTS provider_sessions (
+            thread_id  TEXT PRIMARY KEY,
+            provider   TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            fingerprint TEXT NOT NULL DEFAULT '',
+            value      TEXT NOT NULL DEFAULT '{}',
+            updated_at REAL NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS agent_tasks (
+            id            TEXT PRIMARY KEY,
+            agent_id      TEXT NOT NULL,
+            thread_id     TEXT NOT NULL DEFAULT '',
+            parent_task_id TEXT NOT NULL DEFAULT '',
+            owner_agent_id TEXT NOT NULL DEFAULT '',
+            status        TEXT NOT NULL DEFAULT 'open',
+            priority      INTEGER NOT NULL DEFAULT 0,
+            value         TEXT NOT NULL DEFAULT '{}',
+            created_at    REAL NOT NULL,
+            updated_at    REAL NOT NULL,
+            closed_at     REAL
+        );
+        CREATE INDEX IF NOT EXISTS idx_agent_tasks_agent
+            ON agent_tasks(agent_id, status, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_agent_tasks_thread
+            ON agent_tasks(thread_id);
+
+        CREATE TABLE IF NOT EXISTS mailbox_deliveries (
+            id               TEXT PRIMARY KEY,
+            target_agent_id  TEXT NOT NULL,
+            target_thread_id TEXT NOT NULL DEFAULT '',
+            task_id          TEXT NOT NULL DEFAULT '',
+            status           TEXT NOT NULL DEFAULT 'queued',
+            idempotency_key  TEXT NOT NULL DEFAULT '',
+            value            TEXT NOT NULL DEFAULT '{}',
+            created_at       REAL NOT NULL,
+            updated_at       REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_mailbox_target
+            ON mailbox_deliveries(target_agent_id, status, created_at);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_mailbox_idempotency
+            ON mailbox_deliveries(target_agent_id, idempotency_key)
+            WHERE idempotency_key != '';
+
+        CREATE TABLE IF NOT EXISTS delivery_events (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            delivery_id TEXT NOT NULL,
+            type        TEXT NOT NULL,
+            payload     TEXT NOT NULL DEFAULT '{}',
+            created_at  REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_delivery_events_delivery
+            ON delivery_events(delivery_id, id);
+
+        CREATE TABLE IF NOT EXISTS agent_reactions (
+            id         TEXT PRIMARY KEY,
+            message_id TEXT NOT NULL,
+            actor_kind TEXT NOT NULL DEFAULT 'agent',
+            actor_id   TEXT NOT NULL DEFAULT '',
+            emoji      TEXT NOT NULL,
+            created_at REAL NOT NULL,
+            UNIQUE(message_id, actor_kind, actor_id, emoji)
+        );
+
+        CREATE TABLE IF NOT EXISTS agent_waits (
+            id         TEXT PRIMARY KEY,
+            agent_id   TEXT NOT NULL,
+            routine_id TEXT NOT NULL DEFAULT '',
+            status     TEXT NOT NULL DEFAULT 'open',
+            value      TEXT NOT NULL DEFAULT '{}',
+            created_at REAL NOT NULL,
+            closed_at  REAL
+        );
+        CREATE INDEX IF NOT EXISTS idx_agent_waits_agent
+            ON agent_waits(agent_id, status, created_at);
+
+        CREATE TABLE IF NOT EXISTS agent_sections (
+            id         TEXT PRIMARY KEY,
+            name       TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at REAL NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS usage_records (
+            id                TEXT PRIMARY KEY,
+            agent_id          TEXT NOT NULL,
+            thread_id         TEXT NOT NULL DEFAULT '',
+            provider          TEXT NOT NULL DEFAULT '',
+            model             TEXT NOT NULL DEFAULT '',
+            day               TEXT NOT NULL,
+            prompt_tokens     INTEGER NOT NULL DEFAULT 0,
+            completion_tokens INTEGER NOT NULL DEFAULT 0,
+            cost_estimate     REAL NOT NULL DEFAULT 0,
+            value             TEXT NOT NULL DEFAULT '{}',
+            created_at        REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_usage_agent_day
+            ON usage_records(agent_id, day);
+
+        CREATE TABLE IF NOT EXISTS channels (
+            id             TEXT PRIMARY KEY,
+            name           TEXT NOT NULL,
+            purpose        TEXT NOT NULL DEFAULT '',
+            lead_agent_id  TEXT NOT NULL DEFAULT '',
+            status         TEXT NOT NULL DEFAULT 'active',
+            value          TEXT NOT NULL DEFAULT '{}',
+            created_at     REAL NOT NULL,
+            updated_at     REAL NOT NULL,
+            archived_at    REAL
+        );
+        CREATE INDEX IF NOT EXISTS idx_channels_status
+            ON channels(status, updated_at);
+
+        CREATE TABLE IF NOT EXISTS channel_members (
+            channel_id   TEXT NOT NULL,
+            agent_id     TEXT NOT NULL,
+            role         TEXT NOT NULL DEFAULT '',
+            instructions TEXT NOT NULL DEFAULT '',
+            created_at   REAL NOT NULL,
+            PRIMARY KEY (channel_id, agent_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS channel_messages (
+            channel_id   TEXT NOT NULL,
+            seq          INTEGER NOT NULL,
+            value        TEXT NOT NULL DEFAULT '{}',
+            created_at   REAL NOT NULL,
+            PRIMARY KEY (channel_id, seq)
+        );
+        CREATE INDEX IF NOT EXISTS idx_channel_messages_channel
+            ON channel_messages(channel_id, seq);
+
+        CREATE TABLE IF NOT EXISTS channel_tasks (
+            id              TEXT PRIMARY KEY,
+            channel_id      TEXT NOT NULL,
+            owner_agent_id  TEXT NOT NULL DEFAULT '',
+            parent_task_id  TEXT NOT NULL DEFAULT '',
+            revision        INTEGER NOT NULL DEFAULT 1,
+            status          TEXT NOT NULL DEFAULT 'open',
+            value           TEXT NOT NULL DEFAULT '{}',
+            created_at      REAL NOT NULL,
+            updated_at      REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_channel_tasks_channel
+            ON channel_tasks(channel_id, status, updated_at);
+
+        CREATE TABLE IF NOT EXISTS channel_receipts (
+            channel_id   TEXT NOT NULL,
+            operation_id TEXT NOT NULL,
+            actor_id     TEXT NOT NULL DEFAULT '',
+            value        TEXT NOT NULL DEFAULT '{}',
+            created_at   REAL NOT NULL,
+            PRIMARY KEY (channel_id, operation_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS channel_memories (
+            channel_id TEXT NOT NULL,
+            key        TEXT NOT NULL,
+            value      TEXT NOT NULL,
+            updated_at REAL NOT NULL,
+            PRIMARY KEY (channel_id, key)
+        );
+
+        CREATE TABLE IF NOT EXISTS routine_flows (
+            id             TEXT PRIMARY KEY,
+            canvas_agent_id TEXT NOT NULL DEFAULT '',
+            routine_id     TEXT NOT NULL,
+            links          TEXT NOT NULL DEFAULT '[]',
+            positions      TEXT NOT NULL DEFAULT '{}',
+            created_at     REAL NOT NULL,
+            updated_at     REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_routine_flows_canvas
+            ON routine_flows(canvas_agent_id, updated_at);
+
+        CREATE TABLE IF NOT EXISTS routine_flow_steps (
+            id           TEXT PRIMARY KEY,
+            flow_id      TEXT NOT NULL,
+            from_routine TEXT NOT NULL DEFAULT '',
+            to_agent     TEXT NOT NULL DEFAULT '',
+            from_run     TEXT NOT NULL DEFAULT '',
+            status       TEXT NOT NULL DEFAULT 'pending',
+            input        TEXT NOT NULL DEFAULT '',
+            output       TEXT NOT NULL DEFAULT '',
+            error        TEXT NOT NULL DEFAULT '',
+            created_at   REAL NOT NULL,
+            updated_at   REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_flow_steps_flow
+            ON routine_flow_steps(flow_id, status, updated_at);
+
+        CREATE TABLE IF NOT EXISTS webhook_receipts (
+            route_id    TEXT NOT NULL,
+            delivery_id TEXT NOT NULL,
+            routine_id  TEXT NOT NULL DEFAULT '',
+            status      TEXT NOT NULL DEFAULT '',
+            created_at  REAL NOT NULL,
+            PRIMARY KEY (route_id, delivery_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS webhook_routes (
+            route_id   TEXT PRIMARY KEY,
+            routine_id TEXT NOT NULL,
+            event_type TEXT NOT NULL DEFAULT '',
+            filters    TEXT NOT NULL DEFAULT '[]',
+            created_at REAL NOT NULL,
+            revoked_at REAL
+        );
+        CREATE INDEX IF NOT EXISTS idx_webhook_routes_routine
+            ON webhook_routes(routine_id);
+
+        CREATE TABLE IF NOT EXISTS browser_profiles (
+            id         TEXT PRIMARY KEY,
+            name       TEXT NOT NULL,
+            color      TEXT NOT NULL DEFAULT '',
+            partition  TEXT NOT NULL DEFAULT '',
+            created_at REAL NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS browser_tabs (
+            id            TEXT PRIMARY KEY,
+            profile_id    TEXT NOT NULL DEFAULT 'shared',
+            agent_id      TEXT NOT NULL DEFAULT '',
+            url           TEXT NOT NULL DEFAULT '',
+            title         TEXT NOT NULL DEFAULT '',
+            opener_tab_id TEXT NOT NULL DEFAULT '',
+            state         TEXT NOT NULL DEFAULT '{}',
+            updated_at    REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_browser_tabs_profile
+            ON browser_tabs(profile_id, updated_at);
+
+        CREATE TABLE IF NOT EXISTS browser_takeovers (
+            id         TEXT PRIMARY KEY,
+            agent_id   TEXT NOT NULL,
+            tab_id     TEXT NOT NULL DEFAULT '',
+            reason     TEXT NOT NULL DEFAULT '',
+            status     TEXT NOT NULL DEFAULT 'pending',
+            created_at REAL NOT NULL,
+            finished_at REAL
+        );
+
         CREATE TABLE IF NOT EXISTS schema_version (
             version INTEGER NOT NULL
         );
@@ -199,6 +457,9 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM schema_version);
         """
     )
+    # Forward-only schema marker. All object creation above is idempotent, so
+    # an older state DB gains the new tables in place without a rewrite.
+    conn.execute("UPDATE schema_version SET version=2 WHERE version < 2")
     conn.commit()
 
 

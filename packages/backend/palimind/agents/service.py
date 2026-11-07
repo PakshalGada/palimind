@@ -19,6 +19,15 @@ __all__ = [
     "stream_agent",
 ]
 
+# Interactive agent chats read like a person typing, not a report renderer.
+CHAT_REPLY_STYLE = (
+    "[CHAT STYLE]\n"
+    "You are replying in a chat, not writing a report. Reply in 1-3 short "
+    "sentences. No headings, no preamble, no restating the request. Use a list "
+    "only when the user asks for one. Do not narrate tool calls; the interface "
+    "already shows them. If you need the user to do something, say it plainly."
+)
+
 
 def agent_sse(etype: str, payload: dict[str, Any]) -> str:
     """Serialize an agent reasoning-chain event as an SSE frame."""
@@ -35,6 +44,9 @@ async def run_agent(
     interactive: bool = True,
     resume_state: dict[str, Any] | None = None,
     resume_from_run_id: str = "",
+    channel_id: str = "",
+    task_id: str = "",
+    extra_prompt: str = "",
 ) -> str:
     """Run an agent to completion, returning its final output.
 
@@ -58,6 +70,9 @@ async def run_agent(
         interactive=interactive,
         resume_state=resume_state,
         resume_from_run_id=resume_from_run_id,
+        channel_id=channel_id,
+        task_id=task_id,
+        extra_prompt=extra_prompt,
     )
 
 
@@ -69,6 +84,9 @@ async def stream_agent(
     interactive: bool = True,
     resume_state: dict[str, Any] | None = None,
     resume_from_run_id: str = "",
+    channel_id: str = "",
+    task_id: str = "",
+    extra_prompt: str = "",
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Run an agent and stream reasoning-chain events as dicts.
 
@@ -97,6 +115,9 @@ async def stream_agent(
             interactive=interactive,
             resume_state=resume_state,
             resume_from_run_id=resume_from_run_id,
+            channel_id=channel_id,
+            task_id=task_id,
+            extra_prompt=extra_prompt,
         )
     )
     try:
@@ -138,6 +159,7 @@ async def agent_sse_stream(
     chat_model: str,
     working_root: Path | None = None,
     prefix_mention: bool = True,
+    chat_style: bool = False,
 ) -> StreamingResponse:
     """Route an @agent-name chat invocation to an agent run.
 
@@ -172,7 +194,7 @@ async def agent_sse_stream(
 
         return StreamingResponse(err_stream(), media_type="text/event-stream")
 
-    mode_params = {"agent_name": agent_name}
+    mode_params = {"agent_name": agent_name, "agent_id": defn.id}
 
     async def gen():
         from palimind.memory.session_store import append_message_to_session
@@ -193,7 +215,11 @@ async def agent_sse_stream(
 
         full_text = ""
         async for ev in stream_agent(
-            defn, agent_input or "Run your task.", session_id or "", working_root=working_root
+            defn,
+            agent_input or "Run your task.",
+            session_id or "",
+            working_root=working_root,
+            extra_prompt=CHAT_REPLY_STYLE if chat_style else "",
         ):
             etype = ev.get("type", "")
             payload = {k: v for k, v in ev.items() if k != "type"}

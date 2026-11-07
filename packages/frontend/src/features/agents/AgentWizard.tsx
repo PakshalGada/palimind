@@ -539,6 +539,20 @@ export default function AgentWizard({
               onChange={(v) => patch({ shell_access: v })}
             />
             <Toggle
+              title="Desktop access"
+              description="Observe Linux apps through the accessibility tree (screenshots stay on demand)."
+              checked={!!draft.desktop_access}
+              onChange={(v) =>
+                patch(v ? { desktop_access: true } : { desktop_access: false, desktop_control: false })
+              }
+            />
+            <Toggle
+              title="Desktop control"
+              description="Click, type and launch apps. Every mutating action still needs approval."
+              checked={!!draft.desktop_control}
+              onChange={(v) => patch(v ? { desktop_control: true, desktop_access: true } : { desktop_control: false })}
+            />
+            <Toggle
               title="Self-critique"
               description="Run a reflection pass that reviews and improves the answer."
               checked={!!draft.self_critique}

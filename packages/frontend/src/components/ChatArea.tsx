@@ -107,7 +107,9 @@ export default function ChatArea() {
         ? 'document'
         : llmSubMode === 'moe'
           ? 'moe'
-          : 'llm';
+          : llmSubMode === 'deep_research'
+            ? 'deep_research'
+            : 'llm';
 
   const applySessions = useCallback(
     (data: { sessions?: unknown[]; active_session_id?: string; error?: string }) => {

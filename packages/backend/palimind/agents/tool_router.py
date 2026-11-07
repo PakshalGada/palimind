@@ -61,6 +61,7 @@ _STOPWORDS = {
 # discovery, reading, memory, and delegation.
 _CORE_TOOLS = (
     "tool_search",
+    "todo_write",
     "read_file",
     "list_files",
     "grep_files",

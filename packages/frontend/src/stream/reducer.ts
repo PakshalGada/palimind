@@ -44,6 +44,12 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
       return next({ citations: action.citations });
     case 'setApproval':
       return next({ approval: action.approval });
+    case 'setUsage':
+      return next({ usage: action.usage });
+    case 'setSuggestions':
+      return next({ suggestions: action.suggestions });
+    case 'setEscalation':
+      return next({ escalation: action.escalation });
     case 'setDuration':
       return next({ thoughtDuration: action.duration });
     case 'answerStarted':

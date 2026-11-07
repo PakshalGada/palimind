@@ -1,0 +1,534 @@
+{
+  "kind": "head_to_head",
+  "local": {
+    "mode": "live",
+    "model": "qwen3.5:9b",
+    "elapsed_s": 994.6,
+    "target": 0.8,
+    "total": 5,
+    "passed": 5,
+    "score": 1.0,
+    "meets_target": true,
+    "scenarios": [
+      {
+        "id": "research_citations",
+        "category": "research",
+        "name": "Multi-step research with citations",
+        "passed": true,
+        "checks": {
+          "multi_step": true,
+          "sources_collected": true,
+          "citations_present": true,
+          "answer_delivered": true,
+          "checklist_completed": true,
+          "tool_accuracy": true
+        },
+        "metrics": {
+          "tool_calls": 4,
+          "sources": 4,
+          "citation_markers": 2,
+          "todo_updates": 2,
+          "open_todo_items": 0,
+          "tool_errors": 0,
+          "tool_accuracy": 1.0,
+          "tool_error_texts": [],
+          "tool_sequence": [
+            "todo_write",
+            "web_search",
+            "web_search",
+            "todo_write"
+          ],
+          "nudged": false,
+          "answer_chars": 1276
+        },
+        "detail": "Based on my benchmark research, here is a cited comparison of AI model performance reports:\n\n**Benchmark Comparison Summary**\n\nThe available benchmark reports from 2024 reveal important trade-offs between different optimization approaches for AI models:\n\n1. **Throughput Optimization (Alpha Benchmark)** - The Alpha report documents a cache change implementation that improved system throughput by 38%. [1] This approach focuses on maximizing the number of requests handled per unit time, making it s"
+      },
+      {
+        "id": "coding_fix",
+        "category": "coding",
+        "name": "Read, edit and verify a file",
+        "passed": true,
+        "checks": {
+          "file_fixed": true,
+          "read_before_write": true,
+          "verified": true,
+          "checklist_completed": true,
+          "answer_delivered": true,
+          "tool_accuracy": true
+        },
+        "metrics": {
+          "todo_updates": 3,
+          "open_todo_items": 0,
+          "tool_errors": 0,
+          "tool_accuracy": 1.0,
+          "tool_error_texts": [],
+          "tool_sequence": [
+            "read_file",
+            "todo_write",
+            "todo_write",
+            "read_file",
+            "search_replace",
+            "read_file",
+            "todo_write"
+          ],
+          "nudged": false,
+          "answer_chars": 214
+        },
+        "detail": "The bug in maths.py has been fixed. The function add(a, b) was originally returning `a - b` (difference), and now correctly returns `a + b` (sum). The fix has been verified by reading the file again after the edit."
+      },
+      {
+        "id": "tool_recovery",
+        "category": "tool_use",
+        "name": "Recover from a failed tool call",
+        "passed": true,
+        "checks": {
+          "error_observed": true,
+          "recovered": true,
+          "grounded_in_file": true,
+          "answer_delivered": true
+        },
+        "metrics": {
+          "tool_results": 2,
+          "tool_errors": 1,
+          "tool_error_texts": [
+            "Error: file not found at missing.txt"
+          ]
+        },
+        "detail": "The file missing.txt was not found. I read notes.txt instead, which states: \"release notes: cache latency improved\""
+      },
+      {
+        "id": "checklist_completion",
+        "category": "checklist",
+        "name": "Complete the checklist before answering",
+        "passed": true,
+        "checks": {
+          "checklist_created": true,
+          "guard_triggered": true,
+          "checklist_completed": true,
+          "answer_delivered": true
+        },
+        "metrics": {
+          "todo_updates": 5,
+          "open_todo_items": 0,
+          "nudged": false
+        },
+        "detail": "Task completed successfully. I have:\n\n1. \u2705 Created and tracked a two-item checklist per Orchestrator requirements\n   - Item 1: Review and acknowledge task requirements from Orchestrator [COMPLETED]\n   - Item 2: Generate final summary answer based on completed items [COMPLETED]\n\n2. \u2705 Completed the required workflow using available tools (todo_write)\n\n3. \u2705 Final answer provided at step limit as instructed\n\nThe two-item checklist has been created and both items are now marked as complete in the tod"
+      },
+      {
+        "id": "ui_followup_flow",
+        "category": "ui",
+        "name": "Checklist, usage and follow-up UI flow",
+        "passed": true,
+        "checks": {
+          "ui_test_passed": true
+        },
+        "metrics": {},
+        "detail": "TAP version 13\n# Subtest: agent capability UI flow: checklist, tools, usage and follow-ups\nok 1 - agent capability UI flow: checklist, tools, usage and follow-ups\n  ---\n  duration_ms: 6.692257\n  type: 'test'\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 1\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 273.865347"
+      }
+    ]
+  },
+  "baseline": {
+    "mode": "live",
+    "model": "grok-4.7",
+    "elapsed_s": 53.25,
+    "target": 0.8,
+    "total": 5,
+    "passed": 5,
+    "score": 1.0,
+    "meets_target": true,
+    "scenarios": [
+      {
+        "id": "research_citations",
+        "category": "research",
+        "name": "Multi-step research with citations",
+        "passed": true,
+        "checks": {
+          "multi_step": true,
+          "sources_collected": true,
+          "citations_present": true,
+          "answer_delivered": true,
+          "checklist_completed": true,
+          "tool_accuracy": true
+        },
+        "metrics": {
+          "tool_calls": 7,
+          "sources": 6,
+          "citation_markers": 3,
+          "todo_updates": 3,
+          "open_todo_items": 0,
+          "tool_errors": 0,
+          "tool_accuracy": 1.0,
+          "tool_error_texts": [],
+          "tool_sequence": [
+            "todo_write",
+            "web_search",
+            "web_search",
+            "fetch_url",
+            "fetch_url",
+            "todo_write",
+            "todo_write"
+          ],
+          "nudged": false,
+          "answer_chars": 678
+        },
+        "detail": "**Alpha vs. Beta benchmark comparison**\n\nTwo recent benchmark reports measure different performance tradeoffs.\n\n- **Alpha** reports a **38% throughput gain** after a cache change ([Alpha benchmark report](https://example.org/alpha)).\n- **Beta** reports a **21% reduction in tail latency**, at the cost of **higher memory use** ([Beta benchmark report](https://example.org/beta)).\n\n**Comparison:** Alpha is the stronger result if raw throughput is the goal. [1] Beta is preferable when tail latency ma"
+      },
+      {
+        "id": "coding_fix",
+        "category": "coding",
+        "name": "Read, edit and verify a file",
+        "passed": true,
+        "checks": {
+          "file_fixed": true,
+          "read_before_write": true,
+          "verified": true,
+          "checklist_completed": true,
+          "answer_delivered": true,
+          "tool_accuracy": true
+        },
+        "metrics": {
+          "todo_updates": 4,
+          "open_todo_items": 0,
+          "tool_errors": 0,
+          "tool_accuracy": 1.0,
+          "tool_error_texts": [],
+          "tool_sequence": [
+            "read_file",
+            "todo_write",
+            "todo_write",
+            "search_replace",
+            "read_file",
+            "todo_write",
+            "todo_write"
+          ],
+          "nudged": false,
+          "answer_chars": 129
+        },
+        "detail": "Fixed maths.py: add(a, b) now returns a + b instead of a - b. Re-read confirmed the function is:\n\ndef add(a, b):\n    return a + b"
+      },
+      {
+        "id": "tool_recovery",
+        "category": "tool_use",
+        "name": "Recover from a failed tool call",
+        "passed": true,
+        "checks": {
+          "error_observed": true,
+          "recovered": true,
+          "grounded_in_file": true,
+          "answer_delivered": true
+        },
+        "metrics": {
+          "tool_results": 2,
+          "tool_errors": 1,
+          "tool_error_texts": [
+            "Error: file not found at missing.txt"
+          ]
+        },
+        "detail": "missing.txt was not found. notes.txt says: release notes indicate that cache latency has been improved."
+      },
+      {
+        "id": "checklist_completion",
+        "category": "checklist",
+        "name": "Complete the checklist before answering",
+        "passed": true,
+        "checks": {
+          "checklist_created": true,
+          "guard_triggered": true,
+          "checklist_completed": true,
+          "answer_delivered": true
+        },
+        "metrics": {
+          "todo_updates": 2,
+          "open_todo_items": 0,
+          "nudged": false
+        },
+        "detail": "Two-item checklist created and both items completed:\n1. Create a two-item checklist for this task \u2014 completed\n2. Complete every checklist item before the final answer \u2014 completed"
+      },
+      {
+        "id": "ui_followup_flow",
+        "category": "ui",
+        "name": "Checklist, usage and follow-up UI flow",
+        "passed": true,
+        "checks": {
+          "ui_test_passed": true
+        },
+        "metrics": {},
+        "detail": "TAP version 13\n# Subtest: agent capability UI flow: checklist, tools, usage and follow-ups\nok 1 - agent capability UI flow: checklist, tools, usage and follow-ups\n  ---\n  duration_ms: 2.137204\n  type: 'test'\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 1\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 97.915388"
+      }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "research_citations",
+      "category": "research",
+      "local": {
+        "id": "research_citations",
+        "category": "research",
+        "name": "Multi-step research with citations",
+        "passed": true,
+        "checks": {
+          "multi_step": true,
+          "sources_collected": true,
+          "citations_present": true,
+          "answer_delivered": true,
+          "checklist_completed": true,
+          "tool_accuracy": true
+        },
+        "metrics": {
+          "tool_calls": 4,
+          "sources": 4,
+          "citation_markers": 2,
+          "todo_updates": 2,
+          "open_todo_items": 0,
+          "tool_errors": 0,
+          "tool_accuracy": 1.0,
+          "tool_error_texts": [],
+          "tool_sequence": [
+            "todo_write",
+            "web_search",
+            "web_search",
+            "todo_write"
+          ],
+          "nudged": false,
+          "answer_chars": 1276
+        },
+        "detail": "Based on my benchmark research, here is a cited comparison of AI model performance reports:\n\n**Benchmark Comparison Summary**\n\nThe available benchmark reports from 2024 reveal important trade-offs between different optimization approaches for AI models:\n\n1. **Throughput Optimization (Alpha Benchmark)** - The Alpha report documents a cache change implementation that improved system throughput by 38%. [1] This approach focuses on maximizing the number of requests handled per unit time, making it s"
+      },
+      "baseline": {
+        "id": "research_citations",
+        "category": "research",
+        "name": "Multi-step research with citations",
+        "passed": true,
+        "checks": {
+          "multi_step": true,
+          "sources_collected": true,
+          "citations_present": true,
+          "answer_delivered": true,
+          "checklist_completed": true,
+          "tool_accuracy": true
+        },
+        "metrics": {
+          "tool_calls": 7,
+          "sources": 6,
+          "citation_markers": 3,
+          "todo_updates": 3,
+          "open_todo_items": 0,
+          "tool_errors": 0,
+          "tool_accuracy": 1.0,
+          "tool_error_texts": [],
+          "tool_sequence": [
+            "todo_write",
+            "web_search",
+            "web_search",
+            "fetch_url",
+            "fetch_url",
+            "todo_write",
+            "todo_write"
+          ],
+          "nudged": false,
+          "answer_chars": 678
+        },
+        "detail": "**Alpha vs. Beta benchmark comparison**\n\nTwo recent benchmark reports measure different performance tradeoffs.\n\n- **Alpha** reports a **38% throughput gain** after a cache change ([Alpha benchmark report](https://example.org/alpha)).\n- **Beta** reports a **21% reduction in tail latency**, at the cost of **higher memory use** ([Beta benchmark report](https://example.org/beta)).\n\n**Comparison:** Alpha is the stronger result if raw throughput is the goal. [1] Beta is preferable when tail latency ma"
+      },
+      "local_pass": true,
+      "baseline_pass": true,
+      "winner": "tie"
+    },
+    {
+      "id": "coding_fix",
+      "category": "coding",
+      "local": {
+        "id": "coding_fix",
+        "category": "coding",
+        "name": "Read, edit and verify a file",
+        "passed": true,
+        "checks": {
+          "file_fixed": true,
+          "read_before_write": true,
+          "verified": true,
+          "checklist_completed": true,
+          "answer_delivered": true,
+          "tool_accuracy": true
+        },
+        "metrics": {
+          "todo_updates": 3,
+          "open_todo_items": 0,
+          "tool_errors": 0,
+          "tool_accuracy": 1.0,
+          "tool_error_texts": [],
+          "tool_sequence": [
+            "read_file",
+            "todo_write",
+            "todo_write",
+            "read_file",
+            "search_replace",
+            "read_file",
+            "todo_write"
+          ],
+          "nudged": false,
+          "answer_chars": 214
+        },
+        "detail": "The bug in maths.py has been fixed. The function add(a, b) was originally returning `a - b` (difference), and now correctly returns `a + b` (sum). The fix has been verified by reading the file again after the edit."
+      },
+      "baseline": {
+        "id": "coding_fix",
+        "category": "coding",
+        "name": "Read, edit and verify a file",
+        "passed": true,
+        "checks": {
+          "file_fixed": true,
+          "read_before_write": true,
+          "verified": true,
+          "checklist_completed": true,
+          "answer_delivered": true,
+          "tool_accuracy": true
+        },
+        "metrics": {
+          "todo_updates": 4,
+          "open_todo_items": 0,
+          "tool_errors": 0,
+          "tool_accuracy": 1.0,
+          "tool_error_texts": [],
+          "tool_sequence": [
+            "read_file",
+            "todo_write",
+            "todo_write",
+            "search_replace",
+            "read_file",
+            "todo_write",
+            "todo_write"
+          ],
+          "nudged": false,
+          "answer_chars": 129
+        },
+        "detail": "Fixed maths.py: add(a, b) now returns a + b instead of a - b. Re-read confirmed the function is:\n\ndef add(a, b):\n    return a + b"
+      },
+      "local_pass": true,
+      "baseline_pass": true,
+      "winner": "tie"
+    },
+    {
+      "id": "tool_recovery",
+      "category": "tool_use",
+      "local": {
+        "id": "tool_recovery",
+        "category": "tool_use",
+        "name": "Recover from a failed tool call",
+        "passed": true,
+        "checks": {
+          "error_observed": true,
+          "recovered": true,
+          "grounded_in_file": true,
+          "answer_delivered": true
+        },
+        "metrics": {
+          "tool_results": 2,
+          "tool_errors": 1,
+          "tool_error_texts": [
+            "Error: file not found at missing.txt"
+          ]
+        },
+        "detail": "The file missing.txt was not found. I read notes.txt instead, which states: \"release notes: cache latency improved\""
+      },
+      "baseline": {
+        "id": "tool_recovery",
+        "category": "tool_use",
+        "name": "Recover from a failed tool call",
+        "passed": true,
+        "checks": {
+          "error_observed": true,
+          "recovered": true,
+          "grounded_in_file": true,
+          "answer_delivered": true
+        },
+        "metrics": {
+          "tool_results": 2,
+          "tool_errors": 1,
+          "tool_error_texts": [
+            "Error: file not found at missing.txt"
+          ]
+        },
+        "detail": "missing.txt was not found. notes.txt says: release notes indicate that cache latency has been improved."
+      },
+      "local_pass": true,
+      "baseline_pass": true,
+      "winner": "tie"
+    },
+    {
+      "id": "checklist_completion",
+      "category": "checklist",
+      "local": {
+        "id": "checklist_completion",
+        "category": "checklist",
+        "name": "Complete the checklist before answering",
+        "passed": true,
+        "checks": {
+          "checklist_created": true,
+          "guard_triggered": true,
+          "checklist_completed": true,
+          "answer_delivered": true
+        },
+        "metrics": {
+          "todo_updates": 5,
+          "open_todo_items": 0,
+          "nudged": false
+        },
+        "detail": "Task completed successfully. I have:\n\n1. \u2705 Created and tracked a two-item checklist per Orchestrator requirements\n   - Item 1: Review and acknowledge task requirements from Orchestrator [COMPLETED]\n   - Item 2: Generate final summary answer based on completed items [COMPLETED]\n\n2. \u2705 Completed the required workflow using available tools (todo_write)\n\n3. \u2705 Final answer provided at step limit as instructed\n\nThe two-item checklist has been created and both items are now marked as complete in the tod"
+      },
+      "baseline": {
+        "id": "checklist_completion",
+        "category": "checklist",
+        "name": "Complete the checklist before answering",
+        "passed": true,
+        "checks": {
+          "checklist_created": true,
+          "guard_triggered": true,
+          "checklist_completed": true,
+          "answer_delivered": true
+        },
+        "metrics": {
+          "todo_updates": 2,
+          "open_todo_items": 0,
+          "nudged": false
+        },
+        "detail": "Two-item checklist created and both items completed:\n1. Create a two-item checklist for this task \u2014 completed\n2. Complete every checklist item before the final answer \u2014 completed"
+      },
+      "local_pass": true,
+      "baseline_pass": true,
+      "winner": "tie"
+    },
+    {
+      "id": "ui_followup_flow",
+      "category": "ui",
+      "local": {
+        "id": "ui_followup_flow",
+        "category": "ui",
+        "name": "Checklist, usage and follow-up UI flow",
+        "passed": true,
+        "checks": {
+          "ui_test_passed": true
+        },
+        "metrics": {},
+        "detail": "TAP version 13\n# Subtest: agent capability UI flow: checklist, tools, usage and follow-ups\nok 1 - agent capability UI flow: checklist, tools, usage and follow-ups\n  ---\n  duration_ms: 6.692257\n  type: 'test'\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 1\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 273.865347"
+      },
+      "baseline": {
+        "id": "ui_followup_flow",
+        "category": "ui",
+        "name": "Checklist, usage and follow-up UI flow",
+        "passed": true,
+        "checks": {
+          "ui_test_passed": true
+        },
+        "metrics": {},
+        "detail": "TAP version 13\n# Subtest: agent capability UI flow: checklist, tools, usage and follow-ups\nok 1 - agent capability UI flow: checklist, tools, usage and follow-ups\n  ---\n  duration_ms: 2.137204\n  type: 'test'\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 1\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 97.915388"
+      },
+      "local_pass": true,
+      "baseline_pass": true,
+      "winner": "tie"
+    }
+  ],
+  "local_score": 1.0,
+  "baseline_score": 1.0,
+  "score_delta": 0.0,
+  "winner": "tie"
+}

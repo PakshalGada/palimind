@@ -23,6 +23,7 @@ export type PixelSprite =
   | 'book'
   | 'projects'
   | 'package'
+  | 'desktop'
   | 'settings'
   | 'search'
   | 'plus'
@@ -59,6 +60,16 @@ export const PIXEL_SPRITES: Record<PixelSprite, string[]> = {
     '11111110',
     '11111110',
     '00000000',
+  ],
+  desktop: [
+    '11111110',
+    '10000010',
+    '10010010',
+    '10111010',
+    '10010010',
+    '10000010',
+    '11111110',
+    '00011000',
   ],
   terminal: [
     '11111110',

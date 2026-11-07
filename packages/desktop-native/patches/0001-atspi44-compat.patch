@@ -1,0 +1,419 @@
+diff -ruN /home/pakshal/agent-desktop/crates/linux/src/system/bus/bus_live_tests.rs vendor/agent-desktop/crates/linux/src/system/bus/bus_live_tests.rs
+--- /home/pakshal/agent-desktop/crates/linux/src/system/bus/bus_live_tests.rs	2026-11-04 00:49:19.316463980 +0530
++++ vendor/agent-desktop/crates/linux/src/system/bus/bus_live_tests.rs	2026-11-05 18:54:26.636795431 +0530
+@@ -21,7 +21,7 @@
+ 
+ #[zbus::interface(name = "org.a11y.atspi.Registry")]
+ impl Listener {
+-    fn register_event(&self, _event: &str, _properties: Vec<String>, _app: &str) {}
++    fn register_event(&self, _event: &str) {}
+ }
+ 
+ struct EmptyRegistry {
+diff -ruN /home/pakshal/agent-desktop/crates/linux/src/system/bus/bus_tests.rs vendor/agent-desktop/crates/linux/src/system/bus/bus_tests.rs
+--- /home/pakshal/agent-desktop/crates/linux/src/system/bus/bus_tests.rs	2026-11-04 00:49:19.316463980 +0530
++++ vendor/agent-desktop/crates/linux/src/system/bus/bus_tests.rs	2026-11-05 18:54:26.637795446 +0530
+@@ -14,15 +14,9 @@
+ 
+ #[zbus::interface(name = "org.a11y.atspi.Registry")]
+ impl Registry {
+-    fn register_event(
+-        &self,
+-        event: &str,
+-        properties: Vec<String>,
+-        app: &str,
+-    ) -> zbus::fdo::Result<()> {
++    // Palimind: at-spi2-core 2.44 declares RegisterEvent(s).
++    fn register_event(&self, event: &str) -> zbus::fdo::Result<()> {
+         assert_eq!(event, "window:activate");
+-        assert!(properties.is_empty());
+-        assert!(app.is_empty());
+         if self
+             .attempts
+             .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+@@ -150,7 +144,7 @@
+ 
+ #[zbus::interface(name = "org.a11y.atspi.Registry")]
+ impl Listener {
+-    fn register_event(&self, _event: &str, _properties: Vec<String>, _app: &str) {
++    fn register_event(&self, _event: &str) {
+         self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+     }
+ }
+diff -ruN /home/pakshal/agent-desktop/crates/linux/src/system/bus/mod.rs vendor/agent-desktop/crates/linux/src/system/bus/mod.rs
+--- /home/pakshal/agent-desktop/crates/linux/src/system/bus/mod.rs	2026-11-04 00:49:19.316463980 +0530
++++ vendor/agent-desktop/crates/linux/src/system/bus/mod.rs	2026-11-05 18:37:18.284361133 +0530
+@@ -102,7 +102,11 @@
+             REGISTRY_PATH,
+             Some(REGISTRY_INTERFACE),
+             "RegisterEvent",
+-            &(LISTENED_EVENT, Vec::<String>::new(), ""),
++            // Palimind: at-spi2-core 2.44 declares RegisterEvent(s). Upstream
++            // sent a three-argument body (s, as, s), which the registry
++            // rejects and which could crash a GTK3 app mid-event. The
++            // one-argument form is the documented AT-SPI2 contract.
++            &(LISTENED_EVENT),
+         )
+         .await
+         .map(|_| ())
+diff -ruN /home/pakshal/agent-desktop/crates/linux/src/system/bus/recovery_tests.rs vendor/agent-desktop/crates/linux/src/system/bus/recovery_tests.rs
+--- /home/pakshal/agent-desktop/crates/linux/src/system/bus/recovery_tests.rs	2026-11-04 00:49:19.316463980 +0530
++++ vendor/agent-desktop/crates/linux/src/system/bus/recovery_tests.rs	2026-11-05 18:54:26.637795446 +0530
+@@ -50,7 +50,7 @@
+ 
+ #[zbus::interface(name = "org.a11y.atspi.Registry")]
+ impl Registry {
+-    fn register_event(&self, _event: &str, _properties: Vec<String>, _app: &str) {}
++    fn register_event(&self, _event: &str) {}
+ }
+ 
+ struct Empty;
+diff -ruN /home/pakshal/agent-desktop/crates/linux/src/system/bus/registry_pid_tests.rs vendor/agent-desktop/crates/linux/src/system/bus/registry_pid_tests.rs
+--- /home/pakshal/agent-desktop/crates/linux/src/system/bus/registry_pid_tests.rs	2026-11-04 00:49:19.316463980 +0530
++++ vendor/agent-desktop/crates/linux/src/system/bus/registry_pid_tests.rs	2026-11-05 18:54:26.636795431 +0530
+@@ -12,7 +12,7 @@
+ 
+ #[zbus::interface(name = "org.a11y.atspi.Registry")]
+ impl Events {
+-    fn register_event(&self, _event: &str, _properties: Vec<String>, _app: &str) {}
++    fn register_event(&self, _event: &str) {}
+ }
+ 
+ #[zbus::interface(name = "org.a11y.atspi.Accessible")]
+diff -ruN /home/pakshal/agent-desktop/crates/linux/src/system/launch/launch_window_tests.rs vendor/agent-desktop/crates/linux/src/system/launch/launch_window_tests.rs
+--- /home/pakshal/agent-desktop/crates/linux/src/system/launch/launch_window_tests.rs	2026-11-04 00:49:19.321464245 +0530
++++ vendor/agent-desktop/crates/linux/src/system/launch/launch_window_tests.rs	2026-11-05 18:54:26.636795431 +0530
+@@ -83,7 +83,7 @@
+ 
+ #[zbus::interface(name = "org.a11y.atspi.Registry")]
+ impl Events {
+-    fn register_event(&self, _event: &str, _properties: Vec<String>, _app: &str) {}
++    fn register_event(&self, _event: &str) {}
+ }
+ 
+ #[test]
+diff -ruN /home/pakshal/agent-desktop/crates/linux/src/system/overlay/cursor_overlay_tests.rs vendor/agent-desktop/crates/linux/src/system/overlay/cursor_overlay_tests.rs
+--- /home/pakshal/agent-desktop/crates/linux/src/system/overlay/cursor_overlay_tests.rs	2026-11-04 00:49:19.322464298 +0530
++++ vendor/agent-desktop/crates/linux/src/system/overlay/cursor_overlay_tests.rs	2026-11-05 18:55:27.207717175 +0530
+@@ -28,9 +28,10 @@
+         assert_eq!(details["cause"], "wayland_session");
+         return;
+     }
+-    let path = std::env::current_dir()
+-        .unwrap()
+-        .join(format!(".cursor-wayland-{}.sock", std::process::id()));
++    // Palimind: the package directory is deep enough that a relative socket
++    // path can exceed SUN_LEN; a short temporary name keeps the fixture valid
++    // wherever the workspace is checked out.
++    let path = std::env::temp_dir().join(format!("palimind-cw-{}.sock", std::process::id()));
+     let listener = std::os::unix::net::UnixListener::bind(&path).expect("reachable Wayland socket");
+     const FILTER: &str = "system::overlay::cursor_overlay::tests::a_wayland_cursor_refusal_is_explicit_without_x11_fallback";
+     let output = std::process::Command::new(std::env::current_exe().unwrap())
+diff -ruN /home/pakshal/agent-desktop/crates/linux/src/system/signal/subscription.rs vendor/agent-desktop/crates/linux/src/system/signal/subscription.rs
+--- /home/pakshal/agent-desktop/crates/linux/src/system/signal/subscription.rs	2026-11-04 00:49:19.326464510 +0530
++++ vendor/agent-desktop/crates/linux/src/system/signal/subscription.rs	2026-11-05 18:37:18.284361133 +0530
+@@ -232,19 +232,21 @@
+             } else {
+                 senders
+             };
+-            for application in applications {
+-                for event in ["object:", "window:", "focus:"] {
+-                    connection
+-                        .call_method(
+-                            Some("org.a11y.atspi.Registry"),
+-                            "/org/a11y/atspi/registry",
+-                            Some("org.a11y.atspi.Registry"),
+-                            "RegisterEvent",
+-                            &(event, Vec::<String>::new(), application.as_str()),
+-                        )
+-                        .await
+-                        .map_err(|error| classify(&error))?;
+-                }
++            // Palimind: at-spi2-core 2.44 declares RegisterEvent(s). The
++            // upstream three-argument body is rejected as an invalid
++            // signature; register the event once per event class.
++            let _ = applications;
++            for event in ["object:", "window:", "focus:"] {
++                connection
++                    .call_method(
++                        Some("org.a11y.atspi.Registry"),
++                        "/org/a11y/atspi/registry",
++                        Some("org.a11y.atspi.Registry"),
++                        "RegisterEvent",
++                        &(event),
++                    )
++                    .await
++                    .map_err(|error| classify(&error))?;
+             }
+             Ok(())
+         })?;
+diff -ruN /home/pakshal/agent-desktop/crates/linux/src/tree/observe/node_evidence_tests.rs vendor/agent-desktop/crates/linux/src/tree/observe/node_evidence_tests.rs
+--- /home/pakshal/agent-desktop/crates/linux/src/tree/observe/node_evidence_tests.rs	2026-11-04 00:49:19.335464987 +0530
++++ vendor/agent-desktop/crates/linux/src/tree/observe/node_evidence_tests.rs	2026-11-05 18:55:27.207717175 +0530
+@@ -86,6 +86,7 @@
+         state: AtomicUsize,
+         children: AtomicUsize,
+         actions: AtomicUsize,
++        names: AtomicUsize,
+     }
+     struct Accessible(Arc<Counts>);
+     #[zbus::interface(name = "org.a11y.atspi.Accessible")]
+@@ -134,6 +135,12 @@
+             self.0.actions.fetch_add(1, Ordering::SeqCst);
+             Vec::new()
+         }
++        // Palimind: action names are probed through GetName(i), so the
++        // fixture answers that call instead of GetActions.
++        fn get_name(&self, index: i32) -> String {
++            self.0.names.fetch_add(1, Ordering::SeqCst);
++            if index == 0 { "select".to_owned() } else { String::new() }
++        }
+     }
+     let counts = Arc::new(Counts::default());
+     let (near, far) = std::os::unix::net::UnixStream::pair().unwrap();
+@@ -187,10 +194,12 @@
+             .any(|action| action == "Select")
+     );
+     assert_eq!(counts.children.load(Ordering::SeqCst), 0);
+-    assert_eq!(counts.actions.load(Ordering::SeqCst), 1);
++    assert!(counts.names.load(Ordering::SeqCst) >= 1);
++    assert_eq!(counts.actions.load(Ordering::SeqCst), 0);
+     let element = zbus::block_on(read_evidence(&client, &element, ReadPurpose::Element)).unwrap();
+     assert_eq!(element.read.node.properties.child_count.present(), Some(&2));
+     assert!(element.read.node.children.is_failed());
+     assert_eq!(counts.children.load(Ordering::SeqCst), 0);
+-    assert_eq!(counts.actions.load(Ordering::SeqCst), 2);
++    assert!(counts.names.load(Ordering::SeqCst) >= 2);
++    assert_eq!(counts.actions.load(Ordering::SeqCst), 0);
+ }
+diff -ruN /home/pakshal/agent-desktop/crates/linux/src/tree/properties/interface_reads.rs vendor/agent-desktop/crates/linux/src/tree/properties/interface_reads.rs
+--- /home/pakshal/agent-desktop/crates/linux/src/tree/properties/interface_reads.rs	2026-11-04 00:49:19.336465040 +0530
++++ vendor/agent-desktop/crates/linux/src/tree/properties/interface_reads.rs	2026-11-05 20:21:49.393157158 +0530
+@@ -1,13 +1,12 @@
+ use agent_desktop_core::AdapterError;
+ use zbus::Connection;
++use zbus::zvariant::OwnedValue;
+ 
+ use super::liveness::Liveness;
+ use super::node_read::{COMPONENT_INTERFACE, call, deserialize, field};
+-use crate::tree::element::bounded::collect_bounded;
+ use crate::tree::{AtspiElement, Extents, Field};
+ 
+ const ACTION_INTERFACE: &str = "org.a11y.atspi.Action";
+-const ACTION_NAMES_IN_FLIGHT: usize = 4;
+ const SCREEN_COORDINATES: u32 = 0;
+ 
+ /// `None` when the interface is advertised and its reads should go ahead.
+@@ -53,58 +52,64 @@
+     })
+ }
+ 
+-async fn action_name(
+-    connection: &Connection,
+-    element: &AtspiElement,
+-    index: i32,
+-    listed: String,
+-) -> Result<String, AdapterError> {
+-    let reply = call(connection, element, ACTION_INTERFACE, "GetName", &(index,)).await;
+-    match deserialize::<String>(reply) {
+-        Ok(name) if !name.is_empty() => Ok(name),
+-        Err(error) if crate::system::is_connection_failure(&error) => {
+-            Err(crate::system::classify(&error))
+-        }
+-        _ => Ok(listed),
+-    }
++async fn action_count(connection: &Connection, element: &AtspiElement) -> Option<i32> {
++    let reply = call(
++        connection,
++        element,
++        "org.freedesktop.DBus.Properties",
++        "Get",
++        &(ACTION_INTERFACE, "NActions"),
++    )
++    .await;
++    let value = deserialize::<OwnedValue>(reply).ok()?;
++    value.downcast_ref::<i32>().ok()
+ }
+ 
+ /// `GetName(i)` is the only call that returns the machine name on every
+ /// toolkit: `GetActions` returns empty names on Chromium and junk on Gecko.
+-/// `GetActions` supplies the count and the fallback for an index whose
+-/// `GetName` method is refused. Connection loss ends the read.
++///
++/// Palimind: we do not call `GetActions` at all. On at-spi2-core 2.44 / the
++/// GTK bridges on this host, several widgets advertise the Action interface
++/// while their ATK user-data is not an `AtkAction`; serializing the
++/// `GetActions` reply aborts the application (measured: GTK3 zenity calendar,
++/// GNOME Calculator unit combo and digit buttons). `GetName(i)` reaches the
++/// same data without building that reply and is safe on every node measured,
++/// so action names are probed by index until the toolkit refuses the index.
++/// This is a deliberate, documented fork delta; see docs/computer-use.md.
++const MAX_PROBED_ACTIONS: i32 = 8;
++
+ pub(in crate::tree) async fn read_actions(
+     connection: &Connection,
+     element: &AtspiElement,
+     interfaces: &Field<Vec<String>>,
+-    liveness: Liveness,
+ ) -> Result<Field<Vec<String>>, AdapterError> {
+     if let Some(skipped) = skipped_without(interfaces, ACTION_INTERFACE) {
+         return Ok(skipped);
+     }
+-    let reply = call(connection, element, ACTION_INTERFACE, "GetActions", &()).await;
+-    let listed = field(
+-        deserialize::<Vec<(String, String, String)>>(reply),
+-        liveness,
+-    )?;
+-    Ok(match listed {
+-        Field::Present(entries) => Field::Present(
+-            collect_bounded(
+-                ACTION_NAMES_IN_FLIGHT,
+-                entries
+-                    .into_iter()
+-                    .enumerate()
+-                    .map(|(index, (name, _, _))| {
+-                        action_name(connection, element, index as i32, name)
+-                    }),
+-            )
+-            .await
+-            .into_iter()
+-            .collect::<Result<Vec<_>, _>>()?,
+-        ),
+-        Field::Absent => Field::Absent,
+-        Field::Failed(detail) => Field::Failed(detail),
+-    })
++    // `NActions` is the safe count: probing `GetName(i)` past the last action
++    // aborts some GTK apps (nautilus: assertion `i < LAST_ACTION`). If the
++    // property cannot be read, probe only index 0 rather than guess.
++    let count = match action_count(connection, element).await {
++        Some(count) => count.clamp(0, MAX_PROBED_ACTIONS),
++        None => 1,
++    };
++    let mut names = Vec::new();
++    for index in 0..count {
++        let reply = call(connection, element, ACTION_INTERFACE, "GetName", &(index,)).await;
++        match deserialize::<String>(reply) {
++            Ok(name) if !name.is_empty() => names.push(name),
++            Ok(_) => break,
++            Err(error) if crate::system::is_connection_failure(&error) => {
++                return Err(crate::system::classify(&error));
++            }
++            Err(_) => break,
++        }
++    }
++    if names.is_empty() {
++        Ok(Field::Absent)
++    } else {
++        Ok(Field::Present(names))
++    }
+ }
+ 
+ #[cfg(test)]
+diff -ruN /home/pakshal/agent-desktop/crates/linux/src/tree/properties/interface_reads_tests.rs vendor/agent-desktop/crates/linux/src/tree/properties/interface_reads_tests.rs
+--- /home/pakshal/agent-desktop/crates/linux/src/tree/properties/interface_reads_tests.rs	2026-11-04 00:49:19.336465040 +0530
++++ vendor/agent-desktop/crates/linux/src/tree/properties/interface_reads_tests.rs	2026-11-05 18:53:14.508686562 +0530
+@@ -3,16 +3,14 @@
+ use crate::tree::properties::node_read::COMPONENT_INTERFACE;
+ 
+ #[test]
+-fn action_name_transport_loss_cannot_use_the_listed_fallback() {
++fn action_name_transport_loss_ends_observation() {
++    // Palimind: names are probed through `GetName(i)`; a transport failure on
++    // the first probe must still surface as an error, never as an empty list.
+     let connection = crate::tree::live::test_support::closed_connection();
+     let element = crate::tree::AtspiElement::new(":1.1", "/button", 1);
+-    let error = zbus::block_on(super::action_name(
+-        &connection,
+-        &element,
+-        0,
+-        "click".to_owned(),
+-    ))
+-    .expect_err("transport loss must end observation");
++    let interfaces = listed(&[ACTION_INTERFACE]);
++    let error = zbus::block_on(super::read_actions(&connection, &element, &interfaces))
++        .expect_err("transport loss must end observation");
+     assert_eq!(error.code, agent_desktop_core::ErrorCode::Internal);
+ }
+ 
+diff -ruN /home/pakshal/agent-desktop/crates/linux/src/tree/properties/node_read.rs vendor/agent-desktop/crates/linux/src/tree/properties/node_read.rs
+--- /home/pakshal/agent-desktop/crates/linux/src/tree/properties/node_read.rs	2026-11-04 00:49:19.336465040 +0530
++++ vendor/agent-desktop/crates/linux/src/tree/properties/node_read.rs	2026-11-05 18:52:13.873743652 +0530
+@@ -254,7 +254,7 @@
+         },
+         async {
+             if purpose.actions() {
+-                read_actions(connection, element, &interfaces, liveness).await
++                read_actions(connection, element, &interfaces).await
+             } else {
+                 Ok(Field::Failed("field not requested".to_owned()))
+             }
+diff -ruN /home/pakshal/agent-desktop/crates/linux/src/tree/walk/walker_expand.rs vendor/agent-desktop/crates/linux/src/tree/walk/walker_expand.rs
+--- /home/pakshal/agent-desktop/crates/linux/src/tree/walk/walker_expand.rs	2026-11-04 00:49:19.339465199 +0530
++++ vendor/agent-desktop/crates/linux/src/tree/walk/walker_expand.rs	2026-11-05 20:08:21.084835457 +0530
+@@ -13,6 +13,7 @@
+ use crate::tree::properties::node_read::read_node_for;
+ use crate::tree::properties::read_purpose::ReadPurpose;
+ use crate::tree::vocabulary::label_read::read_label_if_needed;
++use crate::tree::vocabulary::state_bits::{SHOWING, StateBits};
+ use crate::tree::{AtspiElement, Expansion, ObservedRead, RawNode, WalkLimits};
+ 
+ const NODES_IN_FLIGHT: usize = 32;
+@@ -158,13 +159,39 @@
+                     )),
+                 }
+             }
+-            learn_pids(connection, pids, nodes.iter().map(|(read, _)| &read.node)).await?;
++            // Palimind: a compact snapshot describes what is on screen. A
++            // node whose AT-SPI SHOWING bit is clear is inside a closed menu,
++            // a hidden panel or an unrealized popup; walking its subtree costs
++            // the bulk of a GTK app's node count and every one of those nodes
++            // is dropped by the projection anyway. Unknown state is not
++            // hidden, and find/wait use other purposes, so they still see the
++            // whole tree. Set PALIMIND_DESKTOP_PRUNE_OFFSCREEN=0 to disable.
++            let prune_hidden = purpose == ReadPurpose::Snapshot
++                && std::env::var_os("PALIMIND_DESKTOP_PRUNE_OFFSCREEN")
++                    .is_none_or(|value| value != "0");
++            let keep_children = |read: &ObservedRead| {
++                !(prune_hidden && !at_root && !is_showing(&read.node))
++            };
++            learn_pids(
++                connection,
++                pids,
++                nodes
++                    .iter()
++                    .filter(|(read, _)| keep_children(read))
++                    .map(|(read, _)| &read.node),
++            )
++            .await?;
+             Ok(nodes
+                 .into_iter()
+                 .map(|(read, gone)| {
+-                    let children = child_elements(&read.node, pids);
++                    let keep = keep_children(&read);
++                    let children = if keep {
++                        child_elements(&read.node, pids)
++                    } else {
++                        Vec::new()
++                    };
+                     Expansion {
+-                        children_unread: read.node.children.is_failed(),
++                        children_unread: read.node.children.is_failed() && keep,
+                         payload: read,
+                         children,
+                         gone,
+@@ -175,6 +202,15 @@
+     }
+ }
+ 
++/// Palimind: `SHOWING` is the toolkit's own "this widget is mapped" claim.
++/// A state read that failed is unknown, and is never treated as hidden.
++fn is_showing(node: &RawNode) -> bool {
++    match node.traits.states.present() {
++        Some(words) => StateBits::new(words).has(SHOWING),
++        None => true,
++    }
++}
++
+ /// The walk's own per-node read, with the liveness the node's `GetRole` showed.
+ pub(in crate::tree) async fn read_observed(
+     connection: &Connection,

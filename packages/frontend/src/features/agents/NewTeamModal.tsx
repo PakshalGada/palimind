@@ -96,7 +96,7 @@ export default function NewTeamModal({
       subtitle="A group of specialists with a manager, a shared thread and shared notes."
       width={720}
       footer={
-        <div className="team-modal__foot">
+        <div className="ag-modal-foot">
           <Button size="sm" onClick={onClose}>
             Cancel
           </Button>
@@ -106,9 +106,9 @@ export default function NewTeamModal({
         </div>
       }
     >
-      <div className="team-modal">
-        {error && <div className="onboard__error">{error}</div>}
-        <div className="onboard__grid2">
+      <div className="ag-modal-form">
+        {error && <div className="ag-modal-error">{error}</div>}
+        <div className="ag-modal-grid2">
           <Field label="Team name">
             <TextInput
               value={displayName}
@@ -137,19 +137,19 @@ export default function NewTeamModal({
           </Select>
         </Field>
         <Field label="Teammates" hint="Pick the agents that belong to this team.">
-          <div className="team-modal__agents">
-            {agents.length === 0 && <p className="ah-panel__empty">Create an agent first.</p>}
+          <div className="ag-modal-agents">
+            {agents.length === 0 && <p className="ag-modal-empty">Create an agent first.</p>}
             {agents.map((agent) => {
               const on = selected.includes(agent.id);
               return (
                 <button
                   key={agent.id}
                   type="button"
-                  className={`team-modal__agent${on ? ' is-on' : ''}`}
+                  className={`ag-modal-agent${on ? ' is-on' : ''}`}
                   onClick={() => toggle(agent.id)}
                 >
-                  <span className="team-modal__agent-name">{agent.display_name || agent.name}</span>
-                  <span className="team-modal__agent-role">{agent.title || agent.name}</span>
+                  <span className="ag-modal-agent-name">{agent.display_name || agent.name}</span>
+                  <span className="ag-modal-agent-role">{agent.title || agent.name}</span>
                   {on && <Chip tone="accent">member</Chip>}
                 </button>
               );

@@ -214,6 +214,57 @@
     fill: currentColor;
 }
 
+/* ── slash command popup ── */
+.slash-command-popup {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 10px;
+    z-index: 9999;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md, 10px);
+    box-shadow: var(--shadow-md);
+    width: min(360px, calc(100vw - 40px));
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 4px;
+}
+.slash-command-item {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    gap: 8px;
+    align-items: center;
+    padding: 7px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+.slash-command-item.selected {
+    background: var(--accent-bg);
+}
+.slash-command-name {
+    color: var(--primary-color);
+    font-family: var(--font-mono);
+    font-size: var(--type-xs);
+    font-weight: 600;
+}
+.slash-command-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.slash-command-label {
+    color: var(--text-main);
+    font-size: var(--type-sm);
+    font-weight: 550;
+}
+.slash-command-desc {
+    color: var(--text-muted);
+    font-size: var(--type-xs);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* ── agent-mention popup ── */
 .agent-mention-popup {
     position: absolute;
@@ -406,6 +457,39 @@ input:not(:checked) + .toggle-slider .document-mode {
 }
 input:checked + .toggle-slider .llm-mode {
     color: var(--primary-text);
+}
+
+/* ── web search + create artifact ── */
+.web-search-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: none;
+    color: var(--text-secondary);
+    font-size: var(--type-sm);
+    font-weight: 550;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+        color 0.15s,
+        background 0.15s,
+        border-color 0.15s;
+}
+.web-search-toggle:hover {
+    background: var(--bg-hover);
+    color: var(--text-main);
+}
+.web-search-toggle.is-active {
+    color: var(--primary-color);
+    border-color: var(--border-color);
+    background: var(--accent-bg);
+}
+.web-search-toggle:disabled {
+    cursor: default;
+    opacity: 1;
 }
 
 /* ── moe-toggle ── */

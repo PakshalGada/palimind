@@ -64,7 +64,7 @@ function agentLabel(task: KanbanTask): string {
   return task.agent_name || 'Unassigned';
 }
 
-export default function KanbanDashboard() {
+export default function KanbanDashboard({ embedded = false }: { embedded?: boolean }) {
   const { addToast } = useApp();
   const [view, setView] = useState<ViewMode>('kanban');
   const [tasks, setTasks] = useState<KanbanTask[]>([]);
@@ -236,11 +236,15 @@ export default function KanbanDashboard() {
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) || null;
 
   return (
-    <div className="kb-panel">
+    <div className={`kb-panel${embedded ? ' kb-panel--embedded' : ''}`}>
       <div className="kb-topbar">
         <div className="kb-topbar-left">
-          <span className="kb-title">Task Board</span>
-          <Badge>{tasks.length} tasks</Badge>
+          {!embedded && (
+            <>
+              <span className="kb-title">Task Board</span>
+              <Badge>{tasks.length} tasks</Badge>
+            </>
+          )}
         </div>
         <div className="kb-topbar-center">
           <div className="kb-view-switcher">

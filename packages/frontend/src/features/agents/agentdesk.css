@@ -1,0 +1,68 @@
+/* ==========================================================================
+   Agents workspace shell. The visual language stays MONO: neutral tokens,
+   hairlines for structure, compact type and a small pixel status mark.
+   ========================================================================== */
+
+.ag-shell {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.ag-surface {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ag-rail-toggle {
+  display: none;
+  position: absolute;
+  left: 10px;
+  bottom: 92px;
+  z-index: calc(var(--z-overlay) - 1);
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--ink-secondary);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+.ag-rail-scrim {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: calc(var(--z-overlay) - 2);
+  border: none;
+  background: var(--color-scrim);
+}
+
+@media (max-width: 900px) {
+  .ag-rail-toggle { display: inline-flex; }
+  .ag-rail-scrim { display: block; }
+}
+
+/* Responsive: the rail becomes a drawer. A floating button opens it. */
+@media (max-width: 900px) {
+  .ag-shell { flex-direction: column; }
+  .ag-surface { position: static; }
+}
+
+@media (max-width: 760px) {
+  .ag-shell .ag-chat-head__actions .ag-icon-btn:nth-last-child(-n + 2) { display: none; }
+}

@@ -1,0 +1,133 @@
+{
+  "mode": "live",
+  "model": "qwen3.5:4b",
+  "elapsed_s": 382.92,
+  "target": 0.8,
+  "total": 5,
+  "passed": 5,
+  "score": 1.0,
+  "meets_target": true,
+  "scenarios": [
+    {
+      "id": "research_citations",
+      "category": "research",
+      "name": "Multi-step research with citations",
+      "passed": true,
+      "checks": {
+        "multi_step": true,
+        "sources_collected": true,
+        "citations_present": true,
+        "answer_delivered": true,
+        "checklist_completed": true,
+        "tool_accuracy": true
+      },
+      "metrics": {
+        "tool_calls": 8,
+        "sources": 4,
+        "citation_markers": 3,
+        "todo_updates": 5,
+        "open_todo_items": 0,
+        "tool_errors": 0,
+        "tool_accuracy": 1.0,
+        "tool_error_texts": [],
+        "tool_sequence": [
+          "todo_write",
+          "web_search",
+          "todo_write",
+          "fetch_url",
+          "fetch_url",
+          "todo_write",
+          "todo_write",
+          "todo_write"
+        ],
+        "nudged": true,
+        "answer_chars": 2016
+      },
+      "detail": "**Benchmark Comparison Report (2024-2025 Research)**\n\nBased on analyzed benchmark reports, here is the comparison between Alpha and Beta implementations:\n\n---\n\n### **Performance Metrics Summary**\n\n| Metric | Alpha Implementation | Beta Implementation |\n|--------|---------------------|---------------------|\n| **Throughput** | +38% improvement | Baseline |\n| **Tail Latency** | Baseline | -21% reduction |\n| **Memory Usage** | Baseline | Increased cost |\n\n---\n\n### **Key Findings with Citations**\n\n**"
+    },
+    {
+      "id": "coding_fix",
+      "category": "coding",
+      "name": "Read, edit and verify a file",
+      "passed": true,
+      "checks": {
+        "file_fixed": true,
+        "read_before_write": true,
+        "verified": true,
+        "checklist_completed": true,
+        "answer_delivered": true,
+        "tool_accuracy": true
+      },
+      "metrics": {
+        "todo_updates": 6,
+        "open_todo_items": 0,
+        "tool_errors": 0,
+        "tool_accuracy": 1.0,
+        "tool_error_texts": [],
+        "tool_sequence": [
+          "todo_write",
+          "todo_write",
+          "read_file",
+          "todo_write",
+          "todo_write",
+          "search_replace",
+          "todo_write",
+          "read_file",
+          "todo_write"
+        ],
+        "nudged": false,
+        "answer_chars": 217
+      },
+      "detail": "Bug fixed in maths.py: The add() function was incorrectly returning `a - b` (subtraction) instead of `a + b` (addition). Changed line 1 from `return a - b` to `return a + b`. Verification confirmed the fix is correct."
+    },
+    {
+      "id": "tool_recovery",
+      "category": "tool_use",
+      "name": "Recover from a failed tool call",
+      "passed": true,
+      "checks": {
+        "error_observed": true,
+        "recovered": true,
+        "grounded_in_file": true,
+        "answer_delivered": true
+      },
+      "metrics": {
+        "tool_results": 5,
+        "tool_errors": 1,
+        "tool_error_texts": [
+          "Error: file not found at missing.txt"
+        ]
+      },
+      "detail": "Based on the task instructions and the file read results:\n\n**Summary of notes.txt:**\nThe file contains brief release notes stating that \"cache latency improved.\" This indicates a performance enhancement to the caching system, resulting in faster cache access times."
+    },
+    {
+      "id": "checklist_completion",
+      "category": "checklist",
+      "name": "Complete the checklist before answering",
+      "passed": true,
+      "checks": {
+        "checklist_created": true,
+        "guard_triggered": true,
+        "checklist_completed": true,
+        "answer_delivered": true
+      },
+      "metrics": {
+        "todo_updates": 13,
+        "open_todo_items": 0,
+        "nudged": false
+      },
+      "detail": "Task Complete.\n\nI have successfully executed the assigned meta-task by creating a two-item checklist where:\n1. Define two checklist items for this meta-task - COMPLETED \u2713\n2. Execute both checklist items and deliver final answer - COMPLETED \u2713\n\nThe checklist has been created with clear items, both have been marked as completed (x), and I am now providing the final answer indicating full task completion."
+    },
+    {
+      "id": "ui_followup_flow",
+      "category": "ui",
+      "name": "Checklist, usage and follow-up UI flow",
+      "passed": true,
+      "checks": {
+        "ui_test_passed": true
+      },
+      "metrics": {},
+      "detail": "TAP version 13\n# Subtest: agent capability UI flow: checklist, tools, usage and follow-ups\nok 1 - agent capability UI flow: checklist, tools, usage and follow-ups\n  ---\n  duration_ms: 9.981954\n  type: 'test'\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 1\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 442.097031"
+    }
+  ]
+}

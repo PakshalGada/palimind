@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import time
 from typing import Any
 
-from palimind.agents import activity, approvals, routines, teams
+from palimind.agents import activity, approvals, routines, team_runtime, teams
 from palimind.agents.runtime import get_last_run, get_run_history, is_running, running_count
-from palimind.agents import team_runtime
 
 
 def _agent_status(defn: Any, pending: list[dict[str, Any]]) -> str:
@@ -50,7 +48,6 @@ def overview() -> dict[str, Any]:
     pending = approvals.list_pending()
     live = activity.snapshot().get("running", [])
     routine_items = routines.list_routines(limit=100)
-    now = time.time()
 
     agent_items: list[dict[str, Any]] = []
     recent: list[dict[str, Any]] = []
@@ -91,12 +88,12 @@ def overview() -> dict[str, Any]:
         team_id = str(team.get("id"))
         resolved_members = []
         for member in team.get("members") or []:
-            defn = registry.get_by_id(str(member.get("agent_id")))
+            member_def = registry.get_by_id(str(member.get("agent_id")))
             resolved_members.append(
                 {
                     **member,
-                    "agent": defn.to_dict() if defn else None,
-                    "name": defn.label if defn else "Unknown",
+                    "agent": member_def.to_dict() if member_def else None,
+                    "name": member_def.label if member_def else "Unknown",
                 }
             )
         team = {**team, "members": resolved_members}

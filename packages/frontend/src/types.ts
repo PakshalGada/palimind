@@ -17,6 +17,8 @@ export interface Message {
   timestamp?: number;
   sources?: string[];
   citations?: CitationPayload;
+  /** Which agent produced an assistant turn (multi-agent chats). */
+  mode_params?: { agent_name?: string; agent_id?: string; [key: string]: unknown };
 }
 
 export interface CitationSource {
@@ -251,7 +253,15 @@ export interface Recommendation {
 }
 
 export type ChatMode = 'document' | 'llm';
-export type LlmSubMode = 'default' | 'moe';
+export type LlmSubMode = 'default' | 'moe' | 'deep_research';
+
+/** One editable sub-topic in a deep-research plan. */
+export interface ResearchSubTopic {
+  subtopic_id: number;
+  title: string;
+  research_question: string;
+  search_queries: string[];
+}
 export type Theme = 'dark' | 'light';
 
 export type AppView =
@@ -262,8 +272,81 @@ export type AppView =
   | 'projects'
   | 'artifacts';
 
-/** Sub-views inside the Agents workspace. */
-export type AgentsView = 'home' | 'chat' | 'teams' | 'kanban' | 'runs';
+/** Sub-views inside the Agents workspace. Chat is the default surface. */
+export type AgentsView = 'chat' | 'work';
+
+/** Segmented sections inside the Agents Work surface. */
+export type AgentsWorkTab = 'activity' | 'board' | 'automations';
+
+/** A browser tab tracked by the shared Playwright session. */
+export interface BrowserTab {
+  index: number;
+  url: string;
+  title: string;
+  active: boolean;
+}
+
+/** A request from an agent to hand the browser to the user. */
+export interface BrowserTakeover {
+  id: string;
+  agent_id: string;
+  tab_id: string;
+  reason: string;
+  status: 'pending' | 'active' | 'completed' | 'cancelled' | 'expired';
+  created_at: number;
+  finished_at?: number | null;
+}
+
+/** Live state of the shared browser session. */
+export interface BrowserState {
+  open: boolean;
+  owner: 'agent' | 'human' | 'pending';
+  agent_id: string;
+  url: string;
+  title: string;
+  tabs: BrowserTab[];
+  can_go_back?: boolean;
+  can_go_forward?: boolean;
+  viewport?: { width: number; height: number };
+  takeover?: BrowserTakeover | null;
+  error?: string | null;
+}
+
+/** Channel list/detail shape used by the Agents workspace. */
+export interface Channel {
+  id: string;
+  name: string;
+  purpose?: string;
+  status: string;
+  lead_agent_id?: string;
+  member_count?: number;
+  members?: { agent_id: string; role?: string; instructions?: string }[];
+  messages?: ChannelMessage[];
+  tasks?: ChannelTask[];
+  created_at?: number;
+  updated_at?: number;
+}
+
+export interface ChannelMessage {
+  id: string;
+  seq: number;
+  author_kind: string;
+  author_id: string;
+  text: string;
+  task_id?: string;
+  created_at?: number;
+}
+
+export interface ChannelTask {
+  id: string;
+  owner_agent_id: string;
+  status: string;
+  request: string;
+  result?: string;
+}
+
+/** What the Agents Chat surface is currently pointed at. */
+export type AgentConversationKind = 'agent' | 'team' | 'channel';
 
 export type AutonomyLevel = 'off' | 'supervised' | 'semi' | 'high';
 export type MemoryMode = 'off' | 'private' | 'shared' | 'project';
@@ -325,9 +408,13 @@ export interface AgentDefinition {
   workspace_dir?: string;
   team_ids?: string[];
   tool_pack?: ToolPack;
+  // ── Computer use (Linux) ─────────────────────────────────────────────
+  desktop_access?: boolean;
+  desktop_control?: boolean;
+  desktop_allowed_apps?: string[];
 }
 
-export type ToolPack = 'auto' | 'research' | 'code' | 'data' | 'web' | 'custom';
+export type ToolPack = 'auto' | 'research' | 'code' | 'data' | 'web' | 'desktop' | 'custom';
 
 export type ReasoningEffort = 'off' | 'auto' | 'minimal' | 'standard' | 'high' | 'max';
 export type PlanningMode = 'off' | 'review' | 'auto';
@@ -552,9 +639,18 @@ export interface RunRecord {
   status: string;
   duration: number;
   usage?: { prompt_tokens: number; completion_tokens: number };
+  usage_stages?: Record<string, { prompt_tokens: number; completion_tokens: number }>;
   trace?: AgentReasoningEvent[];
   verification?: VerificationReport;
   effort?: { level?: string; source?: string; score?: number | null; reasoning?: string };
+  suggestions?: string[];
+  model_route?: {
+    model: string;
+    provider: string;
+    reason: string;
+    previous?: string;
+    unchanged?: boolean;
+  };
 }
 
 export interface ToolMeta {
@@ -574,6 +670,10 @@ export type AgentReasoningEvent =
   | { type: 'agent:thought'; text: string; iteration?: number }
   | { type: 'agent:tool_call'; tool: string; args?: unknown }
   | { type: 'agent:tool_result'; tool: string; result?: string }
+  | {
+      type: 'agent:todo';
+      items: { id?: string; label?: string; status?: string }[];
+    }
   | { type: 'agent:token'; text?: string; reset?: boolean; stream?: boolean }
   | {
       type: 'agent:waiting_for_human';

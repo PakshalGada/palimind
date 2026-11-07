@@ -15,6 +15,7 @@ Safety:
 from __future__ import annotations
 
 import ipaddress
+import os
 import queue
 import socket
 import threading
@@ -123,17 +124,25 @@ class _BrowserWorker:
     def _run(self) -> None:
         from palimind.settings import BROWSER_HEADLESS
 
+        profile = "".join(
+            c for c in os.environ.get("PALIMIND_BROWSER_PROFILE", "shared") if c.isalnum() or c in "-_"
+        ) or "shared"
+        user_data = Path.home() / ".palimind" / "browser" / "profiles" / profile
+        user_data.mkdir(parents=True, exist_ok=True)
         try:
             with sync_playwright() as p:
-                self._browser = p.chromium.launch(headless=BROWSER_HEADLESS)
-                context = self._browser.new_context(
+                context = p.chromium.launch_persistent_context(
+                    str(user_data),
+                    headless=BROWSER_HEADLESS,
                     viewport={"width": 1280, "height": 800},
                     user_agent=(
                         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
                         "(KHTML, like Gecko) Chrome/120 Safari/537.36 PaliMind"
                     ),
                 )
-                self._page = context.new_page()
+                self._browser = context
+                pages = context.pages
+                self._page = pages[0] if pages else context.new_page()
                 self._ready.set()
                 while True:
                     item = self._q.get()
@@ -147,7 +156,7 @@ class _BrowserWorker:
                     finally:
                         ev.set()
                 try:
-                    self._browser.close()
+                    context.close()
                 except Exception:
                     pass
         except Exception as e:  # noqa: BLE001 - launch/install failure
@@ -248,12 +257,135 @@ class _BrowserWorker:
     def op_screenshot_bytes(self) -> bytes:
         return self._page.screenshot(full_page=False)
 
+    def op_screenshot_jpeg(self, quality: int = 70) -> bytes:
+        return self._page.screenshot(
+            type="jpeg",
+            quality=max(20, min(int(quality or 70), 90)),
+            full_page=False,
+            animations="disabled",
+        )
+
+    def op_click_xy(self, x: float, y: float) -> None:
+        self._page.mouse.click(float(x), float(y))
+
+    def op_move(self, x: float, y: float) -> None:
+        self._page.mouse.move(float(x), float(y))
+
+    def op_wheel(self, dx: float, dy: float) -> None:
+        self._page.mouse.wheel(float(dx), float(dy))
+
+    def op_key(self, key: str, text: str = "") -> None:
+        if text:
+            self._page.keyboard.insert_text(str(text))
+        else:
+            self._page.keyboard.press(str(key))
+
+    def op_insert_text(self, text: str) -> None:
+        self._page.keyboard.insert_text(str(text))
+
+    def op_reload(self) -> dict[str, Any]:
+        self._page.reload(wait_until="domcontentloaded", timeout=30000)
+        self._guard()
+        return {"title": self._page.title(), "url": self._page.url}
+
+    def op_viewport(self) -> dict[str, Any]:
+        size = self._page.viewport_size or {"width": 1280, "height": 800}
+        return {"width": int(size["width"]), "height": int(size["height"])}
+
+    def op_state(self) -> dict[str, Any]:
+        history = self._page.evaluate("() => ({ back: history.length > 1 })")
+        return {
+            "title": self._page.title(),
+            "url": self._page.url,
+            "can_go_back": bool(history.get("back")),
+            "can_go_forward": True,
+            "viewport": self.op_viewport(),
+        }
+
     def op_tabs(self) -> list[dict[str, Any]]:
-        return [{"index": i, "url": pg.url} for i, pg in enumerate(self._page.context.pages)]
+        return [
+            {
+                "index": i,
+                "url": pg.url,
+                "title": pg.title(),
+                "active": pg is self._page,
+            }
+            for i, pg in enumerate(self._page.context.pages)
+        ]
+
+    def op_new_tab(self, url: str) -> dict[str, Any]:
+        page = self._page.context.new_page()
+        if url:
+            page.goto(url, wait_until="domcontentloaded")
+        self._page = page
+        return {"index": len(self._page.context.pages) - 1, "url": page.url}
+
+    def op_select_tab(self, index: int) -> dict[str, Any]:
+        pages = self._page.context.pages
+        if index < 0 or index >= len(pages):
+            raise IndexError("tab index out of range")
+        self._page = pages[index]
+        return {"index": index, "url": self._page.url, "title": self._page.title()}
+
+    def op_close_tab(self, index: int) -> dict[str, Any]:
+        pages = self._page.context.pages
+        if index < 0 or index >= len(pages):
+            raise IndexError("tab index out of range")
+        page = pages[index]
+        page.close()
+        self._page = self._page.context.pages[0]
+        return {"closed": index, "url": self._page.url}
 
 
 _worker_lock = threading.Lock()
 _worker: _BrowserWorker | None = None
+
+
+# ── ownership / human takeover ────────────────────────────────────────────
+#
+# One shared browser session can be driven by an agent or by the user. The
+# lock is deliberately in-memory: it describes who is holding the queue right
+# now, not durable state. Takeover rows in SQLite record the handoff for the
+# UI and survive a restart, but a restarted browser starts under agent control.
+
+_control_lock = threading.Lock()
+_control: dict[str, str] = {"owner": "agent", "agent_id": "", "takeover_id": ""}
+
+
+def control_state() -> dict[str, str]:
+    with _control_lock:
+        return dict(_control)
+
+
+def claim_control(*, agent_id: str = "", takeover_id: str = "") -> dict[str, str]:
+    """Give the user control of the live browser."""
+    with _control_lock:
+        _control.update({"owner": "human", "agent_id": agent_id, "takeover_id": takeover_id})
+        return dict(_control)
+
+
+def request_control(*, agent_id: str = "", takeover_id: str = "") -> dict[str, str]:
+    """Pause agent mutations while a takeover request is pending."""
+    with _control_lock:
+        _control.update({"owner": "pending", "agent_id": agent_id, "takeover_id": takeover_id})
+        return dict(_control)
+
+
+def release_control() -> dict[str, str]:
+    """Return control to the agent after the user finishes a handoff."""
+    with _control_lock:
+        _control.update({"owner": "agent", "agent_id": "", "takeover_id": ""})
+        return dict(_control)
+
+
+def _ensure_agent_control() -> str | None:
+    with _control_lock:
+        owner = _control.get("owner")
+        if owner == "human":
+            return "Error: the user currently has the browser. Wait for them to hand it back."
+        if owner == "pending":
+            return "Error: waiting for the user to take over the browser."
+    return None
 
 
 def _get_worker() -> _BrowserWorker:
@@ -299,6 +431,9 @@ def _run(fn_name: str, *args: Any, timeout: float = 90.0) -> str:
 def browser_open(url: str, wait_until: str = "domcontentloaded") -> str:
     """Navigate to *url* and return the title, final URL and a numbered list
     of interactive elements that can be clicked/typed into by ref."""
+    blocked = _ensure_agent_control()
+    if blocked:
+        return blocked
     err = _check_url(url)
     if err:
         return f"Error: {err}"
@@ -332,6 +467,9 @@ def browser_snapshot() -> str:
 
 def browser_click(ref: int) -> str:
     """Click the interactive element previously tagged with *ref*."""
+    blocked = _ensure_agent_control()
+    if blocked:
+        return blocked
     try:
         ref_i = int(ref)
     except (TypeError, ValueError):
@@ -342,6 +480,9 @@ def browser_click(ref: int) -> str:
 
 def browser_type(ref: int, text: str, submit: bool = False) -> str:
     """Type *text* into the element tagged with *ref* (optionally submit)."""
+    blocked = _ensure_agent_control()
+    if blocked:
+        return blocked
     if not _PLAYWRIGHT_AVAILABLE:
         return _MSG_NO_PLAYWRIGHT
     try:
@@ -356,12 +497,18 @@ def browser_type(ref: int, text: str, submit: bool = False) -> str:
 
 def browser_press(key: str) -> str:
     """Press a keyboard key (e.g. 'Enter', 'Escape', 'Tab')."""
+    blocked = _ensure_agent_control()
+    if blocked:
+        return blocked
     out = _run("op_press", str(key))
     return f"Pressed {key}." if not out.startswith("Error") else out
 
 
 def browser_scroll(direction: str = "down", amount: int = 1) -> str:
     """Scroll the page up or down by *amount* viewport heights."""
+    blocked = _ensure_agent_control()
+    if blocked:
+        return blocked
     d = "up" if str(direction).lower() == "up" else "down"
     out = _run("op_scroll", d, max(1, int(amount or 1)))
     return f"Scrolled {d}." if not out.startswith("Error") else out
@@ -378,6 +525,9 @@ def browser_forward() -> str:
 
 
 def _nav(op: str) -> str:
+    blocked = _ensure_agent_control()
+    if blocked:
+        return blocked
     if not _PLAYWRIGHT_AVAILABLE:
         return _MSG_NO_PLAYWRIGHT
     try:
@@ -422,6 +572,34 @@ def browser_tabs() -> str:
     return _run("op_tabs")
 
 
+def browser_new_tab(url: str = "") -> str:
+    """Open a new managed tab and return its index."""
+    blocked = _ensure_agent_control()
+    if blocked:
+        return blocked
+    if url:
+        err = _check_url(url)
+        if err:
+            return f"Error: {err}"
+    return _run("op_new_tab", str(url))
+
+
+def browser_select_tab(index: int) -> str:
+    """Select a managed tab by index."""
+    blocked = _ensure_agent_control()
+    if blocked:
+        return blocked
+    return _run("op_select_tab", int(index))
+
+
+def browser_close_tab(index: int) -> str:
+    """Close a managed tab by index."""
+    blocked = _ensure_agent_control()
+    if blocked:
+        return blocked
+    return _run("op_close_tab", int(index))
+
+
 def browser_close() -> str:
     """Close the browser session and free resources."""
     global _worker
@@ -451,6 +629,121 @@ def screenshot_png() -> bytes | None:
     except Exception:  # noqa: BLE001 - live view is best-effort
         return None
     return png if isinstance(png, bytes) else None
+
+
+def live_frame_jpeg(quality: int = 70) -> bytes | None:
+    """Return the current page as a JPEG for the embedded browser dock."""
+    if not _PLAYWRIGHT_AVAILABLE:
+        return None
+    with _worker_lock:
+        worker = _worker
+    if worker is None:
+        return None
+    try:
+        return worker.call(worker.op_screenshot_jpeg, int(quality), timeout=20)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def live_state() -> dict[str, Any]:
+    """Current browser state for the dock. Best-effort; never starts a browser."""
+    state = control_state()
+    if not _PLAYWRIGHT_AVAILABLE:
+        return {"open": False, **state, "tabs": [], "error": "Playwright is not installed"}
+    with _worker_lock:
+        worker = _worker
+    if worker is None:
+        return {"open": False, **state, "tabs": [], "error": None}
+    try:
+        info = worker.call(worker.op_state, timeout=10)
+        tabs = worker.call(worker.op_tabs, timeout=10)
+    except Exception as exc:  # noqa: BLE001
+        return {"open": True, **state, "tabs": [], "error": str(exc)}
+    return {
+        "open": True,
+        **state,
+        "title": info.get("title", ""),
+        "url": info.get("url", ""),
+        "can_go_back": info.get("can_go_back", False),
+        "can_go_forward": info.get("can_go_forward", False),
+        "viewport": info.get("viewport") or {"width": 1280, "height": 800},
+        "tabs": tabs if isinstance(tabs, list) else [],
+        "error": None,
+    }
+
+
+def human_action(action: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Apply a user action to the shared browser and return the latest state.
+
+    Only the UI calls this. Agent tools still go through the normal tool layer;
+    while the user owns the browser those mutations return a clear error.
+    """
+    body = payload or {}
+    action = str(action or "").strip()
+    allowed = {
+        "goto",
+        "back",
+        "forward",
+        "reload",
+        "click",
+        "move",
+        "wheel",
+        "scroll",
+        "key",
+        "type",
+        "new_tab",
+        "select_tab",
+        "close_tab",
+    }
+    if action not in allowed:
+        return {"error": f"unknown browser action: {action}"}
+    if not _PLAYWRIGHT_AVAILABLE:
+        return {"error": "Playwright is not installed"}
+    try:
+        worker = _get_worker()
+        if action == "goto":
+            url = str(body.get("url") or "").strip()
+            err = _check_url(url)
+            if err:
+                return {"error": err}
+            worker.call(worker.op_goto, url, "domcontentloaded")
+        elif action == "back":
+            worker.call(worker.op_back)
+        elif action == "forward":
+            worker.call(worker.op_forward)
+        elif action == "reload":
+            worker.call(worker.op_reload)
+        elif action == "click":
+            worker.call(worker.op_click_xy, float(body.get("x", 0)), float(body.get("y", 0)))
+        elif action == "move":
+            worker.call(worker.op_move, float(body.get("x", 0)), float(body.get("y", 0)))
+        elif action == "wheel":
+            worker.call(worker.op_wheel, float(body.get("dx", 0)), float(body.get("dy", 0)))
+        elif action == "scroll":
+            worker.call(worker.op_wheel, 0.0, float(body.get("dy", 0)))
+        elif action == "key":
+            key = str(body.get("key") or "")
+            text = str(body.get("text") or "")
+            worker.call(worker.op_key, key, text)
+        elif action == "type":
+            worker.call(worker.op_insert_text, str(body.get("text") or ""))
+        elif action == "new_tab":
+            url = str(body.get("url") or "")
+            if url:
+                err = _check_url(url)
+                if err:
+                    return {"error": err}
+            worker.call(worker.op_new_tab, url)
+        elif action == "select_tab":
+            worker.call(worker.op_select_tab, int(body.get("index", 0)))
+        elif action == "close_tab":
+            worker.call(worker.op_close_tab, int(body.get("index", 0)))
+        else:
+            return {"error": f"unknown browser action: {action}"}
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc)}
+    return live_state()
+
 
 
 TOOLS: dict[str, dict[str, Any]] = {
@@ -555,6 +848,30 @@ TOOLS: dict[str, dict[str, Any]] = {
         "tier": 1,
         "requires_approval": False,
         "timeout_s": 30,
+    },
+    "browser_new_tab": {
+        "fn": browser_new_tab,
+        "description": "Open a new managed browser tab.",
+        "parameters": {"url": "Optional http(s) URL"},
+        "tier": 2,
+        "requires_approval": True,
+        "timeout_s": 60,
+    },
+    "browser_select_tab": {
+        "fn": browser_select_tab,
+        "description": "Select a managed browser tab by index.",
+        "parameters": {"index": {"type": "integer"}},
+        "tier": 1,
+        "requires_approval": False,
+        "timeout_s": 20,
+    },
+    "browser_close_tab": {
+        "fn": browser_close_tab,
+        "description": "Close a managed browser tab by index.",
+        "parameters": {"index": {"type": "integer"}},
+        "tier": 2,
+        "requires_approval": True,
+        "timeout_s": 20,
     },
     "browser_close": {
         "fn": browser_close,

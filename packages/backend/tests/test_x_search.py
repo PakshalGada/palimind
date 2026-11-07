@@ -66,3 +66,67 @@ def test_format_x_report_citations() -> None:
     assert "Post [1]" in report
     assert "https://x.com/trader/status/1" in report
     assert "@trader" in report
+
+
+def test_posts_from_x_api_maps_users_and_metrics() -> None:
+    from palimind.agents.tools.x_search import posts_from_x_api
+
+    posts = posts_from_x_api(
+        {
+            "data": [
+                {
+                    "id": "123",
+                    "author_id": "u1",
+                    "text": "Bullish on $NVDA",
+                    "created_at": "2026-11-06T10:00:00Z",
+                    "public_metrics": {"like_count": 4},
+                }
+            ],
+            "includes": {"users": [{"id": "u1", "username": "trader"}]},
+        }
+    )
+    assert posts[0]["url"] == "https://x.com/trader/status/123"
+    assert posts[0]["author"] == "trader"
+    assert posts[0]["metrics"]["like_count"] == 4
+
+
+def test_x_search_uses_api_before_web_index(monkeypatch) -> None:
+    from palimind.agents.tools import x_search as xs
+
+    monkeypatch.setattr(
+        xs,
+        "_x_api_search",
+        lambda _query, _n: [
+            {
+                "text": "great growth",
+                "snippet": "",
+                "url": "https://x.com/trader/status/1",
+                "author": "trader",
+            }
+        ],
+    )
+    result = xs.x_search("AI", max_results=2)
+    assert result["source"] == "x_api"
+    assert result["count"] == 1
+    assert "Source: x_api" in xs.format_x_report(result)
+
+
+def test_x_search_falls_back_to_web_index(monkeypatch) -> None:
+    from palimind.agents.tools import x_search as xs
+
+    monkeypatch.setattr(xs, "_x_api_search", lambda _query, _n: [])
+    monkeypatch.setattr(
+        xs,
+        "_ddg_site_search",
+        lambda _query, _site, _n: [
+            {
+                "text": "indexed post",
+                "snippet": "snippet",
+                "url": "https://x.com/user/status/2",
+                "author": "user",
+            }
+        ],
+    )
+    result = xs.x_search("AI", max_results=2)
+    assert result["source"] == "web_index"
+    assert result["count"] >= 1

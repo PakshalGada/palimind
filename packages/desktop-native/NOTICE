@@ -1,0 +1,80 @@
+Palimind desktop-native
+=======================
+
+This directory vendors the Linux-capable portion of the agent-desktop
+project, which is licensed under the Apache License, Version 2.0.
+
+Upstream:
+  project:  agent-desktop
+  version:  v1.1.0 (commit 17467da5142d471b1e3a6b24828a5d3ad4d8c547)
+  source:   https://github.com/agent-desktop/agent-desktop
+  license:  Apache-2.0 (see LICENSE)
+
+Vendored crates:
+  vendor/agent-desktop/crates/core    (unmodified)
+  vendor/agent-desktop/crates/linux   (modified; see patches/ and below)
+
+The `vendor/agent-desktop/skills/` and `vendor/agent-desktop/tests/`
+directories are vendored unchanged because the core crate compiles the skill
+documents in with `include_str!` and its tests read the fixture corpus.
+
+Local modifications (all marked with `// Palimind:` in the source)
+------------------------------------------------------------------
+
+crates/linux/src/system/bus/mod.rs
+  Announce the event listener with the one-argument RegisterEvent(s) form
+  declared by at-spi2-core 2.44. Upstream sent a three-argument body that the
+  installed registry rejects ("invalid signature sass").
+
+crates/linux/src/system/signal/subscription.rs
+  Same RegisterEvent(s) correction for the wait subscription path.
+
+crates/linux/src/tree/properties/interface_reads.rs
+  Read action names by probing Action.GetName(i) instead of Action.GetActions.
+  On at-spi2-core 2.44, GTK3/GTK4 widgets advertise the Action interface while
+  their ATK user-data is not an AtkAction; serializing the GetActions reply
+  aborts the application. GetName(i) reaches the same names and is safe on the
+  measured hosts.
+
+crates/linux/src/tree/properties/node_read.rs
+  Thread the corrected action read through the snapshot walk (no behaviour
+  change beyond the interface_reads delta).
+
+crates/linux/src/tree/walk/walker_expand.rs
+  A compact snapshot no longer descends below a node whose AT-SPI SHOWING bit
+  is clear (closed menus, hidden panels, unrealized popups). This is what took
+  the calculator snapshot from p95 ~476 ms to ~177 ms. Unknown state is not
+  treated as hidden, `find`/`wait` keep their own read purposes, and
+  PALIMIND_DESKTOP_PRUNE_OFFSCREEN=0 disables it.
+
+crates/linux/src/system/overlay/cursor_overlay_tests.rs and the
+crates/linux/src/system/bus/*_tests.rs, system/launch/launch_window_tests.rs,
+tree/observe/node_evidence_tests.rs, tree/properties/interface_reads_tests.rs
+  Test fixtures updated for the two changes above, plus a short temporary
+  socket path so the fixture fits SUN_LEN from a deep workspace checkout.
+
+No modifications are made to crates/core.
+
+Licence obligations
+-------------------
+
+Apache-2.0 permits redistribution and modification provided that:
+
+  * this NOTICE and the upstream LICENSE are retained;
+  * modified files carry a prominent notice stating that they were changed
+    (the `// Palimind:` markers do that);
+  * the NOTICE file is included in distributions.
+
+Palimind is distributed under the MIT licence; the vendored Apache-2.0 code
+remains under Apache-2.0. See THIRD_PARTY_LICENSES.md at the repository root
+for the combined attribution list.
+
+Rebase cadence
+--------------
+
+Rebase on each upstream release. The entire local delta is captured in
+patches/0001-atspi44-compat.patch, so a rebase is:
+
+  1. replace vendor/agent-desktop/crates/{core,linux} with the new tag;
+  2. apply patches/0001-atspi44-compat.patch;
+  3. run `make desktop-test` and the calculator dogfood.

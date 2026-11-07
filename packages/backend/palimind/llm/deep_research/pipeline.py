@@ -413,11 +413,33 @@ async def run_deep_research_pipeline(
     await emit(
         {"type": "planning", "text": "Gathering shared web briefing for all research agents..."}
     )
+    await emit(
+        {
+            "type": "agent:tool_call",
+            "agent_id": 0,
+            "tool": "web_search",
+            "args": {"query": user_query},
+        }
+    )
     t = time.monotonic()
     briefing = await asyncio.to_thread(
         perform_web_search, user_query, max_results=DR_MAX_SEARCH_RESULTS, fetch_content=True
     )
     timings["briefing"] = time.monotonic() - t
+    try:
+        from palimind.generative.citation import parse_web_sources
+
+        briefing_sources = [source.to_dict() for source in parse_web_sources(briefing)]
+    except Exception:
+        briefing_sources = []
+    await emit(
+        {
+            "type": "agent:tool_result",
+            "agent_id": 0,
+            "tool": "web_search",
+            "result": briefing_sources or {"summary": "No live sources returned"},
+        }
+    )
 
     # ── Phase 3: Execute research agents (parallel) ──────────────────────
     loop = asyncio.get_running_loop()
@@ -450,6 +472,14 @@ async def run_deep_research_pipeline(
                 loop,
             )
 
+        def on_agent_event(etype: str, payload: dict):
+            # Tool calls, results and model thoughts are emitted live from the
+            # research worker thread back onto the SSE queue.
+            asyncio.run_coroutine_threadsafe(
+                emit({"type": etype, "agent_id": subtopic_id, **payload}),
+                loop,
+            )
+
         agent_usage: dict[str, int] = {}
 
         try:
@@ -470,6 +500,7 @@ async def run_deep_research_pipeline(
                     on_step_callback,
                     briefing=briefing,
                     usage_cb=agent_usage.update,
+                    event_cb=on_agent_event,
                 )
         except Exception as e:  # noqa: BLE001 - one failing agent must not sink the run
             output = f"[Agent {subtopic_id} error: {e}]"

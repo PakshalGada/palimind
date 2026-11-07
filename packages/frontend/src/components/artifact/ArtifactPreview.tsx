@@ -10,6 +10,7 @@ import {
 import HighlightedCode from '../HighlightedCode';
 import MermaidPreview from '../MermaidPreview';
 import ArtifactFileTree from './ArtifactFileTree';
+import SlidePreview from './SlidePreview';
 import { sourceLanguage } from './languages';
 import type { ActiveArtifact, ViewMode } from './types';
 
@@ -239,11 +240,18 @@ function ArtifactPreview({
     );
   }
 
+  if (artifact.type === 'slide-outline') {
+    return (
+      <PreviewSurface artifact={artifact} scrollRef={scrollRef}>
+        <SlidePreview content={singleFile ?? previewContent} title={artifact.title} />
+      </PreviewSurface>
+    );
+  }
+
   if (
     artifact.type === 'markdown' ||
     artifact.type === 'document' ||
-    artifact.type === 'table' ||
-    artifact.type === 'slide-outline'
+    artifact.type === 'table'
   ) {
     return (
       <PreviewSurface artifact={artifact} scrollRef={scrollRef}>

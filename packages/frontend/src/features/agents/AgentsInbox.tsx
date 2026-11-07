@@ -1,21 +1,38 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Check, Inbox as InboxIcon, ShieldAlert, X } from 'lucide-react';
+import { Check, Globe2, Inbox as InboxIcon, ShieldAlert, X } from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import AgentAvatar from '../../components/AgentAvatar';
 import { Button, Chip, EmptyState } from '../../ui/primitives';
-import type { Approval } from '../../types';
+import type { AgentListItem, Approval, BrowserTakeover } from '../../types';
 import './AgentsInbox.css';
 
 export default function AgentsInbox({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { refreshOverview, addToast } = useApp();
+  const {
+    refreshOverview,
+    addToast,
+    setBrowserOpen,
+    setBrowserFullscreen,
+    setAgentsView,
+    setSelectedAgentId,
+    setSelectedTeamId,
+    setSelectedChannelId,
+  } = useApp();
   const [items, setItems] = useState<Approval[]>([]);
+  const [takeovers, setTakeovers] = useState<BrowserTakeover[]>([]);
+  const [agents, setAgents] = useState<AgentListItem[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const data = await api.agents.inbox();
+      const [data, browser, roster] = await Promise.all([
+        api.agents.inbox(),
+        api.browser.takeovers('', 'pending'),
+        api.agents.list(),
+      ]);
       setItems(data.approvals || []);
+      setTakeovers((browser.takeovers || []) as unknown as BrowserTakeover[]);
+      setAgents(roster.agents || []);
     } catch {
       // best effort
     }
@@ -46,6 +63,21 @@ export default function AgentsInbox({ open, onClose }: { open: boolean; onClose:
     });
   };
 
+  const takeOver = async (takeover: BrowserTakeover) => {
+    await api.browser.acceptTakeover(takeover.id);
+    setTakeovers((previous) => previous.filter((item) => item.id !== takeover.id));
+    setSelectedTeamId(null);
+    setSelectedChannelId(null);
+    setSelectedAgentId(takeover.agent_id);
+    setAgentsView('chat');
+    setBrowserOpen(true);
+    setBrowserFullscreen(false);
+    onClose();
+    window.dispatchEvent(new CustomEvent('palimind:browser-takeover'));
+  };
+
+  const total = items.length + takeovers.length;
+
   if (!open) return null;
 
   return (
@@ -58,8 +90,8 @@ export default function AgentsInbox({ open, onClose }: { open: boolean; onClose:
               <InboxIcon size={16} />
             </span>
             <div>
-              <h2>Approvals</h2>
-              <p>{items.length === 0 ? 'Nothing waiting on you.' : `${items.length} action${items.length === 1 ? '' : 's'} waiting`}</p>
+              <h2>Inbox</h2>
+              <p>{total === 0 ? 'Nothing waiting on you.' : `${total} action${total === 1 ? '' : 's'} waiting`}</p>
             </div>
           </div>
           <button type="button" className="inbox__close" onClick={onClose} aria-label="Close">
@@ -68,11 +100,50 @@ export default function AgentsInbox({ open, onClose }: { open: boolean; onClose:
         </header>
 
         <div className="inbox__body">
-          {items.length === 0 ? (
+          {takeovers.length > 0 && (
+            <>
+              <div className="inbox__group">Browser handoffs</div>
+              {takeovers.map((takeover) => (
+                <article key={takeover.id} className="inbox__item">
+                  <div className="inbox__item-head">
+                    <span className="inbox__icon"><Globe2 size={16} /></span>
+                    <div className="inbox__item-id">
+                      <span className="inbox__item-name">
+                        {agents.find((agent) => agent.id === takeover.agent_id)?.display_name ||
+                          agents.find((agent) => agent.id === takeover.agent_id)?.name ||
+                          takeover.agent_id}
+                      </span>
+                      <span className="inbox__item-tool">browser</span>
+                    </div>
+                    <Chip tone="warn"><Globe2 size={11} /> browser</Chip>
+                  </div>
+                  <p className="inbox__summary">{takeover.reason || 'The agent needs you to complete a step in the browser.'}</p>
+                  <div className="inbox__actions">
+                    <button
+                      type="button"
+                      className="inbox__always"
+                      onClick={() => {
+                        void api.browser.resolveTakeover(takeover.id, 'cancelled').then(() => {
+                          setTakeovers((previous) => previous.filter((item) => item.id !== takeover.id));
+                        });
+                      }}
+                    >
+                      Dismiss request
+                    </button>
+                    <span className="inbox__spacer" />
+                    <Button size="sm" variant="primary" onClick={() => void takeOver(takeover)}>
+                      Take over
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </>
+          )}
+          {items.length === 0 && takeovers.length === 0 ? (
             <EmptyState
               icon={<Check size={22} />}
               title="All clear"
-              description="When an agent needs permission for a risky action it appears here."
+              description="When an agent needs permission for a risky action, or needs you in the browser, it appears here."
             />
           ) : (
             items.map((item) => {

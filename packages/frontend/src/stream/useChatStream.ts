@@ -58,6 +58,8 @@ export interface SendRequest {
   scope: string;
   sessionId: string | null;
   subMode?: string;
+  /** Enable live web search for this turn (all chat modes). */
+  webSearch?: boolean;
   files?: string[];
   attachmentIds?: string[];
   activity: ActivityInfo;
@@ -220,6 +222,7 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
         scope: request.scope,
       });
       if (request.subMode) params.set('llm_sub_mode', request.subMode);
+      params.set('web_search', request.webSearch === false ? 'false' : 'true');
       if (request.sessionId) params.set('session_id', request.sessionId);
       if (request.files?.length) params.set('files', request.files.join(','));
       if (request.attachmentIds?.length) params.set('attachment_ids', request.attachmentIds.join(','));
@@ -314,10 +317,51 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
             window.dispatchEvent(new CustomEvent('palimind:plan-pending', { detail: event }));
             break;
 
+          case 'research_plan':
+            // Deep research pauses for plan review; the modal approves or
+            // cancels the pending plan through the research API.
+            window.dispatchEvent(
+              new CustomEvent('palimind:research-plan', { detail: event }),
+            );
+            break;
+
           case 'orchestrator':
             window.dispatchEvent(
               new CustomEvent('palimind:orchestrator-event', { detail: event.data }),
             );
+            break;
+
+          case 'agent:usage': {
+            const prompt = Number(event.prompt_tokens ?? 0);
+            const completion = Number(event.completion_tokens ?? 0);
+            const cost = Number(event.estimated_cost_usd ?? 0);
+            dispatch({
+              type: 'setUsage',
+              usage: {
+                prompt_tokens: Number.isFinite(prompt) ? prompt : 0,
+                completion_tokens: Number.isFinite(completion) ? completion : 0,
+                estimated_cost_usd: Number.isFinite(cost) ? cost : 0,
+              },
+            });
+            break;
+          }
+
+          case 'agent:escalation':
+            dispatch({
+              type: 'setEscalation',
+              escalation: event.skipped
+                ? `Escalation skipped${event.reason ? ` — ${event.reason}` : ''}`
+                : `Escalated to ${String(event.to || 'a stronger model')}`,
+            });
+            break;
+
+          case 'agent:suggestions':
+            dispatch({
+              type: 'setSuggestions',
+              suggestions: (event.suggestions ?? []).filter(
+                (item): item is string => typeof item === 'string' && item.trim().length > 0,
+              ),
+            });
             break;
 
           case 'agent:completed': {
@@ -327,6 +371,19 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
             if (output) {
               rawRef.current = output;
               flushAnswer(true);
+            }
+            if (event.usage) {
+              dispatch({
+                type: 'setUsage',
+                usage: {
+                  prompt_tokens: Number(event.usage.prompt_tokens ?? 0),
+                  completion_tokens: Number(event.usage.completion_tokens ?? 0),
+                  estimated_cost_usd: Number(event.usage.estimated_cost_usd ?? 0),
+                },
+              });
+            }
+            if (event.suggestions?.length) {
+              dispatch({ type: 'setSuggestions', suggestions: event.suggestions });
             }
             break;
           }

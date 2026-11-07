@@ -340,6 +340,17 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     approval: true,
     preview: command,
   },
+  todo_write: {
+    icon: 'list-tree',
+    running: 'Updating plan',
+    done: 'Updated plan',
+    family: 'text',
+    preview: (args) => {
+      const a = asArgs(args);
+      const items = Array.isArray(a.items) ? a.items : [];
+      return items.length ? `${items.length} ${items.length === 1 ? 'item' : 'items'}` : 'checklist';
+    },
+  },
   summarize: {
     icon: 'align-left',
     running: 'Summarizing',

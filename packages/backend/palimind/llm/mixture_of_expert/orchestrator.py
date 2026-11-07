@@ -278,6 +278,7 @@ async def run_moe_pipeline(
     long_term_episodes: list[dict] | None = None,
     root: Path | None = None,
     worker_url: str | None = None,
+    force_web: bool = False,
 ) -> dict[str, Any]:
     from palimind.memory.hierarchical import format_hierarchical_memory_context
 
@@ -287,7 +288,10 @@ async def run_moe_pipeline(
         if on_progress:
             await on_progress(event)
 
-    # Expose workspace context to agent tools (sandboxed file/doc/memory access)
+    # Expose workspace context to agent tools (sandboxed file/doc/memory access).
+    # Every web source the expert agents discover is collected so the final
+    # synthesis can carry a real bibliography and inline citations.
+    collected_sources: list[dict] = []
     light_model = ""
     if root is not None:
         try:
@@ -309,7 +313,13 @@ async def run_moe_pipeline(
         )
         if light_note:
             print(f"[moe] {light_note}")
-    set_tool_context(root, worker_url or ollama_url, worker_model, light_model)
+    set_tool_context(
+        root,
+        worker_url or ollama_url,
+        worker_model,
+        light_model,
+        source_collector=collected_sources,
+    )
 
     # ── usage telemetry / stage timings ──────────────────────────────────
     usage: dict[str, dict] = {}
@@ -337,6 +347,13 @@ async def run_moe_pipeline(
             lambda u: _capture("route", {"usage": u}),
         )
     timings["route"] = time.monotonic() - t
+
+    # The user explicitly enabled web search for this turn: never take the
+    # tool-less direct path, and always gather live sources.
+    if force_web:
+        route["needs_web"] = True
+        route["simple"] = False
+
     num_workers = _agent_count_for_route(route, num_workers)
     simple_route = _is_simple_route(route)
 
@@ -346,11 +363,36 @@ async def run_moe_pipeline(
         from palimind.core.web_search import perform_web_search
 
         await emit({"type": "planning", "text": "Gathering shared web briefing..."})
+        await emit(
+            {
+                "type": "agent:tool_call",
+                "agent_id": 0,
+                "tool": "web_search",
+                "args": {"query": user_query},
+            }
+        )
         t = time.monotonic()
         briefing = await asyncio.to_thread(
             perform_web_search, user_query, max_results=4, fetch_content=True
         )
         timings["briefing"] = time.monotonic() - t
+        try:
+            from palimind.generative.citation import parse_web_sources
+
+            briefing_sources = [
+                source.to_dict() for source in parse_web_sources(briefing)
+            ]
+        except Exception:
+            briefing_sources = []
+        await emit(
+            {
+                "type": "agent:tool_result",
+                "agent_id": 0,
+                "tool": "web_search",
+                "result": briefing_sources
+                or {"summary": "No live sources returned"},
+            }
+        )
 
     # ── Plan ─────────────────────────────────────────────────────────────
     if simple_route:
@@ -411,6 +453,22 @@ async def run_moe_pipeline(
                     a["tools"] = ["document_search"]
                     break
 
+    # Surface the finalized plan so the activity surface can show the expert
+    # lanes (and their status) from the first moment, not only once they start.
+    await emit(
+        {
+            "type": "moe_plan",
+            "plan": [
+                {
+                    "id": f"moe-{agent.get('agent_id', index + 1)}",
+                    "label": agent.get("label") or f"Expert {index + 1}",
+                    "task": agent.get("task", ""),
+                }
+                for index, agent in enumerate(plan[:num_workers])
+            ],
+        }
+    )
+
     # ── Execute agents (concurrency-limited) ─────────────────────────────
     loop = asyncio.get_running_loop()
     semaphore = asyncio.Semaphore(
@@ -443,6 +501,14 @@ async def run_moe_pipeline(
                 loop,
             )
 
+        def on_agent_event(etype: str, payload: dict):
+            # Stream every expert tool call/result and thought live. The event
+            # callback runs in a worker thread, so hop back to the event loop.
+            asyncio.run_coroutine_threadsafe(
+                emit({"type": etype, "agent_id": agent_id, **payload}),
+                loop,
+            )
+
         agent_usage: dict[str, int] = {}
 
         try:
@@ -457,6 +523,7 @@ async def run_moe_pipeline(
                     on_step_callback,
                     briefing=briefing,
                     usage_cb=agent_usage.update,
+                    event_cb=on_agent_event,
                 )
         except Exception as e:  # noqa: BLE001 - one failing worker must not sink the run
             output = f"[Agent {agent_id} error: {e}]"
@@ -555,6 +622,22 @@ async def run_moe_pipeline(
                 synthesis = refined
 
     timings["total"] = time.monotonic() - t_start
+
+    # ── Bibliography + inline citations from every web source the agents saw ──
+    citation_payload: dict | None = None
+    try:
+        from palimind.generative.citation import finalize_citations, parse_web_sources
+        from palimind.research import dedupe_sources, score_sources, sources_from_collected
+
+        raw_sources = sources_from_collected(collected_sources) + parse_web_sources(briefing)
+        citation_sources = score_sources(dedupe_sources(raw_sources))
+        if citation_sources and synthesis:
+            result = finalize_citations(synthesis, citation_sources)
+            synthesis = result.text
+            citation_payload = result.to_dict()
+    except Exception as e:  # noqa: BLE001 - citations are best-effort
+        print(f"[moe] citation pass failed: {e}")
+
     await emit({"type": "complete"})
     return {
         "plan": plan,
@@ -563,4 +646,5 @@ async def run_moe_pipeline(
         "route": route,
         "usage": usage,
         "timings": timings,
+        "citations": citation_payload,
     }

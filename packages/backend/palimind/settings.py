@@ -49,6 +49,33 @@ def _env_list(name: str, default: list[str]) -> list[str]:
 # run manually, and invoked from chat this must be enabled.
 ENABLE_PALIAGENTS: bool = _env_bool("PALIMIND_ENABLE_PALIAGENTS", True)
 
+# ── OpenBot-parity feature flags ──────────────────────────────────────────
+# Experimental layers stay behind flags until their deterministic acceptance
+# tests pass. Defaults are chosen so the existing UI is unchanged.
+AGENT_TASKS_ENABLE: bool = _env_bool("PALIMIND_AGENT_TASKS", True)
+AGENT_MAILBOX_ENABLE: bool = _env_bool("PALIMIND_AGENT_MAILBOX", True)
+AGENT_CHANNELS_ENABLE: bool = _env_bool("PALIMIND_AGENT_CHANNELS", False)
+AGENT_FLOWS_ENABLE: bool = _env_bool("PALIMIND_AGENT_FLOWS", False)
+AGENT_WAITS_ENABLE: bool = _env_bool("PALIMIND_AGENT_WAITS", False)
+AGENT_AUTOMATION_ENABLE: bool = _env_bool("PALIMIND_AGENT_AUTOMATION", False)
+AGENT_BROWSER_PROFILES_ENABLE: bool = _env_bool("PALIMIND_AGENT_BROWSER_PROFILES", False)
+AGENT_USAGE_ENABLE: bool = _env_bool("PALIMIND_AGENT_USAGE", True)
+AGENT_SUBAGENTS_ENABLE: bool = _env_bool("PALIMIND_AGENT_SUBAGENTS", True)
+AGENT_SIDE_QUESTIONS_ENABLE: bool = _env_bool("PALIMIND_AGENT_SIDE_QUESTIONS", True)
+AGENT_SHARED_DATA_ENABLE: bool = _env_bool("PALIMIND_AGENT_SHARED_DATA", False)
+
+# Task lane limits. An agent's own task_limit may be lower but never higher.
+AGENT_TASK_LIMIT_DEFAULT: int = _env_int("PALIMIND_AGENT_TASK_LIMIT", 2)
+AGENT_TASK_LIMIT_MAX: int = _env_int("PALIMIND_AGENT_TASK_LIMIT_MAX", 8)
+AGENT_OPEN_TASK_LIMIT: int = _env_int("PALIMIND_AGENT_OPEN_TASK_LIMIT", 50)
+AGENT_QUEUE_LIMIT: int = _env_int("PALIMIND_AGENT_QUEUE_LIMIT", 100)
+
+# Local automation listener limits.
+AUTOMATION_MAX_BODY_BYTES: int = _env_int("PALIMIND_AUTOMATION_MAX_BODY_BYTES", 32 * 1024)
+AUTOMATION_MAX_PAYLOAD_CHARS: int = _env_int("PALIMIND_AUTOMATION_MAX_PAYLOAD_CHARS", 4_000)
+AUTOMATION_REQUESTS_PER_HOUR: int = _env_int("PALIMIND_AUTOMATION_REQUESTS_PER_HOUR", 30)
+AUTOMATION_MAX_WAITS: int = _env_int("PALIMIND_AUTOMATION_MAX_WAITS", 20)
+
 # Maximum number of entries kept in an agent's memory file. When the cap
 # is hit the oldest entry is dropped.
 AGENT_MEMORY_MAX_ENTRIES: int = _env_int("PALIMIND_AGENT_MEMORY_MAX_ENTRIES", 100)
@@ -242,6 +269,57 @@ REASONING_CLASSIFIER_MODEL: str = _env_str("PALIMIND_REASONING_CLASSIFIER_MODEL"
 # empty answers, tool errors).
 ADAPTIVE_ESCALATE_ON_STUCK: bool = _env_bool("PALIMIND_ADAPTIVE_ESCALATE_ON_STUCK", True)
 
+# Model used for the final synthesis when an agent exhausts its step budget
+# without a final answer. Empty = the knowledge base's chat model when it
+# differs from the agent model (automatic escalation); same model otherwise.
+AGENT_ESCALATION_MODEL: str = _env_str("PALIMIND_AGENT_ESCALATION_MODEL", "") or ""
+
+# Ordered fallback list used before AGENT_ESCALATION_MODEL. The first model
+# that is installed and differs from the agent's own model wins.
+AGENT_ESCALATION_MODELS: list[str] = [
+    item.strip()
+    for item in (_env_str("PALIMIND_AGENT_ESCALATION_MODELS", "") or "").split(",")
+    if item.strip()
+]
+
+# Optional cost ceiling (USD) for escalation. Once the run's accumulated token
+# cost reaches this value the wrap-up stays on the current model instead of
+# escalating. 0 disables the ceiling.
+AGENT_ESCALATION_MAX_USD: float = _env_float("PALIMIND_AGENT_ESCALATION_MAX_USD", 0.0)
+
+# Capability-aware routing: "off" | "local" | "auto" | "frontier".
+# "auto" keeps local models but can move a hard task to a reasoning model or a
+# configured frontier fallback. "frontier" always permits the hosted fallback.
+AGENT_MODEL_ROUTING: str = _env_str("PALIMIND_AGENT_MODEL_ROUTING", "auto") or "auto"
+
+# Comma-separated hosted/frontier model ids (OpenCode proxy or any model the
+# OpenAI-compatible endpoint exposes). Empty = no hosted routing.
+AGENT_FRONTIER_MODELS: list[str] = [
+    item.strip()
+    for item in (_env_str("PALIMIND_FRONTIER_MODELS", "") or "").split(",")
+    if item.strip()
+]
+
+# Minimum complexity level that may jump to a frontier fallback.
+AGENT_FRONTIER_MIN_COMPLEXITY: str = (
+    _env_str("PALIMIND_FRONTIER_MIN_COMPLEXITY", "high") or "high"
+)
+
+# OpenAI-compatible base URL for the hosted fallback. The default is OpenCode
+# Zen, which serves models like grok-4.7 with native tool calls.
+AGENT_FRONTIER_BASE_URL: str = (
+    _env_str("PALIMIND_FRONTIER_BASE_URL", "https://opencode.ai/zen/go/v1")
+    or "https://opencode.ai/zen/go/v1"
+)
+
+# Generate 3 short follow-up suggestions after a successful agent answer.
+AGENT_FOLLOWUPS: bool = _env_bool("PALIMIND_AGENT_FOLLOWUPS", True)
+
+# Optional per-million-token prices used to estimate a run's cost. Local
+# models default to 0; set these for cloud/OpenCode proxy models.
+COST_INPUT_PER_MTOK: float = _env_float("PALIMIND_COST_INPUT_PER_MTOK", 0.0)
+COST_OUTPUT_PER_MTOK: float = _env_float("PALIMIND_COST_OUTPUT_PER_MTOK", 0.0)
+
 # ── Phase 4.2: multi-agent orchestration ──────────────────────────────────
 
 # Hard ceiling on fan-out agents spawned for one orchestrated task.
@@ -291,6 +369,15 @@ GOALS_MAX_DURATION_DAYS: int = _env_int("PALIMIND_GOALS_MAX_DURATION_DAYS", 7)
 # Poll interval (seconds) for the background-task runner.
 GOALS_TICK: int = _env_int("PALIMIND_GOALS_TICK", 15)
 
+# ── optional X/Twitter API ────────────────────────────────────────────────
+
+# Bearer token for X API v2 recent search. Empty = fall back to the public web
+# index (DuckDuckGo site search), which needs no credentials.
+X_BEARER_TOKEN: str = _env_str("PALIMIND_X_BEARER_TOKEN", "") or _env_str("X_BEARER_TOKEN", "") or ""
+
+# Maximum recent-search results requested from X per query (API max is 100).
+X_API_MAX_RESULTS: int = _env_int("PALIMIND_X_API_MAX_RESULTS", 40)
+
 # ── Phase 4.6: self-critique & verification ───────────────────────────────
 
 # Minimum confidence (0..1) for a verified answer to be accepted without a
@@ -302,3 +389,63 @@ SELF_CRITIQUE_MAX_RETRIES: int = _env_int("PALIMIND_SELF_CRITIQUE_MAX_RETRIES", 
 
 # Bind address for the API server (loopback-only by default).
 SERVER_HOST: str = "127.0.0.1"
+
+# ── Computer use (Linux desktop control) ──────────────────────────────────
+
+def _env_csv(name: str, default: list[str]) -> list[str]:
+    raw = os.environ.get(name, "")
+    if raw.strip():
+        return [part.strip() for part in raw.split(",") if part.strip()]
+    return default
+
+
+# Master switch. On by default so the popup works out of the box; set
+# PALIMIND_DESKTOP_ENABLE=0 to turn the whole capability off.
+DESKTOP_ENABLE: bool = _env_bool("PALIMIND_DESKTOP_ENABLE", True)
+
+# Input backend preference: semantic | xtest | mutter | uinput | auto.
+DESKTOP_INPUT_BACKEND: str = _env_str("PALIMIND_DESKTOP_INPUT_BACKEND", "auto") or "auto"
+
+# Screenshot policy: off | on_demand | always. Never automatic per step.
+DESKTOP_SCREENSHOT: str = _env_str("PALIMIND_DESKTOP_SCREENSHOT", "on_demand") or "on_demand"
+
+# Observation budgets enforced by the native layer.
+DESKTOP_MAX_NODES: int = _env_int("PALIMIND_DESKTOP_MAX_NODES", 300)
+DESKTOP_MAX_DEPTH: int = _env_int("PALIMIND_DESKTOP_MAX_DEPTH", 12)
+DESKTOP_SNAPSHOT_TTL_S: int = _env_int("PALIMIND_DESKTOP_SNAPSHOT_TTL_S", 600)
+
+# Action rate limit (actions per minute).
+DESKTOP_ACTION_RATE: int = _env_int("PALIMIND_DESKTOP_ACTION_RATE", 30)
+
+# App policy. Empty allowlist means "any app on the desktop" (the protected and
+# blocked sets still win); a non-empty list narrows it. The native layer
+# enforces the same rule.
+DESKTOP_ALLOWED_APPS: list[str] = _env_csv("PALIMIND_DESKTOP_ALLOWED_APPS", [])
+DESKTOP_BLOCKED_APPS: list[str] = _env_csv(
+    "PALIMIND_DESKTOP_BLOCKED_APPS",
+    [
+        "gnome-shell",
+        "plasmashell",
+        "kwin_wayland",
+        "kwin_x11",
+        "mutter",
+        "gnome-settings-daemon",
+        "gnome-session",
+        "polkit",
+        "gnome-keyring",
+        "kwalletd",
+        "palimind",
+    ],
+)
+
+# Explicit development escape hatch. Never enable this in a packaged build.
+DESKTOP_ALLOW_ALL: bool = _env_bool("PALIMIND_DESKTOP_ALLOW_ALL", False)
+
+# Optional explicit path to the palimind-desktop binary.
+DESKTOP_BIN: str | None = _env_str("PALIMIND_DESKTOP_BIN")
+
+# Chromium DevTools port for the explicit web-content CDP route.
+DESKTOP_CDP_PORT: int = _env_int("PALIMIND_DESKTOP_CDP_PORT", 9222)
+
+# Artifact retention (hours) for on-demand screenshots.
+DESKTOP_ARTIFACT_RETENTION_H: int = _env_int("PALIMIND_DESKTOP_ARTIFACT_RETENTION_H", 24)

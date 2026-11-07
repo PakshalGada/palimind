@@ -69,7 +69,7 @@ def purge_agent_data(agent_id: str) -> None:
     except Exception:
         pass
     try:
-        from palimind.agents import routines, queue
+        from palimind.agents import queue, routines
 
         for routine in routines.list_routines():
             if routine.get("target_type") == "agent" and routine.get("target_id") == agent_id:
@@ -99,6 +99,15 @@ def purge_agent_data(agent_id: str) -> None:
         from palimind.agents import approvals
 
         approvals.remove(agent_id)
+    except Exception:
+        pass
+    try:
+        from palimind.agents import mailbox, tasks, threads, waits
+
+        tasks.delete_tasks_for_agent(agent_id)
+        mailbox.delete_for_agent(agent_id)
+        waits.delete_for_agent(agent_id)
+        threads.delete_threads_for_agent(agent_id)
     except Exception:
         pass
 

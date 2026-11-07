@@ -4,6 +4,7 @@ import {
   Bot,
   FolderOpen,
   MessageSquare,
+  Monitor,
   Plus,
   Search,
 } from 'lucide-react';
@@ -101,10 +102,6 @@ export default function HomeView() {
             {statusLine}
           </div>
           <h1 className="home-hero__title">{greeting()}</h1>
-          <p className="home-hero__lede">
-            Everything runs on this machine. Pick up a conversation, hand work to an
-            agent, or start from a clean page.
-          </p>
 
           {!isFresh && (
             <div className="home-actions">
@@ -162,6 +159,39 @@ export default function HomeView() {
             onClick={() => setActiveView(activeProjectId ? 'projects' : 'knowledge')}
           >
             {activeProjectId ? 'Manage project' : activeField ? 'Manage knowledge' : 'Add a folder'}
+            <ArrowRight size={14} />
+          </button>
+        </section>
+
+        <section className="home-desktop" aria-label="Computer use">
+          <span className="home-desktop__icon" aria-hidden="true">
+            <Monitor size={19} />
+          </span>
+          <div className="home-desktop__body">
+            <span className="home-desktop__eyebrow">Computer use · on by default</span>
+            <h2>Work with any app on your desktop</h2>
+            <p>
+              Pick any window, ask what is on screen, or let an agent act on it
+              — screenshots on demand, approvals before risky steps.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="home-desktop__action"
+            onClick={() => {
+              void (async () => {
+                try {
+                  const { invoke } = await import('@tauri-apps/api/core');
+                  await invoke('open_computer_use');
+                } catch {
+                  window.dispatchEvent(
+                    new CustomEvent('palimind:open-settings', { detail: { section: 'desktop' } }),
+                  );
+                }
+              })();
+            }}
+          >
+            Open
             <ArrowRight size={14} />
           </button>
         </section>

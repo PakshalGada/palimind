@@ -77,3 +77,49 @@ test('an error event followed by end leaves no running tool or live reasoning', 
   assert.equal(state.reasoning.done, true);
   assert.equal(state.steps[0].status, 'error');
 });
+
+test('agent todo events become a live plan checklist', () => {
+  const store = fakeStore();
+  const recorder = new RunRecorder(store, 'agent');
+  recorder.start('run-1');
+  recorder.observe({
+    type: 'agent:todo',
+    items: [
+      { id: '1', label: 'Find sources', status: 'completed' },
+      { id: '2', label: 'Read pages', status: 'in_progress' },
+      { id: '3', label: 'Write brief', status: 'pending' },
+    ],
+  });
+  const state = store.getState();
+  assert.deepEqual(
+    state.plan.map((step) => [step.label, step.status]),
+    [
+      ['Find sources', 'done'],
+      ['Read pages', 'running'],
+      ['Write brief', 'pending'],
+    ],
+  );
+});
+
+test('a later todo update replaces statuses and keeps the run alive', () => {
+  const store = fakeStore();
+  const recorder = new RunRecorder(store, 'agent');
+  recorder.start('run-1');
+  recorder.observe({
+    type: 'agent:todo',
+    items: [{ id: '1', label: 'A', status: 'in_progress' }],
+  });
+  recorder.observe({
+    type: 'agent:todo',
+    items: [
+      { id: '1', label: 'A', status: 'completed' },
+      { id: '2', label: 'B', status: 'in_progress' },
+    ],
+  });
+  const state = store.getState();
+  assert.equal(state.plan.length, 2);
+  assert.equal(state.plan[0].status, 'done');
+  assert.equal(state.plan[1].status, 'running');
+  recorder.end('done');
+  assert.equal(store.getState().status, 'done');
+});

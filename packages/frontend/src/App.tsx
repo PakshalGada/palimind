@@ -13,6 +13,7 @@ import CommandPalette from './components/CommandPalette';
 import AgentGraph from './components/AgentGraph';
 import SkillManager from './components/SkillManager';
 import PlanReview from './components/PlanReview';
+import ResearchPlanModal from './components/ResearchPlanModal';
 import TaskMonitor from './components/TaskMonitor';
 import ArtifactAutoOpen from './components/ArtifactAutoOpen';
 import AgentManager from './features/agents/AgentManager';
@@ -40,7 +41,7 @@ export default function App() {
     setCurrentModel, setLlmSubMode, setOrchestratorModel, setWorkerModel,
     setIsIndexing, setIndexingStatus,
     isRecording, isTranscribing, isSpeaking,
-    setActiveView, setAgentsView, setChatMode, theme, setTheme,
+    setActiveView, setAgentsView, setAgentsWorkTab, setChatMode, theme, setTheme,
     chatMode,
     setCommandPaletteOpen, setShortcutsModalOpen,
     toggleSidebar, setArtifactPanelOpen,
@@ -122,7 +123,8 @@ export default function App() {
     },
     'agents.kanban': () => {
       setActiveView('agents');
-      setAgentsView('kanban');
+      setAgentsView('work');
+      setAgentsWorkTab('board');
     },
   });
 
@@ -155,7 +157,7 @@ export default function App() {
           setCurrentModel(configData.chat_model);
         }
         if (configData.moe_sub_mode) {
-          setLlmSubMode(configData.moe_sub_mode as 'default' | 'moe');
+          setLlmSubMode(configData.moe_sub_mode as 'default' | 'moe' | 'deep_research');
         }
         if (configData.moe_orchestrator_model) {
           setOrchestratorModel(configData.moe_orchestrator_model);
@@ -244,6 +246,7 @@ export default function App() {
         <AgentGraph />
         <SkillManager />
         <PlanReview />
+        <ResearchPlanModal />
         <TaskMonitor />
         <ToastContainer />
       </AppLayout>

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from pathlib import Path
 
 from fastapi.responses import StreamingResponse
@@ -20,6 +21,66 @@ CRITICAL INSTRUCTIONS:
 2. Do NOT copy, repeat, or output verbatim text from past conversation history or memory summaries.
 3. If you don't know something, say so clearly rather than guessing."""
 
+_LLM_WEB_SYSTEM_PROMPT = """You are a helpful, knowledgeable AI assistant with live web access. Use the web research
+provided below to answer accurately and freshly.
+
+CRITICAL INSTRUCTIONS:
+1. Prefer the supplied web results for facts that can change (news, prices, releases, dates, people, statistics).
+2. Cite the sources you rely on with bracketed markers that match their numbers, for example [1] or [2].
+3. Never invent facts, numbers, dates, names or quotes that are not supported by the results.
+4. If the results are incomplete or disagree, say so explicitly and explain the uncertainty.
+5. Do NOT copy, repeat, or output verbatim text from past conversation history or memory summaries.
+6. Write a direct, original answer in Markdown; do not dump the raw search results."""
+
+
+def _truthy(value: object) -> bool:
+    """Parse a query/config flag the way the chat API passes it."""
+    if isinstance(value, bool):
+        return value
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on", "enabled"}
+
+
+_TRIVIAL_QUERY_RE = re.compile(
+    r"^(hi|hello|hey|thanks|thank you|ok|okay|great|cool|good morning|"
+    r"good night|bye|see you)[\s!.?]*$",
+    re.IGNORECASE,
+)
+
+
+def _web_worth_searching(query: str) -> bool:
+    """Don't pay web-search latency for a greeting or a one-word pleasantry."""
+    value = (query or "").strip()
+    if not value:
+        return False
+    if _TRIVIAL_QUERY_RE.match(value):
+        return False
+    return len(value) > 3
+
+
+def _web_sources(search_text: str) -> list:
+    """Parse formatted web-search output into citable ``Source`` objects."""
+    if not search_text:
+        return []
+    try:
+        from palimind.generative.citation import parse_web_sources
+
+        return parse_web_sources(search_text)
+    except Exception:
+        return []
+
+
+def _citation_sse(answer: str, sources: list) -> tuple[str, str | None]:
+    """Attach inline citations to a final answer; returns (text, SSE payload)."""
+    if not answer or not sources:
+        return answer, None
+    try:
+        from palimind.generative.citation import finalize_citations
+
+        result = finalize_citations(answer, sources)
+        return result.text, json.dumps({"type": "citation_map", **result.to_dict()})
+    except Exception:
+        return answer, None
+
 
 async def llm_mode_stream(
     q: str,
@@ -36,8 +97,9 @@ async def llm_mode_stream(
     image_paths: list[str] | None = None,
     attachment_context: str = "",
 ) -> StreamingResponse:
-    """PLAIN LLM MODE: Chat directly with the LLM using general knowledge only.
-    No document context, no internet access, no code execution, no tools."""
+    """PLAIN LLM MODE: Chat directly with the LLM using general knowledge.
+    No document context, no code execution, no tools. Live web search is
+    optionally prepended when the caller enables it."""
 
     async def plain_stream():
         from palimind.config import load_config
@@ -53,11 +115,42 @@ async def llm_mode_stream(
                 q,
             )
 
+        web_enabled = _truthy(web_search) and _web_worth_searching(q)
         yield (
-            f"data: {json.dumps({'type': 'reasoning', 'text': 'LLM Mode — general knowledge only (no document context)'})}\n\n"
+            f"data: {json.dumps({'type': 'reasoning', 'text': 'LLM Mode — using general knowledge' + (' + live web search' if web_enabled else ' (no tools)')})}\n\n"
         )
 
-        system_prompt = _LLM_SYSTEM_PROMPT
+        web_results = ""
+        web_sources: list = []
+        if web_enabled:
+            yield (
+                f"data: {json.dumps({'type': 'reasoning', 'text': 'Searching the web...'})}\n\n"
+            )
+            yield (
+                f"data: {json.dumps({'type': 'agent:tool_call', 'agent_id': 0, 'tool': 'web_search', 'args': {'query': q}})}\n\n"
+            )
+            try:
+                from palimind.core.web_search import perform_web_search
+
+                web_results = await asyncio.to_thread(
+                    perform_web_search, q, 6, True
+                )
+                web_sources = _web_sources(web_results)
+                yield (
+                    f"data: {json.dumps({'type': 'agent:tool_result', 'agent_id': 0, 'tool': 'web_search', 'result': [{'title': source.title, 'url': source.url, 'snippet': source.snippet} for source in web_sources]})}\n\n"
+                )
+                yield (
+                    f"data: {json.dumps({'type': 'reasoning', 'text': f'Found {len(web_sources)} web source(s)'})}\n\n"
+                )
+            except Exception as exc:  # noqa: BLE001 - web search must not kill the answer
+                yield (
+                    f"data: {json.dumps({'type': 'agent:tool_result', 'agent_id': 0, 'tool': 'web_search', 'result': f'Search failed: {exc}'})}\n\n"
+                )
+                yield (
+                    f"data: {json.dumps({'type': 'reasoning', 'text': f'Web search unavailable: {exc}'})}\n\n"
+                )
+
+        system_prompt = _LLM_WEB_SYSTEM_PROMPT if web_results else _LLM_SYSTEM_PROMPT
         if persona:
             system_prompt = f"{persona}\n\n{system_prompt}"
         memory_ctx = format_hierarchical_memory_context(mid_term_summary, [])
@@ -71,14 +164,20 @@ async def llm_mode_stream(
             reasoning_parts.append(chunk)
 
         query_for_model = q
+        if web_results:
+            query_for_model = (
+                f"{q}\n\nWEB RESEARCH RESULTS (use these and cite them by number):\n"
+                f"{web_results}"
+            )
         if attachment_context:
-            query_for_model = f"{q}\n\n{attachment_context}"
+            query_for_model = f"{query_for_model}\n\n{attachment_context}"
         if image_paths or attachment_context:
             attached = len(image_paths or []) + (1 if attachment_context else 0)
             yield (
                 f"data: {json.dumps({'type': 'reasoning', 'text': f'Using {attached} local attachment(s)'})}\n\n"
             )
 
+        citation_payload: dict | None = None
         try:
             num_ctx = load_config(active_field).get("num_ctx")
             stream = generate_response_stream(
@@ -114,6 +213,13 @@ async def llm_mode_stream(
                 yield (f"data: {json.dumps({'type': 'token', 'text': token})}\n\n")
             if (sse := pending_thinking()) is not None:
                 yield sse
+            if web_sources and full_text and not full_text.startswith("**Error:**"):
+                full_text, citation_sse = await asyncio.to_thread(
+                    _citation_sse, full_text, web_sources
+                )
+                if citation_sse:
+                    citation_payload = json.loads(citation_sse)
+                    yield f"data: {citation_sse}\n\n"
         except Exception as e:
             err_msg = f"Generation error: {str(e)}"
             if not full_text:
@@ -127,6 +233,7 @@ async def llm_mode_stream(
                     active_sess_id,
                     "system",
                     full_text,
+                    citations=citation_payload,
                 )
                 asyncio.create_task(
                     background_update_memory(active_field, active_sess_id, q, full_text)
@@ -184,6 +291,49 @@ def _progress_event_to_sse(event: dict) -> list[str]:
                 )
             }\n\n"
         ]
+    elif etype == "agent:thought":
+        # Raw model reasoning from an expert. Keep it short enough for the
+        # activity surface but expose it live rather than only at the end.
+        text = str(event.get("text") or "").strip()
+        if not text:
+            return []
+        return [
+            f"data: {
+                json.dumps(
+                    {
+                        'type': 'agent_thinking',
+                        'agent_id': event.get('agent_id', 0),
+                        'text': text[:1200],
+                    }
+                )
+            }\n\n"
+        ]
+    elif etype == "agent:tool_call":
+        return [
+            f"data: {
+                json.dumps(
+                    {
+                        'type': 'agent:tool_call',
+                        'agent_id': event.get('agent_id', 0),
+                        'tool': event.get('tool', 'tool'),
+                        'args': event.get('args') or {},
+                    }
+                )
+            }\n\n"
+        ]
+    elif etype == "agent:tool_result":
+        return [
+            f"data: {
+                json.dumps(
+                    {
+                        'type': 'agent:tool_result',
+                        'agent_id': event.get('agent_id', 0),
+                        'tool': event.get('tool', 'tool'),
+                        'result': event.get('result'),
+                    }
+                )
+            }\n\n"
+        ]
     elif etype == "synthesizing":
         return [f"data: {json.dumps({'type': 'reasoning', 'text': event.get('text', '')})}\n\n"]
     elif etype == "verifying":
@@ -192,6 +342,11 @@ def _progress_event_to_sse(event: dict) -> list[str]:
         return [f"data: {json.dumps({'type': 'reasoning', 'text': event.get('text', '')})}\n\n"]
     elif etype == "cancelled":
         return [f"data: {json.dumps({'type': 'reasoning', 'text': event.get('text', '')})}\n\n"]
+    elif etype == "moe_plan":
+        steps = event.get("plan") or []
+        return [
+            f"data: {json.dumps({'type': 'agent:plan', 'steps': steps, 'mode': 'moe', 'status': 'ready'})}\n\n"
+        ]
     elif etype in ("research_plan", "citation_map"):
         # Pass structured events through untouched.
         return [f"data: {json.dumps(event)}\n\n"]
@@ -256,10 +411,12 @@ async def moe_mode_stream(
                 mid_term_summary=mid_term_summary,
                 long_term_episodes=long_term_episodes,
                 root=active_field,
+                force_web=_truthy(web_search) and _web_worth_searching(q),
             )
         )
 
         full_text = ""
+        citation_payload: dict | None = None
         try:
             while True:
                 if pipeline_task.done():
@@ -289,10 +446,16 @@ async def moe_mode_stream(
                 plan = result.get("plan", [])
                 outputs = result.get("outputs", [])
                 synthesis = result.get("synthesis", "")
+                citation_payload = result.get("citations")
 
                 if synthesis:
                     full_text += synthesis
                     yield f"data: {json.dumps({'type': 'token', 'text': synthesis})}\n\n"
+                if citation_payload:
+                    cited_text = citation_payload.get("text") or ""
+                    if cited_text:
+                        full_text = cited_text
+                    yield f"data: {json.dumps(citation_payload)}\n\n"
 
                 process_block = '\n\n<details class="moe-process-details">\n<summary class="moe-process-summary">View Agent Process</summary>\n<div class="moe-process-content">\n'
                 if plan:
@@ -352,6 +515,7 @@ async def moe_mode_stream(
                     active_sess_id,
                     "system",
                     full_text,
+                    citations=citation_payload,
                 )
                 asyncio.create_task(
                     background_update_memory(active_field, active_sess_id, q, full_text)
@@ -424,7 +588,14 @@ async def deep_research_mode_stream(
 
         async def on_plan(plan: list[dict]):
             pending = register_plan(q, plan, plan_event)
-            await on_progress({"type": "research_plan", "plan_id": pending.plan_id, "plan": plan})
+            await on_progress(
+                {
+                    "type": "research_plan",
+                    "plan_id": pending.plan_id,
+                    "query": q,
+                    "plan": plan,
+                }
+            )
             try:
                 await asyncio.wait_for(plan_event.wait(), timeout=DR_PLAN_REVIEW_TIMEOUT)
             except TimeoutError:

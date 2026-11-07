@@ -16,14 +16,14 @@ import { normalizeToolName } from './toolRegistry';
 export function modeFromActivityMode(mode: ActivityMode | string | null | undefined): RunMode {
   if (mode === 'document') return 'knowledge_base';
   if (mode === 'moe') return 'moe';
+  if (mode === 'deep_research') return 'deep_research';
   if (mode === 'agent') return 'agent';
   return 'default';
 }
 
 export function modeFromSubMode(subMode: string | null | undefined): RunMode {
   if (subMode === 'moe') return 'moe';
-  // Persisted runs from older versions used `deep_research`; render them as a
-  // normal run rather than dropping their history.
+  if (subMode === 'deep_research') return 'deep_research';
   return 'default';
 }
 

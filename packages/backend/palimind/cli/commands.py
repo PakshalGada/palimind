@@ -85,6 +85,146 @@ app.add_typer(config_app, name="config")
 backup_app = typer.Typer(help="Local backup, verify and restore")
 app.add_typer(backup_app, name="backup")
 
+agent_app = typer.Typer(help="Drive agents through the local scripts API")
+app.add_typer(agent_app, name="agent")
+
+
+def _automation_connection() -> tuple[str, str]:
+    from palimind.security.tokens import palimind_home
+
+    folder = palimind_home() / "automation"
+    try:
+        url = (folder / "url").read_text("utf-8").strip()
+        token = (folder / "token").read_text("utf-8").strip()
+    except OSError:
+        print_error("Local scripts are not enabled. Turn them on for an agent in Settings.")
+        raise typer.Exit(5)
+    if not url or not token:
+        print_error("Local scripts are not enabled. Turn them on for an agent in Settings.")
+        raise typer.Exit(5)
+    return url, token
+
+
+def _automation_call(method: str, path: str, body: dict | None = None) -> dict:
+    import json
+    import urllib.error
+    import urllib.request
+
+    url, token = _automation_connection()
+    data = json.dumps(body).encode() if body is not None else None
+    request = urllib.request.Request(f"{url}{path}", data=data, method=method)
+    request.add_header("Authorization", f"Bearer {token}")
+    if data is not None:
+        request.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.loads(response.read() or b"{}")
+    except urllib.error.HTTPError as exc:
+        try:
+            payload = json.loads(exc.read() or b"{}")
+        except Exception:
+            payload = {"error": str(exc)}
+        payload["_status"] = exc.code
+        return payload
+    except Exception as exc:  # noqa: BLE001
+        print_error(str(exc))
+        raise typer.Exit(1)
+
+
+@agent_app.command("list")
+def agent_list():
+    """List agents that allow local scripts."""
+    payload = _automation_call("GET", "/v1/agents")
+    for item in payload.get("agents") or []:
+        routines = ", ".join(r.get("name", "") for r in item.get("routines") or [])
+        console.print(f"  {item.get('name')}  {item.get('id')}  {routines}")
+
+
+@agent_app.command("run")
+def agent_run(
+    agent: str = typer.Argument(..., help="Agent name or id"),
+    task: str = typer.Argument(..., help="Task text; '-' reads stdin"),
+    wait: bool = typer.Option(False, "--wait", help="Wait for the turn answer"),
+    timeout: str = typer.Option("30m", "--timeout", help="Wait timeout"),
+):
+    """Send a task to an agent, optionally waiting for its answer."""
+    if task == "-":
+        import sys
+
+        task = sys.stdin.read()
+    payload = _automation_call("POST", f"/v1/agents/{agent}/messages", {"text": task})
+    if payload.get("_status"):
+        print_error(str(payload.get("error") or payload.get("_status")))
+        raise typer.Exit(1)
+    delivery_id = payload.get("messageId")
+    print_info(f"delivery {delivery_id}")
+    if not wait or not delivery_id:
+        return
+    import time
+
+    seconds = _duration_seconds(timeout)
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        status = _automation_call("GET", f"/v1/agents/{agent}/deliveries/{delivery_id}")
+        if status.get("status") in ("completed", "failed", "interrupted", "cancelled"):
+            if status.get("answer"):
+                console.print(status["answer"])
+            if status.get("status") != "completed":
+                print_error(str(status.get("error") or status.get("status")))
+                raise typer.Exit(1)
+            return
+        time.sleep(2)
+    print_error("wait timed out")
+    raise typer.Exit(4)
+
+
+def _duration_seconds(value: str) -> float:
+    raw = str(value or "30m").strip().lower()
+    try:
+        if raw.endswith("h"):
+            return float(raw[:-1]) * 3600
+        if raw.endswith("m"):
+            return float(raw[:-1]) * 60
+        if raw.endswith("s"):
+            return float(raw[:-1])
+        return float(raw)
+    except ValueError:
+        return 1800.0
+
+
+@agent_app.command("status")
+def agent_status(agent: str = typer.Argument(...), delivery: str = typer.Argument(...)):
+    """Read one delivery by id."""
+    payload = _automation_call("GET", f"/v1/agents/{agent}/deliveries/{delivery}")
+    console.print_json(data=payload)
+
+
+@agent_app.command("set-model")
+def agent_set_model(
+    agent: str = typer.Argument(...),
+    model: str = typer.Argument(...),
+    effort: str = typer.Option("", "--effort", help="Reasoning effort"),
+):
+    """Change an agent's model and optional effort."""
+    body = {"model": model}
+    if effort:
+        body["reasoning_effort"] = effort
+    payload = _automation_call("POST", f"/v1/agents/{agent}/settings", body)
+    if payload.get("_status"):
+        print_error(str(payload.get("error") or payload.get("_status")))
+        raise typer.Exit(1)
+    print_success(f"{payload.get('name')} → {payload.get('model')}")
+
+
+@agent_app.command("new-chat")
+def agent_new_chat(agent: str = typer.Argument(...)):
+    """Clear the provider context while keeping visible messages."""
+    payload = _automation_call("POST", f"/v1/agents/{agent}/context/clear", {})
+    if payload.get("_status"):
+        print_error(str(payload.get("error") or payload.get("_status")))
+        raise typer.Exit(1)
+    print_success("New chat started.")
+
 
 @backup_app.command("list")
 def backup_list():

@@ -3,6 +3,7 @@ import {
   hasPendingApproval,
   isTerminal,
   type ActivityState,
+  type PlanStep,
   type ToolStep,
 } from '../model';
 import { captionFor } from '../caption';
@@ -65,6 +66,51 @@ function overlaps(steps: readonly ToolStep[]): boolean {
     }));
   return intervals.some((left, index) =>
     intervals.slice(index + 1).some((right) => left.start < right.end && right.start < left.end),
+  );
+}
+
+/** The agent's live checklist (`todo_write`), rendered above the tool timeline. */
+function TodoChecklist({ steps }: { steps: readonly PlanStep[] }) {
+  if (steps.length === 0) return null;
+  const done = steps.filter((step) => step.status === 'done').length;
+  return (
+    <div className="act-todo">
+      <div className="act-todo__head act-muted act-tabular">
+        Plan · {done}/{steps.length} done
+      </div>
+      <ul className="act-plan">
+        {steps.map((step) => (
+          <li key={step.id} className={`act-plan__item act-plan__item--${step.status}`}>
+            <span
+              className={`act-status act-status--${
+                step.status === 'done'
+                  ? 'success'
+                  : step.status === 'error'
+                    ? 'error'
+                    : step.status === 'running'
+                      ? 'running'
+                      : 'queued'
+              }`}
+            >
+              <Icon
+                name={
+                  step.status === 'done'
+                    ? 'check'
+                    : step.status === 'error'
+                      ? 'x'
+                      : step.status === 'running'
+                        ? 'loader-2'
+                        : 'circle'
+                }
+                size={13}
+                className={step.status === 'running' ? 'act-spin' : ''}
+              />
+            </span>
+            <span>{step.label}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -401,6 +447,9 @@ export function ActivityPanel({
                   store={store}
                   showHeader={showReasonHeader}
                 />
+              )}
+              {state.mode === 'agent' && state.plan && state.plan.length > 0 && (
+                <TodoChecklist steps={state.plan} />
               )}
               {bodyExtra}
               {steps.length > 0 && (

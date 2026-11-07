@@ -5,6 +5,7 @@ import {
   nextAssistantMessageIndex,
   parseArtifactFiles,
   parseArtifacts,
+  shouldAutoOpenArtifact,
 } from '../src/utils/artifacts.ts';
 
 const DOC = Array.from(
@@ -204,6 +205,23 @@ test('collectArtifacts keeps message indices and de-duplicates ids', () => {
       ['fence-1-0', 'html', 1],
       ['fence-2-0', 'code', 2],
     ],
+  );
+});
+
+test('auto-opens only renderable pages, docs, slides and code', () => {
+  for (const type of ['html', 'svg', 'markdown', 'document', 'slide-outline', 'code', 'code-file', 'multi-file']) {
+    assert.equal(shouldAutoOpenArtifact({ type }), true, type);
+  }
+  assert.equal(shouldAutoOpenArtifact({ type: 'table' }), false);
+  assert.equal(
+    shouldAutoOpenArtifact({ type: 'table', filePaths: ['report.docx'] }),
+    false,
+    'tables never pop the panel',
+  );
+  assert.equal(
+    shouldAutoOpenArtifact({ type: 'code-file', filePaths: ['notes.md'] }),
+    true,
+    'file-backed markdown opens',
   );
 });
 

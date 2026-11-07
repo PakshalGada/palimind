@@ -1628,6 +1628,22 @@
 
 /* ── plan checklist and phases ──────────────────────────────────────────── */
 
+.act-todo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--act-hairline);
+    border-radius: var(--radius-sm);
+}
+
+.act-todo__head {
+    font-size: var(--type-2xs);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
 .act-plan {
     display: flex;
     flex-direction: column;
@@ -1737,6 +1753,18 @@
     opacity: 0.3;
     animation: none;
     transform: scaleX(1);
+}
+
+.act-expert__live {
+    grid-column: 2 / -1;
+    margin: 0 0 4px;
+    color: var(--act-secondary);
+    font-size: var(--type-2xs);
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 @keyframes act-lane {

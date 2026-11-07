@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import { api } from './api';
-import type { AppView, AgentsView, ChatMode, CitationPayload, LlmSubMode, Overview, Approval, Theme } from './types';
+import type { AppView, AgentsView, AgentsWorkTab, ChatMode, CitationPayload, LlmSubMode, Overview, Approval, Theme } from './types';
 import type { BotAvatarConfig } from './bots/config';
 import type { ShortcutOverrides } from './utils/shortcuts';
 import { loadShortcutOverrides, saveShortcutOverrides } from './utils/shortcuts';
@@ -39,7 +39,7 @@ export interface AgentState {
   steps: string[];
 }
 
-export type ActivityMode = 'llm' | 'document' | 'moe' | 'agent';
+export type ActivityMode = 'llm' | 'document' | 'moe' | 'deep_research' | 'agent';
 export type ActivityStatus = 'pending' | 'active' | 'done' | 'error';
 
 export interface ActivityStep {
@@ -81,7 +81,7 @@ interface AppState {
   activeProjectId: string | null;
   activeProjectName: string | null;
   activeSessionId: string | null;
-  sessions: { id: string; name: string; created_at?: number; messages: { role: string; content: string; timestamp?: number; sources?: string[]; citations?: CitationPayload }[] }[];
+  sessions: { id: string; name: string; created_at?: number; messages: { role: string; content: string; timestamp?: number; sources?: string[]; citations?: CitationPayload; mode_params?: { agent_name?: string; agent_id?: string; [key: string]: unknown } }[] }[];
   selectedFiles: Set<string>;
   chatMode: ChatMode;
   isGenerating: boolean;
@@ -99,6 +99,11 @@ interface AppState {
   isSpeaking: boolean;
   selectedAgentId: string | null;
   selectedTeamId: string | null;
+  selectedChannelId: string | null;
+  agentsWorkTab: AgentsWorkTab;
+  agentsSettingsOpen: boolean;
+  browserOpen: boolean;
+  browserFullscreen: boolean;
   overview: Overview | null;
   inbox: Approval[];
   sidebarCollapsed: boolean;
@@ -137,6 +142,11 @@ interface AppContextType extends AppState {
   setIsSpeaking: (v: boolean) => void;
   setSelectedAgentId: (id: string | null) => void;
   setSelectedTeamId: (id: string | null) => void;
+  setSelectedChannelId: (id: string | null) => void;
+  setAgentsWorkTab: (tab: AgentsWorkTab) => void;
+  setAgentsSettingsOpen: (open: boolean) => void;
+  setBrowserOpen: (open: boolean) => void;
+  setBrowserFullscreen: (open: boolean) => void;
   refreshOverview: () => Promise<void>;
   refreshInbox: () => Promise<void>;
   refreshFields: () => Promise<void>;
@@ -188,7 +198,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const views = ['home', 'chat', 'agents', 'knowledge', 'projects', 'artifacts'];
     return views.includes(value) ? (value as AppView) : 'home';
   });
-  const [agentsView, setAgentsView] = useState<AgentsView>('home');
+  const [agentsView, setAgentsView] = useState<AgentsView>('chat');
+  const [agentsWorkTab, setAgentsWorkTab] = useState<AgentsWorkTab>('activity');
+  const [agentsSettingsOpen, setAgentsSettingsOpen] = useState(false);
+  const [browserOpen, setBrowserOpen] = useState(
+    () => typeof window !== 'undefined' && localStorage.getItem('palimind:agents-browser') === '1',
+  );
+  const [browserFullscreen, setBrowserFullscreen] = useState(false);
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [activeField, setActiveField] = useState<string | null>(null);
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(
     () => localStorage.getItem('palimind:active-project'),
@@ -237,6 +254,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const lastToastRef = useRef<{ message: string; at: number } | null>(null);
 
   const toggleSidebar = useCallback(() => setSidebarCollapsed((v) => !v), []);
+
+  useEffect(() => {
+    try {
+      if (browserOpen) localStorage.setItem('palimind:agents-browser', '1');
+      else localStorage.removeItem('palimind:agents-browser');
+    } catch {
+      // storage is optional
+    }
+  }, [browserOpen]);
 
   const setActiveProjectId = useCallback((id: string | null) => {
     setActiveProjectIdState(id);
@@ -460,6 +486,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isSpeaking, setIsSpeaking,
     selectedAgentId, setSelectedAgentId,
     selectedTeamId, setSelectedTeamId,
+    selectedChannelId, setSelectedChannelId,
+    agentsWorkTab, setAgentsWorkTab,
+    agentsSettingsOpen, setAgentsSettingsOpen,
+    browserOpen, setBrowserOpen,
+    browserFullscreen, setBrowserFullscreen,
     overview, inbox, refreshOverview, refreshInbox,
     refreshFields, refreshSessions, refreshFileTree,
     abortController, setAbortController,
@@ -477,6 +508,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toasts, dismissToast, attachedFiles, isRecording, isTranscribing, isSpeaking,
     selectedAgentId, abortController,
     selectedTeamId, overview, inbox, refreshOverview, refreshInbox,
+    selectedChannelId, agentsWorkTab, agentsSettingsOpen, browserOpen, browserFullscreen,
     sidebarCollapsed, commandPaletteOpen, shortcutsModalOpen,
     artifactPanelOpen, artifactLibraryOpen, artifactTarget, shortcutOverrides,
     toggleSidebar, setShortcutOverride, resetShortcut, resetAllShortcuts,

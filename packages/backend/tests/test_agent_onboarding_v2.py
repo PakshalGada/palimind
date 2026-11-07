@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 
 from palimind.agents import lifecycle, scope
-from palimind.agents.catalog import AgentDefinition, validate_definition
 from palimind.agents import runtime as rt
+from palimind.agents.catalog import AgentDefinition, validate_definition
 
 
 def test_display_name_and_autonomy_migration() -> None:

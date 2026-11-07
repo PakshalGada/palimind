@@ -5,7 +5,7 @@
   "identifier": "com.palimind.app",
   "build": {
     "devUrl": "http://127.0.0.1:8000/ui",
-    "beforeBuildCommand": "cd ../../packages/frontend && npm run build",
+    "beforeBuildCommand": "cd ../../packages/frontend && npm run build && cd ../.. && ./scripts/build-desktop-native.sh",
     "frontendDist": "http://127.0.0.1:8000/ui"
   },
   "app": {
@@ -41,6 +41,9 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
+    ],
+    "externalBin": [
+      "binaries/palimind-desktop"
     ]
   }
 }

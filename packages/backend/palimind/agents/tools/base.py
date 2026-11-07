@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 # Permission names a tool may request in its manifest.
-PERMISSIONS = ("network", "fs-read", "fs-write", "shell", "os", "secrets")
+PERMISSIONS = ("network", "fs-read", "fs-write", "shell", "os", "input", "screen", "secrets")
 
 ParamType = Literal["string", "integer", "number", "boolean", "array", "object"]
 _PARAM_TYPES: tuple[str, ...] = ("string", "integer", "number", "boolean", "array", "object")

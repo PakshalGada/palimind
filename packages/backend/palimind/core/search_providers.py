@@ -15,9 +15,29 @@ from typing import Any, Protocol
 import httpx
 
 from palimind.config import load_global_config
-from palimind.settings import SEARCH_PROVIDER, SEARCH_TIMEOUT, SEARXNG_URL
 
 logger = logging.getLogger(__name__)
+
+# Read these lazily. Importing `palimind.settings` at module import time made
+# provider loading fragile: any partially-initialized settings module (or a
+# stale process importing during startup) surfaced as
+# "cannot import name 'SEARCH_PROVIDER' from 'palimind.settings'".
+_DEFAULT_SEARCH_PROVIDER = "auto"
+_DEFAULT_SEARXNG_URL = "http://127.0.0.1:8080"
+_DEFAULT_SEARCH_TIMEOUT = 8.0
+
+
+def _search_defaults() -> tuple[str, str, float]:
+    try:
+        from palimind import settings
+
+        return (
+            str(getattr(settings, "SEARCH_PROVIDER", "") or _DEFAULT_SEARCH_PROVIDER),
+            str(getattr(settings, "SEARXNG_URL", "") or _DEFAULT_SEARXNG_URL),
+            float(getattr(settings, "SEARCH_TIMEOUT", _DEFAULT_SEARCH_TIMEOUT)),
+        )
+    except Exception:  # noqa: BLE001 - settings must never break search
+        return _DEFAULT_SEARCH_PROVIDER, _DEFAULT_SEARXNG_URL, _DEFAULT_SEARCH_TIMEOUT
 
 # Shared across router instances: searching repeatedly must not re-probe the
 # local SearXNG port on every query.
@@ -56,13 +76,24 @@ class DuckDuckGoProvider:
     name = "ddg"
 
     def search(self, query: str, max_results: int = 4) -> list[SearchResult]:
-        try:
-            from ddgs import DDGS
+        last_exc: Exception | None = None
+        hits: list[dict[str, Any]] = []
+        # DDG intermittently rate-limits or returns an empty body; a single
+        # short retry makes ordinary searches much more reliable.
+        for attempt in range(2):
+            try:
+                from ddgs import DDGS
 
-            with DDGS() as ddgs:
-                hits = list(ddgs.text(query, max_results=max_results))
-        except Exception as exc:  # noqa: BLE001
-            raise SearchProviderError(f"DuckDuckGo search failed: {exc}") from exc
+                with DDGS() as ddgs:
+                    hits = list(ddgs.text(query, max_results=max_results))
+                if hits:
+                    break
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+            if attempt == 0:
+                time.sleep(0.35)
+        if not hits and last_exc is not None:
+            raise SearchProviderError(f"DuckDuckGo search failed: {last_exc}") from last_exc
         results: list[SearchResult] = []
         for hit in hits:
             url = str(hit.get("href") or hit.get("url") or "").strip()
@@ -85,9 +116,10 @@ class DuckDuckGoProvider:
 class SearxNGProvider:
     name = "searxng"
 
-    def __init__(self, base_url: str, timeout: float = SEARCH_TIMEOUT) -> None:
+    def __init__(self, base_url: str, timeout: float | None = None) -> None:
         self.base_url = str(base_url or "").rstrip("/")
-        self.timeout = max(1.0, float(timeout or 8.0))
+        default_timeout = _search_defaults()[2]
+        self.timeout = max(1.0, float(timeout or default_timeout))
 
     def is_available(self, *, ttl: float = 30.0) -> bool:
         return self._availability(ttl)[0]
@@ -180,10 +212,13 @@ class SearchRouter:
         config: dict[str, Any] | None = None,
     ) -> None:
         cfg = config if config is not None else load_global_config()
-        self.requested = str(preferred or cfg.get("search_provider") or SEARCH_PROVIDER).lower()
+        default_provider, default_url, _ = _search_defaults()
+        self.requested = str(
+            preferred or cfg.get("search_provider") or default_provider
+        ).lower()
         if self.requested not in ("auto", "ddg", "searxng"):
             self.requested = "auto"
-        url = str(cfg.get("searxng_url") or SEARXNG_URL or "")
+        url = str(cfg.get("searxng_url") or default_url or "")
         self.searxng = SearxNGProvider(url)
         self.ddg = DuckDuckGoProvider()
         self.fallback_reason = ""
@@ -210,6 +245,14 @@ class SearchRouter:
         try:
             for query in queries:
                 results.extend(provider.search(query, max_results=max_results))
+            # An empty local SearXNG response usually means the instance is
+            # misconfigured or its engines are down; DDG is a better answer
+            # than telling the user there is no information.
+            if not results and provider.name == "searxng":
+                self.fallback_reason = "SearXNG returned no results"
+                provider = self.ddg
+                for query in queries:
+                    results.extend(provider.search(query, max_results=max_results))
         except SearchProviderError as exc:
             if provider.name != "searxng":
                 logger.warning("%s", exc)

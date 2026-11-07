@@ -1013,37 +1013,6 @@
 .ax-template__name { font-size: 13px; font-weight: var(--weight-medium); color: var(--text-main); }
 .ax-template__tag { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
 
-/* ── roster status ────────────────────────────────────────────────────── */
-.aw-agent-item__name { display: flex; align-items: center; gap: 5px; }
-.aw-agent-item__off {
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  border: 1px solid var(--border-subtle);
-  border-radius: 999px;
-  padding: 0 4px;
-}
-.aw-agent-item__runs {
-  font-size: 9px;
-  color: var(--text-main);
-  background: var(--accent-bg);
-  border-radius: 999px;
-  padding: 0 5px;
-}
-.aw-agent-panel__empty p { margin: 0 0 8px; }
-.aw-agent-panel__empty-cta {
-  border: 1px solid var(--border-color);
-  background: var(--panel-bg-2);
-  color: var(--text-main);
-  border-radius: var(--radius-sm);
-  padding: 5px 10px;
-  font-size: var(--type-xs);
-  cursor: pointer;
-  font-family: var(--font-sans);
-}
-.aw-agent-panel__empty-cta:hover { background: var(--bg-hover); }
-
 @media (max-width: 760px) {
   .ax-settings__rail { width: 56px; }
   .ax-settings__rail-btn span { display: none; }

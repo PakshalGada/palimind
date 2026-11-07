@@ -344,6 +344,9 @@ async def orchestrate(
         model,
         light_model or model,
         write_access=bool(getattr(definition, "write_access", False)),
+        desktop_access=bool(getattr(definition, "desktop_access", False)),
+        desktop_control=bool(getattr(definition, "desktop_control", False)),
+        desktop_allowed_apps=list(getattr(definition, "desktop_allowed_apps", []) or []),
         allow_network=False,
         session_id=session_id,
     )

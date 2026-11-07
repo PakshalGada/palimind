@@ -172,7 +172,7 @@ def delete_team(team_id: str) -> bool:
     state_store.delete_json("team_notes", team_id)
     state_store.delete_team_runs(team_id)
     try:
-        from palimind.agents import routines, queue
+        from palimind.agents import queue, routines
 
         for routine in routines.list_routines():
             if routine.get("target_type") == "team" and routine.get("target_id") == team_id:

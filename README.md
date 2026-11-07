@@ -39,6 +39,32 @@ The core retrieval-augmented generation (RAG) engine. Point it at any folder and
 ![PaliSpace - Knowledge Base](assets/knowledge_base.png)
 ![PaliSpace - Knowledge Graph](assets/knowledge_graph.png)
 
+### Chat modes
+
+The chat composer has three LLM modes, all of which can use live web search:
+
+| Mode | What it does |
+|---|---|
+| **Default** | One model answers directly. With **Web** on, it searches first, reads the top pages, and cites its sources. |
+| **Mixture of Experts** | An orchestrator plans the work and dispatches parallel expert agents with tools, then synthesizes and verifies the result. Expert lanes and the plan are visible while they run. |
+| **Deep Research** | Plans research sub-topics, lets you edit and approve the plan, runs research agents in parallel, and writes a long, cited report. |
+
+The **Web** toggle applies to Default and Mixture of Experts; Deep Research is
+always web-backed. Agent mentions are available in every mode: type `@` anywhere
+in the composer to pick an enabled agent (for example `@researcher find the
+latest papers`).
+
+### Artifacts
+
+Answers that produce a web page, Markdown/Word document, slide deck or
+previewable code file open in the artifact panel automatically; ordinary tables
+and short snippets stay in the chat. From the panel you can edit, save, and
+export to Markdown, HTML, PDF, DOCX or PPTX. Type `/` in the composer for
+commands: `/doc`, `/slides`, `/page` and `/code` generate the matching artifact
+directly in the panel, while `/default`, `/moe`, `/research` and `/web` switch
+chat mode or toggle live search. Slide decks get a real 16:9 slide preview with
+navigation and an overview grid.
+
 ### PalIAgents - Agent System
 
 A runtime for creating and running specialized agents that can call tools to complete tasks. Agents can be created, run manually, invoked from chat with `@mention` syntax, and also can be scheduled.
@@ -139,8 +165,129 @@ Phase 4 adds an intelligence & automation layer:
 - **Planning mode** — plan-then-execute with user review/editing, plan templates, a flowchart view, and rollback of file mutations.
 - **Goals & background tasks** — objectives with success criteria, `/loop 5m …` scheduling, a monitoring dashboard and completion notifications (50 tasks / 7 days).
 - **Structured self-critique** — per-task-type verification checklists, confidence scoring, bounded auto-retry and human review of low-confidence results.
+- **Live task checklist** — agents call `todo_write` to keep a 3–7 item plan
+  with `pending` / `in_progress` / `completed` states. Every update streams to
+  the activity panel as an `agent:todo` event and renders above the tool
+  timeline, so long runs show progress instead of a spinner.
+- **Context-safe tool results** — oversized tool output is compacted to keep
+  both the head and the conclusion (totals, summaries, errors) instead of a
+  blind truncation, so agents keep the facts they gathered.
+- **Live run peek** — the agents home streams the answer, current step, tools
+  and checklist for a run started from the dashboard, with Stop and Open
+  actions, so work is never hidden behind a toast.
+- **Follow-up suggestions** — after a settled answer the light model proposes
+  2–4 next actions (with a deterministic tool-aware fallback). Chips appear in
+  chat and on the home live card and prefill the composer when clicked.
+- **Automatic model escalation** — if an agent exhausts its step budget without
+  a final answer, it emits `agent:escalation` and runs the final synthesis on
+  the knowledge base's chat model or `PALIMIND_AGENT_ESCALATION_MODEL`.
+- **Live token and cost accounting** — every model call emits cumulative
+  `agent:usage`; chat and the home live card show prompt/completion tokens and
+  an estimate from `PALIMIND_COST_INPUT_PER_MTOK` /
+  `PALIMIND_COST_OUTPUT_PER_MTOK` (0 for local models).
+- **Capability benchmark** — `make agent-benchmark` runs deterministic
+  research/coding/tool-recovery/checklist/UI scenarios; `make
+  agent-benchmark-live` runs the same suite against a local model and writes a
+  JSON report under `benchmarks/`. Current live baselines are 5/5 on both
+  `qwen3.5:4b` and `qwen3.5:9b`. The suite also guards the loop against
+  research loops, unverified edits and checklist-only “work.”
+- **Retrieval-aware checklists** — before the first turn, matching workspace
+  files seed a 3-item checklist (review material → complete work → verify),
+  emitted immediately so the UI shows the plan and the model starts from real
+  documents instead of generic steps.
+- **Per-stage usage and persisted follow-ups** — run records now store a token
+  breakdown (`classifier`, `planning`, `agent`, `verification`, `followups`)
+  plus the follow-up suggestions, both visible in the runs view.
+- **Escalation policy** — ordered fallback models via
+  `PALIMIND_AGENT_ESCALATION_MODELS` and an optional USD ceiling via
+  `PALIMIND_AGENT_ESCALATION_MAX_USD`; runs that exceed the ceiling stay on the
+  current model with an explicit `agent:escalation` reason.
+- **Grok comparison** — `docs/grok-comparison.md` tracks capability-by-capability
+  parity (search, X, research, tools, computing, voice, memory, privacy) and
+  names the remaining gaps instead of implying full parity.
+- **Capability-aware routing** — tasks are routed by required tools, vision,
+  code and reasoning depth. Hard tasks on small local models can use a
+  reasoning local model or a configured frontier fallback
+  (`PALIMIND_FRONTIER_MODELS` / `PALIMIND_AGENT_MODEL_ROUTING`). The chosen
+  route is shown in run history. `make routing-probe` proves a hard 4B task
+  routes to `grok-4.7` (26.8s) instead of the local model (45.1s), both correct.
+- **Head-to-head benchmark** — `make agent-benchmark-vs-grok` runs the same
+  scenarios against a local model and a hosted `grok-4.7` baseline using a
+  direct OpenAI-compatible client with native `tool_calls` / `role=tool`
+  messages, then writes a per-scenario comparison report. The latest native run
+  is a **100% vs 100% tie** (local 9B vs Grok-4.7); Grok was much faster, while
+  the local run was private and offline.
+- **Optional X API** — `x_search` uses X API v2 recent search when
+  `PALIMIND_X_BEARER_TOKEN` (or `X_BEARER_TOKEN`) is set, and falls back to the
+  public web index when it is not.
+- **Thin web/mobile client** — the backend serves a dependency-free,
+  phone-friendly chat page at `/client` over the local OpenAI-compatible API.
+  It uses the same per-install bearer token as `/v1/*`.
 
 ![PalIAgents - Agents](assets/agents.png)
+
+### Computer use (Linux)
+
+Agents can observe and operate Linux desktop apps through the AT-SPI2
+accessibility tree. The agent acts on stable refs (`@s<snapshot>:eN`) rather
+than pixel coordinates, captures a screenshot only on demand (with optional
+ref-bound annotation and local OCR boxes), and falls back to
+physical input (XTEST on X11, Mutter RemoteDesktop on Wayland, or the opt-in
+`/dev/uinput` kernel backend) only when no semantic action exists.
+
+It is **on by default and works with any app on the desktop**, layered with a
+global switch, per-agent `desktop_access` and `desktop_control` flags, an
+optional app allowlist, approval for every mutating action, a protected-process
+refusal list, a rate limit, an append-only audit log that never stores typed
+text, and a Stop that releases held input.
+
+```bash
+make desktop-native                 # build the palimind-desktop binary
+make desktop-test                   # vendored engine + wrapper tests
+make desktop-bundle                 # stage the Tauri sidecar (binaries/)
+make desktop-dogfood                # 20-task Linux benchmark (100%, 0 screenshots)
+make desktop-x11-check              # X11 gate on the current display
+make desktop-x11-gate               # nested Xephyr + openbox X11 gate
+palimind-desktop status             # platform, AT-SPI, kernel input, policy
+# optional: narrow the default "any app" policy to a list
+export PALIMIND_DESKTOP_ALLOWED_APPS=gnome-calculator,gnome-text-editor
+```
+
+**How to use it**
+
+1. Start the app (`make dev`, or the packaged desktop app). Computer use is
+   already enabled — no agent setup required.
+2. Click **Computer Use** in the sidebar, use the tray menu, or press
+   `Super+Shift+C`. The popup lists **every window on your desktop**; pick one,
+   or drag a screen area.
+3. Choose **Ask** for read-only questions (“what does this error mean?”) or
+   **Act** to perform the task. Act shows an **Approve / Deny** card for each
+   mutating step. The model button in the footer switches the model used for
+   desktop runs.
+4. `Ctrl+Shift+Escape`, the popup’s Stop button, or the tray’s “Stop desktop
+   control” releases held input immediately.
+5. Optional: set `PALIMIND_DESKTOP_ALLOWED_APPS` (and restart the backend) to
+   restrict the agent to specific apps. Empty means any app.
+
+Settings > Computer use shows the live status, a “How to use” walkthrough,
+recent audit entries and the ghost-cursor toggle. The popup’s **Show target**
+button draws the click-through ghost cursor without moving the real pointer.
+
+Kernel input is opt-in and needs a udev rule + the `input` group:
+
+```bash
+sudo scripts/install-uinput-udev.sh   # sign out and back in afterwards
+```
+
+The desktop app exposes a Computer Use popup (`Super+Shift+C`), a screen-region
+selection overlay, and a global stop hotkey (`Ctrl+Shift+Escape`). Tauri bundles
+`palimind-desktop` as an `externalBin`; `make desktop-bundle` stages it before
+`tauri build`. Chromium web content uses an explicit CDP route
+(`desktop_browser`) when AT-SPI web-content refs cannot be proven unique.
+
+See [docs/computer-use.md](docs/computer-use.md) for the threat model, the
+measured at-spi2-core 2.44 findings, the vendored-engine licence obligations
+and the Wayland targeting policy. Computer use is Linux-only.
 
 ### OpenCode Integration
 
@@ -200,6 +347,14 @@ Supported endpoints:
 - `POST /v1/embeddings` — local embedding model
 
 All `/v1/*` routes use the same per-install bearer token as `/api/*`.
+
+### Thin web / mobile client
+
+A dependency-free chat page is served at `GET /client`. Open
+`http://127.0.0.1:8000/client` on a phone or tablet on the same LAN, paste the
+token from `~/.palimind/api_token`, and chat through the local
+`/v1/chat/completions` API. The page is mobile-sized, respects safe-area insets,
+and stores the token only in that browser's local storage.
 
 ---
 
@@ -396,6 +551,15 @@ Tool, attachment and model-routing tuning (all optional):
 | `PALIMIND_UPLOAD_MAX_MB` | `25` | Max local chat attachment size |
 | `PALIMIND_UPLOAD_TEXT_LIMIT` | `30000` | Extracted attachment text cap (chars) |
 | `PALIMIND_WORKSPACE_TOOLS_DIR` | (empty) | Optional extra drop-in tool folder |
+| `PALIMIND_AGENT_MODEL_ROUTING` | `auto` | `off`, `local`, `auto`, or `frontier` capability routing |
+| `PALIMIND_FRONTIER_MODELS` | (empty) | Comma-separated hosted/frontier fallback model ids |
+| `PALIMIND_FRONTIER_MIN_COMPLEXITY` | `high` | Minimum complexity for a frontier fallback |
+| `PALIMIND_AGENT_ESCALATION_MODELS` | (empty) | Ordered fallback models when a run exhausts its budget |
+| `PALIMIND_AGENT_ESCALATION_MAX_USD` | `0` | Escalation cost ceiling (`0` = no ceiling) |
+| `PALIMIND_COST_INPUT_PER_MTOK` | `0` | Input price used for per-run cost estimates |
+| `PALIMIND_COST_OUTPUT_PER_MTOK` | `0` | Output price used for per-run cost estimates |
+| `PALIMIND_X_BEARER_TOKEN` | (empty) | Optional X API v2 token for `x_search` |
+| `PALIMIND_X_API_MAX_RESULTS` | `40` | Max recent-search results requested from X |
 | `PALIMIND_MCP_ENABLE` | `true` | Load trusted local MCP servers |
 | `PALIMIND_JOB_CONCURRENCY` | `2` | Durable job workers |
 | `PALIMIND_JOB_POLL_INTERVAL` | `2` | Job poll interval (s) |

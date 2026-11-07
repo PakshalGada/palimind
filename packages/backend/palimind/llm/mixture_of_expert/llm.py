@@ -167,6 +167,9 @@ def _normalize_tool_calls(message: dict[str, Any]) -> list[dict[str, Any]]:
         if args and not isinstance(args, dict):
             # e.g. a JSON array/scalar: agents call ``.items()`` on this.
             args = {"_raw": args}
+        # Ollama may include an id, but its chat API still expects the compact
+        # user-message transcript. Only the OpenAI client marks calls with
+        # ``openai: True`` so the loop switches to role=tool messages.
         calls.append({"name": name, "arguments": args or {}})
     return calls
 

@@ -13,6 +13,11 @@ import { RunSurface } from '../src/components/activity/shell/RunSurface';
 import { SourcesPanel } from '../src/components/sources/SourcesPanel';
 import { ActivitySurfaceContext } from '../src/stream/context';
 import type { ActivityState } from '../src/components/activity/model';
+import ComputerUsePanel from '../src/features/desktop/ComputerUsePanel';
+import { LiveRunFooter } from '../src/stream/StreamingMessage';
+import ScreenRegionOverlay from '../src/features/desktop/ScreenRegionOverlay';
+import { GhostCursorMark, targetFromSearch } from '../src/features/desktop/GhostCursorOverlay';
+import { ApprovalCard } from '../src/features/desktop/ComputerUsePanel';
 
 const now = 1_000_000;
 
@@ -185,6 +190,47 @@ const restoredHtml = renderToStaticMarkup(
 );
 check('restored approval', restoredHtml, ['Requested earlier', 'Needs approval'], ['act-attention']);
 
+// 4b. Agent todo checklist: progress count and all three statuses.
+const todoState: ActivityState = {
+  ...settled(),
+  runId: 'smoke-todo',
+  status: 'working',
+  endedAt: undefined,
+  plan: [
+    { id: '1', label: 'Find sources', status: 'done' },
+    { id: '2', label: 'Read pages', status: 'running' },
+    { id: '3', label: 'Write brief', status: 'pending' },
+  ],
+};
+const todoHtml = renderToStaticMarkup(
+  React.createElement(ActivityPanel, {
+    state: todoState,
+    store: new ActivityStore(todoState),
+  }),
+);
+check(
+  'agent todo checklist',
+  todoHtml,
+  ['Plan · 1/3 done', 'Find sources', 'Read pages', 'Write brief', 'act-plan__item--running'],
+  [],
+);
+
+// 4c. Live answer footer: token/cost chip, escalation and follow-up chips.
+const streamHtml = renderToStaticMarkup(
+  React.createElement(LiveRunFooter, {
+    usage: { prompt_tokens: 1200, completion_tokens: 800, estimated_cost_usd: 0 },
+    escalation: 'Escalated to strong-model',
+    suggestions: ['What are the takeaways?', 'Compare the sources.'],
+    settled: true,
+  }),
+);
+check(
+  'stream usage and follow-ups',
+  streamHtml,
+  ['Escalated to strong-model', '1.2k in', '800 out', 'local · $0', 'What are the takeaways?', 'Compare the sources.'],
+  [],
+);
+
 // 5. PermissionGrant standalone: browser action + keyboard hint.
 const browserStep = {
   id: 'b1',
@@ -254,7 +300,7 @@ function modeState(mode: ActivityState['mode']): ActivityState {
   };
 }
 
-for (const mode of ['default', 'moe', 'knowledge_base', 'agent'] as const) {
+for (const mode of ['default', 'moe', 'deep_research', 'knowledge_base', 'agent'] as const) {
   const state = modeState(mode);
   const store = new ActivityStore(state);
   const html = renderToStaticMarkup(
@@ -316,6 +362,67 @@ check(
   ],
   ['sources-drawer__backdrop'],
 );
+
+const popupHtml = renderToStaticMarkup(React.createElement(ComputerUsePanel));
+check('computer use popup', popupHtml, [
+  'Computer Use',
+  'Any app',
+  'Target',
+  'Select area',
+  'Request',
+  'Ask',
+  'read-only',
+  'Act',
+  'approve each step',
+  'Stop',
+  'Send',
+  'Switch model',
+  'Select model',
+]);
+
+const overlayHtml = renderToStaticMarkup(React.createElement(ScreenRegionOverlay));
+check('computer use region overlay', overlayHtml, [
+  'Drag to select an area',
+  'Esc to cancel',
+]);
+
+const ghostHtml = renderToStaticMarkup(
+  React.createElement(GhostCursorMark, {
+    target: { x: 120, y: 240, width: 160, height: 48, label: 'Save button' },
+  }),
+);
+check('computer use ghost cursor', ghostHtml, [
+  'cu-ghost__ring',
+  'cu-ghost__box',
+  'Save button',
+  'left:120px',
+  'width:160px',
+]);
+
+const parsedGhost = targetFromSearch(
+  '?window=cursor-ghost&x=10&y=20&w=30&h=40&label=Export',
+);
+if (!parsedGhost || parsedGhost.x !== 10 || parsedGhost.y !== 20 || parsedGhost.label !== 'Export') {
+  failures += 1;
+  console.error('FAIL ghost cursor url parsing', parsedGhost);
+} else {
+  console.log('PASS ghost cursor url parsing');
+}
+
+const approvalHtml = renderToStaticMarkup(
+  React.createElement(ApprovalCard, {
+    tool: 'desktop_act',
+    args: { action: 'click', ref: '@s1:e7' },
+    onDecide: () => {},
+  }),
+);
+check('computer use approval card', approvalHtml, [
+  'Approval needed',
+  'desktop_act',
+  'action: click',
+  'Approve',
+  'Deny',
+]);
 
 console.log(failures === 0 ? 'SMOKE OK' : `SMOKE FAILED (${failures})`);
 process.exit(failures === 0 ? 0 : 1);

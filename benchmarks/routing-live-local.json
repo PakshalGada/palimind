@@ -1,0 +1,17 @@
+{
+  "requested_model": "qwen3.5:4b",
+  "routing_mode": "off",
+  "frontier_models": "",
+  "route": {
+    "model": "qwen3.5:4b",
+    "provider": "local",
+    "reason": "routing disabled",
+    "unchanged": true,
+    "required": [],
+    "alternatives": []
+  },
+  "elapsed_s": 45.11,
+  "quality_pass": true,
+  "answer_chars": 10,
+  "answer": "SAVED=3192"
+}

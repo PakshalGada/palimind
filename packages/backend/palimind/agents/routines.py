@@ -19,6 +19,9 @@ ROUTINE_LIMIT = 50
 RUN_HISTORY_LIMIT = 20
 RUN_MODES = ("manual", "scheduled", "watcher")
 TOOL_PACKS = ("auto", "research", "code", "data", "web", "custom")
+RUN_SOURCES = ("test", "script", "webhook", "schedule", "manual")
+MISSED_POLICIES = ("run", "skip", "catch_up")
+SESSION_MODES = ("chat", "routine")
 
 
 def _now_iso() -> str:
@@ -31,6 +34,8 @@ def _normalise(data: dict[str, Any]) -> dict[str, Any]:
         "name": str(data.get("name") or "Routine").strip()[:120],
         "target_type": str(data.get("target_type") or "agent"),
         "target_id": str(data.get("target_id") or ""),
+        "channel_id": str(data.get("channel_id") or ""),
+        "owner_kind": str(data.get("owner_kind") or "agent"),
         "input": str(data.get("input") or ""),
         "run_mode": str(data.get("run_mode") or "manual"),
         "schedule": data.get("schedule") or None,
@@ -39,6 +44,10 @@ def _normalise(data: dict[str, Any]) -> dict[str, Any]:
         "tool_pack": str(data.get("tool_pack") or "auto"),
         "source_run_id": data.get("source_run_id") or None,
         "enabled": bool(data.get("enabled", True)),
+        "quiet": bool(data.get("quiet", False)),
+        "run_source": str(data.get("run_source") or "manual"),
+        "missed_policy": str(data.get("missed_policy") or "run"),
+        "session_mode": str(data.get("session_mode") or "routine"),
         "created_at": str(data.get("created_at") or _now_iso()),
         "last_run_at": data.get("last_run_at"),
         "last_status": data.get("last_status"),
@@ -49,8 +58,8 @@ def _normalise(data: dict[str, Any]) -> dict[str, Any]:
 def validate_routine(data: dict[str, Any]) -> str | None:
     if not str(data.get("name") or "").strip():
         return "name is required"
-    if str(data.get("target_type")) not in ("agent", "team"):
-        return "target_type must be agent or team"
+    if str(data.get("target_type")) not in ("agent", "team", "channel"):
+        return "target_type must be agent, team, or channel"
     if not str(data.get("target_id") or ""):
         return "target_id is required"
     if not str(data.get("input") or "").strip():
@@ -66,6 +75,12 @@ def validate_routine(data: dict[str, Any]) -> str | None:
         return "watcher_pattern is required for watcher routines"
     if str(data.get("tool_pack") or "auto") not in TOOL_PACKS:
         return f"tool_pack must be one of {TOOL_PACKS}"
+    if str(data.get("run_source") or "manual") not in RUN_SOURCES:
+        return f"run_source must be one of {RUN_SOURCES}"
+    if str(data.get("missed_policy") or "run") not in MISSED_POLICIES:
+        return f"missed_policy must be one of {MISSED_POLICIES}"
+    if str(data.get("session_mode") or "routine") not in SESSION_MODES:
+        return f"session_mode must be one of {SESSION_MODES}"
     return None
 
 
@@ -121,18 +136,32 @@ def mark_run(routine_id: str, run_id: str, status: str) -> dict[str, Any] | None
     return routine
 
 
-async def run_routine(routine_id: str) -> str:
+async def run_routine(routine_id: str, payload: str = "") -> str:
     """Run a routine now. Returns the id used for the resulting run record."""
     routine = get_routine(routine_id)
     if routine is None:
         raise KeyError("Routine not found")
     input_text = str(routine.get("input") or "")
+    if payload:
+        input_text = f"{input_text}\n\n--- event input ---\n{str(payload)[:4000]}"
     target_type = str(routine.get("target_type") or "agent")
     target_id = str(routine.get("target_id") or "")
+    run_source = str(routine.get("run_source") or "manual")
+
+    if target_type == "channel":
+        from palimind.agents import channels
+
+        result = await channels.run_queued(target_id, input_text)
+        run_id = str((result.get("task") or {}).get("id") or "")
+        status = "success" if result.get("status") == "success" else "error"
+        mark_run(routine_id, run_id, status)
+        if status == "error":
+            raise RuntimeError(str(result.get("error") or "channel run failed"))
+        return run_id
 
     if target_type == "team":
-        from palimind.agents.team_runtime import run_team
         from palimind.agents import teams
+        from palimind.agents.team_runtime import run_team
 
         team = teams.get_team(target_id)
         if team is None:
@@ -163,9 +192,37 @@ async def run_routine(routine_id: str) -> str:
     # run_agent reports failures as an output string, so trust the recorded
     # run status rather than "non-empty output" (which is always true).
     status = str((last or {}).get("status") or ("success" if output else "error"))
+    if status == "success":
+        from palimind.agents import routine_signals
+
+        signals = routine_signals.consume(run_id)
+        if signals.get("quiet") or "[[no-update]]" in str(output):
+            status = "quiet"
+        elif signals.get("failure"):
+            status = "failed"
+            output = str(signals["failure"])
+    try:
+        from palimind.agents import waits
+
+        waits.wake(defn.id, routine_id=routine_id, payload=str(output or ""))
+    except Exception:
+        pass
+    try:
+        from palimind.agents import flows
+
+        flows.record_result(
+            defn.id,
+            routine_id,
+            run_id,
+            status=status,
+            output=str(output or ""),
+            error="" if status in ("success", "quiet") else str(output or ""),
+        )
+    except Exception:
+        pass
     mark_run(routine_id, run_id, status)
-    if status == "error":
-        raise RuntimeError(output[:500] or "run failed")
+    if status in ("error", "failed"):
+        raise RuntimeError(output[:500] or f"run {run_source} failed")
     return run_id
 
 

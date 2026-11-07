@@ -8,6 +8,7 @@ size cap, and audit logging.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import functools
 import threading
 import time
@@ -49,9 +50,13 @@ async def run_sandboxed(
     if TOOL_DEBUG_LOG:
         debug_log_call(tool_name, safe_args)
 
+    # Executor threads do not inherit contextvars. Copy the caller's context so
+    # per-run tool state (workspace, run id, checklist) stays isolated when
+    # parallel agents execute tools at the same time.
+    ctx = contextvars.copy_context()
     try:
         result = await asyncio.wait_for(
-            loop.run_in_executor(None, functools.partial(fn)),
+            loop.run_in_executor(None, ctx.run, functools.partial(fn)),
             timeout=timeout_s,
         )
     except TimeoutError:
@@ -109,7 +114,11 @@ def run_sandboxed_sync(
         except BaseException as exc:  # noqa: BLE001 - re-raised on the caller thread
             box["error"] = exc
 
-    worker = threading.Thread(target=_target, daemon=True)
+    # Plain threads start with an empty context. Copy the caller's so the tool
+    # sees *this* run's context, not a process-wide mirror that a sibling
+    # parallel agent may have overwritten.
+    ctx = contextvars.copy_context()
+    worker = threading.Thread(target=ctx.run, args=(_target,), daemon=True)
     worker.start()
     worker.join(timeout_s)
 

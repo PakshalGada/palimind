@@ -9,8 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
-from palimind.agents import approvals, overview, queue, routines, teams, team_chat
-from palimind.agents import blackboard
+from palimind.agents import approvals, blackboard, overview, queue, routines, team_chat, teams
 from palimind.agents import workspace as workspace_mod
 from palimind.agents.registry import get_registry
 from palimind.agents.runtime import (

@@ -1,7 +1,22 @@
 import { memo, useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { ArrowUp, Loader2, Mic, Square } from "lucide-react";
+import { ArrowUp, Globe, Loader2, Mic, Square } from "lucide-react";
 import ModelSwitcher from "./ModelSwitcher";
+import CreateArtifactDialog from "./CreateArtifactDialog";
+import {
+  applyMention as applyAgentMention,
+  findMentionToken,
+  firstAgentMention,
+  type MentionToken,
+} from "../utils/mentions";
+import {
+  filterSlashCommands,
+  findSlashToken,
+  stripSlashToken,
+  type SlashCommand,
+  type SlashToken,
+} from "../utils/slashCommands";
+import type { CreateArtifactKind } from "../utils/artifactPrompts";
 import { PixelBurst } from "./pixel/PixelBurst";
 import { useOneShot } from "./pixel/useOneShot";
 import LoadingSpinner from "./LoadingSpinner";
@@ -92,8 +107,22 @@ function InputArea() {
   const [modelsLoading, setModelsLoading] = useState(false);
   const [popupPos, setPopupPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
   const [allAgents, setAllAgents] = useState<AgentListItem[]>([]);
-  const [mention, setMention] = useState<{ query: string } | null>(null);
+  const [mention, setMention] = useState<MentionToken | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
+  const [slash, setSlash] = useState<SlashToken | null>(null);
+  const [slashIndex, setSlashIndex] = useState(0);
+  const [createArtifactOpen, setCreateArtifactOpen] = useState(false);
+  const [createArtifactKind, setCreateArtifactKind] =
+    useState<CreateArtifactKind>("document");
+  // Web search is available in Default, MoE and Deep Research; the UI keeps
+  // the user's last choice per browser.
+  const [webSearchEnabled, setWebSearchEnabled] = useState(() => {
+    try {
+      return localStorage.getItem("palimind:web-search") !== "0";
+    } catch {
+      return true;
+    }
+  });
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
@@ -233,30 +262,66 @@ function InputArea() {
 
   const mentionMatches = mention
     ? allAgents.filter((a) =>
-        a.name.toLowerCase().includes(mention.query.toLowerCase()),
+        a.name.toLowerCase().includes(mention.query.toLowerCase()) ||
+        (a.display_name || "").toLowerCase().includes(mention.query.toLowerCase()),
       )
     : [];
 
   const applyMention = useCallback(
     (agentName: string) => {
-      setValue((prev) =>
-        prev.replace(/(^|\s)@([\w-]*)$/, (_m, pre: string) => `${pre}@${agentName} `),
-      );
+      if (!mention) return;
+      const result = applyAgentMention(value, mention, agentName);
+      setValue(result.text);
       setMention(null);
-      requestAnimationFrame(() => textareaRef.current?.focus());
+      requestAnimationFrame(() => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+        textarea.focus();
+        textarea.setSelectionRange(result.cursor, result.cursor);
+      });
     },
-    [],
+    [mention, value],
   );
 
-  const updateMention = useCallback((text: string) => {
-    const m = text.match(/(^|\s)@([\w-]*)$/);
-    if (m) {
-      setMention({ query: m[2] });
-      setMentionIndex(0);
-    } else {
-      setMention(null);
-    }
+  const updateMention = useCallback((text: string, cursor = text.length) => {
+    const token = findMentionToken(text, cursor);
+    setMention(token);
+    if (token) setMentionIndex(0);
   }, []);
+
+  const slashMatches = slash ? filterSlashCommands(slash.query) : [];
+
+  const updateSlash = useCallback((text: string, cursor = text.length) => {
+    // Don't open the slash menu inside an @agent mention.
+    if (findMentionToken(text, cursor)) {
+      setSlash(null);
+      return;
+    }
+    const token = findSlashToken(text, cursor);
+    setSlash(token);
+    if (token) setSlashIndex(0);
+  }, []);
+
+  const applySlash = useCallback(
+    (command: SlashCommand) => {
+      if (!slash) return;
+      const cleaned = stripSlashToken(value, slash);
+      setValue(cleaned);
+      setSlash(null);
+      if (command.artifact) {
+        setCreateArtifactKind(command.artifact);
+        setCreateArtifactOpen(true);
+      }
+      if (command.mode) {
+        void handleSubModeChange(command.mode);
+      }
+      if (command.toggleWeb) toggleWebSearch();
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    },
+    // handleSubModeChange/toggleWebSearch are declared below but stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [slash, value],
+  );
   const isEmpty = !value.trim() && attachedFiles.length === 0;
 
   const adjustHeight = useCallback(() => {
@@ -341,7 +406,7 @@ function InputArea() {
   }, [moePopupOpen, models.length, fetchModels]);
 
   const handleSubModeChange = useCallback(
-    async (mode: "default" | "moe") => {
+    async (mode: "default" | "moe" | "deep_research") => {
       setLlmSubMode(mode);
       try {
         await api.config.setMoe({ moe_sub_mode: mode }, scope);
@@ -351,6 +416,18 @@ function InputArea() {
     },
     [setLlmSubMode, scope],
   );
+
+  const toggleWebSearch = useCallback(() => {
+    setWebSearchEnabled((enabled) => {
+      const next = !enabled;
+      try {
+        localStorage.setItem("palimind:web-search", next ? "1" : "0");
+      } catch {
+        // localStorage may be unavailable
+      }
+      return next;
+    });
+  }, []);
 
   const parseParamsB = (model: ModelItem): number => {
     if (model.parameter_size) {
@@ -457,13 +534,16 @@ function InputArea() {
       } else if (llmSubMode === "moe") {
         actMode = "moe";
         actTitle = "Mixture of Experts";
+      } else if (llmSubMode === "deep_research") {
+        actMode = "deep_research";
+        actTitle = "Deep Research";
       }
 
-      // When an agent is invoked in this PaliSpace, surface the same animated
-      // profile-picture loading the Agents view uses.
-      const mentionAtStart = text.match(/^@([\w-]+)/);
-      const mentionedAgent = mentionAtStart
-        ? allAgents.find((a) => a.name === mentionAtStart[1])
+      // A mention anywhere in the message routes the turn to that agent, even
+      // in the Agents view. The activity avatar must follow the responder.
+      const mentionedName = firstAgentMention(text);
+      const mentionedAgent = mentionedName
+        ? allAgents.find((a) => a.name === mentionedName)
         : undefined;
       const agentLoading = mentionedAgent
         ? {
@@ -472,10 +552,13 @@ function InputArea() {
           }
         : null;
 
-      // The avatar shown while the agent answers: the selected agent in the
-      // Agents view, or the @mentioned agent in other views.
+      // The avatar shown while the agent answers: the @mentioned agent wins,
+      // otherwise the selected agent in the Agents view.
       const activityAgent =
-        actMode === "agent" && agentInfo ? agentInfo : mentionedAgent;
+        mentionedAgent || (actMode === "agent" && agentInfo ? agentInfo : undefined);
+      if (mentionedAgent && actMode === "agent") {
+        actTitle = mentionedAgent.display_name || mentionedAgent.name;
+      }
 
       const mode = isChatView ? "llm" : chatMode;
 
@@ -486,6 +569,7 @@ function InputArea() {
         scope,
         sessionId: activeSessionId,
         subMode: mode === "llm" ? llmSubMode : undefined,
+        webSearch: webSearchEnabled,
         files: selectedFiles.size > 0 ? Array.from(selectedFiles) : undefined,
         attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
         activity: {
@@ -513,6 +597,7 @@ function InputArea() {
     isChatView,
     scope,
     llmSubMode,
+    webSearchEnabled,
     activeSessionId,
     selectedFiles,
     attachedFiles,
@@ -581,6 +666,13 @@ function InputArea() {
   const handleSendRef = useRef(handleSend);
   handleSendRef.current = handleSend;
 
+  // "Create" sends a purpose-built artifact prompt through the normal stream,
+  // so the reply lands in the artifact panel instead of only in the chat.
+  const handleCreateArtifact = useCallback((prompt: string) => {
+    sendOverrideRef.current = prompt;
+    void handleSendRef.current();
+  }, []);
+
   useEffect(() => {
     const handler = (e: Event) => {
       const content = (e as CustomEvent).detail?.content as string | undefined;
@@ -607,6 +699,28 @@ function InputArea() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Enter while an IME is composing confirms the candidate; never submit.
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    if (slash && slashMatches.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSlashIndex((i) => (i + 1) % slashMatches.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSlashIndex((i) => (i - 1 + slashMatches.length) % slashMatches.length);
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        applySlash(slashMatches[slashIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSlash(null);
+        return;
+      }
+    }
     if (mention && mentionMatches.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -655,7 +769,13 @@ function InputArea() {
     }
   };
 
-  const isMoeActive = chatMode === "llm" && llmSubMode === "moe";
+  const isAdvancedMode = chatMode === "llm" && llmSubMode !== "default";
+  const modeLabel =
+    llmSubMode === "moe"
+      ? "Mixture of Experts"
+      : llmSubMode === "deep_research"
+        ? "Deep Research"
+        : "Default";
 
   return (
     <div className="input-area">
@@ -687,6 +807,7 @@ function InputArea() {
         onValueChange={(nextValue) => {
           setValue(nextValue);
           updateMention(nextValue);
+          updateSlash(nextValue);
         }}
         isLoading={isGenerating}
         onSubmit={handleSend}
@@ -739,6 +860,32 @@ function InputArea() {
           </div>
         )}
 
+        {slash && (
+          <div className="slash-command-popup">
+            <div className="agent-mention-header">Commands</div>
+            {slashMatches.length === 0 && (
+              <div className="agent-mention-empty">No matching commands</div>
+            )}
+            {slashMatches.map((command, index) => (
+              <div
+                key={command.id}
+                className={`slash-command-item${index === slashIndex ? " selected" : ""}`}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  applySlash(command);
+                }}
+                onMouseEnter={() => setSlashIndex(index)}
+              >
+                <span className="slash-command-name">{command.command}</span>
+                <span className="slash-command-info">
+                  <span className="slash-command-label">{command.label}</span>
+                  <span className="slash-command-desc">{command.description}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {mention && (
           <div className="agent-mention-popup">
             <div className="agent-mention-header">Call an agent</div>
@@ -781,22 +928,42 @@ function InputArea() {
           value={value}
           onChange={(e) => {
             setValue(e.target.value);
-            updateMention(e.target.value);
+            const cursor = e.currentTarget.selectionStart ?? e.target.value.length;
+            updateMention(e.target.value, cursor);
+            updateSlash(e.target.value, cursor);
           }}
           onKeyDown={handleKeyDown}
         />
 
         <div className="composer-footer">
           {chatMode === "llm" && (
+            <>
+            <button
+              type="button"
+              className={`web-search-toggle${webSearchEnabled || llmSubMode === "deep_research" ? " is-active" : ""}`}
+              onClick={toggleWebSearch}
+              disabled={llmSubMode === "deep_research"}
+              title={
+                llmSubMode === "deep_research"
+                  ? "Deep Research always searches the web"
+                  : webSearchEnabled
+                    ? "Live web search is on for this mode"
+                    : "Live web search is off"
+              }
+              aria-pressed={webSearchEnabled || llmSubMode === "deep_research"}
+            >
+              <Globe size={13} aria-hidden="true" />
+              <span>Web</span>
+            </button>
             <div className="moe-toggle-wrapper">
               <button
                 ref={moeBtnRef}
                 type="button"
-                className={`moe-toggle-btn${isMoeActive ? " moe-active" : ""}`}
+                className={`moe-toggle-btn${isAdvancedMode ? " moe-active" : ""}`}
                 onClick={() => setMoePopupOpen(!moePopupOpen)}
               >
                 <span className="moe-btn-label">
-                  {isMoeActive ? "Mixture of Experts" : "Default"}
+                  {modeLabel}
                 </span>
                 <svg
                   className="moe-btn-chevron"
@@ -883,6 +1050,35 @@ function InputArea() {
                       </svg>
                     )}
                   </div>
+                  <div
+                    className="moe-popup-option"
+                    onClick={() => {
+                      handleSubModeChange("deep_research");
+                      setMoePopupOpen(false);
+                    }}
+                  >
+                    <div className="moe-popup-option-info">
+                      <span className="moe-popup-option-name">Deep Research</span>
+                      <span className="moe-popup-option-desc">
+                        Plan, research in parallel, then write a cited report
+                      </span>
+                    </div>
+                    {llmSubMode === "deep_research" && (
+                      <svg
+                        className="moe-popup-check"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </div>
 
                   {llmSubMode === "moe" && (
                     <div className="moe-popup-models">
@@ -950,6 +1146,7 @@ function InputArea() {
                 document.body
               )}
             </div>
+            </>
           )}
 
           <ModelSwitcher />
@@ -1019,6 +1216,13 @@ function InputArea() {
           </PromptInputActions>
         </div>
       </PromptInput>
+
+      <CreateArtifactDialog
+        open={createArtifactOpen}
+        initialKind={createArtifactKind}
+        onClose={() => setCreateArtifactOpen(false)}
+        onCreate={handleCreateArtifact}
+      />
     </div>
   );
 }

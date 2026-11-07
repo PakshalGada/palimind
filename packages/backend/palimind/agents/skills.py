@@ -236,6 +236,57 @@ def _load_yaml(path: Path) -> Any:
         return None
 
 
+def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
+    """Parse a simple YAML frontmatter block from a SKILL.md file."""
+    raw = str(text or "")
+    if not raw.startswith("---"):
+        return {}, raw.strip()
+    parts = raw.split("---", 2)
+    if len(parts) < 3:
+        return {}, raw.strip()
+    header = parts[1]
+    body = parts[2].strip()
+    metadata: dict[str, Any] = {}
+    current_key = ""
+    for line in header.splitlines():
+        if not line.strip():
+            continue
+        if line.startswith((" ", "\t")) and current_key:
+            metadata[current_key] = str(metadata.get(current_key) or "") + "\n" + line.strip()
+            continue
+        key, _, value = line.partition(":")
+        if not _:
+            continue
+        current_key = key.strip()
+        metadata[current_key] = value.strip().strip('"').strip("'")
+    return metadata, body
+
+
+def _load_skill_md(folder: Path) -> dict[str, Any] | None:
+    path = folder / "SKILL.md"
+    if not path.is_file():
+        return None
+    try:
+        text = path.read_text("utf-8")
+    except OSError:
+        return None
+    meta, body = _parse_frontmatter(text)
+    data = dict(meta)
+    data.setdefault("id", folder.name)
+    data.setdefault("name", data.get("name") or folder.name)
+    data.setdefault("description", data.get("description") or "")
+    data.setdefault("instructions", body)
+    data.setdefault("source", "folder")
+    tools = data.get("tools")
+    if isinstance(tools, str):
+        data["tools"] = [part.strip() for part in tools.split(",") if part.strip()]
+    skill = _normalize_skill(data, builtin=False)
+    if skill is not None:
+        skill["path"] = str(path)
+        skill["source"] = "folder"
+    return skill
+
+
 def _load_skill_file(path: Path) -> dict[str, Any] | None:
     try:
         if path.suffix.lower() in (".yaml", ".yml"):
@@ -263,6 +314,14 @@ def _load_user_skills(directory: Path | None = None) -> list[dict[str, Any]]:
                 continue
             seen.add(skill["id"])
             skills.append(skill)
+    for folder in sorted(root.iterdir()):
+        if not folder.is_dir() or folder.name.startswith("."):
+            continue
+        skill = _load_skill_md(folder)
+        if skill is None or skill["id"] in seen:
+            continue
+        seen.add(skill["id"])
+        skills.append(skill)
     return skills
 
 
@@ -438,6 +497,31 @@ def _skill_write_path(skill_id: str) -> Path:
     return SKILLS_DIR / f"{safe}.json"
 
 
+def install_skill_folder(data: dict[str, Any], *, overwrite: bool = False) -> dict[str, Any]:
+    """Write a skill in the Agent Skills folder layout (``<id>/SKILL.md``)."""
+    error = validate_skill(data)
+    if error:
+        raise ValueError(error)
+    sid = str(data["id"])
+    folder = SKILLS_DIR / "".join(c for c in sid if c.isalnum() or c in "-_")
+    path = folder / "SKILL.md"
+    if path.exists() and not overwrite:
+        raise ValueError(f"skill folder '{sid}' already exists")
+    folder.mkdir(parents=True, exist_ok=True)
+    frontmatter = [
+        "---",
+        f"name: {sid}",
+        f"description: {str(data.get('description') or '')[:1024]}",
+    ]
+    if data.get("tools"):
+        frontmatter.append("tools: " + ", ".join(str(t) for t in data["tools"]))
+    if data.get("command"):
+        frontmatter.append(f"command: {data['command']}")
+    frontmatter.append("---")
+    path.write_text("\n".join(frontmatter) + "\n\n" + str(data.get("instructions") or ""), "utf-8")
+    return _load_skill_md(folder) or {}
+
+
 def install_skill(
     data: dict[str, Any],
     *,
@@ -544,6 +628,7 @@ __all__ = [
     "get_skill",
     "install_from_marketplace",
     "install_skill",
+    "install_skill_folder",
     "list_marketplace",
     "list_skills",
     "register_plugin_skill",

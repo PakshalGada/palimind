@@ -42,9 +42,38 @@ def _agent_item(defn: AgentDefinition) -> dict[str, Any]:
 
 
 @router.get("")
-async def list_agents():
-    agents = [_agent_item(d) for d in get_registry().all()]
+async def list_agents(include_hidden: bool = False):
+    agents = [
+        _agent_item(d)
+        for d in get_registry().all()
+        if include_hidden or not getattr(d, "hidden_at", "")
+    ]
     return {"agents": agents}
+
+
+@router.get("/hidden")
+async def list_hidden_agents():
+    return {"agents": [_agent_item(d) for d in get_registry().all() if getattr(d, "hidden_at", "")]}
+
+
+@router.post("/{agent_id}/hide")
+async def hide_agent(agent_id: str):
+    from datetime import UTC, datetime
+
+    try:
+        saved = get_registry().update(agent_id, {"hidden_at": datetime.now(UTC).isoformat()})
+        return _agent_item(saved)
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc)}
+
+
+@router.post("/{agent_id}/restore")
+async def restore_agent(agent_id: str):
+    try:
+        saved = get_registry().update(agent_id, {"hidden_at": ""})
+        return _agent_item(saved)
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc)}
 
 
 @router.post("/create")

@@ -8,8 +8,8 @@ import {
 } from '../src/components/activity/adaptRun.ts';
 import { TOOL_COUNT, TOOL_REGISTRY, getToolDefinition, normalizeToolName, previewForTool } from '../src/components/activity/toolRegistry.ts';
 
-test('all 47 tools are registered with complete metadata', () => {
-  assert.equal(TOOL_COUNT, 47);
+test('all 48 tools are registered with complete metadata', () => {
+  assert.equal(TOOL_COUNT, 48);
   for (const [name, entry] of Object.entries(TOOL_REGISTRY)) {
     assert.ok(entry.icon, `${name} has an icon`);
     assert.ok(entry.running.length > 0, `${name} has a running label`);
@@ -66,10 +66,11 @@ test('preview extractors pick the useful argument', () => {
 test('mode mapping covers every product area', () => {
   assert.equal(modeFromActivityMode('document'), 'knowledge_base');
   assert.equal(modeFromActivityMode('moe'), 'moe');
-  assert.equal(modeFromActivityMode('deep_research'), 'default');
+  assert.equal(modeFromActivityMode('deep_research'), 'deep_research');
   assert.equal(modeFromActivityMode('agent'), 'agent');
   assert.equal(modeFromActivityMode('llm'), 'default');
   assert.equal(modeFromSubMode('moe'), 'moe');
+  assert.equal(modeFromSubMode('deep_research'), 'deep_research');
   assert.equal(modeFromSubMode(undefined), 'default');
 });
 

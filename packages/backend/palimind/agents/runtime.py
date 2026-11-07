@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import threading
 import time
 import uuid
@@ -13,11 +14,17 @@ from palimind.agents import activity, approvals
 from palimind.agents.catalog import AgentDefinition
 from palimind.agents.chat import append_chat
 from palimind.agents.memory import append_memory, recall_memory
+from palimind.agents.pricing import normalize_usage, usage_payload
 from palimind.agents.skills import skill_instructions, skill_tools
 from palimind.llm.mixture_of_expert.agents import run_agent
 from palimind.llm.mixture_of_expert.tools import set_tool_context
 from palimind.settings import (
     AGENT_AUTO_MEMORY_EXTRACT,
+    AGENT_ESCALATION_MAX_USD,
+    AGENT_ESCALATION_MODEL,
+    AGENT_ESCALATION_MODELS,
+    AGENT_FOLLOWUPS,
+    AGENT_FRONTIER_BASE_URL,
     AGENT_MEMORY_RECALL_LIMIT,
     AGENT_RUN_HISTORY_LIMIT,
     PLAN_REVIEW_TIMEOUT,
@@ -266,6 +273,22 @@ def delete_memory_entry(agent_id: str, index: int) -> None:
             print(f"[agents] failed to delete memory entry for {agent_id}: {e}")
 
 
+def _hosted_model_client(base_url: str) -> Callable[..., dict[str, Any]]:
+    """Return an OpenAI-compatible model client for a hosted/frontier route."""
+
+    def call(
+        messages: list[dict[str, Any]],
+        model_id: str,
+        _url: str,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        from palimind.agents.openai_client import openai_chat_safe
+
+        return openai_chat_safe(messages, model_id, base_url, **kwargs)
+
+    return call
+
+
 def _runs_dir() -> Path:
     from palimind.agents.catalog import GLOBAL_AGENTS_DIR
 
@@ -286,6 +309,9 @@ def record_run(
     verification: dict | None = None,
     effort: dict | None = None,
     citations: dict | None = None,
+    suggestions: list[str] | None = None,
+    usage_stages: dict | None = None,
+    model_route: dict | None = None,
 ) -> None:
     from palimind.storage import state_store
 
@@ -312,6 +338,14 @@ def record_run(
             entry["effort"] = effort
         if citations:
             entry["citations"] = citations
+        if suggestions:
+            entry["suggestions"] = list(suggestions[:6])
+        if usage_stages:
+            entry["usage_stages"] = {
+                str(stage): normalize_usage(value) for stage, value in usage_stages.items() if value
+            }
+        if model_route:
+            entry["model_route"] = dict(model_route)
         state_store.append_run(agent_id, run_id, entry, AGENT_RUN_HISTORY_LIMIT)
         try:
             from palimind import metrics
@@ -627,6 +661,115 @@ def _workspace_context_block(working_root: Path | None) -> str:
     return "[WORKSPACE CONTEXT]\n" + "\n".join(lines).rstrip() + "\n"
 
 
+_CHECKLIST_HINTS = (
+    "then",
+    "plan",
+    "research",
+    "compare",
+    "investigate",
+    "write",
+    "create",
+    "build",
+    "fix",
+    "debug",
+    "analyse",
+    "analyze",
+    "review",
+    "report",
+    "implement",
+)
+
+
+def _task_words(text: str) -> set[str]:
+    return {
+        word
+        for word in re.findall(r"[a-zA-Z0-9_]{4,}", (text or "").lower())
+        if word
+        not in {
+            "this",
+            "that",
+            "with",
+            "from",
+            "into",
+            "what",
+            "when",
+            "where",
+            "which",
+            "should",
+            "please",
+            "using",
+            "make",
+            "need",
+        }
+    }
+
+
+def _suggest_checklist(
+    input_text: str,
+    working_root: Path | None,
+    *,
+    limit: int = 3,
+) -> list[str]:
+    """Build a task-aware starting checklist, grounded in workspace files.
+
+    The model still owns the list: this only seeds it so the UI shows a plan
+    immediately and the agent starts from the material that actually exists
+    instead of planning in the abstract.
+    """
+    text = (input_text or "").strip()
+    if len(text) < 40 and not any(hint in text.lower() for hint in _CHECKLIST_HINTS):
+        return []
+    words = _task_words(text)
+    files: list[str] = []
+    if working_root is not None and Path(working_root).is_dir():
+        from itertools import islice
+
+        root = Path(working_root)
+        try:
+            for entry in islice(root.rglob("*"), 1000):
+                if entry.is_dir() or ".palimind" in entry.parts:
+                    continue
+                if any(part in {"node_modules", "__pycache__", ".git"} for part in entry.parts):
+                    continue
+                try:
+                    rel = str(entry.relative_to(root))
+                except ValueError:
+                    continue
+                name_tokens = _task_words(rel.replace("/", " ").replace(".", " "))
+                score = len(words & name_tokens)
+                if score:
+                    files.append(rel)
+                if len(files) >= limit:
+                    break
+        except Exception:
+            files = []
+    first = (
+        f"Review workspace material: {', '.join(files[:limit])}"
+        if files
+        else "Review the workspace context"
+    )
+    summary = " ".join(text.split())
+    if len(summary) > 90:
+        summary = summary[:87].rstrip() + "…"
+    return [
+        first,
+        f"Complete the requested work: {summary}",
+        "Verify the result, then cite any sources used",
+    ]
+
+
+def _checklist_prompt_block(items: list[str]) -> str:
+    if not items:
+        return ""
+    lines = "\n".join(f"{index + 1}. [ ] {item}" for index, item in enumerate(items))
+    return (
+        "[CHECKLIST]\n"
+        "This is your starting plan. Keep it accurate with todo_write: mark the "
+        "current item in_progress, mark each item completed as you finish it, "
+        "and add/remove items if the work changes.\n" + lines + "\n"
+    )
+
+
 def _plan_prompt_block(custom_prompt: str, plan: dict[str, Any]) -> str:
     """Inject an approved plan into the agent's system prompt."""
     steps = plan.get("steps", [])
@@ -686,6 +829,7 @@ async def _verify_and_maybe_retry(
             ollama_url,
             definition=definition,
             success_criteria=definition.success_criteria,
+            usage_cb=usage_cb,
         )
 
     report = await _run_verification(output)
@@ -739,6 +883,8 @@ async def run_with_definition(
     extra_prompt: str = "",
     resume_state: dict[str, Any] | None = None,
     resume_from_run_id: str = "",
+    channel_id: str = "",
+    task_id: str = "",
 ) -> str:
     """Run an agent from its definition.
 
@@ -774,6 +920,8 @@ async def run_with_definition(
     trace: list[dict] = []
     trace_lock = threading.Lock()
     usage_holder: dict = {}
+    usage_stages: dict[str, dict[str, int]] = {}
+    suggestions_holder: list[str] = []
 
     _live_kinds = {
         "agent:thought": "thought",
@@ -786,7 +934,10 @@ async def run_with_definition(
             # The task was cancelled but asyncio.to_thread cannot stop the
             # worker; abort it here so it stops running tools after Stop.
             raise _RunCancelled()
-        if event_type != "agent:token":
+        if event_type == "agent:usage":
+            # Enrich the live token counter with the configured cost estimate.
+            payload = {**payload, **usage_payload(payload)}
+        if event_type not in ("agent:token", "agent:usage"):
             with trace_lock:
                 trace.append({"type": event_type, **payload})
             # Checkpoint every meaningful step so a crash leaves an audit trail.
@@ -805,12 +956,49 @@ async def run_with_definition(
         except Exception as e:
             print(f"[agents] emit failed: {e}")
 
+    def _record_stage(stage: str, u: dict, *, add: bool = False) -> None:
+        """Record token usage for one stage and keep the grand total."""
+        normalized = normalize_usage(u)
+        if add:
+            previous = usage_stages.get(stage, {"prompt_tokens": 0, "completion_tokens": 0})
+            usage_stages[stage] = {
+                "prompt_tokens": previous["prompt_tokens"] + normalized["prompt_tokens"],
+                "completion_tokens": previous["completion_tokens"]
+                + normalized["completion_tokens"],
+            }
+            for key in ("prompt_tokens", "completion_tokens"):
+                usage_holder[key] = int(usage_holder.get(key, 0)) + normalized[key]
+        else:
+            usage_stages[stage] = normalized
+            for key in ("prompt_tokens", "completion_tokens"):
+                usage_holder[key] = int(usage_holder.get(key, 0)) + normalized[key]
+
     def _usage_cb(u: dict) -> None:
-        usage_holder.update(u)
+        # The agent loop reports its cumulative total once, at the end.
+        _record_stage("agent", u)
+
+    def _add_usage(u: dict) -> None:
+        """Accumulate auxiliary calls (e.g. follow-ups) into the run total."""
+        _record_stage("followups", u, add=True)
+
+    def _verification_usage(u: dict) -> None:
+        _record_stage("verification", u, add=True)
 
     async def emit_completed(output: str, status: str) -> None:
-        if emit is not None:
-            await emit("agent:completed", {"output": output, "status": status})
+        if emit is None:
+            return
+        payload: dict[str, Any] = {
+            "output": output,
+            "status": status,
+            "usage": usage_payload(usage_holder) if usage_holder else {},
+        }
+        if suggestions_holder:
+            payload["suggestions"] = list(suggestions_holder)
+        if usage_stages:
+            payload["usage_stages"] = {
+                str(stage): normalize_usage(value) for stage, value in usage_stages.items() if value
+            }
+        await emit("agent:completed", payload)
 
     start = time.time()
     status = "success"
@@ -818,6 +1006,8 @@ async def run_with_definition(
     cancelled = False
     verification_holder: dict[str, Any] = {}
     effort_info: dict[str, Any] = {}
+    route_info: dict[str, Any] = {}
+    route_model_client: Any | None = None
     collected_sources: list[dict[str, Any]] = []
     citation_holder: dict[str, Any] | None = None
     fallback_note = ""
@@ -862,13 +1052,19 @@ async def run_with_definition(
             source_collector=collected_sources,
             agent_id=definition.id,
             session_id=session_id,
+            run_id=run_id,
             write_access=bool(definition.write_access),
+            desktop_access=bool(getattr(definition, "desktop_access", False)),
+            desktop_control=bool(getattr(definition, "desktop_control", False)),
+            desktop_allowed_apps=list(getattr(definition, "desktop_allowed_apps", []) or []),
             allow_network=False,
             team_id=str(team_ctx.get("team_id") or ""),
             team_run_id=str(team_ctx.get("team_run_id") or ""),
             team_emit=team_ctx.get("team_emit"),
             team_loop=team_ctx.get("team_loop"),
             delegate_depth=int(team_ctx.get("delegate_depth", 0) or 0),
+            channel_id=channel_id,
+            task_id=task_id,
         )
 
         # ── Phase 4.1: adaptive reasoning effort ─────────────────────────────
@@ -886,6 +1082,7 @@ async def run_with_definition(
                 definition.reasoning_effort,
                 classifier_model,
                 ollama_url,
+                usage_cb=lambda u: _record_stage("classifier", u, add=True),
             )
             applied = ar.apply_effort(
                 effort_info["level"],
@@ -944,12 +1141,44 @@ async def run_with_definition(
             custom_prompt = (
                 custom_prompt.rstrip() + "\n\n" if custom_prompt else ""
             ) + extra_prompt
+
+        # Retrieval-aware checklist seed: ground the plan in files that exist,
+        # then let the model own/update it. Emitted before the first turn so
+        # the UI shows progress immediately.
+        checklist_seed = (
+            _suggest_checklist(input, working_root)
+            if str(getattr(definition, "orchestration", "off")) in ("", "off")
+            and str(getattr(definition, "planning_mode", "off")) != "review"
+            else []
+        )
+        if checklist_seed:
+            try:
+                from palimind.llm.mixture_of_expert.tools import (
+                    get_todo_items as _get_todo_items,
+                )
+                from palimind.llm.mixture_of_expert.tools import todo_write as _todo_write
+
+                _todo_write([{"label": item, "status": "pending"} for item in checklist_seed])
+                seeded = _get_todo_items()
+                if seeded and emit is not None:
+                    await emit("agent:todo", {"items": seeded})
+                custom_prompt = (
+                    custom_prompt.rstrip() + "\n\n" if custom_prompt else ""
+                ) + _checklist_prompt_block(checklist_seed)
+            except Exception as exc:  # noqa: BLE001 - seeding is best-effort
+                print(f"[agents] checklist seeding failed: {exc}")
+
         custom_prompt = (
             (custom_prompt.rstrip() + "\n\n" if custom_prompt else "") + "[HOW TO WORK]\n"
             "Plan → act → verify → deliver. Use a tool instead of guessing. "
-            "Cite sources when you research. Write requested deliverables to your "
-            "workspace with write_file. Read tool errors, adjust once, then continue. "
-            "Stop when the success criteria are met and always finish with FINAL_ANSWER."
+            "Before the first tool call in any multi-step task, create a short "
+            "checklist with todo_write, then execute each item with a real tool; "
+            "checklist updates are not progress. Mark every item completed before "
+            "the final answer. Cite sources when you research. Write requested "
+            "deliverables to your workspace with write_file. Read tool errors, adjust "
+            "once, then continue. If a website needs a sign-in, password, OTP or "
+            "CAPTCHA, call browser_request_takeover instead of guessing. Stop when the "
+            "success criteria are met and always finish with FINAL_ANSWER."
         )
 
         # Attached skills can extend the agent's tool allowlist.
@@ -979,6 +1208,46 @@ async def run_with_definition(
             "context": "",
         }
 
+        # Capability-aware routing: keep the requested model unless the task
+        # needs a capability it lacks, or a complex task on a small local model
+        # has a configured hosted/frontier fallback.
+        try:
+            from palimind.agents.model_routing import route_model
+
+            hosted: set[str] = set()
+            try:
+                from palimind.opencode.router import opencode_model_ids
+
+                hosted = set(opencode_model_ids())
+            except Exception:
+                hosted = set()
+            route = route_model(
+                input,
+                model,
+                candidates=[chat_model, light_model, *AGENT_ESCALATION_MODELS],
+                ollama_url=ollama_url,
+                tools=effective_tools,
+                complexity=str(effort_info.get("level") or "standard"),
+                hosted_models=hosted,
+            )
+            route_info = route.to_dict()
+            if route.model and route.model != model:
+                previous = model
+                model = route.model
+                if route.provider != "hosted":
+                    ollama_url = resolve_model_url(model, ollama_url)
+                fallback_note = f"Model routed from '{previous}' to '{model}' ({route.reason})." + (
+                    f" {fallback_note}" if fallback_note else ""
+                )
+                route_info["previous"] = previous
+            if route.provider == "hosted":
+                route_model_client = _hosted_model_client(AGENT_FRONTIER_BASE_URL)
+
+            if emit is not None:
+                await emit("agent:model_route", route_info)
+        except Exception as exc:  # noqa: BLE001 - routing must never block a run
+            print(f"[agents] model routing failed: {exc}")
+
         # ── Phase 4.4: planning mode ─────────────────────────────────────────
         from palimind.agents import planner as planner_mod
 
@@ -994,6 +1263,7 @@ async def run_with_definition(
                     agent_id=definition.id,
                     available_tools=effective_tools,
                     success_criteria=definition.success_criteria,
+                    usage_cb=lambda u: _record_stage("planning", u, add=True),
                 )
             except Exception as e:  # noqa: BLE001 - planning is best-effort
                 print(f"[agents] plan generation failed: {e}")
@@ -1022,6 +1292,37 @@ async def run_with_definition(
                             plan = refreshed
                 if not plan_rejected:
                     custom_prompt = _plan_prompt_block(custom_prompt, plan)
+
+        # Automatic model escalation: when the agent's own model is smaller
+        # than the knowledge base's chat model (or an explicit escalation model
+        # is configured), keep it ready for the exhausted-budget synthesis.
+        # Candidate order: explicit ordered list → single override → field
+        # chat model. Only an installed model different from the current one
+        # is eligible. A hosted route already uses the strongest configured
+        # model, so it must not escalate into a local model.
+        if route_info.get("provider") == "hosted":
+            candidates: list[str] = []
+        else:
+            candidates = list(AGENT_ESCALATION_MODELS)
+            if AGENT_ESCALATION_MODEL:
+                candidates.append(AGENT_ESCALATION_MODEL)
+            candidates.append(chat_model)
+        try:
+            from palimind.opencode.router import available_model_ids
+
+            available = available_model_ids(ollama_url)
+        except Exception:
+            available = set()
+        escalation_model = ""
+        for candidate in candidates:
+            candidate = str(candidate or "").strip()
+            if not candidate or candidate == model:
+                continue
+            if available and candidate not in available:
+                continue
+            escalation_model = candidate
+            break
+        escalation_url = resolve_model_url(escalation_model, ollama_url) if escalation_model else ""
 
         start = time.time()
         if plan_rejected:
@@ -1073,6 +1374,10 @@ async def run_with_definition(
                         run_id=run_id,
                         resume_state=resume_state,
                         resume_from_run_id=resume_from_run_id,
+                        escalation_model=escalation_model,
+                        escalation_url=escalation_url,
+                        escalation_max_cost_usd=AGENT_ESCALATION_MAX_USD,
+                        model_client=route_model_client,
                     )
             except asyncio.CancelledError:
                 status = "cancelled"
@@ -1108,7 +1413,7 @@ async def run_with_definition(
                     session_id=session_id,
                     emit=emit,
                     thread_emit=thread_emit,
-                    usage_cb=_usage_cb,
+                    usage_cb=_verification_usage,
                 )
                 verification_holder = report
 
@@ -1122,6 +1427,35 @@ async def run_with_definition(
                         await emit("citation_map", citation_holder)
                 except Exception as exc:  # noqa: BLE001 - never lose the answer
                     print(f"[agents] citation attachment failed: {exc}")
+
+            # ── Follow-up suggestions ───────────────────────────────────
+            if status == "success" and output and AGENT_FOLLOWUPS and emit is not None:
+                try:
+                    from palimind.agents.suggestions import generate_suggestions
+
+                    with trace_lock:
+                        trace_for_suggestions = list(trace)
+                    tool_names = [
+                        str(item.get("tool", ""))
+                        for item in trace_for_suggestions
+                        if item.get("type") == "agent:tool_call"
+                    ]
+                    suggestions_holder[:] = await asyncio.to_thread(
+                        generate_suggestions,
+                        input,
+                        output,
+                        light_model or model,
+                        ollama_url,
+                        tool_names=tool_names,
+                        usage_cb=_add_usage,
+                    )
+                    if suggestions_holder:
+                        await emit(
+                            "agent:suggestions",
+                            {"suggestions": list(suggestions_holder)},
+                        )
+                except Exception as exc:  # noqa: BLE001 - never lose the answer
+                    print(f"[agents] follow-up suggestions failed: {exc}")
     except asyncio.CancelledError:
         # Cancelled outside the agent loop (plan review, setup, verification):
         # still finalise below so the run never stays "running".
@@ -1173,6 +1507,9 @@ async def run_with_definition(
         verification=verification_holder or None,
         effort=effort_info or None,
         citations=citation_holder,
+        suggestions=suggestions_holder or None,
+        usage_stages=usage_stages or None,
+        model_route=route_info or None,
     )
     append_chat(definition.id, "agent", output)
     activity.finish(definition.id, status, output, run_id=run_id)

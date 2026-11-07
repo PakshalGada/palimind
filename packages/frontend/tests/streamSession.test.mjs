@@ -42,3 +42,28 @@ test('the live turn renders only in its own session', () => {
   const done = streamReducer(bound, { type: 'finish', status: 'done' });
   assert.equal(streamBelongsTo(done, 'abc'), true);
 });
+
+test('usage, suggestions and escalation survive the stream reducer', () => {
+  let state = start('abc');
+  state = streamReducer(state, {
+    type: 'setUsage',
+    usage: { prompt_tokens: 1200, completion_tokens: 800, estimated_cost_usd: 0 },
+  });
+  state = streamReducer(state, {
+    type: 'setSuggestions',
+    suggestions: ['What changed?', 'Write a brief'],
+  });
+  state = streamReducer(state, {
+    type: 'setEscalation',
+    escalation: 'Escalated to strong-model',
+  });
+  assert.equal(state.usage.prompt_tokens, 1200);
+  assert.equal(state.usage.completion_tokens, 800);
+  assert.deepEqual(state.suggestions, ['What changed?', 'Write a brief']);
+  assert.equal(state.escalation, 'Escalated to strong-model');
+  // A new turn clears them.
+  const fresh = streamReducer(state, { type: 'start', userText: 'next', sessionId: 'abc' });
+  assert.equal(fresh.usage, null);
+  assert.deepEqual(fresh.suggestions, []);
+  assert.equal(fresh.escalation, null);
+});

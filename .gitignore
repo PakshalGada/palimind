@@ -19,6 +19,7 @@ node_modules/
 # Tauri / Rust
 src-tauri/target/
 apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/binaries/
 target/
 
 # Palimind runtime data

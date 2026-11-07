@@ -3,7 +3,7 @@
  * reducer own these types; UI components never read raw backend payloads.
  */
 
-export type RunMode = 'default' | 'moe' | 'agent' | 'knowledge_base';
+export type RunMode = 'default' | 'moe' | 'deep_research' | 'agent' | 'knowledge_base';
 
 export type RunStatus =
   | 'idle'
@@ -158,7 +158,10 @@ export type ActivityEvent =
   | { type: 'text.delta'; text?: string }
   | { type: 'reasoning.delta'; text: string; seq?: number; at?: number }
   | { type: 'reasoning.end'; at?: number }
-  | { type: 'plan.set'; steps: readonly { id: string; label: string }[] }
+  | {
+      type: 'plan.set';
+      steps: readonly { id: string; label: string; status?: PlanStatus }[];
+    }
   | { type: 'plan.step'; id: string; status: PlanStatus }
   | { type: 'phase'; phase: RunPhase }
   | { type: 'expert.start'; id: string; name: string }

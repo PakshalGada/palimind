@@ -7,6 +7,7 @@ import {
   FolderPlus,
   Home,
   MessageSquare,
+  Crosshair,
   Network,
   Package,
   PanelLeftClose,
@@ -302,6 +303,18 @@ export default function Sidebar() {
       }
       void handleSync();
     },
+    "general.computer-use": () => {
+      void (async () => {
+        try {
+          const { invoke } = await import("@tauri-apps/api/core");
+          await invoke("open_computer_use");
+        } catch {
+          window.dispatchEvent(
+            new CustomEvent("palimind:open-settings", { detail: { section: "desktop" } }),
+          );
+        }
+      })();
+    },
   });
 
   const shortcutFor = (commandId: string): string => {
@@ -314,6 +327,7 @@ export default function Sidebar() {
     chat: "chat",
     agents: "bot",
     knowledge: "book",
+    "computer-use": "desktop",
     projects: "projects",
     artifacts: "package",
   };
@@ -345,6 +359,27 @@ export default function Sidebar() {
       active: activeView === "agents",
       shortcutId: "nav.agents",
       onSelect: () => setActiveView("agents"),
+    },
+    {
+      id: "computer-use",
+      label: "Computer Use",
+      icon: Crosshair,
+      active: false,
+      shortcutId: "general.settings",
+      onSelect: () => {
+        // In the desktop app this opens the always-on-top popup; in a browser
+        // tab it falls back to the settings section.
+        void (async () => {
+          try {
+            const { invoke } = await import("@tauri-apps/api/core");
+            await invoke("open_computer_use");
+          } catch {
+            window.dispatchEvent(
+              new CustomEvent("palimind:open-settings", { detail: { section: "desktop" } }),
+            );
+          }
+        })();
+      },
     },
     {
       id: "knowledge",

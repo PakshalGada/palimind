@@ -468,3 +468,87 @@
   font-size: var(--type-2xs);
   color: var(--ink-secondary);
 }
+
+
+/* ── Computer use callout ─────────────────────────────────────────────── */
+
+.home-desktop {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(120deg, var(--surface-2), var(--surface-1));
+}
+
+.home-desktop__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+.home-desktop__body {
+  min-width: 0;
+  flex: 1;
+}
+
+.home-desktop__eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--type-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.home-desktop__body h2 {
+  margin: 2px 0 3px;
+  font-family: var(--font-heading);
+  font-size: var(--type-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.home-desktop__body p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--type-sm);
+  line-height: var(--leading-relaxed);
+}
+
+.home-desktop__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 7px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--color-text-primary);
+  font-size: var(--type-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+.home-desktop__action:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+@media (max-width: 760px) {
+  .home-desktop {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .home-desktop__action {
+    margin-left: 52px;
+  }
+}

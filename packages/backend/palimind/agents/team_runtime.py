@@ -25,14 +25,14 @@ from typing import Any
 
 from palimind.agents import activity, blackboard, teams
 from palimind.agents.catalog import AgentDefinition
-from palimind.agents.team_chat import append_message
-from palimind.agents.team_tools import delegation_count, reset_delegations
 from palimind.agents.runtime import (
     AgentBusyError,
     record_run,
     register_running,
     unregister_running,
 )
+from palimind.agents.team_chat import append_message
+from palimind.agents.team_tools import delegation_count, reset_delegations
 
 TEAM_TOOLS = ["ask_agent", "post_to_team", "read_team_notes"]
 

@@ -27,10 +27,14 @@ in the UI reads raw SSE payloads.
 | `agent:tool_result` | `tool.end`, search results and passages feed sources |
 | `agent:waiting_for_human` | `tool.start` with `awaitingApproval` + approval metadata |
 | `agent:plan` / `research_plan` | `plan.set` |
+| `agent:todo` | `plan.set` with `done` / `running` / `pending` statuses (live agent checklist) |
 | `sources` | `source.add` for each file path |
 | `citations` | `retrieval.result` passages |
 | `citation_map` | sources plus document passages |
 | `agent:token` / `token` / `agent:completed` / `answer_final` | answer start |
+| `agent:usage` | live cumulative prompt/completion tokens and estimated cost |
+| `agent:escalation` | shows the “Escalated to …” chip |
+| `agent:suggestions` | follow-up chips after the answer settles |
 | `error` / `done` | `run.error` / `run.end` |
 
 ## Signals the backend should add for full fidelity
@@ -66,7 +70,7 @@ icon name, running label (present participle), done label (past tense), family,
 preview extractor, and `approval: true` when it mutates. Unknown tools already
 fall back to the wrench family with a humanized name. Add the icon to
 `src/components/activity/icons/index.tsx` (or `icons/brands.tsx` for a brand
-mark) and run the registry test, which asserts all 47 entries are complete.
+mark) and run the registry test, which asserts all 48 entries are complete.
 
 ## Adding a body family
 
