@@ -10,7 +10,6 @@
 export type CreateArtifactKind =
   | 'document'
   | 'word'
-  | 'slides'
   | 'pptx'
   | 'webpage'
   | 'code';
@@ -39,15 +38,9 @@ export const CREATE_ARTIFACT_OPTIONS: readonly CreateArtifactOption[] = [
     officeFormat: 'docx',
   },
   {
-    kind: 'slides',
-    label: 'Slide deck',
-    description: 'A presentation outline you can preview and export to PowerPoint.',
-    placeholder: 'e.g. Q3 results presentation for the leadership team',
-  },
-  {
     kind: 'pptx',
-    label: 'PowerPoint file',
-    description: 'A real .pptx deck with a title slide and bullet slides.',
+    label: 'PowerPoint deck',
+    description: 'A designed .pptx deck with a preview and a real download.',
     placeholder: 'e.g. Q3 results presentation for the leadership team',
     officeFormat: 'pptx',
   },
@@ -73,7 +66,7 @@ export function buildArtifactPrompt(kind: CreateArtifactKind, topic: string): st
   const subject = topic.trim();
   if (!subject) return '';
 
-  if (kind === 'slides' || kind === 'pptx') {
+  if (kind === 'pptx') {
     return [
       `Create a polished presentation slide deck about: ${subject}`,
       '',

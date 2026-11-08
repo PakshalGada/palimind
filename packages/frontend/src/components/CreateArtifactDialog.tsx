@@ -11,7 +11,6 @@ import './CreateArtifactDialog.css';
 const ICONS = {
   document: FileText,
   word: FileType2,
-  slides: Presentation,
   pptx: Presentation,
   webpage: Globe2,
   code: Code2,

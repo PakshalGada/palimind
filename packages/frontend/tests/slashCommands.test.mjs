@@ -12,18 +12,18 @@ test('typing / at the start opens the command menu', () => {
   const token = findSlashToken('/');
   assert.equal(token?.query, '');
   assert.equal(token?.start, 0);
-  assert.equal(findSlashToken('/sli').query, 'sli');
+  assert.equal(findSlashToken('/ppt').query, 'ppt');
 });
 
 test('/ only opens after whitespace, not inside an email or URL', () => {
   assert.equal(findSlashToken('see https://example.com/a'), null);
-  const token = findSlashToken('please /slides', 'please /slides'.length);
-  assert.equal(token?.query, 'slides');
+  const token = findSlashToken('please /pptx', 'please /pptx'.length);
+  assert.equal(token?.query, 'pptx');
   assert.equal(token?.start, 'please '.length);
 });
 
 test('filters commands by command, label and keywords', () => {
-  assert.equal(filterSlashCommands('sli')[0].id, 'slides');
+  assert.equal(filterSlashCommands('sli')[0].id, 'pptx');
   assert.equal(filterSlashCommands('powerpoint').some((item) => item.id === 'pptx'), true);
   assert.equal(filterSlashCommands('word')[0].id, 'docx');
   assert.equal(filterSlashCommands('resear')[0].id, 'research');
@@ -33,7 +33,11 @@ test('filters commands by command, label and keywords', () => {
 test('an exact command name is the default selection', () => {
   assert.equal(filterSlashCommands('pptx')[0].id, 'pptx');
   assert.equal(filterSlashCommands('docx')[0].id, 'docx');
-  assert.equal(filterSlashCommands('slides')[0].id, 'slides');
+});
+
+test('there is exactly one presentation command', () => {
+  assert.equal(filterSlashCommands('').filter((item) => item.command === '/pptx').length, 1);
+  assert.equal(filterSlashCommands('').some((item) => item.command === '/slides'), false);
 });
 
 test('there is no web-search toggle command', () => {
@@ -67,8 +71,8 @@ test('typed artifact skills keep the user query and identify the skill', () => {
 });
 
 test('stripping the slash token leaves the user text clean', () => {
-  const text = 'please /slides about Q3';
-  const token = findSlashToken('please /slides', 'please /slides'.length);
+  const text = 'please /pptx about Q3';
+  const token = findSlashToken('please /pptx', 'please /pptx'.length);
   assert.ok(token);
   assert.equal(stripSlashToken(text, token), 'please about Q3');
 });

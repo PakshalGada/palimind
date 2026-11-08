@@ -5,10 +5,10 @@ import {
   buildArtifactPrompt,
 } from '../src/utils/artifactPrompts.ts';
 
-test('offers Markdown, Word, slide and PowerPoint creation', () => {
+test('offers Markdown, Word, PowerPoint, web page and code creation', () => {
   assert.deepEqual(
     CREATE_ARTIFACT_OPTIONS.map((option) => option.kind),
-    ['document', 'word', 'slides', 'pptx', 'webpage', 'code'],
+    ['document', 'word', 'pptx', 'webpage', 'code'],
   );
   assert.equal(
     CREATE_ARTIFACT_OPTIONS.find((option) => option.kind === 'word')?.officeFormat,
@@ -29,12 +29,9 @@ test('requests one fenced artifact per kind', () => {
   assert.match(word, /```markdown/);
   assert.match(word, /\.docx/);
 
-  const slides = buildArtifactPrompt('slides', 'Q3 results');
-  assert.match(slides, /```slides/);
-  assert.match(slides, /# heading/);
-
   const pptx = buildArtifactPrompt('pptx', 'Q3 results');
   assert.match(pptx, /```slides/);
+  assert.match(pptx, /# heading/);
   assert.match(pptx, /\.pptx/);
 
   const page = buildArtifactPrompt('webpage', 'Coffee roaster');

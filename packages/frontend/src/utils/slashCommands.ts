@@ -10,7 +10,6 @@ import type { CreateArtifactKind } from './artifactPrompts';
 export type SlashCommandId =
   | 'doc'
   | 'docx'
-  | 'slides'
   | 'pptx'
   | 'page'
   | 'code'
@@ -52,19 +51,11 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = [
     skillId: 'document-docx',
   },
   {
-    id: 'slides',
-    command: '/slides',
-    label: 'Slide deck',
-    description: 'Build a presentation with real slide preview and PPTX export',
-    keywords: ['deck', 'presentation', 'powerpoint', 'pptx'],
-    artifact: 'slides',
-  },
-  {
     id: 'pptx',
     command: '/pptx',
     label: 'PowerPoint deck',
-    description: 'Build a designed deck and download a real .pptx file',
-    keywords: ['deck', 'presentation', 'powerpoint', 'office'],
+    description: 'Build a designed deck with preview and download a real .pptx file',
+    keywords: ['deck', 'presentation', 'powerpoint', 'office', 'slides', 'slide'],
     artifact: 'pptx',
     skillId: 'presentation-pptx',
   },
@@ -139,8 +130,7 @@ export function filterSlashCommands(
     return haystack.includes(needle);
   });
   // The command whose name is exactly what was typed must be the default
-  // selection. `/pptx` also matches the deck keywords, but Enter must not
-  // silently pick `/slides`.
+  // selection, even when other commands share its keywords.
   const exact = matches.find((item) => item.command.slice(1).toLowerCase() === needle);
   return exact ? [exact, ...matches.filter((item) => item.id !== exact.id)] : matches;
 }
