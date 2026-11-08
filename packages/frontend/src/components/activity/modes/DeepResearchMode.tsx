@@ -55,6 +55,7 @@ export function DeepResearchMode({
   store,
   avatar,
   history,
+  agentId,
   onRetry,
   onRetryRun,
   onResolveApproval,
@@ -73,6 +74,7 @@ export function DeepResearchMode({
         store={store}
         avatar={avatar}
         history={history}
+        agentId={agentId}
         onRetry={onRetry}
         onRetryRun={onRetryRun}
         onResolveApproval={onResolveApproval}
@@ -191,6 +193,7 @@ export function DeepResearchMode({
       store={store}
       avatar={avatar}
       history={history}
+      agentId={agentId}
       bodyExtra={bodyExtra}
       onRetry={onRetry}
       onRetryRun={onRetryRun}

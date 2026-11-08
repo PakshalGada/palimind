@@ -22,6 +22,7 @@ const SubagentBody = lazy(() => import('./SubagentBody'));
 const BrowserBody = lazy(() => import('./BrowserBody'));
 const IotBody = lazy(() => import('./IotBody'));
 const WeatherBody = lazy(() => import('./WeatherBody'));
+const VisualBody = lazy(() => import('./VisualBody'));
 
 function GenericBody({ step }: { step: ToolStep }) {
   const output = parseOutput(step.output);
@@ -123,6 +124,9 @@ export function ToolBody({
       break;
     case 'weather':
       body = <WeatherBody step={step} />;
+      break;
+    case 'visual':
+      body = <VisualBody step={step} />;
       break;
     default:
       body = <GenericBody step={step} />;

@@ -114,6 +114,49 @@ def heuristic_suggestions(
     return _dedupe(candidates)
 
 
+def starter_prompts(definition: Any) -> list[str]:
+    """A few useful first messages for an empty agent chat.
+
+    Derived only from the agent's own brief, so it works offline and never
+    invents capabilities the agent does not have.
+    """
+    label = str(getattr(definition, "display_name", "") or getattr(definition, "name", "") or "you")
+    goal = str(
+        getattr(definition, "goal", "")
+        or getattr(definition, "description", "")
+        or getattr(definition, "title", "")
+        or ""
+    ).strip()
+    skills = [
+        str(item).replace("-", " ")
+        for item in (getattr(definition, "skills", None) or [])
+    ]
+    pack = str(getattr(definition, "tool_pack", "") or "auto")
+    candidates: list[str] = []
+    if goal:
+        short = goal.rstrip(".")[:140]
+        candidates.append(f"Give me a quick status update on {short}.")
+        candidates.append(f"What is the next concrete step for {short}?")
+    if skills:
+        candidates.append(f"Use your {skills[0]} skill on my latest material.")
+    if pack == "research":
+        candidates.append("Research this topic and give me a cited brief.")
+    elif pack == "code":
+        candidates.append("Review the workspace and suggest the highest-impact fix.")
+    elif pack in ("data", "office"):
+        candidates.append("Summarise the workspace data and flag anything unusual.")
+    elif pack == "web":
+        candidates.append("Find the latest news on this and summarise the sources.")
+    candidates.extend(
+        [
+            "What are you working on right now?",
+            "Help me plan the next step.",
+            "Show me what you can do with your tools.",
+        ]
+    )
+    return [item for item in _dedupe([_clean(item) for item in candidates]) if item][:4]
+
+
 def build_suggestions_prompt(task: str, answer: str, tool_names: Iterable[str]) -> str:
     tools = ", ".join(sorted({str(name) for name in tool_names})) or "none"
     return f"""You are finishing an assistant turn. Suggest the three most useful

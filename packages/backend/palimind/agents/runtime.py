@@ -10,7 +10,7 @@ from collections.abc import Awaitable, Callable, Coroutine
 from pathlib import Path
 from typing import Any, cast
 
-from palimind.agents import activity, approvals
+from palimind.agents import activity, approvals, questions
 from palimind.agents.catalog import AgentDefinition
 from palimind.agents.chat import append_chat
 from palimind.agents.memory import append_memory, recall_memory
@@ -64,6 +64,9 @@ class RunningAgent:
         self.approval_lock = asyncio.Lock()
         self._steer: list[str] = []
         self._steer_lock = threading.Lock()
+        # A user-edited checklist is applied before the next loop step.
+        self._plan: list[dict[str, Any]] | None = None
+        self._plan_lock = threading.Lock()
 
     def release(self) -> None:
         """Stop a worker thread that may outlive its task (loop thread only).
@@ -88,6 +91,15 @@ class RunningAgent:
     def drain_steer(self) -> list[str]:
         with self._steer_lock:
             items, self._steer = self._steer, []
+        return items
+
+    def set_plan(self, items: list[dict[str, Any]]) -> None:
+        with self._plan_lock:
+            self._plan = list(items)
+
+    def drain_plan(self) -> list[dict[str, Any]] | None:
+        with self._plan_lock:
+            items, self._plan = self._plan, None
         return items
 
 
@@ -170,6 +182,20 @@ def steer_agent(agent_id: str, text: str, run_id: str | None = None) -> bool:
     if ra is None:
         return False
     ra.push_steer(text)
+    return True
+
+
+def set_agent_plan(
+    agent_id: str, items: list[dict[str, Any]], run_id: str | None = None
+) -> bool:
+    """Replace a live run's checklist with a user-edited one."""
+    runs = _running.get(agent_id) or {}
+    if not runs:
+        return False
+    ra = runs.get(run_id) if run_id else next(reversed(list(runs.values())))
+    if ra is None:
+        return False
+    ra.set_plan(items)
     return True
 
 
@@ -1065,6 +1091,8 @@ async def run_with_definition(
             delegate_depth=int(team_ctx.get("delegate_depth", 0) or 0),
             channel_id=channel_id,
             task_id=task_id,
+            emit_event=thread_emit,
+            run_control=ra,
         )
 
         # ── Phase 4.1: adaptive reasoning effort ─────────────────────────────
@@ -1476,6 +1504,13 @@ async def run_with_definition(
     finally:
         await unregister_running(definition.id, run_id)
         approvals.remove(definition.id, run_id)
+        questions.clear(run_id=run_id)
+        try:
+            from palimind.llm.mixture_of_expert.tools import clear_todo
+
+            clear_todo(run_id)
+        except Exception:  # noqa: BLE001 - cleanup is best-effort
+            pass
         # Unblock a worker thread that may outlive the run (cancelled while
         # paused or waiting for approval) so it stops instead of leaking.
         ra.release()

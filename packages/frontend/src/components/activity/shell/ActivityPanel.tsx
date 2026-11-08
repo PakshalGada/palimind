@@ -4,8 +4,10 @@ import {
   isTerminal,
   type ActivityState,
   type PlanStep,
+  type QuestionState,
   type ToolStep,
 } from '../model';
+import { api } from '../../../api';
 import { captionFor } from '../caption';
 import AgentAvatar from '../../AgentAvatar';
 import { botStateForRun, configFromSeed, type BotAvatarConfig } from '../../../bots/config';
@@ -46,6 +48,7 @@ const TOOL_PIXEL: Record<string, PixelSprite> = {
   browser: 'graph',
   iot: 'terminal',
   weather: 'sun',
+  visual: 'projects',
   generic: 'spark',
 };
 
@@ -69,47 +72,209 @@ function overlaps(steps: readonly ToolStep[]): boolean {
   );
 }
 
-/** The agent's live checklist (`todo_write`), rendered above the tool timeline. */
-function TodoChecklist({ steps }: { steps: readonly PlanStep[] }) {
+/** The agent's live checklist (`todo_write`), editable while the run is live. */
+function TodoChecklist({
+  steps,
+  store,
+  agentId,
+  runId,
+  editable,
+}: {
+  steps: readonly PlanStep[];
+  store: ActivityStore;
+  agentId?: string;
+  runId?: string;
+  editable?: boolean;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState('');
+  const canEdit = Boolean(editable && agentId && runId);
+
   if (steps.length === 0) return null;
   const done = steps.filter((step) => step.status === 'done').length;
+
+  const apply = (next: { id: string; label: string; status: PlanStep['status'] }[]) => {
+    store.dispatch({ type: 'plan.edit', steps: next });
+    if (!agentId || !runId) return;
+    api.agents
+      .setPlan(agentId, runId, next.map((item) => ({ label: item.label, status: item.status })))
+      .catch(() => undefined);
+  };
+
+  const toggle = (target: PlanStep) => {
+    if (!canEdit) return;
+    apply(
+      steps.map((step) =>
+        step.id === target.id
+          ? { ...step, status: step.status === 'done' ? 'pending' : 'done' }
+          : step,
+      ),
+    );
+  };
+
+  const add = () => {
+    const label = draft.trim();
+    if (!label || !canEdit) return;
+    apply([
+      ...steps.map((step) => ({ id: step.id, label: step.label, status: step.status })),
+      { id: `user-${Date.now()}`, label, status: 'pending' },
+    ]);
+    setDraft('');
+    setAdding(false);
+  };
+
   return (
     <div className="act-todo">
       <div className="act-todo__head act-muted act-tabular">
         Plan · {done}/{steps.length} done
+        {canEdit && <span className="act-todo__hint">you can edit this</span>}
       </div>
       <ul className="act-plan">
         {steps.map((step) => (
-          <li key={step.id} className={`act-plan__item act-plan__item--${step.status}`}>
-            <span
-              className={`act-status act-status--${
-                step.status === 'done'
-                  ? 'success'
-                  : step.status === 'error'
-                    ? 'error'
-                    : step.status === 'running'
-                      ? 'running'
-                      : 'queued'
-              }`}
+          <li
+            key={step.id}
+            className={`act-plan__item act-plan__item--${step.status}${canEdit ? ' is-editable' : ''}`}
+          >
+            <button
+              type="button"
+              className="act-plan__toggle"
+              aria-label={step.status === 'done' ? 'Reopen item' : 'Mark item done'}
+              title={canEdit ? (step.status === 'done' ? 'Reopen' : 'Mark done') : undefined}
+              disabled={!canEdit}
+              onClick={() => toggle(step)}
             >
-              <Icon
-                name={
+              <span
+                className={`act-status act-status--${
                   step.status === 'done'
-                    ? 'check'
+                    ? 'success'
                     : step.status === 'error'
-                      ? 'x'
+                      ? 'error'
                       : step.status === 'running'
-                        ? 'loader-2'
-                        : 'circle'
-                }
-                size={13}
-                className={step.status === 'running' ? 'act-spin' : ''}
-              />
-            </span>
+                        ? 'running'
+                        : 'queued'
+                }`}
+              >
+                <Icon
+                  name={
+                    step.status === 'done'
+                      ? 'check'
+                      : step.status === 'error'
+                        ? 'x'
+                        : step.status === 'running'
+                          ? 'loader-2'
+                          : canEdit
+                            ? 'square'
+                            : 'circle'
+                  }
+                  size={13}
+                  className={step.status === 'running' ? 'act-spin' : ''}
+                />
+              </span>
+            </button>
             <span>{step.label}</span>
           </li>
         ))}
       </ul>
+      {canEdit && (
+        <div className="act-plan__add">
+          {adding ? (
+            <input
+              autoFocus
+              value={draft}
+              placeholder="Add a step…"
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') add();
+                if (event.key === 'Escape') {
+                  setAdding(false);
+                  setDraft('');
+                }
+              }}
+              onBlur={() => {
+                if (!draft.trim()) setAdding(false);
+              }}
+            />
+          ) : (
+            <button type="button" onClick={() => setAdding(true)}>
+              + Add step
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A question the agent is blocked on, answered inline in the run. */
+function QuestionCard({
+  question,
+  store,
+  agentId,
+}: {
+  question: QuestionState;
+  store: ActivityStore;
+  agentId?: string;
+}) {
+  const [value, setValue] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (answer: string, choice = '') => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (agentId) await api.agents.answer(agentId, question.id, answer, choice);
+      store.dispatch({
+        type: 'question.answer',
+        status: 'answered',
+        answer: answer || choice,
+      });
+      setValue('');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="act-question" role="group" aria-label="Agent question">
+      <div className="act-question__head">
+        <Icon name="message-circle" size={14} />
+        <span>Agent needs your input</span>
+      </div>
+      <p className="act-question__text">{question.text}</p>
+      {question.options.length > 0 && (
+        <div className="act-question__options">
+          {question.options.map((option) => (
+            <button
+              key={option}
+              type="button"
+              disabled={busy}
+              onClick={() => void submit(option, option)}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      )}
+      {question.allowFreeText && (
+        <div className="act-question__free">
+          <input
+            value={value}
+            placeholder="Type your answer…"
+            onChange={(event) => setValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && value.trim()) void submit(value.trim());
+            }}
+          />
+          <button
+            type="button"
+            className="act-chip act-chip--action"
+            disabled={busy || !value.trim()}
+            onClick={() => void submit(value.trim())}
+          >
+            Answer
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -132,6 +297,7 @@ export function ActivityPanel({
   avatar,
   history = false,
   bodyExtra,
+  agentId,
   onRetry,
   onRetryRun,
   onResolveApproval,
@@ -143,6 +309,8 @@ export function ActivityPanel({
   avatar?: ActivityAgentAvatar | null;
   /** Rendered from persisted history: collapsed, no replay animation. */
   history?: boolean;
+  /** The running agent, used to edit the plan while the run is live. */
+  agentId?: string;
   onRetry?: (step: ToolStep) => void;
   onRetryRun?: () => void;
   onResolveApproval?: (step: ToolStep, decision: GrantDecision) => void;
@@ -448,8 +616,24 @@ export function ActivityPanel({
                   showHeader={showReasonHeader}
                 />
               )}
+              {state.mode === 'agent' && state.question?.status === 'pending' && (
+                <QuestionCard question={state.question} store={store} agentId={agentId} />
+              )}
+              {state.mode === 'agent' && state.question?.status === 'answered' && (
+                <div className="act-question act-question--settled">
+                  <Icon name="check" size={13} />
+                  <span>{state.question.text}</span>
+                  {state.question.answer && <strong>{state.question.answer}</strong>}
+                </div>
+              )}
               {state.mode === 'agent' && state.plan && state.plan.length > 0 && (
-                <TodoChecklist steps={state.plan} />
+                <TodoChecklist
+                  steps={state.plan}
+                  store={store}
+                  agentId={agentId}
+                  runId={state.runId}
+                  editable={!history && !isTerminal(state.status)}
+                />
               )}
               {bodyExtra}
               {steps.length > 0 && (

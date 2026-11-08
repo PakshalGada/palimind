@@ -12,6 +12,8 @@ export interface ModeProps {
   avatar?: ActivityAgentAvatar | null;
   /** Persisted history: collapsed with no replay animation. */
   history?: boolean;
+  /** The named agent, when known (enables live plan editing). */
+  agentId?: string;
   onRetry?: (step: ToolStep) => void;
   onRetryRun?: () => void;
   onResolveApproval?: (step: ToolStep, decision: GrantDecision) => void;
@@ -23,6 +25,7 @@ export function DefaultMode({
   store,
   avatar,
   history,
+  agentId,
   onRetry,
   onRetryRun,
   onResolveApproval,
@@ -39,6 +42,7 @@ export function DefaultMode({
           store={store}
           avatar={avatar}
           history={history}
+          agentId={agentId}
           onRetry={onRetry}
           onRetryRun={onRetryRun}
           onResolveApproval={onResolveApproval}

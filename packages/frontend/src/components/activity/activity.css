@@ -2232,3 +2232,162 @@ html[data-motion="reduced"] .act-reason__wave i { opacity: 0.6; }
 .act-panel--inline .act-caption {
     padding-left: 0;
 }
+
+/* ── interactive plan editing + mid-run questions ───────────────────────── */
+
+.act-todo__hint {
+    margin-left: 8px;
+    text-transform: none;
+    letter-spacing: 0;
+    opacity: 0.7;
+}
+
+.act-plan__toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.act-plan__toggle:disabled {
+    cursor: default;
+}
+
+.act-plan__item.is-editable .act-plan__toggle:hover .act-status {
+    color: var(--act-text);
+}
+
+.act-plan__add {
+    margin-top: 4px;
+}
+
+.act-plan__add button {
+    padding: 2px 0;
+    border: 0;
+    background: none;
+    color: var(--act-muted);
+    font-size: var(--type-xs);
+    cursor: pointer;
+}
+
+.act-plan__add button:hover {
+    color: var(--act-text);
+}
+
+.act-plan__add input {
+    width: 100%;
+    padding: 4px 6px;
+    border: 1px solid var(--act-hairline);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--act-text);
+    font-size: var(--type-sm);
+}
+
+.act-question {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--act-hairline);
+    border-left: 2px solid var(--accent, var(--act-text));
+    border-radius: var(--radius-sm);
+    background: var(--act-surface, transparent);
+}
+
+.act-question__head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--type-2xs);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--act-muted);
+}
+
+.act-question__text {
+    font-size: var(--type-sm);
+    color: var(--act-text);
+    line-height: 1.45;
+}
+
+.act-question__options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.act-question__options button {
+    padding: 5px 10px;
+    border: 1px solid var(--act-hairline);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--act-text);
+    font-size: var(--type-xs);
+    cursor: pointer;
+}
+
+.act-question__options button:hover {
+    border-color: var(--act-text);
+}
+
+.act-question__free {
+    display: flex;
+    gap: 6px;
+}
+
+.act-question__free input {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid var(--act-hairline);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--act-text);
+    font-size: var(--type-sm);
+}
+
+.act-question--settled {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    color: var(--act-secondary);
+    font-size: var(--type-xs);
+    border-left-color: var(--act-success, var(--act-hairline));
+}
+
+.act-question--settled strong {
+    color: var(--act-text);
+    font-weight: var(--weight-medium);
+}
+
+/* ── sandboxed visual replies ───────────────────────────────────────────── */
+
+.act-visual {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.act-visual__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.act-visual__frame {
+    width: 100%;
+    min-height: 160px;
+    border: 1px solid var(--act-hairline);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+}

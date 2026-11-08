@@ -484,6 +484,20 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
       return truncatePreview(topic ? `${action} ${topic}` : action);
     },
   },
+  html_render: {
+    icon: 'layout-panel-top',
+    running: 'Building visual',
+    done: 'Built visual',
+    family: 'visual',
+    preview: (args) => truncatePreview(str(asArgs(args), ['title']) || 'visual reply'),
+  },
+  html_preview: {
+    icon: 'layout-panel-top',
+    running: 'Previewing visual',
+    done: 'Previewed visual',
+    family: 'visual',
+    preview: () => 'visual preview',
+  },
   open_meteo: {
     icon: 'cloud-sun',
     running: 'Checking weather',

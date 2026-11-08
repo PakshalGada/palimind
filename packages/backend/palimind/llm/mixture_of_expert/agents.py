@@ -1085,6 +1085,37 @@ Be concise and effective."""
                     )
             except Exception:
                 pass
+            try:
+                plan_override = run_control.drain_plan()
+                if plan_override is not None:
+                    from palimind.llm.mixture_of_expert.tools import (
+                        get_todo_items as _get_todo_items,
+                    )
+                    from palimind.llm.mixture_of_expert.tools import (
+                        set_todo_items as _set_todo_items,
+                    )
+
+                    _set_todo_items(plan_override)
+                    live.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "[CHECKLIST UPDATED BY USER] Follow this checklist exactly; "
+                                "do not rewrite it unless the work genuinely changes.\n"
+                                + "\n".join(
+                                    f"- [{item['status']}] {item['label']}"
+                                    for item in _get_todo_items()
+                                )
+                            ),
+                        }
+                    )
+                    _emit_event(
+                        event_cb,
+                        "agent:todo",
+                        {"items": _get_todo_items(), "source": "user", "iteration": iteration},
+                    )
+            except Exception:
+                pass
         if _is_cancelled(run_control):
             return _cancelled_result(iteration)
         if iteration > start_iteration and _is_repeating_tool(recent_tool_calls):

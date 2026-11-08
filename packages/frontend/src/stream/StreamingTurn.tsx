@@ -51,6 +51,7 @@ export default function StreamingTurn({ activeSessionId }: { activeSessionId: st
           <RunSurface
             store={activityStore}
             avatar={lastActivity?.agentAvatar ?? null}
+            agentId={lastActivity?.seed}
             onResolveApproval={resolveApproval}
             onRetryRun={retry}
           >

@@ -57,6 +57,7 @@ export function KnowledgeBaseMode({
   store,
   avatar,
   history,
+  agentId,
   onRetry,
   onRetryRun,
   onResolveApproval,
@@ -93,6 +94,7 @@ export function KnowledgeBaseMode({
         store={store}
         avatar={avatar}
         history={history}
+        agentId={agentId}
         bodyExtra={bodyExtra}
         onRetry={onRetry}
         onRetryRun={onRetryRun}

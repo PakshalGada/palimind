@@ -1,4 +1,4 @@
-import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, Approval, BackgroundTask, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, LibraryArtifact, MarketplaceSkill, MemoryEntry, ModelItem, Overview, PlanTemplate, Project, ProjectArtifact, ProjectKbStatus, ProjectScope, QueueItem, RecentRun, Recommendation, Routine, RunRecord, SetupTask, SkillCommand, SkillMeta, Team, TeamMessage, TeamNote, TeamRun, ToolMeta, TreeNode, VerificationReport, WorkspaceFile } from './types';
+import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, AgentQuestion, Approval, BackgroundTask, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, LibraryArtifact, MarketplaceSkill, MemoryEntry, ModelItem, Overview, PlanTemplate, Project, ProjectArtifact, ProjectKbStatus, ProjectScope, QueueItem, RecentRun, Recommendation, Routine, RunRecord, SetupTask, SkillCommand, SkillMeta, Team, TeamMessage, TeamNote, TeamRun, ToolMeta, TreeNode, VerificationReport, WorkspaceFile } from './types';
 
 const BASE = '/api';
 
@@ -182,8 +182,43 @@ export const api = {
     removeAll: () => del<{ error?: string; status?: string; deleted?: number }>('/agents/all'),
     tools: () => get<{ tools: Record<string, ToolMeta> }>('/agents/tools'),
     skills: () => get<{ skills: SkillMeta[] }>('/agents/skills'),
+    sections: {
+      list: () => get<{ sections: { id: string; name: string; sort_order: number }[] }>('/agents/sections/all'),
+      create: (name: string, sortOrder = 0) =>
+        post<{ section?: { id: string; name: string }; error?: string }>('/agents/sections/create', {
+          name,
+          sort_order: sortOrder,
+        }),
+      rename: (sectionId: string, name: string) =>
+        patch<{ section?: { id: string; name: string }; error?: string }>(
+          `/agents/sections/${sectionId}`,
+          { name },
+        ),
+      remove: (sectionId: string) => del<{ status?: string }>(`/agents/sections/${sectionId}`),
+      assign: (sectionId: string, agentId: string) =>
+        post<{ status?: string; error?: string }>(`/agents/sections/${sectionId}/assign`, {
+          agent_id: agentId,
+        }),
+    },
     activity: () => get<AgentActivitySnapshot>('/agents/activity'),
     approvals: () => get<{ approvals: Approval[] }>('/agents/approvals'),
+    questions: (agentId = '') =>
+      get<{ questions: AgentQuestion[] }>(
+        `/agents/questions${agentId ? `?agent_id=${encodeURIComponent(agentId)}` : ''}`,
+      ),
+    answer: (agentId: string, questionId: string, answer = '', choice = '') =>
+      post<{ status?: string; error?: string }>(`/agents/${agentId}/answer`, {
+        question_id: questionId,
+        answer,
+        choice,
+      }),
+    setPlan: (agentId: string, runId: string, items: { label: string; status?: string }[]) =>
+      post<{ status?: string; error?: string }>(
+        `/agents/${agentId}/runs/${encodeURIComponent(runId)}/plan`,
+        { items },
+      ),
+    starters: (agentId: string) =>
+      get<{ prompts: string[]; error?: string }>(`/agents/${agentId}/starters`),
     recentRuns: (limit = 30) => get<{ runs: RecentRun[] }>(`/agents/runs/recent?limit=${limit}`),
     recallPreview: (agentId: string, query: string, k = 8) =>
       post<{ entries: MemoryEntry[] }>(`/agents/${agentId}/recall-preview`, { query, k }),
@@ -854,6 +889,26 @@ export const api = {
       get<Record<string, unknown>>(
         `/usage?agent_id=${encodeURIComponent(agentId)}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
       ),
+  },
+  visuals: {
+    list: (agentId = '') =>
+      get<{ visuals: import('./types').VisualReply[] }>(
+        `/visuals${agentId ? `?agent_id=${encodeURIComponent(agentId)}` : ''}`,
+      ),
+  },
+  mcp: {
+    servers: () => get<{ servers: Record<string, unknown>[] }>('/mcp/servers'),
+    reload: () => post<{ servers?: Record<string, unknown>[]; error?: string }>('/mcp/reload'),
+  },
+  plugins: {
+    list: () => get<{ plugins: Record<string, unknown>[] }>('/plugins'),
+    install: (pluginId: string, overwrite = false) =>
+      post<{ plugin?: Record<string, unknown>; error?: string }>('/plugins/install', {
+        plugin_id: pluginId,
+        overwrite,
+      }),
+    uninstall: (pluginId: string) =>
+      del<{ deleted?: boolean; error?: string }>(`/plugins/${pluginId}`),
   },
   office: {
     /** Turn a settled chat artifact into a real DOCX/PPTX download. */

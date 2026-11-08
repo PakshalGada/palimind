@@ -45,7 +45,10 @@ def _live_step(live: list[dict[str, Any]], key: str) -> dict[str, Any] | None:
 def overview() -> dict[str, Any]:
     from palimind.agents.registry import get_registry
 
+    from palimind.agents import questions as questions_mod
+
     pending = approvals.list_pending()
+    open_questions = questions_mod.list_pending()
     live = activity.snapshot().get("running", [])
     routine_items = routines.list_routines(limit=100)
 
@@ -67,17 +70,22 @@ def overview() -> dict[str, Any]:
                 }
             )
         step = _live_step(live, defn.id)
+        own_questions = [q for q in open_questions if str(q.get("agent_id")) == defn.id]
+        status = _agent_status(defn, pending)
+        if own_questions and status != "working":
+            status = "waiting"
         agent_items.append(
             {
                 **defn.to_dict(),
                 "target_type": "agent",
                 "running": is_running(defn.id),
                 "active_runs": running_count(defn.id),
-                "status": _agent_status(defn, pending),
+                "status": status,
                 "current_step": (step or {}).get("step") if step else "",
                 "last_run_status": last.get("status") if last else None,
                 "last_run_at": last.get("timestamp") if last else None,
                 "pending_approvals": sum(1 for p in pending if str(p.get("agent_id")) == defn.id),
+                "pending_questions": len(own_questions),
                 "next_run": _next_run_for("agent", defn.id),
             }
         )
@@ -153,13 +161,15 @@ def overview() -> dict[str, Any]:
         "agents": len(agent_items),
         "teams": len(team_items),
         "working": sum(1 for x in [*agent_items, *team_items] if x.get("status") == "working"),
-        "waiting": len(pending),
+        "waiting": len(pending) + len(open_questions),
+        "questions": len(open_questions),
         "scheduled": len(upcoming),
     }
     return {
         "agents": agent_items,
         "teams": team_items,
         "inbox": pending,
+        "questions": open_questions,
         "recent": recent[:20],
         "upcoming": upcoming[:20],
         "routines": routine_items,

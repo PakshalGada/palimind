@@ -276,7 +276,7 @@ export type AppView =
 export type AgentsView = 'chat' | 'work';
 
 /** Segmented sections inside the Agents Work surface. */
-export type AgentsWorkTab = 'activity' | 'board' | 'automations';
+export type AgentsWorkTab = 'overview' | 'activity' | 'tasks' | 'board' | 'automations';
 
 /** A browser tab tracked by the shared Playwright session. */
 export interface BrowserTab {
@@ -596,6 +596,32 @@ export interface Approval {
   risk?: string;
 }
 
+/** A question an agent is waiting on mid-run. */
+export interface AgentQuestion {
+  id: string;
+  agent_id: string;
+  run_id: string;
+  question: string;
+  options: string[];
+  allow_free_text: boolean;
+  status: 'pending' | 'answered' | 'timeout' | 'cancelled';
+  created_at: number;
+  answer?: string;
+  choice?: string;
+}
+
+/** A sandboxed HTML visual reply created by `html_render`. */
+export interface VisualReply {
+  id: string;
+  token: string;
+  title: string;
+  height: number;
+  agent_id: string;
+  message: string;
+  created_at: number;
+  url: string;
+}
+
 export interface RecentRun extends RunRecord {
   agent_id: string;
   agent_name: string;
@@ -675,6 +701,16 @@ export type AgentReasoningEvent =
       items: { id?: string; label?: string; status?: string }[];
     }
   | { type: 'agent:token'; text?: string; reset?: boolean; stream?: boolean }
+  | {
+      type: 'agent:question';
+      agent_id?: string;
+      run_id?: string;
+      question_id: string;
+      question: string;
+      options?: string[];
+      allow_free_text?: boolean;
+      created_at?: number;
+    }
   | {
       type: 'agent:waiting_for_human';
       tool: string;
@@ -876,6 +912,7 @@ export interface OverviewTarget {
   last_run_status?: string | null;
   last_run_at?: number | null;
   pending_approvals: number;
+  pending_questions?: number;
   next_run?: number | null;
   member_count?: number;
   members?: TeamMember[];
@@ -887,6 +924,7 @@ export interface OverviewCounts {
   teams: number;
   working: number;
   waiting: number;
+  questions?: number;
   scheduled: number;
 }
 
@@ -905,6 +943,7 @@ export interface Overview {
   agents: (OverviewTarget & AgentDefinition)[];
   teams: (OverviewTarget & Team)[];
   inbox: Approval[];
+  questions?: AgentQuestion[];
   recent: OverviewRun[];
   upcoming: Routine[];
   routines: Routine[];

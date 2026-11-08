@@ -209,7 +209,15 @@ export function botStateFor(agent: { running?: boolean; enabled?: boolean }): Bo
  * reasoning → thinking · awaiting approval → waiting · steps running → working · done → default.
  */
 export function botStateForRun(run: {
-  status: 'idle' | 'thinking' | 'working' | 'awaiting_approval' | 'done' | 'stopped' | 'error';
+  status:
+    | 'idle'
+    | 'thinking'
+    | 'working'
+    | 'awaiting_approval'
+    | 'awaiting_input'
+    | 'done'
+    | 'stopped'
+    | 'error';
 }): BotState {
   switch (run.status) {
     case 'thinking':
@@ -217,6 +225,7 @@ export function botStateForRun(run: {
     case 'working':
       return 'working';
     case 'awaiting_approval':
+    case 'awaiting_input':
       return 'waiting';
     case 'error':
       return 'default';

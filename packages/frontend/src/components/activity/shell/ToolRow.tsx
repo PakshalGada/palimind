@@ -35,6 +35,7 @@ const FAMILY_PIXEL: Record<ToolFamily, PixelSprite> = {
   browser: 'graph',
   iot: 'terminal',
   weather: 'sun',
+  visual: 'projects',
   generic: 'spark',
 };
 

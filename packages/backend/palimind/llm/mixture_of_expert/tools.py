@@ -37,6 +37,9 @@ _DEFAULT_TOOL_CONTEXT: dict[str, Any] = {
     "task_id": "",
     "team_emit": None,
     "team_loop": None,
+    # Live event bridge + run control used by interactive tools (ask_user).
+    "emit_event": None,
+    "run_control": None,
 }
 _tool_context_var: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
     "palimind_tool_context", default=None
@@ -95,6 +98,8 @@ def make_tool_context(
     task_id: str = "",
     team_emit: Any = None,
     team_loop: Any = None,
+    emit_event: Any = None,
+    run_control: Any = None,
 ) -> dict[str, Any]:
     """Build a complete, isolated tool context."""
     return {
@@ -122,6 +127,8 @@ def make_tool_context(
         "task_id": str(task_id or ""),
         "team_emit": team_emit,
         "team_loop": team_loop,
+        "emit_event": emit_event,
+        "run_control": run_control,
     }
 
 
@@ -149,6 +156,8 @@ def set_tool_context(
     task_id: str = "",
     team_emit: Any = None,
     team_loop: Any = None,
+    emit_event: Any = None,
+    run_control: Any = None,
 ) -> None:
     """Set the tool context for the current thread/task.
 
@@ -178,6 +187,8 @@ def set_tool_context(
         task_id=task_id,
         team_emit=team_emit,
         team_loop=team_loop,
+        emit_event=emit_event,
+        run_control=run_control,
     )
     _tool_context_var.set(ctx)
     # Mirror for legacy readers. Execution never relies on this copy.
@@ -898,6 +909,17 @@ def todo_write(items: Any = None, note: str = "") -> str:
     return text
 
 
+def set_todo_items(items: Any) -> list[dict[str, str]]:
+    """Replace the run's checklist from a user edit (bypasses the update cap)."""
+    normalized = _normalize_todos(items)
+    key = _todo_key()
+    open_items = sum(1 for item in normalized if item["status"] != "completed")
+    with _todo_lock:
+        _todo_store[key] = normalized
+        _todo_stats[key] = {"updates": 0, "open": open_items}
+    return list(normalized)
+
+
 def get_todo_items() -> list[dict[str, str]]:
     """Return the current run's checklist (used by the agent event bridge)."""
     with _todo_lock:
@@ -917,6 +939,62 @@ def clear_todo(run_id: str = "") -> None:
         else:
             _todo_store.pop(run_id, None)
             _todo_stats.pop(run_id, None)
+
+
+def ask_user(
+    question: str,
+    options: Any = None,
+    allow_free_text: bool = True,
+    timeout_s: int = 600,
+) -> str:
+    """Ask the user a question and block until they answer.
+
+    Use this when the task genuinely cannot proceed without a decision (which
+    account, which file, a missing credential, or a destructive choice).  Prefer
+    a small list of concrete ``options``; keep the question to one sentence.
+    """
+    ctx = _get_context()
+    agent_id = str(ctx.get("agent_id") or "")
+    run_id = str(ctx.get("run_id") or "")
+    if not agent_id:
+        return "Error: ask_user is only available inside an agent run."
+    from palimind.agents import questions
+
+    if isinstance(options, str):
+        try:
+            parsed = json.loads(options)
+            options = parsed if isinstance(parsed, list) else [options]
+        except (TypeError, ValueError):
+            options = [part.strip() for part in options.split("|") if part.strip()]
+    choices = [str(item) for item in (options or [])][:8] if isinstance(options, (list, tuple)) else []
+
+    def should_cancel() -> bool:
+        control = ctx.get("run_control")
+        cancelled = getattr(control, "cancelled", None)
+        return bool(cancelled is not None and cancelled.is_set())
+
+    try:
+        result = questions.ask(
+            str(question or ""),
+            agent_id=agent_id,
+            run_id=run_id,
+            options=choices,
+            allow_free_text=bool(allow_free_text),
+            timeout_s=int(timeout_s or 600),
+            should_cancel=should_cancel,
+            on_emit=ctx.get("emit_event"),
+        )
+    except Exception as exc:  # noqa: BLE001 - a failed question must not kill the run
+        return f"Error: could not ask the user ({exc}). Continue with your best judgement."
+    status = result.get("status")
+    if status == "answered":
+        answer = str(result.get("answer") or "").strip()
+        choice = str(result.get("choice") or "").strip()
+        value = answer or choice
+        return f"User answered: {value}" if value else "User answered without text."
+    if status == "timeout":
+        return "The user did not answer in time. Continue with your best judgement and say what you assumed."
+    return "The question was cancelled by the user. Stop this step and explain what you need."
 
 
 def summarize(text: str, max_chars: int = 1000) -> str:
@@ -1093,6 +1171,38 @@ TOOL_REGISTRY: dict[str, dict] = {
         "meta": _meta(1, False),
         "parallel_safe": False,
         "idempotent": True,
+    },
+    "ask_user": {
+        "fn": ask_user,
+        "description": (
+            "Ask the user a question and wait for their answer. Use this only "
+            "when a decision, missing detail or credential blocks the task. "
+            "Pass 2-6 concrete options when the answer is a choice."
+        ),
+        "parameters": {
+            "question": _p(description="One clear question for the user."),
+            "options": _p(
+                type="array",
+                description="Optional list of short choices.",
+                items={"type": "string"},
+                required=False,
+            ),
+            "allow_free_text": _p(
+                type="boolean",
+                description="Whether the user may type an answer instead of choosing.",
+                default=True,
+                required=False,
+            ),
+            "timeout_s": _p(
+                type="integer",
+                description="Seconds to wait before continuing (default 600).",
+                default=600,
+                required=False,
+            ),
+        },
+        "meta": _meta(1, False),
+        "parallel_safe": False,
+        "idempotent": False,
     },
     "web_search": {
         "fn": web_search,

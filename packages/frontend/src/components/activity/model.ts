@@ -10,6 +10,7 @@ export type RunStatus =
   | 'thinking'
   | 'working'
   | 'awaiting_approval'
+  | 'awaiting_input'
   | 'done'
   | 'stopped'
   | 'error';
@@ -44,6 +45,7 @@ export type ToolFamily =
   | 'browser'
   | 'iot'
   | 'weather'
+  | 'visual'
   | 'generic';
 
 export interface ApprovalMeta {
@@ -117,6 +119,16 @@ export interface PlanStep {
   status: PlanStatus;
 }
 
+/** A mid-run question the agent is blocked on. */
+export interface QuestionState {
+  id: string;
+  text: string;
+  options: string[];
+  allowFreeText: boolean;
+  status: 'pending' | 'answered' | 'timeout' | 'cancelled';
+  answer?: string;
+}
+
 export interface Expert {
   id: string;
   name: string;
@@ -141,6 +153,7 @@ export interface ActivityState {
   title?: string;
   reasoning?: ReasoningState;
   plan?: PlanStep[];
+  question?: QuestionState;
   phase?: RunPhase;
   experts?: Expert[];
   steps: ToolStep[];
@@ -163,6 +176,16 @@ export type ActivityEvent =
       steps: readonly { id: string; label: string; status?: PlanStatus }[];
     }
   | { type: 'plan.step'; id: string; status: PlanStatus }
+  | { type: 'plan.edit'; steps: readonly { id: string; label: string; status?: PlanStatus }[] }
+  | {
+      type: 'question.set';
+      question: QuestionState;
+    }
+  | {
+      type: 'question.answer';
+      status: 'answered' | 'timeout' | 'cancelled';
+      answer?: string;
+    }
   | { type: 'phase'; phase: RunPhase }
   | { type: 'expert.start'; id: string; name: string }
   | { type: 'expert.delta'; id: string; text: string }
@@ -257,6 +280,10 @@ export function isTerminal(status: RunStatus): boolean {
 
 export function hasPendingApproval(state: ActivityState): boolean {
   return state.steps.some((step) => step.status === 'awaiting_approval');
+}
+
+export function hasPendingQuestion(state: ActivityState): boolean {
+  return state.question?.status === 'pending';
 }
 
 export function errorCount(state: ActivityState): number {

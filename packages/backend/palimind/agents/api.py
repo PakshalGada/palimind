@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
-from palimind.agents import activity, approvals
+from palimind.agents import activity, approvals, questions
 from palimind.agents.catalog import AgentDefinition
 from palimind.agents.chat import clear_chat, read_chat
 from palimind.agents.memory import read_memory
@@ -20,6 +20,7 @@ from palimind.agents.runtime import (
     get_run_history,
     is_running,
     resolve_approval,
+    set_agent_plan,
 )
 from palimind.agents.service import stream_agent
 from palimind.llm.mixture_of_expert.tools import TOOL_REGISTRY, _register_plugin_tools
@@ -164,6 +165,76 @@ async def reload_agent_tools():
         }
     except Exception as exc:
         return {"error": f"Failed to reload tools: {exc}"}
+
+
+@router.post("/{agent_id}/tools/{tool_name}/invoke")
+async def invoke_agent_tool(agent_id: str, tool_name: str, req: Request):
+    """Run one tool in the agent's workspace (Inspector tool playground)."""
+    defn = get_registry().get_by_id(agent_id)
+    if defn is None:
+        return {"error": "Agent not found"}
+    _register_plugin_tools()
+    if tool_name not in TOOL_REGISTRY:
+        return {"error": f"Unknown tool: {tool_name}"}
+    try:
+        body = await req.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    args = body.get("args") if isinstance(body, dict) else None
+    if not isinstance(args, dict):
+        args = {}
+
+    from palimind.agents.scope import resolve_scope
+    from palimind.llm.mixture_of_expert.tools import call_tool, set_tool_context
+
+    primary_root, extra_roots = resolve_scope(defn, get_registry().field_root)
+
+    def _run() -> str:
+        set_tool_context(
+            primary_root,
+            extra_roots=extra_roots,
+            read_only_roots=extra_roots,
+            agent_id=defn.id,
+            write_access=bool(defn.write_access),
+            desktop_access=bool(getattr(defn, "desktop_access", False)),
+            desktop_control=bool(getattr(defn, "desktop_control", False)),
+            desktop_allowed_apps=list(getattr(defn, "desktop_allowed_apps", []) or []),
+        )
+        return call_tool(tool_name, **args)
+
+    try:
+        output = await asyncio.to_thread(_run)
+    except Exception as exc:  # noqa: BLE001 - the playground shows the error
+        return {"error": str(exc)}
+    return {"tool": tool_name, "output": output}
+
+
+@router.get("/plugins")
+async def agent_plugins():
+    from palimind.agents.plugins import list_plugins
+
+    return {"plugins": list_plugins()}
+
+
+@router.post("/plugins/install")
+async def install_agent_plugin(req: Request):
+    from palimind.agents.plugins import install_plugin
+
+    body = await req.json()
+    try:
+        return {"plugin": install_plugin(
+            str(body.get("plugin_id") or ""),
+            overwrite=bool(body.get("overwrite", False)),
+        )}
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc)}
+
+
+@router.delete("/plugins/{plugin_id}")
+async def uninstall_agent_plugin(plugin_id: str):
+    from palimind.agents.plugins import uninstall_plugin
+
+    return {"deleted": uninstall_plugin(plugin_id)}
 
 
 @router.get("/skills")
@@ -565,6 +636,43 @@ async def agent_activity():
 async def agent_approvals():
     """All pending human-in-the-loop approvals across agents (the Inbox)."""
     return {"approvals": approvals.list_pending()}
+
+
+@router.get("/questions")
+async def agent_questions(agent_id: str = ""):
+    """Questions an agent asked a human and is still waiting on."""
+    return {"questions": questions.list_pending(agent_id)}
+
+
+@router.post("/{agent_id}/answer")
+async def answer_agent_question(agent_id: str, req: Request):
+    body = await req.json()
+    question_id = str(body.get("question_id") or "")
+    answer = str(body.get("answer") or "")
+    choice = str(body.get("choice") or "")
+    ok = questions.answer(question_id, answer=answer, choice=choice)
+    return {"status": "ok" if ok else "no_pending"}
+
+
+@router.post("/{agent_id}/runs/{run_id}/plan")
+async def set_run_plan(agent_id: str, run_id: str, req: Request):
+    body = await req.json()
+    items = body.get("items")
+    if not isinstance(items, list):
+        return {"error": "items must be a list"}
+    ok = set_agent_plan(agent_id, items, run_id)
+    return {"status": "ok" if ok else "not_running"}
+
+
+@router.get("/{agent_id}/starters")
+async def agent_starters(agent_id: str):
+    """Deterministic starter prompts derived from the agent's own brief."""
+    defn = get_registry().get_by_id(agent_id)
+    if defn is None:
+        return {"error": "Agent not found", "prompts": []}
+    from palimind.agents.suggestions import starter_prompts
+
+    return {"prompts": starter_prompts(defn)}
 
 
 @router.get("/runs/recent")

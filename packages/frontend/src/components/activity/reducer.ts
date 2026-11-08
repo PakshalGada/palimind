@@ -25,6 +25,7 @@ function findStep(steps: readonly ToolStep[], id: string): ToolStep | undefined 
 function deriveStatus(state: ActivityState): ActivityState['status'] {
   if (isTerminal(state.status)) return state.status;
   if (state.steps.some((step) => step.status === 'awaiting_approval')) return 'awaiting_approval';
+  if (state.question?.status === 'pending') return 'awaiting_input';
   if (state.steps.some((step) => step.status === 'running' || step.status === 'queued')) {
     return 'working';
   }
@@ -116,6 +117,35 @@ export function reduceActivity(state: ActivityState, event: ActivityEvent): Acti
         status: step.status ?? previous.get(step.id) ?? 'pending',
       }));
       return { ...state, plan, status: deriveStatus(state) };
+    }
+
+    case 'plan.edit': {
+      const previous = new Map((state.plan ?? []).map((step) => [step.id, step.status]));
+      const plan: PlanStep[] = event.steps.map((step) => ({
+        id: step.id,
+        label: step.label,
+        status: step.status ?? previous.get(step.id) ?? 'pending',
+      }));
+      return { ...state, plan, status: deriveStatus({ ...state, plan }) };
+    }
+
+    case 'question.set': {
+      return {
+        ...state,
+        question: event.question,
+        status: deriveStatus({ ...state, question: event.question }),
+      };
+    }
+
+    case 'question.answer': {
+      const question = state.question;
+      if (!question) return state;
+      if (question.status !== 'pending') return state;
+      const next = {
+        ...state,
+        question: { ...question, status: event.status, answer: event.answer ?? question.answer },
+      };
+      return { ...next, status: deriveStatus(next) };
     }
 
     case 'plan.step': {
@@ -362,6 +392,10 @@ function settleRun(
         ? { ...step, status: status === 'done' ? 'done' : status === 'error' ? 'error' : 'pending' }
         : step,
     ),
+    question:
+      state.question?.status === 'pending'
+        ? { ...state.question, status: 'cancelled' }
+        : state.question,
     experts: state.experts?.map((expert) =>
       expert.status === 'running' ? { ...expert, status: 'done' } : expert,
     ),

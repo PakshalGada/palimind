@@ -106,6 +106,16 @@ export type StreamEvent =
       reasoning?: string;
       threshold?: number;
     }
+  | {
+      type: 'agent:question';
+      agent_id?: number | string;
+      run_id?: string;
+      question_id?: string;
+      question?: string;
+      options?: string[];
+      allow_free_text?: boolean;
+      created_at?: number;
+    }
   | { type: 'agent:token'; text?: string; reset?: boolean; stream?: boolean }
   | ({ type: 'agent:usage' } & Partial<TokenUsage>)
   | {

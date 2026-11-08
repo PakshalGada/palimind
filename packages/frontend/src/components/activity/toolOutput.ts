@@ -178,6 +178,26 @@ export function normalizeTable(output: unknown): TableData {
   return { columns, rows };
 }
 
+export function visualOf(output: unknown): import('../../types').VisualReply | null {
+  const value = parseOutput(output);
+  if (!isRecord(value)) return null;
+  const record = isRecord(value.visual) ? value.visual : value;
+  const url = asText(record.url ?? value.preview_url);
+  const id = asText(record.id);
+  if (!url && !id) return null;
+  if (!url) return null;
+  return {
+    id: id || url,
+    token: asText(record.token),
+    title: asText(record.title) || 'Visual reply',
+    height: asNumber(record.height) ?? 600,
+    agent_id: asText(record.agent_id),
+    message: asText(record.message),
+    created_at: asNumber(record.created_at) ?? 0,
+    url,
+  };
+}
+
 export function textOf(output: unknown): string {
   const value = parseOutput(output);
   if (typeof value === 'string') return value;

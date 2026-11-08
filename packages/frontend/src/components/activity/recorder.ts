@@ -290,6 +290,21 @@ export class RunRecorder {
         break;
       }
 
+      case 'agent:question': {
+        const id = String(event.question_id || `question-${(this.seq += 1)}`);
+        this.store.dispatch({
+          type: 'question.set',
+          question: {
+            id,
+            text: String(event.question || 'The agent needs your input.'),
+            options: Array.isArray(event.options) ? event.options.map(String) : [],
+            allowFreeText: event.allow_free_text !== false,
+            status: 'pending',
+          },
+        });
+        break;
+      }
+
       case 'agent:todo': {
         const items = Array.isArray(event.items) ? event.items : [];
         this.store.dispatch({

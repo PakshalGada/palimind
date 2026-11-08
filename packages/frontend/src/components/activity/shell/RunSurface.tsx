@@ -13,6 +13,7 @@ export function RunSurface({
   store,
   avatar,
   history = false,
+  agentId,
   onRetry,
   onRetryRun,
   onResolveApproval,
@@ -23,6 +24,8 @@ export function RunSurface({
   avatar?: ActivityAgentAvatar | null;
   /** Persisted history: collapsed, no replay animation. */
   history?: boolean;
+  /** The named agent, when known (enables live plan editing). */
+  agentId?: string;
   onRetry?: (step: ToolStep) => void;
   onRetryRun?: () => void;
   onResolveApproval?: (step: ToolStep, decision: GrantDecision) => void;
@@ -35,6 +38,7 @@ export function RunSurface({
     store,
     avatar,
     history,
+    agentId,
     onRetry,
     onRetryRun,
     onResolveApproval,
