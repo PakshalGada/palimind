@@ -178,6 +178,57 @@ export function normalizeTable(output: unknown): TableData {
   return { columns, rows };
 }
 
+export type ToolUIColor = 'default' | 'success' | 'warn' | 'danger';
+
+export interface ToolUI {
+  type: 'table' | 'keyvalue' | 'chart' | 'text';
+  title?: string;
+  columns?: string[];
+  rows?: (string | number)[][];
+  items?: { label: string; value: string | number }[];
+  labels?: string[];
+  values?: number[];
+  text?: string;
+  tone?: ToolUIColor;
+}
+
+const UI_TYPES = new Set(['table', 'keyvalue', 'chart', 'text']);
+
+/**
+ * A tool may return `{"ui": {...}, "text": "..."}` to render a typed,
+ * interactive result instead of prose. This is the single dispatcher contract;
+ * unknown shapes fall back to the normal family renderer.
+ */
+export function uiOf(output: unknown): ToolUI | null {
+  const value = parseOutput(output);
+  if (!isRecord(value)) return null;
+  const candidate = isRecord(value.ui) ? value.ui : value;
+  const type = asText(candidate.type);
+  if (!UI_TYPES.has(type)) return null;
+  const ui: ToolUI = { type: type as ToolUI['type'] };
+  ui.title = asText(candidate.title) || undefined;
+  ui.text = asText(candidate.text) || undefined;
+  const tone = asText(candidate.tone);
+  if (tone === 'success' || tone === 'warn' || tone === 'danger') ui.tone = tone;
+  if (Array.isArray(candidate.columns)) ui.columns = candidate.columns.map(String);
+  if (Array.isArray(candidate.rows)) {
+    ui.rows = candidate.rows.map((row) =>
+      Array.isArray(row) ? row.map((cell) => (typeof cell === 'number' ? cell : String(cell))) : [],
+    );
+  }
+  if (Array.isArray(candidate.items)) {
+    ui.items = candidate.items
+      .filter(isRecord)
+      .map((item) => ({ label: asText(item.label), value: asText(item.value) }))
+      .filter((item) => item.label);
+  }
+  if (Array.isArray(candidate.labels)) ui.labels = candidate.labels.map(String);
+  if (Array.isArray(candidate.values)) {
+    ui.values = candidate.values.map((entry) => asNumber(entry) ?? 0);
+  }
+  return ui;
+}
+
 export function visualOf(output: unknown): import('../../types').VisualReply | null {
   const value = parseOutput(output);
   if (!isRecord(value)) return null;

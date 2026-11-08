@@ -272,6 +272,22 @@ export default function ActivityView({ agents }: { agents: AgentListItem[] }) {
                       {run.effort?.level ? <span>{run.effort.level}</span> : null}
                       {run.model_route?.model ? <span>{run.model_route.model}</span> : null}
                     </div>
+                    {run.plan && run.plan.length > 0 && (
+                      <div className="ag-run-detail__block">
+                        <span>
+                          Plan · {run.plan.filter((item) => item.status === 'completed').length}/
+                          {run.plan.length} done
+                        </span>
+                        <div className="ag-run-plan">
+                          {run.plan.map((item, index) => (
+                            <div key={`${item.label}-${index}`} className={`ag-run-plan__item is-${item.status}`}>
+                              <span>{item.status === 'completed' ? '✓' : '·'}</span>
+                              {item.label}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="ag-run-detail__block">
                       <span>Input</span>
                       <pre>{run.input}</pre>

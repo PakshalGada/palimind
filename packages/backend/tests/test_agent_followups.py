@@ -152,3 +152,31 @@ def test_starter_prompts_follow_the_agent_brief() -> None:
     )
     assert 1 <= len(generic) <= 4
     assert all(isinstance(prompt, str) and prompt for prompt in generic)
+
+
+def test_record_run_persists_the_plan(monkeypatch) -> None:
+    from palimind.agents import runtime
+    from palimind.storage import state_store
+
+    stored: list[dict] = []
+
+    def fake_append(agent_id, run_id, entry, limit):
+        stored.append({"entry": entry})
+
+    monkeypatch.setattr(state_store, "append_run", fake_append)
+    runtime.record_run(
+        "agent-1",
+        "run-plan",
+        "input",
+        "output",
+        "success",
+        1.0,
+        plan=[
+            {"label": "Find sources", "status": "completed"},
+            {"label": "Write the brief", "status": "completed"},
+        ],
+    )
+    assert stored[0]["entry"]["plan"] == [
+        {"label": "Find sources", "status": "completed"},
+        {"label": "Write the brief", "status": "completed"},
+    ]

@@ -201,3 +201,29 @@
   .ag-run-row__input { font-size: var(--type-xs); }
   .ag-run-detail { padding-left: 12px; }
 }
+
+.ag-run-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ag-run-plan__item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--type-xs);
+  color: var(--ink-muted);
+}
+
+.ag-run-plan__item.is-completed {
+  color: var(--ink);
+  text-decoration: line-through;
+  text-decoration-color: var(--line-strong, var(--line-subtle));
+}
+
+.ag-run-plan__item > span {
+  width: 10px;
+  flex: 0 0 auto;
+  color: var(--ink-muted);
+}

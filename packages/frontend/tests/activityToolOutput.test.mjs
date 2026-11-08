@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeResults, visualOf } from '../src/components/activity/toolOutput.ts';
+import { normalizeResults, uiOf, visualOf } from '../src/components/activity/toolOutput.ts';
 
 test('normalizeResults gives duplicate URLs unique ids and keeps both', () => {
   const results = normalizeResults([
@@ -38,4 +38,23 @@ test('visualOf reads html_render output and preview urls', () => {
   assert.equal(visual?.url, '/api/visuals/v1?token=t');
   assert.equal(visualOf({ preview_url: '/api/visuals/v2?token=x' })?.url, '/api/visuals/v2?token=x');
   assert.equal(visualOf('plain text'), null);
+});
+
+test('uiOf reads the typed tool UI contract', () => {
+  const table = uiOf(
+    JSON.stringify({ ui: { type: 'table', title: 'Rows', columns: ['a'], rows: [[1]] } }),
+  );
+  assert.equal(table?.type, 'table');
+  assert.deepEqual(table?.columns, ['a']);
+  assert.deepEqual(table?.rows, [[1]]);
+
+  const chart = uiOf({ type: 'chart', labels: ['x'], values: ['3'] });
+  assert.equal(chart?.type, 'chart');
+  assert.deepEqual(chart?.values, [3]);
+
+  const kv = uiOf({ ui: { type: 'keyvalue', items: [{ label: 'Status', value: 'ok' }] } });
+  assert.equal(kv?.items?.[0].label, 'Status');
+
+  assert.equal(uiOf({ type: 'unknown' }), null);
+  assert.equal(uiOf('plain'), null);
 });

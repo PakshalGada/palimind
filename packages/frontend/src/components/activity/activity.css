@@ -2391,3 +2391,124 @@ html[data-motion="reduced"] .act-reason__wave i { opacity: 0.6; }
     border-radius: var(--radius-sm);
     background: var(--surface);
 }
+
+/* ── typed tool UI contract (table / key-value / chart) ──────────────────── */
+
+.act-ui {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.act-ui--success .act-section-title { color: var(--act-success, var(--act-text)); }
+.act-ui--warn .act-section-title { color: var(--act-warning, var(--act-text)); }
+.act-ui--danger .act-section-title { color: var(--act-error, var(--act-text)); }
+
+.act-ui__text {
+    margin: 0;
+    font-size: var(--type-sm);
+    color: var(--act-text);
+    line-height: 1.5;
+}
+
+.act-ui__kv {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+}
+
+.act-ui__kv > div {
+    display: grid;
+    grid-template-columns: minmax(90px, 180px) minmax(0, 1fr);
+    gap: 8px;
+    padding: 3px 0;
+    border-bottom: 1px solid var(--act-hairline);
+}
+
+.act-ui__kv > div:last-child { border-bottom: 0; }
+
+.act-ui__kv dt {
+    font-size: var(--type-xs);
+    color: var(--act-muted);
+}
+
+.act-ui__kv dd {
+    margin: 0;
+    font-size: var(--type-sm);
+    color: var(--act-text);
+    word-break: break-word;
+}
+
+.act-ui__table-wrap {
+    overflow: auto;
+    border: 1px solid var(--act-hairline);
+    border-radius: var(--radius-sm);
+}
+
+.act-ui__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--type-xs);
+}
+
+.act-ui__table th,
+.act-ui__table td {
+    padding: 5px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--act-hairline);
+    white-space: nowrap;
+}
+
+.act-ui__table th {
+    color: var(--act-muted);
+    font-weight: var(--weight-medium);
+    font-size: var(--type-2xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.act-ui__table tr:last-child td { border-bottom: 0; }
+.act-ui__table td { color: var(--act-text); }
+
+.act-ui__chart {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.act-ui__chart-row {
+    display: grid;
+    grid-template-columns: minmax(70px, 140px) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--type-xs);
+}
+
+.act-ui__chart-row > span:first-child {
+    color: var(--act-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.act-ui__chart-track {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--act-hairline);
+    overflow: hidden;
+}
+
+.act-ui__chart-fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--act-text);
+    opacity: 0.55;
+}
+
+.act-ui__chart-row em {
+    font-style: normal;
+    color: var(--act-muted);
+    font-variant-numeric: tabular-nums;
+}

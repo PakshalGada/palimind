@@ -673,6 +673,7 @@ export interface RunRecord {
   verification?: VerificationReport;
   effort?: { level?: string; source?: string; score?: number | null; reasoning?: string };
   suggestions?: string[];
+  plan?: { label: string; status: string }[];
   model_route?: {
     model: string;
     provider: string;

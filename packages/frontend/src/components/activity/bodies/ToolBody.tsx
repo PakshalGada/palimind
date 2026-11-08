@@ -3,7 +3,7 @@ import type { ToolStep } from '../model';
 import type { ActivityStore } from '../store';
 import { useActivityState } from '../hooks';
 import { CodeView } from '../primitives/CodeView';
-import { parseOutput, textOf } from '../toolOutput';
+import { parseOutput, textOf, uiOf } from '../toolOutput';
 import { getToolDefinition } from '../toolRegistry';
 
 const SearchBody = lazy(() => import('./SearchBody'));
@@ -23,6 +23,7 @@ const BrowserBody = lazy(() => import('./BrowserBody'));
 const IotBody = lazy(() => import('./IotBody'));
 const WeatherBody = lazy(() => import('./WeatherBody'));
 const VisualBody = lazy(() => import('./VisualBody'));
+const UIBody = lazy(() => import('./UIBody'));
 
 function GenericBody({ step }: { step: ToolStep }) {
   const output = parseOutput(step.output);
@@ -74,6 +75,15 @@ export function ToolBody({
   depth?: number;
   browserSteps?: readonly ToolStep[];
 }) {
+  // The typed UI contract wins over the family renderer when a tool provides
+  // one, so new tools can ship interactive results without a React component.
+  if (uiOf(step.output)) {
+    return (
+      <Suspense fallback={<Fallback />}>
+        <UIBody step={step} />
+      </Suspense>
+    );
+  }
   const family = getToolDefinition(step.name).family;
   let body: React.ReactNode;
   switch (family) {

@@ -338,6 +338,7 @@ def record_run(
     suggestions: list[str] | None = None,
     usage_stages: dict | None = None,
     model_route: dict | None = None,
+    plan: list[dict] | None = None,
 ) -> None:
     from palimind.storage import state_store
 
@@ -372,6 +373,15 @@ def record_run(
             }
         if model_route:
             entry["model_route"] = dict(model_route)
+        if plan:
+            entry["plan"] = [
+                {
+                    "label": str(item.get("label") or "")[:500],
+                    "status": str(item.get("status") or "pending"),
+                }
+                for item in plan[:50]
+                if str(item.get("label") or "").strip()
+            ]
         state_store.append_run(agent_id, run_id, entry, AGENT_RUN_HISTORY_LIMIT)
         try:
             from palimind import metrics
@@ -948,6 +958,7 @@ async def run_with_definition(
     usage_holder: dict = {}
     usage_stages: dict[str, dict[str, int]] = {}
     suggestions_holder: list[str] = []
+    plan_holder: list[dict] = []
 
     _live_kinds = {
         "agent:thought": "thought",
@@ -963,6 +974,8 @@ async def run_with_definition(
         if event_type == "agent:usage":
             # Enrich the live token counter with the configured cost estimate.
             payload = {**payload, **usage_payload(payload)}
+        if event_type == "agent:todo":
+            plan_holder[:] = list(payload.get("items") or [])
         if event_type not in ("agent:token", "agent:usage"):
             with trace_lock:
                 trace.append({"type": event_type, **payload})
@@ -1545,6 +1558,7 @@ async def run_with_definition(
         suggestions=suggestions_holder or None,
         usage_stages=usage_stages or None,
         model_route=route_info or None,
+        plan=plan_holder or None,
     )
     append_chat(definition.id, "agent", output)
     activity.finish(definition.id, status, output, run_id=run_id)
