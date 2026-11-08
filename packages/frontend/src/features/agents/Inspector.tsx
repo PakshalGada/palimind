@@ -899,6 +899,37 @@ export default function Inspector({
                       </div>
                     </Field>
                   )}
+                  {selectedTools.length > 0 && (
+                    <Field
+                      label="Tool policies"
+                      hint="Allow skips approval, Ask uses the normal gate, Deny blocks the tool entirely."
+                    >
+                      <div className="ax-policy-list">
+                        {selectedTools.slice(0, 40).map((t) => {
+                          const value = (draft.tool_policies || {})[t.id] || 'ask';
+                          return (
+                            <label key={t.id} className="ax-policy-row">
+                              <span>{t.id}</span>
+                              <select
+                                value={value}
+                                onChange={(event) => {
+                                  const next = { ...(draft.tool_policies || {}) };
+                                  const chosen = event.target.value as 'allow' | 'ask' | 'deny';
+                                  if (chosen === 'ask') delete next[t.id];
+                                  else next[t.id] = chosen;
+                                  patch({ tool_policies: next });
+                                }}
+                              >
+                                <option value="allow">Allow</option>
+                                <option value="ask">Ask</option>
+                                <option value="deny">Deny</option>
+                              </select>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </Field>
+                  )}
                 </section>
 
                 <div className="ax-tools__bar">

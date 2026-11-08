@@ -6,3 +6,8 @@
 @media (max-width: 560px) {
   .ag-modal-grid2 { grid-template-columns: 1fr; }
 }
+
+.ag-modal-error {
+  font-size: var(--type-xs);
+  color: var(--danger, var(--ink));
+}

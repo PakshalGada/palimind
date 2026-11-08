@@ -20,7 +20,30 @@ export default function RoutineBuilder({
   onError: (message: string) => void;
 }) {
   const [value, setValue] = useState<Partial<Routine>>(draft || {});
+  const [cronError, setCronError] = useState('');
   useEffect(() => setValue(draft || {}), [draft]);
+  useEffect(() => {
+    const schedule = (value.schedule || '').trim();
+    if (value.run_mode !== 'scheduled' || !schedule) {
+      setCronError('');
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      api.agents
+        .validateCron(schedule)
+        .then((res) => {
+          if (!cancelled) setCronError(res.valid ? '' : res.error || 'Invalid cron expression');
+        })
+        .catch(() => {
+          if (!cancelled) setCronError('');
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [value.schedule, value.run_mode]);
   if (!draft) return null;
 
   const save = async () => {
@@ -119,6 +142,7 @@ export default function RoutineBuilder({
               placeholder="0 9 * * 1"
               onChange={(event) => setValue({ ...value, schedule: event.target.value })}
             />
+            {cronError && <span className="ag-modal-error">{cronError}</span>}
           </Field>
         )}
         {value.run_mode === 'watcher' && (

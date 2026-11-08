@@ -199,6 +199,9 @@ class AgentDefinition:
     success_criteria: str = ""
     # ── Teams / workspace / reliability ─────────────────────────────────
     always_allow_tools: list[str] = field(default_factory=list)
+    # Per-tool override: "allow" skips approval, "deny" blocks the tool, and
+    # "ask" forces the normal approval path (the default when absent).
+    tool_policies: dict[str, str] = field(default_factory=dict)
     workspace_dir: str = ""
     team_ids: list[str] = field(default_factory=list)
     tool_pack: str = "auto"
@@ -267,6 +270,7 @@ class AgentDefinition:
         avatar_upload: str = "",
         avatar_config: dict[str, Any] | None = None,
         always_allow_tools: list[str] | None = None,
+        tool_policies: dict[str, str] | None = None,
         workspace_dir: str = "",
         team_ids: list[str] | None = None,
         tool_pack: str = "auto",
@@ -325,6 +329,7 @@ class AgentDefinition:
             verify_confidence_threshold=verify_confidence_threshold,
             success_criteria=success_criteria,
             always_allow_tools=list(always_allow_tools or []),
+            tool_policies=dict(tool_policies or {}),
             workspace_dir=workspace_dir,
             team_ids=list(team_ids or []),
             tool_pack=tool_pack,
@@ -380,6 +385,7 @@ class AgentDefinition:
         cleaned.setdefault("verify_confidence_threshold", 0.0)
         cleaned.setdefault("success_criteria", "")
         cleaned.setdefault("always_allow_tools", [])
+        cleaned.setdefault("tool_policies", {})
         cleaned.setdefault("workspace_dir", "")
         cleaned.setdefault("team_ids", [])
         cleaned.setdefault("tool_pack", "auto")
@@ -457,6 +463,16 @@ class AgentDefinition:
         for key in ("always_allow_tools", "team_ids", "desktop_allowed_apps"):
             value = cleaned.get(key)
             cleaned[key] = [str(v) for v in value] if isinstance(value, list) else []
+        policies = cleaned.get("tool_policies")
+        cleaned["tool_policies"] = (
+            {
+                str(key): str(value)
+                for key, value in policies.items()
+                if str(value) in ("allow", "ask", "deny")
+            }
+            if isinstance(policies, dict)
+            else {}
+        )
         cleaned["desktop_access"] = bool(cleaned.get("desktop_access"))
         # Control implies observation: an agent that may act must first see.
         cleaned["desktop_control"] = bool(cleaned.get("desktop_control"))
@@ -553,6 +569,10 @@ def validate_definition(defn: AgentDefinition) -> str | None:
         return "desktop_control requires desktop_access"
     if len(defn.always_allow_tools or []) > 64:
         return "too many always-allow tools"
+    if len(defn.tool_policies or {}) > 256:
+        return "too many tool policies"
+    if any(value not in ("allow", "ask", "deny") for value in (defn.tool_policies or {}).values()):
+        return "tool policies must be allow, ask or deny"
     if len(str(defn.workspace_dir or "")) > 512:
         return "workspace_dir is too long"
     return None

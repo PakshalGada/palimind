@@ -481,6 +481,17 @@ def _gate_tool(
             if allowed_apps and target_app and not _desktop_app_allowed(target_app, allowed_apps):
                 return f"Access denied: '{target_app}' is not in this agent's desktop_allowed_apps"
 
+        # Per-tool policy override (allow / ask / deny).
+        policies = getattr(definition, "tool_policies", {}) or {}
+        decision = str(policies.get(tool_name, "") or "").lower()
+        if decision == "deny":
+            return (
+                f"Access denied: this agent's tool policy blocks '{tool_name}'. "
+                "Ask the user to change it in the agent settings."
+            )
+        if decision == "allow":
+            return None
+
         # Autonomy gate.
         autonomy = str(getattr(definition, "autonomy_level", "") or "")
         if not autonomy:

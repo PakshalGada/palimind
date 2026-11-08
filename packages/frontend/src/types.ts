@@ -405,6 +405,7 @@ export interface AgentDefinition {
   schema_version?: number;
   // ── Teams / workspace / reliability ─────────────────────────────────
   always_allow_tools?: string[];
+  tool_policies?: Record<string, 'allow' | 'ask' | 'deny'>;
   workspace_dir?: string;
   team_ids?: string[];
   tool_pack?: ToolPack;
