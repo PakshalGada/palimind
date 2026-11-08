@@ -125,6 +125,70 @@ BUILTIN_SKILLS: list[dict[str, Any]] = [
         ),
     },
     {
+        "id": "document-docx",
+        "name": "Word document",
+        "description": "Write a detailed, well-structured document and download it as a real .docx file.",
+        "category": "writing",
+        "command": "/docx",
+        "tools": [],
+        "instructions": (
+            "You are producing a finished Word document, not a chat answer.\n"
+            "OUTPUT CONTRACT\n"
+            "- Return exactly one fenced ```markdown block and nothing else after it.\n"
+            "- Put any one-line introduction before the fence only if it is genuinely useful.\n"
+            "- Do not call docx_write, run_python, run_shell or any other file-writing tool.\n"
+            "- The app converts your Markdown into a formatted .docx automatically.\n\n"
+            "DOCUMENT STRUCTURE\n"
+            "- Start with one # title that names the document, not the task.\n"
+            "- Add a short executive summary (3-5 sentences) before the first ## section.\n"
+            "- Use ## sections with descriptive headings; use ### only for real sub-points.\n"
+            "- Aim for 1,200-2,200 words of substantive, specific content. Never pad with repetition.\n"
+            "- Use short paragraphs, bullet lists and numbered steps where they improve scanability.\n"
+            "- Include at least one comparison or data table when the subject has facts, options or trade-offs.\n"
+            "- Include concrete examples, numbers, named entities and dates from the user's request or context.\n"
+            "- Mark assumptions explicitly under an 'Assumptions' heading instead of silently inventing facts.\n"
+            "- End with a 'Next steps' section containing owners and dates when the user supplied them.\n\n"
+            "STYLE\n"
+            "- Professional, direct and specific. Prefer active voice and plain language.\n"
+            "- Bold key labels with **Label** and keep table cells short.\n"
+            "- Do not use emojis, decorative vertical bars or raw HTML.\n"
+            "- Leave no placeholders such as [insert here], TBD or lorem ipsum; if information is unknown, say so."
+        ),
+    },
+    {
+        "id": "presentation-pptx",
+        "name": "PowerPoint deck",
+        "description": "Build a detailed, designed slide deck and download it as a real .pptx file.",
+        "category": "writing",
+        "command": "/pptx",
+        "tools": [],
+        "instructions": (
+            "You are producing a finished presentation deck, not a chat answer.\n"
+            "OUTPUT CONTRACT\n"
+            "- Return exactly one fenced ```slides block and nothing else after it.\n"
+            "- Do not call pptx_write, run_python, run_shell or any other file-writing tool.\n"
+            "- The app converts the outline into a designed .pptx with a cover, section slides,\n"
+            "  KPI cards, content cards and bullet layouts.\n\n"
+            "DECK STRUCTURE\n"
+            "- Produce 10-16 slides with a clear narrative arc.\n"
+            "- Slide 1 is the title: one # heading only. The first bullet becomes the subtitle.\n"
+            "- Slide 2 should be an agenda or 'What we will cover' with 4-6 bullets.\n"
+            "- Use a section-divider slide (a # heading with no bullets) before each major part.\n"
+            "- Content slides need 3-5 short bullets. One idea per bullet, ideally 8-18 words.\n"
+            "- Write bullets with a colon when a fact has a label, e.g. 'Revenue: $4.8M in Q3'.\n"
+            "  The exporter turns labelled facts into KPI cards and other grouped content into boxes.\n"
+            "- Include at least one metrics slide with 3-4 KPI bullets such as 'Growth: 28% year over year'.\n"
+            "- Include at least one slide covering risks or trade-offs and one covering next steps.\n"
+            "- Close with a clear recommendation or ask.\n\n"
+            "CONTENT QUALITY\n"
+            "- Every slide title should make a claim, not just name a topic.\n"
+            "- Prefer concrete numbers, names, dates and comparisons over generic statements.\n"
+            "- Do not invent data. If an exact figure is unavailable, state the estimate and its basis.\n"
+            "- Do not use Markdown tables, code fences inside the block, emojis or raw HTML.\n"
+            "- Do not add speaker notes, commentary about the deck, or a summary after the fence."
+        ),
+    },
+    {
         "id": "commit",
         "name": "Commit changes",
         "description": "Stage and commit the current workspace changes with a clear message.",

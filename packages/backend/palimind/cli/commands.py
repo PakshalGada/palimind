@@ -79,6 +79,109 @@ def frontend_build_stale(frontend_dir: Path) -> bool:
     return False
 
 
+# Routes added since older local servers were started. A long-lived server
+# keeps its original imports in memory even after `git pull` + frontend build,
+# which used to leave the UI calling 404s such as /api/browser/state until the
+# user manually killed the process. The launcher now detects and restarts it.
+_REQUIRED_SERVER_ROUTES = (
+    "/api/browser/state",
+    "/api/browser/action",
+    "/api/browser/frame",
+    "/api/office/generate",
+)
+
+
+def missing_required_routes(openapi: dict) -> list[str]:
+    paths = openapi.get("paths") if isinstance(openapi, dict) else None
+    if not isinstance(paths, dict):
+        return list(_REQUIRED_SERVER_ROUTES)
+    return [route for route in _REQUIRED_SERVER_ROUTES if route not in paths]
+
+
+def read_server_openapi(port: int, timeout: float = 2.0) -> dict | None:
+    """Fetch the running server's OpenAPI document, or None when unreachable."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/openapi.json", timeout=timeout
+        ) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except (OSError, ValueError, urllib.error.URLError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def server_is_current(port: int) -> bool:
+    """False when a live API server predates the routes this build requires.
+
+    When the probe cannot read the document we do not kill an unknown process;
+    only a parsed document that is missing routes triggers a restart.
+    """
+    openapi = read_server_openapi(port)
+    if openapi is None:
+        return True
+    return not missing_required_routes(openapi)
+
+
+def stop_api_server(port: int) -> bool:
+    """Stop the Palimind API server listening on *port*.
+
+    Returns False when the listener is not recognisably a Palimind API server,
+    so the launcher never kills an unrelated process that happens to own the
+    port.
+    """
+    try:
+        import psutil
+    except ImportError:
+        return False
+
+    listener: psutil.Process | None = None
+    try:
+        for conn in psutil.net_connections(kind="inet"):
+            if conn.status != psutil.CONN_LISTEN or not conn.laddr:
+                continue
+            if getattr(conn.laddr, "port", None) != port or conn.pid is None:
+                continue
+            try:
+                candidate = psutil.Process(conn.pid)
+                cmdline = " ".join(candidate.cmdline()).lower()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+            if "palimind.api_server" in cmdline or (
+                "uvicorn" in cmdline and "palimind" in cmdline
+            ):
+                listener = candidate
+                break
+    except (psutil.AccessDenied, OSError):
+        return False
+
+    if listener is None:
+        return False
+    try:
+        children = listener.children(recursive=True)
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        children = []
+    try:
+        for child in children:
+            try:
+                child.terminate()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        listener.terminate()
+        gone, alive = psutil.wait_procs([listener, *children], timeout=8)
+        for proc in alive:
+            try:
+                proc.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        return True
+    except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
+        return False
+
+
 config_app = typer.Typer(help="Manage PaliMind configuration")
 app.add_typer(config_app, name="config")
 
@@ -633,6 +736,25 @@ def ui(
                 print_warning("Ollama not found on PATH — skipping (local models unavailable)")
         else:
             print_success("Ollama already running on :11434")
+
+        if port_up(port) and not server_is_current(port):
+            print_warning(
+                f"API server on :{port} is out of date (missing browser/office routes) "
+                "— restarting it so the app and backend match this build."
+            )
+            if not stop_api_server(port):
+                print_error(
+                    f"Could not stop the old API server on :{port}. Stop that process "
+                    "manually, then run `pm ui` again."
+                )
+                raise typer.Exit(1)
+            deadline = time.time() + 10
+            while port_up(port) and time.time() < deadline:
+                time.sleep(0.25)
+            if port_up(port):
+                print_error(f"The old API server is still holding :{port}.")
+                raise typer.Exit(1)
+            print_success("Stopped the stale API server")
 
         if not port_up(port):
             import tempfile

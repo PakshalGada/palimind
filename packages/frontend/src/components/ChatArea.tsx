@@ -8,8 +8,10 @@ import IndexingProgress from './IndexingProgress';
 import { PixelGlyph } from './pixel/PixelGlyph';
 import { PixelAssemble } from './pixel/PixelAssemble';
 import InputArea from './InputArea';
+import ArtifactAnswerBlock from './ArtifactAnswerBlock';
 import MessageActions from './MessageActions';
 import MessageContent from './MessageContent';
+import { parseArtifacts, shouldAutoOpenArtifact } from '../utils/artifacts';
 import { useChatStreamContext } from '../stream/context';
 import StreamingTurn from '../stream/StreamingTurn';
 import { streamBelongsTo } from '../stream/reducer';
@@ -425,6 +427,15 @@ const MessageComponent = memo(function MessageComponent({
   }
 
   const historySources = !isUser ? msg.sources ?? [] : [];
+  const artifacts = useMemo(
+    () =>
+      isUser
+        ? []
+        : parseArtifacts(msg.content, index).filter((artifact) =>
+            shouldAutoOpenArtifact(artifact),
+          ),
+    [isUser, msg.content, index],
+  );
 
   return (
     <div className={`message ${isUser ? 'user-message' : 'system-message'} history-message`}>
@@ -437,14 +448,20 @@ const MessageComponent = memo(function MessageComponent({
             citations={msg.citations}
           />
         )}
-        <MessageContent
-          content={msg.content}
-          citations={msg.citations}
-          messageIndex={isUser ? undefined : index}
-          onOpenArtifact={onOpenArtifact}
-        />
-        {!isUser && (
-          <SourcesPanel citations={msg.citations} legacySources={historySources} />
+        {artifacts.length > 0 ? (
+          <ArtifactAnswerBlock artifacts={artifacts} onOpen={onOpenArtifact} />
+        ) : (
+          <>
+            <MessageContent
+              content={msg.content}
+              citations={msg.citations}
+              messageIndex={isUser ? undefined : index}
+              onOpenArtifact={onOpenArtifact}
+            />
+            {!isUser && (
+              <SourcesPanel citations={msg.citations} legacySources={historySources} />
+            )}
+          </>
         )}
         <MessageActions
           content={msg.content}

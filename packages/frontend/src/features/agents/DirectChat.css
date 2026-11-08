@@ -18,6 +18,19 @@
   gap: 12px;
 }
 
+/* The Agents surface uses the exact same composer as Chat and Knowledge.
+   Chat floats it over the transcript; here it is the last flex child, so the
+   thread scrolls independently and the composer keeps its full width. */
+.ag-chat .input-area {
+  position: relative;
+  flex-shrink: 0;
+  padding: 0 24px 16px;
+  background: transparent;
+}
+.ag-chat .input-area .chat-mode-toggle {
+  display: none;
+}
+
 .ag-chat-empty {
   margin: auto;
   display: flex;

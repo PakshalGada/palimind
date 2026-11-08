@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FileText, Code2, Globe2, Presentation } from 'lucide-react';
+import { FileText, Code2, Globe2, Presentation, FileType2 } from 'lucide-react';
 import { Modal } from '../ui/primitives';
 import {
   CREATE_ARTIFACT_OPTIONS,
@@ -10,7 +10,9 @@ import './CreateArtifactDialog.css';
 
 const ICONS = {
   document: FileText,
+  word: FileType2,
   slides: Presentation,
+  pptx: Presentation,
   webpage: Globe2,
   code: Code2,
 } as const;
@@ -23,7 +25,7 @@ export default function CreateArtifactDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  onCreate: (prompt: string) => void;
+  onCreate: (prompt: string, kind: CreateArtifactKind) => void;
   initialKind?: CreateArtifactKind;
 }) {
   const [kind, setKind] = useState<CreateArtifactKind>(initialKind);
@@ -39,7 +41,7 @@ export default function CreateArtifactDialog({
   const submit = () => {
     const prompt = buildArtifactPrompt(kind, topic);
     if (!prompt) return;
-    onCreate(prompt);
+    onCreate(prompt, kind);
     onClose();
   };
 
@@ -103,8 +105,9 @@ export default function CreateArtifactDialog({
         />
       </label>
       <p className="create-artifact-hint">
-        The model writes one fenced artifact. When it closes, the preview opens in the artifact
-        panel where you can edit, save and export it as Markdown, HTML, PDF, Word or PowerPoint.
+        The model writes one fenced artifact. Word and PowerPoint choices download a real
+        .docx/.pptx file when the turn finishes; other choices open in the artifact panel where
+        you can edit, save and export.
       </p>
     </Modal>
   );

@@ -96,10 +96,18 @@ async def llm_mode_stream(
     persona: str = "",
     image_paths: list[str] | None = None,
     attachment_context: str = "",
+    display_text: str | None = None,
 ) -> StreamingResponse:
     """PLAIN LLM MODE: Chat directly with the LLM using general knowledge.
     No document context, no code execution, no tools. Live web search is
-    optionally prepended when the caller enables it."""
+    optionally prepended when the caller enables it.
+
+    ``display_text`` is what the user actually typed when a hidden skill
+    prompt is sent as ``q``. It is used for the stored transcript, web-search
+    intent and memory, while the model still receives the full instructions.
+    """
+
+    visible_query = display_text or q
 
     async def plain_stream():
         from palimind.config import load_config
@@ -112,10 +120,10 @@ async def llm_mode_stream(
                 active_field,
                 active_sess_id,
                 "user",
-                q,
+                visible_query,
             )
 
-        web_enabled = _truthy(web_search) and _web_worth_searching(q)
+        web_enabled = _truthy(web_search) and _web_worth_searching(visible_query)
         yield (
             f"data: {json.dumps({'type': 'reasoning', 'text': 'LLM Mode — using general knowledge' + (' + live web search' if web_enabled else ' (no tools)')})}\n\n"
         )
@@ -127,13 +135,13 @@ async def llm_mode_stream(
                 f"data: {json.dumps({'type': 'reasoning', 'text': 'Searching the web...'})}\n\n"
             )
             yield (
-                f"data: {json.dumps({'type': 'agent:tool_call', 'agent_id': 0, 'tool': 'web_search', 'args': {'query': q}})}\n\n"
+                f"data: {json.dumps({'type': 'agent:tool_call', 'agent_id': 0, 'tool': 'web_search', 'args': {'query': visible_query}})}\n\n"
             )
             try:
                 from palimind.core.web_search import perform_web_search
 
                 web_results = await asyncio.to_thread(
-                    perform_web_search, q, 6, True
+                    perform_web_search, visible_query, 6, True
                 )
                 web_sources = _web_sources(web_results)
                 yield (
@@ -236,7 +244,7 @@ async def llm_mode_stream(
                     citations=citation_payload,
                 )
                 asyncio.create_task(
-                    background_update_memory(active_field, active_sess_id, q, full_text)
+                    background_update_memory(active_field, active_sess_id, visible_query, full_text)
                 )
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
@@ -368,9 +376,12 @@ async def moe_mode_stream(
     orchestrator_url: str | None = None,
     worker_url: str | None = None,
     long_term_episodes: list[dict] | None = None,
+    display_text: str | None = None,
 ) -> StreamingResponse:
     """MOE MODE: Uses an orchestrator LLM to create a plan, dispatches to 4 smaller
     agent LLMs that run in parallel with tool access, then synthesizes the results."""
+
+    visible_query = display_text or q
 
     async def moe_stream():
         from palimind.llm.mixture_of_expert import run_moe_pipeline
@@ -381,7 +392,7 @@ async def moe_mode_stream(
                 active_field,
                 active_sess_id,
                 "user",
-                q,
+                visible_query,
             )
 
         orch_model = orchestrator_model or chat_model
@@ -411,7 +422,7 @@ async def moe_mode_stream(
                 mid_term_summary=mid_term_summary,
                 long_term_episodes=long_term_episodes,
                 root=active_field,
-                force_web=_truthy(web_search) and _web_worth_searching(q),
+                force_web=_truthy(web_search) and _web_worth_searching(visible_query),
             )
         )
 
@@ -518,7 +529,7 @@ async def moe_mode_stream(
                     citations=citation_payload,
                 )
                 asyncio.create_task(
-                    background_update_memory(active_field, active_sess_id, q, full_text)
+                    background_update_memory(active_field, active_sess_id, visible_query, full_text)
                 )
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
@@ -546,9 +557,12 @@ async def deep_research_mode_stream(
     orchestrator_url: str | None = None,
     worker_url: str | None = None,
     long_term_episodes: list[dict] | None = None,
+    display_text: str | None = None,
 ) -> StreamingResponse:
     """DEEP RESEARCH MODE: Plans research sub-topics, dispatches parallel research
     agents with web access, then synthesizes a comprehensive research report."""
+
+    visible_query = display_text or q
 
     async def deep_research_stream():
         from palimind.llm.deep_research import run_deep_research_pipeline
@@ -559,7 +573,7 @@ async def deep_research_mode_stream(
                 active_field,
                 active_sess_id,
                 "user",
-                q,
+                visible_query,
             )
 
         orch_model = orchestrator_model or chat_model
@@ -587,12 +601,12 @@ async def deep_research_mode_stream(
         plan_event = asyncio.Event()
 
         async def on_plan(plan: list[dict]):
-            pending = register_plan(q, plan, plan_event)
+            pending = register_plan(visible_query, plan, plan_event)
             await on_progress(
                 {
                     "type": "research_plan",
                     "plan_id": pending.plan_id,
-                    "query": q,
+                    "query": visible_query,
                     "plan": plan,
                 }
             )
@@ -722,7 +736,7 @@ async def deep_research_mode_stream(
                     citations=citation_payload,
                 )
                 asyncio.create_task(
-                    background_update_memory(active_field, active_sess_id, q, full_text)
+                    background_update_memory(active_field, active_sess_id, visible_query, full_text)
                 )
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"

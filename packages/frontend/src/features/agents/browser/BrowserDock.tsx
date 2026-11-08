@@ -3,11 +3,14 @@ import {
   ArrowLeft,
   ArrowRight,
   Globe2,
+  Loader2,
   Maximize2,
   Minimize2,
   Plus,
   RotateCw,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import { api } from '../../../api';
 import { useApp } from '../../../AppContext';
@@ -27,8 +30,19 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
     useBrowserSession(browserOpen, agentId || '');
   const [address, setAddress] = useState('');
   const [editing, setEditing] = useState(false);
+  const [frameLoading, setFrameLoading] = useState(true);
+  const [zoom, setZoom] = useState(() => {
+    try {
+      const stored = Number(localStorage.getItem('palimind:browser-zoom'));
+      if (Number.isFinite(stored) && stored >= 75 && stored <= 250) return stored;
+    } catch {
+      // localStorage may be unavailable
+    }
+    return 125;
+  });
   const stageRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const addressRef = useRef<HTMLInputElement>(null);
   const actionQueue = useRef<Promise<unknown>>(Promise.resolve());
 
   const enqueue = (action: string, payload: Record<string, unknown> = {}) => {
@@ -43,6 +57,29 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
   }, [state.url, editing]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem('palimind:browser-zoom', String(zoom));
+    } catch {
+      // localStorage may be unavailable
+    }
+  }, [zoom]);
+
+  const changeZoom = (delta: number) =>
+    setZoom((current) => Math.max(75, Math.min(250, current + delta)));
+
+  useEffect(() => {
+    if (!state.open) {
+      setFrameLoading(false);
+      return;
+    }
+    setFrameLoading(true);
+    // A frame older than a couple of seconds means the screenshot route is
+    // stuck; leave the previous image visible instead of a blank stage.
+    const timer = window.setTimeout(() => setFrameLoading(false), 2500);
+    return () => window.clearTimeout(timer);
+  }, [state.open, state.url, state.title]);
+
+  useEffect(() => {
     if (!browserFullscreen) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setBrowserFullscreen(false);
@@ -50,6 +87,36 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [browserFullscreen, setBrowserFullscreen]);
+
+  // Ctrl/⌘+L focuses the address bar like a normal browser. Escape returns
+  // focus to the page so page keyboard input resumes immediately.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!browserOpen) return;
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'l') {
+        event.preventDefault();
+        addressRef.current?.focus();
+        addressRef.current?.select();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [browserOpen]);
+
+  /** The user taking any action is the natural handoff; no extra modal. */
+  const ensureHuman = async () => {
+    if (state.owner === 'human') return;
+    if (takeover && takeover.status === 'pending') {
+      await api.browser.acceptTakeover(takeover.id);
+    } else {
+      await claim(agentId || '', takeover?.id || '');
+    }
+  };
+
+  const userAct = async (action: string, payload: Record<string, unknown> = {}) => {
+    await ensureHuman();
+    return enqueue(action, payload);
+  };
 
   if (!browserOpen) return null;
 
@@ -94,7 +161,7 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
     const target = normalizeAddress(address);
     if (!target) return;
     setEditing(false);
-    await enqueue('goto', { url: target });
+    await userAct('goto', { url: target });
   };
 
   const pagePoint = (event: React.MouseEvent) => {
@@ -105,13 +172,27 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
 
   const onStageClick = async (event: React.MouseEvent) => {
     stageRef.current?.focus();
-    if (!human || !state.open) return;
+    if (!state.open) return;
     const { x, y } = pagePoint(event);
-    await enqueue('click', { x, y });
+    await userAct('click', { x, y });
+  };
+
+  const onStageDoubleClick = async (event: React.MouseEvent) => {
+    stageRef.current?.focus();
+    if (!state.open) return;
+    const { x, y } = pagePoint(event);
+    await userAct('dblclick', { x, y });
+  };
+
+  const onStageContextMenu = async (event: React.MouseEvent) => {
+    event.preventDefault();
+    if (!state.open) return;
+    const { x, y } = pagePoint(event);
+    await userAct('right_click', { x, y });
   };
 
   const onKeyDown = async (event: React.KeyboardEvent) => {
-    if (!human) return;
+    if (!state.open || event.metaKey || event.ctrlKey) return;
     event.preventDefault();
     const named = new Set([
       'Enter',
@@ -127,28 +208,32 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
       'End',
       'PageUp',
       'PageDown',
+      ' ',
     ]);
     if (named.has(event.key)) {
-      await enqueue('key', { key: event.key });
+      await userAct('key', { key: event.key });
       return;
     }
-    if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
-      await enqueue('key', { key: event.key, text: event.key });
+    if (event.key.length === 1 && !event.altKey) {
+      await userAct('key', { key: event.key, text: event.key });
     }
   };
 
   const onPaste = async (event: React.ClipboardEvent) => {
-    if (!human) return;
     const text = event.clipboardData.getData('text');
     if (!text) return;
     event.preventDefault();
-    await enqueue('type', { text });
+    await userAct('type', { text });
   };
 
   const onWheel = async (event: React.WheelEvent) => {
-    if (!human) return;
+    if (!state.open) return;
     event.preventDefault();
-    await enqueue('wheel', { dx: 0, dy: event.deltaY });
+    if (event.ctrlKey || event.metaKey) {
+      changeZoom(event.deltaY < 0 ? 15 : -15);
+      return;
+    }
+    await userAct('wheel', { dx: 0, dy: event.deltaY });
   };
 
   const tabLabel = (tab: BrowserTab) => tab.title || tab.url || 'New tab';
@@ -164,7 +249,7 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
             key={`${tab.index}-${tab.url}`}
             type="button"
             className={`ag-browser__tab${tab.active ? ' is-active' : ''}`}
-            onClick={() => void enqueue('select_tab', { index: tab.index })}
+            onClick={() => void userAct('select_tab', { index: tab.index })}
           >
             <span>{tabLabel(tab)}</span>
             <span
@@ -174,7 +259,7 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
               aria-label="Close tab"
               onClick={(event) => {
                 event.stopPropagation();
-                void enqueue('close_tab', { index: tab.index });
+                void userAct('close_tab', { index: tab.index });
               }}
             >
               <X size={10} />
@@ -186,7 +271,7 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
           className="ag-browser__tab-new"
           title="New tab"
           aria-label="New tab"
-          onClick={() => void enqueue('new_tab', {})}
+          onClick={() => void userAct('new_tab', {})}
         >
           <Plus size={12} />
         </button>
@@ -217,8 +302,8 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
           className="ag-icon-btn"
           title="Back"
           aria-label="Back"
-          disabled={!state.open}
-          onClick={() => void enqueue('back')}
+          disabled={!state.open || state.can_go_back === false}
+          onClick={() => void userAct('back')}
         >
           <ArrowLeft size={14} />
         </button>
@@ -227,8 +312,8 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
           className="ag-icon-btn"
           title="Forward"
           aria-label="Forward"
-          disabled={!state.open}
-          onClick={() => void enqueue('forward')}
+          disabled={!state.open || state.can_go_forward === false}
+          onClick={() => void userAct('forward')}
         >
           <ArrowRight size={14} />
         </button>
@@ -238,20 +323,59 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
           title="Reload"
           aria-label="Reload"
           disabled={!state.open}
-          onClick={() => void enqueue('reload')}
+          onClick={() => void userAct('reload')}
         >
           <RotateCw size={14} />
         </button>
+        <button
+          type="button"
+          className="ag-icon-btn"
+          title="Zoom out"
+          aria-label="Zoom out"
+          disabled={zoom <= 75}
+          onClick={() => changeZoom(-15)}
+        >
+          <ZoomOut size={14} />
+        </button>
+        <button
+          type="button"
+          className="ag-icon-btn ag-browser__zoom"
+          title={`Reset zoom to 100% (${zoom}%)`}
+          aria-label={`Browser zoom ${zoom}%`}
+          onClick={() => setZoom(100)}
+        >
+          {zoom}%
+        </button>
+        <button
+          type="button"
+          className="ag-icon-btn"
+          title="Zoom in"
+          aria-label="Zoom in"
+          disabled={zoom >= 250}
+          onClick={() => changeZoom(15)}
+        >
+          <ZoomIn size={14} />
+        </button>
         <input
+          ref={addressRef}
           className="ag-browser__address"
           value={address}
           placeholder="Enter a URL"
-          readOnly={!human}
-          onFocus={() => setEditing(true)}
+          spellCheck={false}
+          autoCapitalize="off"
+          autoComplete="off"
+          onFocus={(event) => {
+            setEditing(true);
+            event.currentTarget.select();
+          }}
           onBlur={() => setEditing(false)}
           onChange={(event) => setAddress(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') void navigate();
+            if (event.key === 'Escape') {
+              event.currentTarget.blur();
+              stageRef.current?.focus();
+            }
           }}
           aria-label="Address"
         />
@@ -260,6 +384,15 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
           {human ? 'You' : pending ? 'Waiting' : state.open ? 'Agent' : 'Closed'}
         </span>
       </div>
+
+      {state.error && (
+        <div className="ag-browser__alert" role="alert">
+          <span>{state.error}</span>
+          <button type="button" onClick={() => void refresh()}>
+            Retry
+          </button>
+        </div>
+      )}
 
       <div className="ag-browser__stage-wrap">
         {!state.open ? (
@@ -286,10 +419,15 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
           <div
             ref={stageRef}
             className={`ag-browser__stage${human ? ' is-human' : ''}`}
-            style={{ aspectRatio: `${viewport.width} / ${viewport.height}` }}
+            style={{
+              aspectRatio: `${viewport.width} / ${viewport.height}`,
+              width: `${zoom}%`,
+            }}
             role="application"
-            tabIndex={human ? 0 : -1}
+            tabIndex={0}
             onClick={(event) => void onStageClick(event)}
+            onDoubleClick={(event) => void onStageDoubleClick(event)}
+            onContextMenu={(event) => void onStageContextMenu(event)}
             onKeyDown={(event) => void onKeyDown(event)}
             onPaste={(event) => void onPaste(event)}
             onWheel={(event) => void onWheel(event)}
@@ -301,8 +439,14 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
                 src={frameUrl}
                 alt={state.title || 'Browser page'}
                 draggable={false}
-                onError={() => setFrameFailed(true)}
-                onLoad={() => setFrameFailed(false)}
+                onError={() => {
+                  setFrameFailed(true);
+                  setFrameLoading(false);
+                }}
+                onLoad={() => {
+                  setFrameFailed(false);
+                  setFrameLoading(false);
+                }}
               />
             ) : (
               <div className="ag-browser__frame-error">
@@ -311,6 +455,11 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
                 <button type="button" onClick={() => void refresh()}>
                   Retry
                 </button>
+              </div>
+            )}
+            {(frameLoading || busy) && frameFailed === false && (
+              <div className="ag-browser__loading" role="status" aria-label="Loading page">
+                <Loader2 size={14} className="spin" />
               </div>
             )}
             {!human && (

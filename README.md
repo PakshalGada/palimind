@@ -49,21 +49,25 @@ The chat composer has three LLM modes, all of which can use live web search:
 | **Mixture of Experts** | An orchestrator plans the work and dispatches parallel expert agents with tools, then synthesizes and verifies the result. Expert lanes and the plan are visible while they run. |
 | **Deep Research** | Plans research sub-topics, lets you edit and approve the plan, runs research agents in parallel, and writes a long, cited report. |
 
-The **Web** toggle applies to Default and Mixture of Experts; Deep Research is
-always web-backed. Agent mentions are available in every mode: type `@` anywhere
-in the composer to pick an enabled agent (for example `@researcher find the
-latest papers`).
+Live web search is on by default for every LLM mode and has no separate
+composer toggle; Deep Research is always web-backed. Agent mentions are
+available in every mode: type `@` anywhere in the composer to pick an enabled
+agent (for example `@researcher find the latest papers`).
 
 ### Artifacts
 
 Answers that produce a web page, Markdown/Word document, slide deck or
-previewable code file open in the artifact panel automatically; ordinary tables
-and short snippets stay in the chat. From the panel you can edit, save, and
-export to Markdown, HTML, PDF, DOCX or PPTX. Type `/` in the composer for
-commands: `/doc`, `/slides`, `/page` and `/code` generate the matching artifact
-directly in the panel, while `/default`, `/moe`, `/research` and `/web` switch
-chat mode or toggle live search. Slide decks get a real 16:9 slide preview with
-navigation and an overview grid.
+previewable code file stay compact in the transcript: one block shows the
+artifact's title and an **Open in artifact** button, and the full preview opens
+in the artifact panel on demand. Ordinary tables and short snippets stay in the
+chat. From the panel you can edit, save, and export to Markdown, HTML, PDF, DOCX
+or PPTX. Type `/` in the composer to run an artifact skill: `/doc`, `/docx`,
+`/slides`, `/pptx`, `/page` and `/code`. The skill's detailed instructions are
+sent to the model but only your own request appears in the conversation. The
+Word document and PowerPoint choices run the full office pipeline: the model
+writes one fenced artifact, the backend builds a real OOXML file, and the
+browser downloads it when the turn settles. Slide decks are rendered with a
+cover, section dividers, KPI cards, content boxes and bullet layouts.
 
 ### PalIAgents - Agent System
 
@@ -289,6 +293,17 @@ See [docs/computer-use.md](docs/computer-use.md) for the threat model, the
 measured at-spi2-core 2.44 findings, the vendored-engine licence obligations
 and the Wayland targeting policy. Computer use is Linux-only.
 
+### Shared browser
+
+The Agents workspace embeds a live Playwright browser that the user and agents
+share. It opens automatically when an agent starts a browser tool, renders the
+real page as a live frame, and supports the controls people expect: an editable
+address bar (`Ctrl/⌘+L`), back/forward/reload, tabs, click, double-click,
+right-click, typing, paste, wheel scrolling, zoom, and full screen. The first
+user interaction takes control from the agent without a separate modal; **Hand
+back** returns it. URLs remain SSRF-checked, including redirects and script
+navigation.
+
 ### OpenCode Integration
 
 PaliMind stores an OpenCode API key entered once in **Settings** (owner-only
@@ -455,7 +470,7 @@ ollama pull gemma4:e2b
 
 ## Launching
 
-The one-command launcher installs missing dependencies, starts Ollama, launches the API server, and opens the desktop app:
+The one-command launcher installs missing dependencies, starts Ollama, launches the API server, and opens the desktop app. If an older PaliMind API server is already holding the port, the launcher checks its OpenAPI routes and restarts it when the UI needs routes that process does not have (for example after pulling the shared browser or office pipeline):
 
 ```bash
 pm ui

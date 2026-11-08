@@ -459,39 +459,6 @@ input:checked + .toggle-slider .llm-mode {
     color: var(--primary-text);
 }
 
-/* ── web search + create artifact ── */
-.web-search-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 9px;
-    border: 1px solid transparent;
-    border-radius: var(--radius-md);
-    background: none;
-    color: var(--text-secondary);
-    font-size: var(--type-sm);
-    font-weight: 550;
-    white-space: nowrap;
-    cursor: pointer;
-    transition:
-        color 0.15s,
-        background 0.15s,
-        border-color 0.15s;
-}
-.web-search-toggle:hover {
-    background: var(--bg-hover);
-    color: var(--text-main);
-}
-.web-search-toggle.is-active {
-    color: var(--primary-color);
-    border-color: var(--border-color);
-    background: var(--accent-bg);
-}
-.web-search-toggle:disabled {
-    cursor: default;
-    opacity: 1;
-}
-
 /* ── moe-toggle ── */
 .moe-toggle-wrapper {
     position: relative;

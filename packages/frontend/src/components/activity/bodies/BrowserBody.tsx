@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useApp } from '../../../AppContext';
 import type { ToolStep } from '../model';
 import { Icon } from '../icons';
 import { Favicon } from '../primitives/Favicon';
@@ -7,11 +8,22 @@ import { getToolDefinition, hostOf, previewForTool } from '../toolRegistry';
 
 export default function BrowserBody({ steps }: { steps: readonly ToolStep[] }) {
   const [zoom, setZoom] = useState<string | null>(null);
+  const { setBrowserOpen, setBrowserFullscreen } = useApp();
   const shots = screenshotsOf(steps);
   const title = pageTitleOf(steps) || 'Browser';
   const openStep = [...steps].reverse().find((step) => step.name === 'browser_open');
   const url = previewForTool(openStep?.name ?? '', openStep?.args);
   const domain = url ? hostOf(url) : undefined;
+
+  const openBrowser = () => {
+    setBrowserFullscreen(false);
+    setBrowserOpen(true);
+    window.dispatchEvent(
+      new CustomEvent('palimind:browser-active', {
+        detail: { tool: 'browser_open', args: { url } },
+      }),
+    );
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -22,6 +34,14 @@ export default function BrowserBody({ steps }: { steps: readonly ToolStep[] }) {
         </span>
         {domain && <span className="act-result__domain">{domain}</span>}
         <span className="act-chip act-tabular">{steps.length} steps</span>
+        <button
+          type="button"
+          className="act-chip act-chip--action"
+          onClick={openBrowser}
+          title="Open the shared browser"
+        >
+          View
+        </button>
       </div>
 
       <div className="act-tree">

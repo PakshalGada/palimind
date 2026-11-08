@@ -11,6 +11,7 @@ import { PhaseSpine } from '../src/components/activity/shell/PhaseSpine';
 import { ActivityStore } from '../src/components/activity/store';
 import { RunSurface } from '../src/components/activity/shell/RunSurface';
 import { SourcesPanel } from '../src/components/sources/SourcesPanel';
+import ArtifactAnswerBlock from '../src/components/ArtifactAnswerBlock';
 import { ActivitySurfaceContext } from '../src/stream/context';
 import type { ActivityState } from '../src/components/activity/model';
 import ComputerUsePanel from '../src/features/desktop/ComputerUsePanel';
@@ -422,6 +423,26 @@ check('computer use approval card', approvalHtml, [
   'action: click',
   'Approve',
   'Deny',
+]);
+
+const artifactBlockHtml = renderToStaticMarkup(
+  React.createElement(ArtifactAnswerBlock, {
+    artifacts: [
+      {
+        id: 'artifact-1',
+        type: 'slide-outline',
+        language: 'slides',
+        title: 'Q3 Business Review',
+        content: '# Overview\n- Growth: 28%',
+        messageIndex: 1,
+      },
+    ],
+    onOpen: noop,
+  }),
+);
+check('artifact answer block', artifactBlockHtml, [
+  'Q3 Business Review',
+  'Open in artifact',
 ]);
 
 console.log(failures === 0 ? 'SMOKE OK' : `SMOKE FAILED (${failures})`);

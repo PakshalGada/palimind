@@ -5,10 +5,18 @@ import {
   buildArtifactPrompt,
 } from '../src/utils/artifactPrompts.ts';
 
-test('offers document, slides, web page and code creation', () => {
+test('offers Markdown, Word, slide and PowerPoint creation', () => {
   assert.deepEqual(
     CREATE_ARTIFACT_OPTIONS.map((option) => option.kind),
-    ['document', 'slides', 'webpage', 'code'],
+    ['document', 'word', 'slides', 'pptx', 'webpage', 'code'],
+  );
+  assert.equal(
+    CREATE_ARTIFACT_OPTIONS.find((option) => option.kind === 'word')?.officeFormat,
+    'docx',
+  );
+  assert.equal(
+    CREATE_ARTIFACT_OPTIONS.find((option) => option.kind === 'pptx')?.officeFormat,
+    'pptx',
   );
 });
 
@@ -17,9 +25,17 @@ test('requests one fenced artifact per kind', () => {
   assert.match(document, /Quarterly plan/);
   assert.match(document, /```markdown/);
 
+  const word = buildArtifactPrompt('word', 'Quarterly plan');
+  assert.match(word, /```markdown/);
+  assert.match(word, /\.docx/);
+
   const slides = buildArtifactPrompt('slides', 'Q3 results');
   assert.match(slides, /```slides/);
   assert.match(slides, /# heading/);
+
+  const pptx = buildArtifactPrompt('pptx', 'Q3 results');
+  assert.match(pptx, /```slides/);
+  assert.match(pptx, /\.pptx/);
 
   const page = buildArtifactPrompt('webpage', 'Coffee roaster');
   assert.match(page, /```html/);

@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Check, Copy, Trash2 } from 'lucide-react';
 import MessageContent from '../../components/MessageContent';
+import ArtifactAnswerBlock from '../../components/ArtifactAnswerBlock';
 import AgentAvatar from '../../components/AgentAvatar';
+import { parseArtifacts, shouldAutoOpenArtifact } from '../../utils/artifacts';
 import { HistoryActivity } from '../../components/activity/shell/HistoryActivity';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
@@ -58,6 +60,15 @@ export default function AgentMessage({
   const timestamp = message.timestamp
     ? new Date(message.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : '';
+  const artifacts = useMemo(
+    () =>
+      isUser
+        ? []
+        : parseArtifacts(message.content, index).filter((artifact) =>
+            shouldAutoOpenArtifact(artifact),
+          ),
+    [isUser, message.content, index],
+  );
 
   const copy = () => {
     navigator.clipboard
@@ -107,7 +118,7 @@ export default function AgentMessage({
     );
   }
 
-  const collapsible = longAnswer(message.content) && !expanded;
+  const collapsible = artifacts.length === 0 && longAnswer(message.content) && !expanded;
 
   return (
     <div className="ag-msg ag-msg--agent">
@@ -135,14 +146,21 @@ export default function AgentMessage({
             citations={message.citations}
           />
         </div>
-        <div className={`ag-msg__prose${collapsible ? ' is-collapsed' : ''}`}>
-          <MessageContent
-            content={message.content}
-            citations={message.citations}
-            messageIndex={index}
-            onOpenArtifact={onOpenArtifact}
+        {artifacts.length > 0 ? (
+          <ArtifactAnswerBlock
+            artifacts={artifacts}
+            onOpen={(artifactId) => onOpenArtifact?.(artifactId)}
           />
-        </div>
+        ) : (
+          <div className={`ag-msg__prose${collapsible ? ' is-collapsed' : ''}`}>
+            <MessageContent
+              content={message.content}
+              citations={message.citations}
+              messageIndex={index}
+              onOpenArtifact={onOpenArtifact}
+            />
+          </div>
+        )}
         {collapsible && (
           <button type="button" className="ag-msg__more" onClick={() => setExpanded(true)}>
             Show full answer

@@ -4,7 +4,12 @@ when node_modules / dist are missing."""
 import os
 from pathlib import Path
 
-from palimind.cli.commands import frontend_build_stale, npm_deps_stale
+from palimind.cli.commands import (
+    _REQUIRED_SERVER_ROUTES,
+    frontend_build_stale,
+    missing_required_routes,
+    npm_deps_stale,
+)
 
 
 def _touch(path: Path, mtime: float) -> None:
@@ -35,3 +40,12 @@ def test_frontend_build_stale(tmp_path: Path) -> None:
     assert not frontend_build_stale(tmp_path)
     _touch(tmp_path / "src" / "design" / "theme.css", 300)
     assert frontend_build_stale(tmp_path)
+
+
+def test_missing_required_routes_detects_a_stale_server() -> None:
+    old = {"paths": {"/health": {}, "/api/chat": {}}}
+    assert missing_required_routes(old) == list(_REQUIRED_SERVER_ROUTES)
+
+    current = {"paths": {route: {} for route in _REQUIRED_SERVER_ROUTES}}
+    assert missing_required_routes(current) == []
+    assert missing_required_routes({}) == list(_REQUIRED_SERVER_ROUTES)

@@ -60,6 +60,8 @@ export interface SendRequest {
   subMode?: string;
   /** Enable live web search for this turn (all chat modes). */
   webSearch?: boolean;
+  /** What the user typed when `text` is an expanded hidden skill prompt. */
+  displayText?: string;
   files?: string[];
   attachmentIds?: string[];
   activity: ActivityInfo;
@@ -224,6 +226,7 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
       if (request.subMode) params.set('llm_sub_mode', request.subMode);
       params.set('web_search', request.webSearch === false ? 'false' : 'true');
       if (request.sessionId) params.set('session_id', request.sessionId);
+      if (request.displayText) params.set('display_query', request.displayText);
       if (request.files?.length) params.set('files', request.files.join(','));
       if (request.attachmentIds?.length) params.set('attachment_ids', request.attachmentIds.join(','));
       // The server echoes this in its first `session` event; Stop uses it.
@@ -271,6 +274,17 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
 
       const handleEvent = (event: StreamEvent) => {
         recorder.observe(event);
+        // Let the Agents workspace reveal the shared browser as soon as an
+        // agent starts using it, instead of leaving the work invisible.
+        if (event.type === 'agent:tool_call' && typeof event.tool === 'string') {
+          if (event.tool.startsWith('browser_') || event.tool === 'desktop_browser') {
+            window.dispatchEvent(
+              new CustomEvent('palimind:browser-active', {
+                detail: { tool: event.tool, args: event.args },
+              }),
+            );
+          }
+        }
         switch (event.type) {
           case 'session': {
             if (typeof event.stream_id === 'string' && event.stream_id) streamKey = event.stream_id;

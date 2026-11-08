@@ -106,6 +106,7 @@ from palimind.api_routers.routers.tasks import router as tasks_router
 from palimind.api_routers.routers.uploads import router as uploads_router
 from palimind.api_routers.routers.voice import router as voice_router
 from palimind.artifacts.api import router as artifacts_router
+from palimind.artifacts.office_api import router as office_router
 from palimind.document.stream import document_mode_stream
 from palimind.events import hub as event_hub
 from palimind.events import sse as event_sse
@@ -183,6 +184,7 @@ app.include_router(visuals_router)
 app.include_router(webhooks_router)
 app.include_router(projects_router)
 app.include_router(artifacts_router)
+app.include_router(office_router)
 app.include_router(openai_router)
 app.include_router(workflows_router)
 app.include_router(uploads_router)
@@ -1397,6 +1399,7 @@ async def _agent_scope_chat(
     q: str,
     session_id: str | None,
     entry: "_ChatStreamEntry | None" = None,
+    display_text: str | None = None,
 ) -> StreamingResponse:
     """Route a chat to an agent, or to any agent mentioned in the message.
 
@@ -1453,6 +1456,7 @@ async def _agent_scope_chat(
         working_root=None,
         prefix_mention=False,
         chat_style=True,
+        display_input=display_text,
     )
 
 
@@ -1660,6 +1664,7 @@ async def chat_stream(
     scope: str = "field",
     rerank: bool | None = None,
     stream_id: str | None = None,
+    display_query: str | None = None,
 ):
     """Chat SSE stream.
 
@@ -1682,6 +1687,7 @@ async def chat_stream(
             llm_sub_mode,
             scope,
             rerank,
+            display_query,
         )
     except BaseException:
         _unregister_chat_stream(entry)
@@ -1701,9 +1707,13 @@ async def _chat_stream_response(
     llm_sub_mode: str | None,
     scope: str,
     rerank: bool | None,
+    display_query: str | None = None,
 ) -> StreamingResponse:
+    display_text = (display_query or "").strip() or None
     if scope.startswith("agent:"):
-        return await _agent_scope_chat(scope, q, session_id, entry)
+        return await _agent_scope_chat(
+            scope, q, session_id, entry, display_text=display_text
+        )
 
     root = _chat_root(scope)
     if root is None:
@@ -1775,6 +1785,7 @@ async def _chat_stream_response(
                     chat_model,
                     working_root=root if not is_global_chat else None,
                     chat_style=True,
+                    display_input=display_text,
                 )
 
     moe_sub_mode = (
@@ -1831,6 +1842,7 @@ async def _chat_stream_response(
             rerank=rerank,
             image_paths=image_paths,
             attachment_context=attachment_context,
+            display_text=display_text,
         )
 
     moe_sub_mode = (
@@ -1869,6 +1881,7 @@ async def _chat_stream_response(
             orchestrator_url=orch_url,
             worker_url=work_url,
             long_term_episodes=long_term_episodes,
+            display_text=display_text,
         )
 
     if chat_mode == "llm" and moe_sub_mode == "deep_research":
@@ -1895,6 +1908,7 @@ async def _chat_stream_response(
             orchestrator_url=dr_url,
             worker_url=dr_url,
             long_term_episodes=long_term_episodes,
+            display_text=display_text,
         )
 
     from palimind.opencode.router import resolve_model
@@ -1919,6 +1933,7 @@ async def _chat_stream_response(
         persona=persona,
         image_paths=image_paths,
         attachment_context=attachment_context,
+        display_text=display_text,
     )
 
 

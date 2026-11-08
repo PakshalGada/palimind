@@ -160,6 +160,7 @@ async def agent_sse_stream(
     working_root: Path | None = None,
     prefix_mention: bool = True,
     chat_style: bool = False,
+    display_input: str | None = None,
 ) -> StreamingResponse:
     """Route an @agent-name chat invocation to an agent run.
 
@@ -200,7 +201,8 @@ async def agent_sse_stream(
         from palimind.memory.session_store import append_message_to_session
 
         if session_id:
-            user_text = f"@{agent_name} {agent_input}".strip() if prefix_mention else agent_input
+            visible_input = display_input or agent_input
+            user_text = f"@{agent_name} {visible_input}".strip() if prefix_mention else visible_input
             await asyncio.to_thread(
                 append_message_to_session,
                 field_root,

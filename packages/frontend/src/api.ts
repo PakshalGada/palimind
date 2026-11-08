@@ -855,6 +855,39 @@ export const api = {
         `/usage?agent_id=${encodeURIComponent(agentId)}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
       ),
   },
+  office: {
+    /** Turn a settled chat artifact into a real DOCX/PPTX download. */
+    generate: async (payload: {
+      format: 'docx' | 'pptx';
+      title: string;
+      content?: string;
+      slides?: { title: string; bullets: string[] }[];
+    }): Promise<{ blob: Blob; filename: string; path: string }> => {
+      const res = await fetch(`${BASE}/office/generate`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        let detail = `${res.status} ${res.statusText}`;
+        try {
+          const data = (await res.json()) as { detail?: string; error?: string };
+          detail = data.detail || data.error || detail;
+        } catch {
+          // keep the status text
+        }
+        throw new Error(`Could not create ${payload.format.toUpperCase()}: ${detail}`);
+      }
+      const disposition = res.headers.get('content-disposition') || '';
+      const match = /filename="?([^";]+)"?/i.exec(disposition);
+      return {
+        blob: await res.blob(),
+        filename: match?.[1] || res.headers.get('x-palimind-filename') || `${payload.title}.${payload.format}`,
+        path: res.headers.get('x-palimind-path') || '',
+      };
+    },
+  },
   browser: {
     profiles: () => get<{ profiles?: Record<string, unknown>[]; error?: string }>('/browser/profiles'),
     createProfile: (name: string, color = '') =>

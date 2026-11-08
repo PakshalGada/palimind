@@ -1,8 +1,8 @@
-import { memo, useState, useRef, useEffect, useCallback } from "react";
+import { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { ArrowUp, Globe, Loader2, Mic, Square } from "lucide-react";
+import { ArrowUp, Loader2, Mic, Square } from "lucide-react";
 import ModelSwitcher from "./ModelSwitcher";
-import CreateArtifactDialog from "./CreateArtifactDialog";
+import OfficeExportWatcher, { type OfficeJob } from "./OfficeExportWatcher";
 import {
   applyMention as applyAgentMention,
   findMentionToken,
@@ -10,13 +10,18 @@ import {
   type MentionToken,
 } from "../utils/mentions";
 import {
+  SLASH_COMMANDS,
   filterSlashCommands,
   findSlashToken,
+  parseArtifactCommand,
   stripSlashToken,
   type SlashCommand,
   type SlashToken,
 } from "../utils/slashCommands";
-import type { CreateArtifactKind } from "../utils/artifactPrompts";
+import {
+  CREATE_ARTIFACT_OPTIONS,
+  buildArtifactPrompt,
+} from "../utils/artifactPrompts";
 import { PixelBurst } from "./pixel/PixelBurst";
 import { useOneShot } from "./pixel/useOneShot";
 import LoadingSpinner from "./LoadingSpinner";
@@ -54,7 +59,53 @@ async function fileToBase64(file: File): Promise<string> {
 const TEXT_ATTACHMENT_RE =
   /\.(txt|md|markdown|csv|tsv|json|jsonl|yaml|yml|toml|ini|xml|html?|py|js|ts|tsx|jsx|sql|log|rst)$/i;
 
-function InputArea() {
+/**
+ * Build the hidden model prompt for a composer skill. Docx/pptx skills prefer
+ * the detailed instructions shipped by the backend skill registry; the local
+ * prompt builder is the offline fallback.
+ */
+async function buildSkillRequest(command: SlashCommand, query: string): Promise<string> {
+  const fallback = command.artifact
+    ? buildArtifactPrompt(command.artifact, query)
+    : query;
+  if (!command.skillId) return fallback;
+  try {
+    const resolved = await api.agents.skillsAdmin.resolve(
+      `${command.command} ${query}`.trim(),
+    );
+    const instructions = resolved.skill?.instructions?.trim();
+    if (resolved.resolved && instructions) {
+      return [
+        instructions,
+        "",
+        "USER REQUEST",
+        query,
+        ...(command.artifact
+          ? [
+              "",
+              "Return the single fenced artifact now. Do not call any tool and do not narrate the instructions.",
+            ]
+          : []),
+      ].join("\n");
+    }
+  } catch {
+    // Offline or an older backend: use the local prompt.
+  }
+  return fallback;
+}
+
+interface InputAreaProps {
+  /** Send a plain message through a channel/team instead of the chat stream. */
+  onLocalSend?: (text: string) => Promise<void> | void;
+  placeholder?: string;
+  disabled?: boolean;
+}
+
+function InputArea({
+  onLocalSend,
+  placeholder = "Ask me anything...",
+  disabled = false,
+}: InputAreaProps = {}) {
   const {
     chatMode,
     setChatMode,
@@ -107,22 +158,20 @@ function InputArea() {
   const [modelsLoading, setModelsLoading] = useState(false);
   const [popupPos, setPopupPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
   const [allAgents, setAllAgents] = useState<AgentListItem[]>([]);
+  // Installed backend skills expose their own slash commands (for example an
+  // installed /meeting or /release-notes skill). Built-in composer commands
+  // win when a command name overlaps.
+  const [extraSkills, setExtraSkills] = useState<SlashCommand[]>([]);
   const [mention, setMention] = useState<MentionToken | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
   const [slash, setSlash] = useState<SlashToken | null>(null);
   const [slashIndex, setSlashIndex] = useState(0);
-  const [createArtifactOpen, setCreateArtifactOpen] = useState(false);
-  const [createArtifactKind, setCreateArtifactKind] =
-    useState<CreateArtifactKind>("document");
-  // Web search is available in Default, MoE and Deep Research; the UI keeps
-  // the user's last choice per browser.
-  const [webSearchEnabled, setWebSearchEnabled] = useState(() => {
-    try {
-      return localStorage.getItem("palimind:web-search") !== "0";
-    } catch {
-      return true;
-    }
-  });
+  // Selecting /docx or /pptx arms a skill; the next message is the query.
+  const pendingSkillRef = useRef<SlashCommand | null>(null);
+  const [pendingSkill, setPendingSkill] = useState<SlashCommand | null>(null);
+  const [localBusy, setLocalBusy] = useState(false);
+  const [officeJob, setOfficeJob] = useState<OfficeJob | null>(null);
+  const officeJobId = useRef(0);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
@@ -134,6 +183,27 @@ function InputArea() {
     api.agents
       .list()
       .then((d) => setAllAgents((d.agents || []).filter((a) => a.enabled)))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    api.agents.skillsAdmin
+      .commands()
+      .then((data) => {
+        const builtIn = new Set(SLASH_COMMANDS.map((item) => item.command.toLowerCase()));
+        setExtraSkills(
+          (data.commands || [])
+            .filter((item) => !builtIn.has(item.command.toLowerCase()))
+            .map((item) => ({
+              id: `skill:${item.skill_id}`,
+              command: item.command,
+              label: item.name,
+              description: item.description,
+              keywords: [item.category, 'skill'],
+              skillId: item.skill_id,
+            })),
+        );
+      })
       .catch(() => {});
   }, []);
 
@@ -289,7 +359,11 @@ function InputArea() {
     if (token) setMentionIndex(0);
   }, []);
 
-  const slashMatches = slash ? filterSlashCommands(slash.query) : [];
+  const slashCommands = useMemo(
+    () => [...SLASH_COMMANDS, ...extraSkills],
+    [extraSkills],
+  );
+  const slashMatches = slash ? filterSlashCommands(slash.query, slashCommands) : [];
 
   const updateSlash = useCallback((text: string, cursor = text.length) => {
     // Don't open the slash menu inside an @agent mention.
@@ -306,23 +380,39 @@ function InputArea() {
     (command: SlashCommand) => {
       if (!slash) return;
       const cleaned = stripSlashToken(value, slash);
-      setValue(cleaned);
       setSlash(null);
-      if (command.artifact) {
-        setCreateArtifactKind(command.artifact);
-        setCreateArtifactOpen(true);
+      if (command.artifact || command.skillId) {
+        // The skill prompt is hidden; the transcript only ever shows the
+        // user's own request. With no text after the command, arm the skill
+        // and wait for the next typed message.
+        pendingSkillRef.current = command;
+        setValue(cleaned);
+        setPendingSkill(cleaned ? null : command);
+        if (cleaned) {
+          requestAnimationFrame(() => void handleSendRef.current());
+        } else {
+          requestAnimationFrame(() => textareaRef.current?.focus());
+        }
+        return;
       }
+      pendingSkillRef.current = null;
+      setPendingSkill(null);
+      setValue(cleaned);
       if (command.mode) {
         void handleSubModeChange(command.mode);
       }
-      if (command.toggleWeb) toggleWebSearch();
       requestAnimationFrame(() => textareaRef.current?.focus());
     },
-    // handleSubModeChange/toggleWebSearch are declared below but stable.
+    // handleSendRef/handleSubModeChange are declared below but stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [slash, value],
   );
   const isEmpty = !value.trim() && attachedFiles.length === 0;
+  const showStop = !onLocalSend && isGenerating;
+  const sendDisabled = disabled || (onLocalSend ? localBusy : false) || isEmpty;
+  const composerPlaceholder = pendingSkill
+    ? "Describe what you need..."
+    : placeholder;
 
   const adjustHeight = useCallback(() => {
     const ta = textareaRef.current;
@@ -417,18 +507,6 @@ function InputArea() {
     [setLlmSubMode, scope],
   );
 
-  const toggleWebSearch = useCallback(() => {
-    setWebSearchEnabled((enabled) => {
-      const next = !enabled;
-      try {
-        localStorage.setItem("palimind:web-search", next ? "1" : "0");
-      } catch {
-        // localStorage may be unavailable
-      }
-      return next;
-    });
-  }, []);
-
   const parseParamsB = (model: ModelItem): number => {
     if (model.parameter_size) {
       const m = model.parameter_size.match(/^(\d+(?:\.\d+)?)/);
@@ -453,7 +531,23 @@ function InputArea() {
   const isOnline = (m: ModelItem) => !m.parameter_size && !m.size_gb;
 
   const handleSend = useCallback(async () => {
-    if (isGenerating || sendingRef.current) return;
+    if (onLocalSend) {
+      const text = value.trim();
+      if (!text || localBusy || disabled) return;
+      setLocalBusy(true);
+      setValue("");
+      setMention(null);
+      setSlash(null);
+      try {
+        await onLocalSend(text);
+      } catch (e) {
+        addToast(e instanceof Error ? e.message : "Could not send message", { tone: "error" });
+      } finally {
+        setLocalBusy(false);
+      }
+      return;
+    }
+    if (isGenerating || sendingRef.current || disabled) return;
     const override = sendOverrideRef.current;
     sendOverrideRef.current = null;
     // A replayed message (regenerate / edit-and-resend) must not consume the
@@ -463,8 +557,55 @@ function InputArea() {
     const text = (override ?? value).trim();
     if (!text && files.length === 0) return;
 
+    const exactSkill = fromComposer
+      ? slashCommands.find(
+          (item) =>
+            (item.artifact || item.skillId) &&
+            item.command.toLowerCase() === text.toLowerCase(),
+        )
+      : null;
+    if (exactSkill) {
+      pendingSkillRef.current = exactSkill;
+      setPendingSkill(exactSkill);
+      setValue("");
+      setSlash(null);
+      addToast("Type your request, then send.");
+      return;
+    }
+
+    // A skill selected in the composer is invisible in the transcript: the
+    // model receives the detailed skill prompt, the user still sees only the
+    // request they typed.
+    const pending = fromComposer ? pendingSkillRef.current : null;
+    pendingSkillRef.current = null;
+    setPendingSkill(null);
+    const direct = fromComposer ? parseArtifactCommand(text, slashCommands) : null;
+    const activeSkill = pending ?? direct?.command ?? null;
+    const skillQuery = pending ? text : (direct?.query ?? "");
+    let visibleText = text;
+    let modelText = text;
+
     sendingRef.current = true;
     try {
+      if (activeSkill) {
+        if (!skillQuery) {
+          addToast("Add a topic after the skill command.");
+          return;
+        }
+        const option = CREATE_ARTIFACT_OPTIONS.find(
+          (item) => item.kind === activeSkill.artifact,
+        );
+        if (option?.officeFormat) {
+          officeJobId.current += 1;
+          setOfficeJob({
+            format: option.officeFormat,
+            title: option.label,
+            id: officeJobId.current,
+          });
+        }
+        modelText = await buildSkillRequest(activeSkill, skillQuery);
+        visibleText = skillQuery;
+      }
       // Upload attachments for multimodal chat (images/PDFs/text). Separately,
       // index text-like files as captures so document-mode RAG can find them.
       const attachmentIds: string[] = [];
@@ -531,6 +672,9 @@ function InputArea() {
       } else if (chatMode === "document") {
         actMode = "document";
         actTitle = "Document";
+      } else if (activeSkill) {
+        actMode = "llm";
+        actTitle = "LLM";
       } else if (llmSubMode === "moe") {
         actMode = "moe";
         actTitle = "Mixture of Experts";
@@ -541,7 +685,7 @@ function InputArea() {
 
       // A mention anywhere in the message routes the turn to that agent, even
       // in the Agents view. The activity avatar must follow the responder.
-      const mentionedName = firstAgentMention(text);
+      const mentionedName = firstAgentMention(visibleText);
       const mentionedAgent = mentionedName
         ? allAgents.find((a) => a.name === mentionedName)
         : undefined;
@@ -563,13 +707,15 @@ function InputArea() {
       const mode = isChatView ? "llm" : chatMode;
 
       sendMessage({
-        text,
-        userText: text || "Sent attachments.",
+        text: modelText,
+        userText: visibleText || "Sent attachments.",
         mode,
         scope,
         sessionId: activeSessionId,
-        subMode: mode === "llm" ? llmSubMode : undefined,
-        webSearch: webSearchEnabled,
+        subMode: mode === "llm" ? (activeSkill ? "default" : llmSubMode) : undefined,
+        // Search is part of every turn now; there is no composer toggle.
+        webSearch: true,
+        displayText: activeSkill ? visibleText : undefined,
         files: selectedFiles.size > 0 ? Array.from(selectedFiles) : undefined,
         attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
         activity: {
@@ -597,7 +743,6 @@ function InputArea() {
     isChatView,
     scope,
     llmSubMode,
-    webSearchEnabled,
     activeSessionId,
     selectedFiles,
     attachedFiles,
@@ -605,6 +750,10 @@ function InputArea() {
     allAgents,
     activeView,
     selectedAgentId,
+    onLocalSend,
+    localBusy,
+    disabled,
+    slashCommands,
     sendMessage,
     addToast,
   ]);
@@ -666,13 +815,6 @@ function InputArea() {
   const handleSendRef = useRef(handleSend);
   handleSendRef.current = handleSend;
 
-  // "Create" sends a purpose-built artifact prompt through the normal stream,
-  // so the reply lands in the artifact panel instead of only in the chat.
-  const handleCreateArtifact = useCallback((prompt: string) => {
-    sendOverrideRef.current = prompt;
-    void handleSendRef.current();
-  }, []);
-
   useEffect(() => {
     const handler = (e: Event) => {
       const content = (e as CustomEvent).detail?.content as string | undefined;
@@ -699,6 +841,13 @@ function InputArea() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Enter while an IME is composing confirms the candidate; never submit.
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    if (e.key === "Escape" && pendingSkillRef.current) {
+      e.preventDefault();
+      pendingSkillRef.current = null;
+      setPendingSkill(null);
+      setValue("");
+      return;
+    }
     if (slash && slashMatches.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -809,7 +958,7 @@ function InputArea() {
           updateMention(nextValue);
           updateSlash(nextValue);
         }}
-        isLoading={isGenerating}
+        isLoading={showStop}
         onSubmit={handleSend}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -924,7 +1073,7 @@ function InputArea() {
           ref={textareaRef}
           rows={1}
           aria-label="Chat message"
-          placeholder="Ask me anything..."
+          placeholder={composerPlaceholder}
           value={value}
           onChange={(e) => {
             setValue(e.target.value);
@@ -938,23 +1087,6 @@ function InputArea() {
         <div className="composer-footer">
           {chatMode === "llm" && (
             <>
-            <button
-              type="button"
-              className={`web-search-toggle${webSearchEnabled || llmSubMode === "deep_research" ? " is-active" : ""}`}
-              onClick={toggleWebSearch}
-              disabled={llmSubMode === "deep_research"}
-              title={
-                llmSubMode === "deep_research"
-                  ? "Deep Research always searches the web"
-                  : webSearchEnabled
-                    ? "Live web search is on for this mode"
-                    : "Live web search is off"
-              }
-              aria-pressed={webSearchEnabled || llmSubMode === "deep_research"}
-            >
-              <Globe size={13} aria-hidden="true" />
-              <span>Web</span>
-            </button>
             <div className="moe-toggle-wrapper">
               <button
                 ref={moeBtnRef}
@@ -1187,18 +1319,18 @@ function InputArea() {
               </button>
             </PromptInputAction>
             <PromptInputAction
-              tooltip={isGenerating ? "Stop generation" : "Send message"}
+              tooltip={showStop ? "Stop generation" : "Send message"}
             >
               <Button
                 id="btn-send"
                 type="button"
                 variant="ghost"
                 size="icon"
-                aria-label={isGenerating ? "Stop generating" : "Send message"}
-                className={`send-btn${isGenerating ? " animating-stop" : ""}`}
-                disabled={!isGenerating && isEmpty}
+                aria-label={showStop ? "Stop generating" : "Send message"}
+                className={`send-btn${showStop ? " animating-stop" : ""}`}
+                disabled={!showStop && sendDisabled}
                 onClick={() => {
-                  if (isGenerating) {
+                  if (showStop) {
                     stopStream();
                   } else {
                     fireBurst();
@@ -1206,7 +1338,7 @@ function InputArea() {
                   }
                 }}
               >
-                {isGenerating ? (
+                {showStop ? (
                   <Square className="stop-icon" aria-hidden="true" />
                 ) : (
                   <ArrowUp className="send-icon" aria-hidden="true" />
@@ -1217,12 +1349,7 @@ function InputArea() {
         </div>
       </PromptInput>
 
-      <CreateArtifactDialog
-        open={createArtifactOpen}
-        initialKind={createArtifactKind}
-        onClose={() => setCreateArtifactOpen(false)}
-        onCreate={handleCreateArtifact}
-      />
+      <OfficeExportWatcher job={officeJob} onDone={() => setOfficeJob(null)} />
     </div>
   );
 }

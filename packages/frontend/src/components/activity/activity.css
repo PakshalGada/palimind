@@ -503,6 +503,16 @@
     color: var(--act-error);
 }
 
+button.act-chip--action {
+    border: none;
+    cursor: pointer;
+    color: var(--act-text);
+    font-family: var(--font-sans);
+}
+button.act-chip--action:hover {
+    background: var(--act-hover, var(--surface-hover));
+}
+
 .act-panel__body {
     padding: 2px var(--act-pad-x) var(--act-pad-x);
 }

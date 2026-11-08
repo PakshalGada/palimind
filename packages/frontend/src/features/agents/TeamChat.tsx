@@ -5,7 +5,7 @@ import { useApp } from '../../AppContext';
 import AgentAvatar from '../../components/AgentAvatar';
 import MessageContent from '../../components/MessageContent';
 import ConversationHeader from './ConversationHeader';
-import AgentComposer from './AgentComposer';
+import InputArea from '../../components/InputArea';
 import type { AgentListItem, Team, TeamMessage } from '../../types';
 import './TeamChat.css';
 
@@ -207,11 +207,10 @@ export default function TeamChat({
           </button>
         </div>
       )}
-      <AgentComposer
-        agents={agents}
-        teamId={teamId}
+      <InputArea
         onLocalSend={send}
         disabled={busy}
+        placeholder="Message the team..."
       />
     </div>
   );

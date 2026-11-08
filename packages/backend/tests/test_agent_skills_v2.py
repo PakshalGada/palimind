@@ -28,6 +28,28 @@ def test_commands_and_resolve() -> None:
     assert sk.resolve_command("/nope") is None
 
 
+def test_office_skills_are_detailed_and_resolvable() -> None:
+    commands = {c["command"]: c for c in sk.skill_commands()}
+    assert commands["/docx"]["skill_id"] == "document-docx"
+    assert commands["/pptx"]["skill_id"] == "presentation-pptx"
+
+    docx = sk.resolve_command("/docx Q3 business review")
+    assert docx is not None
+    assert docx["input"] == "Q3 business review"
+    instructions = docx["skill"]["instructions"]
+    assert "```markdown" in instructions
+    assert "Do not call docx_write" in instructions
+    assert "Next steps" in instructions
+
+    pptx = sk.resolve_command("/pptx Q3 business review")
+    assert pptx is not None
+    instructions = pptx["skill"]["instructions"]
+    assert "```slides" in instructions
+    assert "Do not call pptx_write" in instructions
+    assert "KPI" in instructions
+    assert "10-16 slides" in instructions
+
+
 def test_yaml_skill_loading(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(sk, "SKILLS_DIR", tmp_path)
     (tmp_path / "y.yaml").write_text(

@@ -33,6 +33,7 @@ export default function AgentsWorkspace() {
     setAgentsSettingsOpen,
     agentsSettingsOpen,
     browserOpen,
+    setBrowserOpen,
   } = useApp();
   const { agents, teams, channels, takeovers, refresh } = useAgentRoster();
   const [inboxOpen, setInboxOpen] = useState(false);
@@ -53,17 +54,20 @@ export default function AgentsWorkspace() {
     const onNewTeam = () => setTeamModalOpen(true);
     const onFiles = () => setFilesOpen(true);
     const onSettings = () => setAgentsSettingsOpen(true);
+    const onBrowserActive = () => setBrowserOpen(true);
     window.addEventListener('palimind:open-inbox', onInbox);
     window.addEventListener('palimind:new-team', onNewTeam);
     window.addEventListener('palimind:open-agent-files', onFiles);
     window.addEventListener('palimind:open-agents-settings', onSettings);
+    window.addEventListener('palimind:browser-active', onBrowserActive);
     return () => {
       window.removeEventListener('palimind:open-inbox', onInbox);
       window.removeEventListener('palimind:new-team', onNewTeam);
       window.removeEventListener('palimind:open-agent-files', onFiles);
       window.removeEventListener('palimind:open-agents-settings', onSettings);
+      window.removeEventListener('palimind:browser-active', onBrowserActive);
     };
-  }, [setAgentsSettingsOpen]);
+  }, [setAgentsSettingsOpen, setBrowserOpen]);
 
   // Open on a conversation rather than an empty canvas. Only do this in Chat
   // so switching to Work does not change the selected agent behind the scenes.

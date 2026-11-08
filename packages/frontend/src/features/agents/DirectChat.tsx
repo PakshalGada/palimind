@@ -6,7 +6,7 @@ import StreamingTurn from '../../stream/StreamingTurn';
 import { useChatStreamContext } from '../../stream/context';
 import { streamBelongsTo } from '../../stream/reducer';
 import AgentMessage from './AgentMessage';
-import AgentComposer from './AgentComposer';
+import InputArea from '../../components/InputArea';
 import ConversationHeader from './ConversationHeader';
 import type { AgentListItem, BrowserTakeover } from '../../types';
 import './DirectChat.css';
@@ -134,7 +134,10 @@ export default function DirectChat({
           </>
         )}
       </div>
-      <AgentComposer agent={agent} agents={agents} disabled={!selectedAgentId} />
+      <InputArea
+        disabled={!selectedAgentId}
+        placeholder={`Message ${agent.display_name || agent.name}...`}
+      />
     </div>
   );
 }

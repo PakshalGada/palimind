@@ -266,7 +266,16 @@ class _BrowserWorker:
         )
 
     def op_click_xy(self, x: float, y: float) -> None:
+        self._guard()
         self._page.mouse.click(float(x), float(y))
+
+    def op_dblclick_xy(self, x: float, y: float) -> None:
+        self._guard()
+        self._page.mouse.dblclick(float(x), float(y))
+
+    def op_right_click_xy(self, x: float, y: float) -> None:
+        self._guard()
+        self._page.mouse.click(float(x), float(y), button="right")
 
     def op_move(self, x: float, y: float) -> None:
         self._page.mouse.move(float(x), float(y))
@@ -640,6 +649,7 @@ def live_frame_jpeg(quality: int = 70) -> bytes | None:
     if worker is None:
         return None
     try:
+        worker.call(worker._guard, timeout=10)
         return worker.call(worker.op_screenshot_jpeg, int(quality), timeout=20)
     except Exception:  # noqa: BLE001
         return None
@@ -686,6 +696,8 @@ def human_action(action: str, payload: dict[str, Any] | None = None) -> dict[str
         "forward",
         "reload",
         "click",
+        "dblclick",
+        "right_click",
         "move",
         "wheel",
         "scroll",
@@ -715,6 +727,10 @@ def human_action(action: str, payload: dict[str, Any] | None = None) -> dict[str
             worker.call(worker.op_reload)
         elif action == "click":
             worker.call(worker.op_click_xy, float(body.get("x", 0)), float(body.get("y", 0)))
+        elif action == "dblclick":
+            worker.call(worker.op_dblclick_xy, float(body.get("x", 0)), float(body.get("y", 0)))
+        elif action == "right_click":
+            worker.call(worker.op_right_click_xy, float(body.get("x", 0)), float(body.get("y", 0)))
         elif action == "move":
             worker.call(worker.op_move, float(body.get("x", 0)), float(body.get("y", 0)))
         elif action == "wheel":

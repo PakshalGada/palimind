@@ -32,8 +32,17 @@ export function useBrowserSession(active: boolean, agentId = '') {
         setState((previous) => ({ ...previous, ...next }));
         setFrameFailed(false);
       }
-    } catch {
-      // best effort
+    } catch (error) {
+      // Keep the last known page on screen, but say why it stopped updating.
+      if (mounted.current) {
+        setState((previous) => ({
+          ...previous,
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Could not reach the browser service.',
+        }));
+      }
     }
   }, [agentId]);
 
@@ -72,6 +81,17 @@ export function useBrowserSession(active: boolean, agentId = '') {
         }
         setNonce(Date.now());
         return next;
+      } catch (error) {
+        if (mounted.current) {
+          setState((previous) => ({
+            ...previous,
+            error:
+              error instanceof Error
+                ? error.message
+                : 'The browser action failed.',
+          }));
+        }
+        return { error: error instanceof Error ? error.message : 'Browser action failed' };
       } finally {
         setBusy(false);
       }

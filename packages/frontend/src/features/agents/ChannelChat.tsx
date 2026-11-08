@@ -5,7 +5,7 @@ import { useApp } from '../../AppContext';
 import AgentAvatar from '../../components/AgentAvatar';
 import MessageContent from '../../components/MessageContent';
 import ConversationHeader from './ConversationHeader';
-import AgentComposer from './AgentComposer';
+import InputArea from '../../components/InputArea';
 import type { AgentListItem, Channel, ChannelMessage } from '../../types';
 import './ChannelChat.css';
 
@@ -123,12 +123,10 @@ export default function ChannelChat({
           })
         )}
       </div>
-      <AgentComposer
-        agents={agents}
-        channelId={channelId}
-        channelName={channel?.name}
+      <InputArea
         onLocalSend={send}
         disabled={busy}
+        placeholder={`Message #${channel?.name || 'channel'}...`}
       />
     </div>
   );

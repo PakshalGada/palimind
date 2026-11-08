@@ -15,7 +15,6 @@ import SkillManager from './components/SkillManager';
 import PlanReview from './components/PlanReview';
 import ResearchPlanModal from './components/ResearchPlanModal';
 import TaskMonitor from './components/TaskMonitor';
-import ArtifactAutoOpen from './components/ArtifactAutoOpen';
 import AgentManager from './features/agents/AgentManager';
 import AgentsWorkspace from './features/agents/AgentsWorkspace';
 import AppLayout from './components/layout/AppLayout';
@@ -217,7 +216,6 @@ export default function App() {
 
   return (
     <ChatStreamProvider>
-      <ArtifactAutoOpen />
       <AppLayout
         className={containerClass}
         sidebar={

@@ -1,9 +1,9 @@
 .ag-browser {
   display: flex;
   flex-direction: column;
-  width: 42%;
-  min-width: 380px;
-  max-width: 720px;
+  width: 52%;
+  min-width: 440px;
+  max-width: 900px;
   min-height: 0;
   flex-shrink: 0;
   border-left: 1px solid var(--line-subtle);
@@ -96,6 +96,14 @@
 }
 .ag-browser__nav .ag-icon-btn { width: 26px; height: 26px; }
 .ag-browser__nav .ag-icon-btn:disabled { opacity: 0.35; cursor: default; }
+.ag-browser__nav .ag-browser__zoom {
+  width: auto;
+  min-width: 38px;
+  padding: 0 4px;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
 .ag-browser__address {
   flex: 1;
   min-width: 0;
@@ -132,6 +140,33 @@
 .ag-browser__owner.is-human { color: var(--ink); }
 .ag-browser__owner.is-human .ag-browser__owner-dot { background: var(--ink); }
 
+.ag-browser__alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line-subtle);
+  background: var(--danger-soft);
+  color: var(--danger-strong, var(--alert));
+  font-size: var(--type-2xs);
+  flex-shrink: 0;
+}
+.ag-browser__alert span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ag-browser__alert button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .ag-browser__stage-wrap {
   flex: 1;
   min-height: 0;
@@ -145,6 +180,8 @@
 .ag-browser__stage {
   position: relative;
   width: 100%;
+  margin: 0 auto;
+  flex-shrink: 0;
   outline: none;
   background: var(--bg-sunken);
   overflow: hidden;
@@ -159,6 +196,22 @@
 }
 .ag-browser__stage:focus { box-shadow: 0 0 0 1px var(--focus); }
 .ag-browser__stage.is-human { cursor: default; }
+
+.ag-browser__loading {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--ink-secondary);
+  box-shadow: var(--shadow-xs);
+  pointer-events: none;
+}
 
 .ag-browser__lock {
   position: absolute;

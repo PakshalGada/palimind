@@ -9,26 +9,28 @@ import type { CreateArtifactKind } from './artifactPrompts';
  */
 export type SlashCommandId =
   | 'doc'
+  | 'docx'
   | 'slides'
+  | 'pptx'
   | 'page'
   | 'code'
   | 'default'
   | 'moe'
-  | 'research'
-  | 'web';
+  | 'research';
 
 export interface SlashCommand {
-  id: SlashCommandId;
+  /** Built-in id or `skill:<skill-id>` for an installed skill. */
+  id: string;
   command: string;
   label: string;
   description: string;
   keywords?: string[];
-  /** Artifact type to pre-select in the create dialog. */
+  /** Artifact kind this skill produces. */
   artifact?: CreateArtifactKind;
+  /** Backend skill whose detailed instructions power this command. */
+  skillId?: string;
   /** LLM mode to switch to. */
   mode?: 'default' | 'moe' | 'deep_research';
-  /** Toggle live web search. */
-  toggleWeb?: boolean;
 }
 
 export const SLASH_COMMANDS: readonly SlashCommand[] = [
@@ -41,12 +43,30 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = [
     artifact: 'document',
   },
   {
+    id: 'docx',
+    command: '/docx',
+    label: 'Word document',
+    description: 'Write a detailed document and download a real .docx file',
+    keywords: ['word', 'document', 'office', 'download'],
+    artifact: 'word',
+    skillId: 'document-docx',
+  },
+  {
     id: 'slides',
     command: '/slides',
     label: 'Slide deck',
     description: 'Build a presentation with real slide preview and PPTX export',
     keywords: ['deck', 'presentation', 'powerpoint', 'pptx'],
     artifact: 'slides',
+  },
+  {
+    id: 'pptx',
+    command: '/pptx',
+    label: 'PowerPoint deck',
+    description: 'Build a designed deck and download a real .pptx file',
+    keywords: ['deck', 'presentation', 'powerpoint', 'office'],
+    artifact: 'pptx',
+    skillId: 'presentation-pptx',
   },
   {
     id: 'page',
@@ -88,14 +108,6 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = [
     keywords: ['deep', 'report', 'sources', 'investigate'],
     mode: 'deep_research',
   },
-  {
-    id: 'web',
-    command: '/web',
-    label: 'Toggle web search',
-    description: 'Turn live web search on or off',
-    keywords: ['internet', 'search', 'online'],
-    toggleWeb: true,
-  },
 ];
 
 export interface SlashToken {
@@ -114,18 +126,44 @@ export function findSlashToken(text: string, cursor = text.length): SlashToken |
   return { query: match[2], start, end: upto.length };
 }
 
-export function filterSlashCommands(query: string): SlashCommand[] {
+export function filterSlashCommands(
+  query: string,
+  commands: readonly SlashCommand[] = SLASH_COMMANDS,
+): SlashCommand[] {
   const needle = query.trim().toLowerCase();
-  if (!needle) return [...SLASH_COMMANDS];
-  return SLASH_COMMANDS.filter((item) => {
+  if (!needle) return [...commands];
+  const matches = commands.filter((item) => {
     const haystack = [item.command.slice(1), item.label, item.description, ...(item.keywords ?? [])]
       .join(' ')
       .toLowerCase();
     return haystack.includes(needle);
   });
+  // The command whose name is exactly what was typed must be the default
+  // selection. `/pptx` also matches the deck keywords, but Enter must not
+  // silently pick `/slides`.
+  const exact = matches.find((item) => item.command.slice(1).toLowerCase() === needle);
+  return exact ? [exact, ...matches.filter((item) => item.id !== exact.id)] : matches;
 }
 
 /** Remove the typed slash token before running the command. */
 export function stripSlashToken(text: string, token: SlashToken): string {
   return `${text.slice(0, token.start)}${text.slice(token.end)}`.replace(/\s{2,}/g, ' ').trim();
+}
+
+/**
+ * Resolve a fully typed command such as ``/pptx Q3 review`` even after the
+ * slash menu has closed. Only artifact-producing skills are returned; mode
+ * commands keep their normal inline behavior.
+ */
+export function parseArtifactCommand(
+  text: string,
+  commands: readonly SlashCommand[] = SLASH_COMMANDS,
+): { command: SlashCommand; query: string } | null {
+  const match = /^\/([A-Za-z0-9][\w-]*)\s+([\s\S]*)$/.exec(text.trim());
+  if (!match) return null;
+  const command = commands.find(
+    (item) => item.command.toLowerCase() === `/${match[1].toLowerCase()}`,
+  );
+  if (!command?.artifact && !command?.skillId) return null;
+  return { command, query: match[2].trim() };
 }

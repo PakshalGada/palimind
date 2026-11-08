@@ -28,11 +28,19 @@ async def document_mode_stream(
     rerank: bool | None = None,
     image_paths: list[str] | None = None,
     attachment_context: str = "",
+    display_text: str | None = None,
 ) -> StreamingResponse:
     """STRICT DOCUMENT RAG MODE: Answers only from indexed documents
     using hybrid search + knowledge graph.  No internet access, no code
     execution, no tool use — pure retrieval-augmented generation with
-    source citation."""
+    source citation.
+
+    ``display_text`` is the user's visible request when a skill prompt is sent
+    as ``q``; retrieval, the stored transcript and memory use it while the
+    model still receives the full skill instructions.
+    """
+
+    visible_query = display_text or q
 
     async def rag_stream():
         from palimind.document.engine import _DOC_SYSTEM_PROMPT, DocumentEngine
@@ -47,7 +55,7 @@ async def document_mode_stream(
                 active_field,
                 active_sess_id,
                 "user",
-                q,
+                visible_query,
             )
 
         engine = DocumentEngine(active_field, ollama_url, chat_model, rerank=rerank)
@@ -76,7 +84,7 @@ async def document_mode_stream(
 
         context = await asyncio.to_thread(
             engine.retrieve_context,
-            q,
+            visible_query,
             limit=retrieval_limit,
             history=history_to_send,
             mid_term_summary=mid_term_summary,
@@ -265,7 +273,7 @@ async def document_mode_stream(
                     citations=citation_payload,
                 )
                 asyncio.create_task(
-                    background_update_memory(active_field, active_sess_id, q, persisted)
+                    background_update_memory(active_field, active_sess_id, visible_query, persisted)
                 )
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
