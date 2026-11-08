@@ -305,3 +305,62 @@
   }
   .ag-rail.is-open { transform: none; }
 }
+
+/* ── status filters, pins and hover actions ─────────────────────────────── */
+
+.ag-rail__filters {
+  display: flex;
+  gap: 4px;
+  padding: 0 12px 8px;
+  flex-wrap: wrap;
+}
+
+.ag-rail__filters button {
+  padding: 2px 7px;
+  border: 1px solid var(--line-subtle);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: var(--type-2xs);
+  cursor: pointer;
+}
+
+.ag-rail__filters button:hover {
+  color: var(--ink);
+}
+
+.ag-rail__filters button.is-on {
+  border-color: var(--ink-muted);
+  color: var(--ink);
+  background: var(--surface-raised, var(--surface));
+}
+
+.ag-rail__pin {
+  margin-right: 4px;
+  color: var(--ink-muted);
+  vertical-align: -1px;
+}
+
+.ag-rail__quick {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.ag-rail__quick:hover {
+  color: var(--ink);
+  background: var(--surface-raised, var(--surface));
+}
+
+.ag-rail__row:hover .ag-rail__quick {
+  display: inline-flex;
+}
+
+.ag-rail__row:hover .ag-rail__row-menu {
+  display: inline-flex;
+}

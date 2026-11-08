@@ -1040,3 +1040,73 @@
 .ax-run__raw .ax-trace-step {
     margin-top: 4px;
 }
+
+/* ── tool playground ────────────────────────────────────────────────────── */
+
+.ax-playground {
+  gap: 8px;
+}
+
+.ax-playground select,
+.ax-playground input,
+.ax-playground textarea {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: var(--type-sm);
+  font-family: inherit;
+}
+
+.ax-playground__desc {
+  margin: 0;
+  font-size: var(--type-xs);
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+
+.ax-playground__field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: var(--type-xs);
+  color: var(--ink-muted);
+}
+
+.ax-playground__field > span {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.ax-playground__field em {
+  font-style: normal;
+  opacity: 0.65;
+}
+
+.ax-playground__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ax-playground__output,
+.ax-playground__error {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: var(--type-xs);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.ax-playground__error {
+  color: var(--danger, var(--ink));
+}

@@ -3,18 +3,20 @@ import {
   BarChart3,
   Database,
   Globe2,
+  Plug,
   Server,
   Trash2,
+  Wrench,
   X,
 } from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { Button, Chip, TextInput } from '../../ui/primitives';
-import type { AgentListItem } from '../../types';
+import type { AgentListItem, MarketplaceSkill, SkillMeta } from '../../types';
 import './SettingsDrawer.css';
 
-type Section = 'providers' | 'usage' | 'browser' | 'data';
+type Section = 'providers' | 'usage' | 'browser' | 'skills' | 'mcp' | 'plugins' | 'data';
 
 interface Aggregate {
   total?: { prompt_tokens?: number; completion_tokens?: number; cost_estimate?: number; calls?: number };
@@ -46,8 +48,26 @@ const SECTIONS: { id: Section; label: string; icon: typeof Server }[] = [
   { id: 'providers', label: 'Providers', icon: Server },
   { id: 'usage', label: 'Usage', icon: BarChart3 },
   { id: 'browser', label: 'Browser', icon: Globe2 },
+  { id: 'skills', label: 'Skills', icon: Wrench },
+  { id: 'mcp', label: 'MCP', icon: Plug },
+  { id: 'plugins', label: 'Plugins', icon: Plug },
   { id: 'data', label: 'Data', icon: Database },
 ];
+
+interface McpServer {
+  name?: string;
+  status?: string;
+  tools?: number;
+  error?: string;
+  command?: string;
+}
+
+interface PluginRow {
+  id: string;
+  name?: string;
+  description?: string;
+  installed?: boolean;
+}
 
 export default function SettingsDrawer({
   open,
@@ -68,6 +88,11 @@ export default function SettingsDrawer({
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [newProfile, setNewProfile] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [skills, setSkills] = useState<SkillMeta[]>([]);
+  const [marketSkills, setMarketSkills] = useState<MarketplaceSkill[]>([]);
+  const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
+  const [plugins, setPlugins] = useState<PluginRow[]>([]);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const loadProviders = useCallback(async () => {
     try {
@@ -100,11 +125,49 @@ export default function SettingsDrawer({
     }
   }, []);
 
+  const loadSkills = useCallback(async () => {
+    try {
+      const [installed, market] = await Promise.all([
+        api.agents.skills(),
+        api.agents.skillsAdmin.marketplace().catch(() => ({ skills: [] as MarketplaceSkill[] })),
+      ]);
+      setSkills(installed.skills || []);
+      setMarketSkills(market.skills || []);
+    } catch {
+      setSkills([]);
+    }
+  }, []);
+
+  const loadMcp = useCallback(async () => {
+    try {
+      const data = await api.mcp.servers();
+      setMcpServers((data.servers || []) as unknown as McpServer[]);
+    } catch {
+      setMcpServers([]);
+    }
+  }, []);
+
+  const loadPlugins = useCallback(async () => {
+    try {
+      const data = await api.plugins.list();
+      setPlugins((data.plugins || []) as unknown as PluginRow[]);
+    } catch {
+      setPlugins([]);
+    }
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     void loadProviders();
     void loadProfiles();
   }, [open, loadProviders, loadProfiles]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (section === 'skills') void loadSkills();
+    if (section === 'mcp') void loadMcp();
+    if (section === 'plugins') void loadPlugins();
+  }, [open, section, loadSkills, loadMcp, loadPlugins]);
 
   useEffect(() => {
     if (!open || section !== 'usage') return;
@@ -129,6 +192,52 @@ export default function SettingsDrawer({
     if (!ok) return;
     await api.browser.removeProfile(profile.id);
     await loadProfiles();
+  };
+
+  const installSkill = async (skill: MarketplaceSkill) => {
+    setBusyKey(`skill:${skill.id}`);
+    try {
+      const res = await api.agents.skillsAdmin.marketplaceInstall(skill.id);
+      if (res.error) addToast(res.error, { tone: 'error' });
+      else addToast(`Installed ${skill.name || skill.id}`, { tone: 'success' });
+      await loadSkills();
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const uninstallSkill = async (skill: SkillMeta) => {
+    setBusyKey(`skill:${skill.id}`);
+    try {
+      await api.agents.skillsAdmin.uninstall(skill.id);
+      await loadSkills();
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const reloadMcp = async () => {
+    setBusyKey('mcp');
+    try {
+      const res = await api.mcp.reload();
+      if (res.error) addToast(res.error, { tone: 'error' });
+      else addToast('MCP servers reloaded', { tone: 'success' });
+      await loadMcp();
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const installPlugin = async (plugin: PluginRow) => {
+    setBusyKey(`plugin:${plugin.id}`);
+    try {
+      const res = await api.plugins.install(plugin.id);
+      if (res.error) addToast(res.error, { tone: 'error' });
+      else addToast(`Installed ${plugin.name || plugin.id}`, { tone: 'success' });
+      await loadPlugins();
+    } finally {
+      setBusyKey(null);
+    }
   };
 
   const clearChats = async () => {
@@ -268,6 +377,117 @@ export default function SettingsDrawer({
                 <Button size="sm" variant="secondary" onClick={() => void addProfile()}>
                   Add
                 </Button>
+              </div>
+            </section>
+          )}
+
+          {section === 'skills' && (
+            <section className="ag-settings__section">
+              <div className="ag-settings__section-head">
+                <h3>Installed skills</h3>
+                <span>{skills.length}</span>
+              </div>
+              <p className="ag-settings__note">
+                Skills add focused instructions and tools to an agent. Attach them per agent in its settings.
+              </p>
+              <div className="ag-settings__list">
+                {skills.map((skill) => (
+                  <div key={skill.id} className="ag-settings__row">
+                    <div>
+                      <strong>{skill.name || skill.id}</strong>
+                      <span>{skill.description || skill.category}</span>
+                    </div>
+                    {skill.builtin ? (
+                      <Chip tone="muted">built-in</Chip>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={busyKey === `skill:${skill.id}`}
+                        onClick={() => void uninstallSkill(skill)}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                {skills.length === 0 && <p className="ag-settings__empty">No skills installed.</p>}
+              </div>
+              <h3>Marketplace</h3>
+              <div className="ag-settings__list">
+                {marketSkills.map((skill) => (
+                  <div key={skill.id} className="ag-settings__row">
+                    <div>
+                      <strong>{skill.name || skill.id}</strong>
+                      <span>{skill.description || skill.category}</span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={skill.installed ? 'ghost' : 'secondary'}
+                      disabled={busyKey === `skill:${skill.id}`}
+                      onClick={() => void installSkill(skill)}
+                    >
+                      {skill.installed ? 'Reinstall' : 'Install'}
+                    </Button>
+                  </div>
+                ))}
+                {marketSkills.length === 0 && <p className="ag-settings__empty">No marketplace entries.</p>}
+              </div>
+            </section>
+          )}
+
+          {section === 'mcp' && (
+            <section className="ag-settings__section">
+              <div className="ag-settings__section-head">
+                <h3>MCP servers</h3>
+                <Button size="sm" variant="secondary" disabled={busyKey === 'mcp'} onClick={() => void reloadMcp()}>
+                  Reload
+                </Button>
+              </div>
+              <p className="ag-settings__note">
+                Model Context Protocol servers add external tools. Reload after editing the local config.
+              </p>
+              <div className="ag-settings__list">
+                {mcpServers.map((server, index) => (
+                  <div key={`${server.name || index}`} className="ag-settings__row">
+                    <div>
+                      <strong>{server.name || `Server ${index + 1}`}</strong>
+                      <span>{server.error || server.command || server.status || 'ready'}</span>
+                    </div>
+                    <Chip tone={server.error ? 'danger' : 'muted'}>
+                      {server.error ? 'error' : `${server.tools ?? 0} tools`}
+                    </Chip>
+                  </div>
+                ))}
+                {mcpServers.length === 0 && <p className="ag-settings__empty">No MCP servers configured.</p>}
+              </div>
+            </section>
+          )}
+
+          {section === 'plugins' && (
+            <section className="ag-settings__section">
+              <h3>Plugins</h3>
+              <p className="ag-settings__note">
+                Plugins bundle connector tools that agents can opt into.
+              </p>
+              <div className="ag-settings__list">
+                {plugins.map((plugin) => (
+                  <div key={plugin.id} className="ag-settings__row">
+                    <div>
+                      <strong>{plugin.name || plugin.id}</strong>
+                      <span>{plugin.description || plugin.id}</span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={plugin.installed ? 'ghost' : 'secondary'}
+                      disabled={busyKey === `plugin:${plugin.id}`}
+                      onClick={() => void installPlugin(plugin)}
+                    >
+                      {plugin.installed ? 'Reinstall' : 'Install'}
+                    </Button>
+                  </div>
+                ))}
+                {plugins.length === 0 && <p className="ag-settings__empty">No plugins available.</p>}
               </div>
             </section>
           )}

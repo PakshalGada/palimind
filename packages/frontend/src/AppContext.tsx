@@ -199,7 +199,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return views.includes(value) ? (value as AppView) : 'home';
   });
   const [agentsView, setAgentsView] = useState<AgentsView>('chat');
-  const [agentsWorkTab, setAgentsWorkTab] = useState<AgentsWorkTab>('activity');
+  const [agentsWorkTab, setAgentsWorkTab] = useState<AgentsWorkTab>('overview');
   const [agentsSettingsOpen, setAgentsSettingsOpen] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(
     () => typeof window !== 'undefined' && localStorage.getItem('palimind:agents-browser') === '1',

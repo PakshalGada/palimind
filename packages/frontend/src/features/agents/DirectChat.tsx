@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
+import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import AgentAvatar from '../../components/AgentAvatar';
 import StreamingTurn from '../../stream/StreamingTurn';
@@ -31,6 +32,32 @@ export default function DirectChat({
   const { state } = useChatStreamContext();
   const threadRef = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
+  const [starters, setStarters] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setStarters([]);
+    api.agents
+      .starters(agent.id)
+      .then((data) => {
+        if (!cancelled && Array.isArray(data.prompts) && data.prompts.length > 0) {
+          setStarters(data.prompts);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [agent.id]);
+
+  const prompts =
+    starters.length > 0
+      ? starters
+      : [
+          'What are you working on?',
+          'Give me a quick status update.',
+          'Help me plan the next step.',
+        ];
 
   const currentSess = sessions.find((session) => session.id === activeSessionId);
   const messages = currentSess?.messages ?? [];
@@ -90,11 +117,7 @@ export default function DirectChat({
               {agent.description || agent.title || 'Ready when you are.'}
             </p>
             <div className="ag-chat-empty__prompts">
-              {[
-                'What are you working on?',
-                'Give me a quick status update.',
-                'Help me plan the next step.',
-              ].map((prompt) => (
+              {prompts.map((prompt) => (
                 <button key={prompt} type="button" onClick={() => prefill(prompt)}>
                   {prompt}
                 </button>

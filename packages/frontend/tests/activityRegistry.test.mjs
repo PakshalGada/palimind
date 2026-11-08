@@ -8,8 +8,8 @@ import {
 } from '../src/components/activity/adaptRun.ts';
 import { TOOL_COUNT, TOOL_REGISTRY, getToolDefinition, normalizeToolName, previewForTool } from '../src/components/activity/toolRegistry.ts';
 
-test('all 48 tools are registered with complete metadata', () => {
-  assert.equal(TOOL_COUNT, 48);
+test('all 50 tools are registered with complete metadata', () => {
+  assert.equal(TOOL_COUNT, 50);
   for (const [name, entry] of Object.entries(TOOL_REGISTRY)) {
     assert.ok(entry.icon, `${name} has an icon`);
     assert.ok(entry.running.length > 0, `${name} has a running label`);

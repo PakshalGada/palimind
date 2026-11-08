@@ -33,6 +33,7 @@ import { stepsFromTrace } from '../../components/activity/adaptRun';
 import { formatToolDuration } from '../../components/activity/model';
 import { Icon } from '../../components/activity/icons';
 import { getToolDefinition } from '../../components/activity/toolRegistry';
+import ToolPlayground from './ToolPlayground';
 import {
   Badge,
   Button,
@@ -967,6 +968,8 @@ export default function Inspector({
                     })}
                   </div>
                 </section>
+
+                <ToolPlayground agentId={draft.id} tools={tools} />
               </div>
             )}
 

@@ -3,9 +3,12 @@ import {
   Bot,
   Hash,
   MoreHorizontal,
+  Pin,
+  Play,
   Plus,
   Search,
   Settings2,
+  Square,
   Users,
 } from 'lucide-react';
 import { api } from '../../api';
@@ -34,6 +37,36 @@ type MenuState = {
   y: number;
   agent: AgentListItem;
 };
+
+type StatusFilter = 'all' | 'working' | 'waiting' | 'scheduled' | 'idle';
+
+const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'working', label: 'Working' },
+  { id: 'waiting', label: 'Waiting' },
+  { id: 'scheduled', label: 'Scheduled' },
+  { id: 'idle', label: 'Idle' },
+];
+
+const PIN_KEY = 'palimind:agent-pins';
+
+function readPins(): string[] {
+  try {
+    const raw = localStorage.getItem(PIN_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePins(ids: string[]): void {
+  try {
+    localStorage.setItem(PIN_KEY, JSON.stringify(ids));
+  } catch {
+    // storage is optional
+  }
+}
 
 function relTime(ts?: number | null): string {
   if (!ts) return '';
@@ -68,25 +101,83 @@ export default function ConversationRail({
     setSelectedChannelId,
     setAgentsView,
     inbox,
+    overview,
+    addToast,
   } = useApp();
   const confirm = useConfirm();
   const [query, setQuery] = useState('');
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [newMenu, setNewMenu] = useState<{ x: number; y: number } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [pins, setPins] = useState<string[]>(() => readPins());
+
+  const statusById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const item of overview?.agents ?? []) map.set(item.id, item.status);
+    return map;
+  }, [overview]);
+
+  const previewById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const run of overview?.recent ?? []) {
+      if (run.target_type === 'agent' && !map.has(run.target_id)) {
+        map.set(run.target_id, (run.input || run.output || '').replace(/\s+/g, ' ').slice(0, 80));
+      }
+    }
+    return map;
+  }, [overview]);
+
+  const togglePin = (agentId: string) => {
+    setPins((current) => {
+      const next = current.includes(agentId)
+        ? current.filter((id) => id !== agentId)
+        : [...current, agentId];
+      writePins(next);
+      return next;
+    });
+  };
+
+  const quickRun = async (agent: AgentListItem) => {
+    try {
+      const res = await api.agents.runNow(agent.id);
+      if (res.error) addToast(res.error, { tone: 'error' });
+      else addToast('Run started', { tone: 'success' });
+      window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : 'Could not start the run', { tone: 'error' });
+    }
+  };
+
+  const quickStop = async (agent: AgentListItem) => {
+    try {
+      await api.agents.cancel(agent.id);
+      window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : 'Could not stop the run', { tone: 'error' });
+    }
+  };
 
   const q = query.trim().toLowerCase();
   const filteredAgents = useMemo(
     () =>
       agents
-        .filter((agent) =>
-          !q
-            ? true
-            : `${agent.display_name || ''} ${agent.name} ${agent.title || ''}`
-                .toLowerCase()
-                .includes(q),
-        )
-        .sort((a, b) => (b.last_run_at || 0) - (a.last_run_at || 0)),
-    [agents, q],
+        .filter((agent) => {
+          if (q) {
+            const haystack = `${agent.display_name || ''} ${agent.name} ${agent.title || ''}`;
+            if (!haystack.toLowerCase().includes(q)) return false;
+          }
+          if (statusFilter !== 'all') {
+            const status = statusById.get(agent.id) || (agent.running ? 'working' : 'idle');
+            if (status !== statusFilter) return false;
+          }
+          return true;
+        })
+        .sort((a, b) => {
+          const pinned = Number(pins.includes(b.id)) - Number(pins.includes(a.id));
+          if (pinned !== 0) return pinned;
+          return (b.last_run_at || 0) - (a.last_run_at || 0);
+        }),
+    [agents, q, statusById, statusFilter, pins],
   );
   const filteredTeams = useMemo(
     () =>
@@ -187,6 +278,21 @@ export default function ConversationRail({
         />
       </label>
 
+      <div className="ag-rail__filters" role="tablist" aria-label="Filter agents by status">
+        {STATUS_FILTERS.map((filter) => (
+          <button
+            key={filter.id}
+            type="button"
+            role="tab"
+            aria-selected={statusFilter === filter.id}
+            className={statusFilter === filter.id ? 'is-on' : ''}
+            onClick={() => setStatusFilter(filter.id)}
+          >
+            {filter.label}
+          </button>
+        ))}
+      </div>
+
       {needsYou > 0 && (
         <button
           type="button"
@@ -226,9 +332,14 @@ export default function ConversationRail({
                     size={26}
                   />
                   <span className="ag-rail__row-body">
-                    <span className="ag-rail__row-name">{agent.display_name || agent.name}</span>
+                    <span className="ag-rail__row-name">
+                      {pins.includes(agent.id) && <Pin size={10} className="ag-rail__pin" />}
+                      {agent.display_name || agent.name}
+                    </span>
                     <span className={`ag-rail__row-meta${status ? ' is-live' : ''}`}>
-                      {status === 'working' ? 'working…' : agent.title || `@${agent.name}`}
+                      {status === 'working'
+                        ? 'working…'
+                        : previewById.get(agent.id) || agent.title || `@${agent.name}`}
                     </span>
                   </span>
                   <span className="ag-rail__row-trail">
@@ -236,6 +347,35 @@ export default function ConversationRail({
                       <PixelGlyph sprite={pixelForStatus('working')} cell={1.1} />
                     )}
                     <span>{relTime(agent.last_run_at)}</span>
+                  </span>
+                  <span className="ag-rail__quick">
+                    {status === 'working' ? (
+                      <span
+                        role="button"
+                        tabIndex={-1}
+                        title="Stop run"
+                        aria-label={`Stop ${agent.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void quickStop(agent);
+                        }}
+                      >
+                        <Square size={12} />
+                      </span>
+                    ) : (
+                      <span
+                        role="button"
+                        tabIndex={-1}
+                        title="Run now"
+                        aria-label={`Run ${agent.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void quickRun(agent);
+                        }}
+                      >
+                        <Play size={12} />
+                      </span>
+                    )}
                   </span>
                   <span
                     className="ag-rail__row-menu"
@@ -358,6 +498,10 @@ export default function ConversationRail({
           y={menu.y}
           onClose={() => setMenu(null)}
           items={[
+            {
+              label: pins.includes(menu.agent.id) ? 'Unpin' : 'Pin to top',
+              action: () => togglePin(menu.agent.id),
+            },
             { label: 'Settings', action: () => openSettings(menu.agent) },
             {
               label: 'Files',

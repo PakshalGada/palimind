@@ -181,6 +181,11 @@ export const api = {
     remove: (agentId: string) => del<{ error?: string; status?: string }>(`/agents/${agentId}`),
     removeAll: () => del<{ error?: string; status?: string; deleted?: number }>('/agents/all'),
     tools: () => get<{ tools: Record<string, ToolMeta> }>('/agents/tools'),
+    invokeTool: (agentId: string, tool: string, args: Record<string, unknown>) =>
+      post<{ tool?: string; output?: string; error?: string }>(
+        `/agents/${agentId}/tools/${encodeURIComponent(tool)}/invoke`,
+        { args },
+      ),
     skills: () => get<{ skills: SkillMeta[] }>('/agents/skills'),
     sections: {
       list: () => get<{ sections: { id: string; name: string; sort_order: number }[] }>('/agents/sections/all'),
