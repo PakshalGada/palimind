@@ -748,7 +748,9 @@ Be concise and effective."""
     closeout_used = False
     mutated_since_verify = False
     work_tool_calls = 0
-    has_work_tools = any(name not in ("todo_write", "tool_search") for name in visible_tools)
+    has_work_tools = any(
+        name not in ("todo_write", "tool_search", "ask_user") for name in visible_tools
+    )
     start_iteration = 0
 
     usage: dict[str, int] = {"prompt_tokens": 0, "completion_tokens": 0}
@@ -1309,7 +1311,7 @@ Be concise and effective."""
             live.append({"role": "assistant", "content": response})
             live.append({"role": "user", "content": tool_msg})
             recent_tool_calls.append(_tool_signature(tool_name, tool_args))
-            if tool_name not in ("todo_write", "tool_search"):
+            if tool_name not in ("todo_write", "tool_search", "ask_user"):
                 work_tool_calls += 1
             if tool_name in FILE_MUTATION_TOOLS:
                 mutated_since_verify = True
