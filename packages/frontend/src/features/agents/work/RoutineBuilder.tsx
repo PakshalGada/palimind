@@ -63,6 +63,27 @@ export default function RoutineBuilder({
     else onSaved();
   };
 
+  const templates = [
+    {
+      id: 'daily',
+      name: 'Daily digest',
+      schedule: '0 9 * * *',
+      input: 'Review what changed since yesterday, summarise the important items, and flag anything that needs my attention.',
+    },
+    {
+      id: 'inbox',
+      name: 'Inbox triage',
+      schedule: '',
+      input: 'Go through unread messages, group them by urgency, and draft short replies for the routine ones.',
+    },
+    {
+      id: 'weekly',
+      name: 'Weekly review',
+      schedule: '0 17 * * 5',
+      input: 'Summarise this week: completed work, open tasks, risks, and the top three priorities for next week.',
+    },
+  ];
+
   return (
     <Modal
       open
@@ -82,6 +103,26 @@ export default function RoutineBuilder({
       }
     >
       <div className="ag-modal-form">
+        <div className="ag-modal-templates">
+          {templates.map((template) => (
+            <button
+              key={template.id}
+              type="button"
+              onClick={() =>
+                setValue({
+                  ...value,
+                  name: template.name,
+                  input: template.input,
+                  schedule: template.schedule,
+                  run_mode: template.schedule ? 'scheduled' : 'manual',
+                  enabled: true,
+                })
+              }
+            >
+              {template.name}
+            </button>
+          ))}
+        </div>
         <Field label="Name">
           <TextInput value={value.name || ''} onChange={(event) => setValue({ ...value, name: event.target.value })} />
         </Field>

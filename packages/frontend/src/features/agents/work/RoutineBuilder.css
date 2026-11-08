@@ -11,3 +11,24 @@
   font-size: var(--type-xs);
   color: var(--danger, var(--ink));
 }
+
+.ag-modal-templates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ag-modal-templates button {
+  padding: 3px 9px;
+  border: 1px solid var(--line-subtle);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: var(--type-xs);
+  cursor: pointer;
+}
+
+.ag-modal-templates button:hover {
+  color: var(--ink);
+  border-color: var(--ink-muted);
+}
