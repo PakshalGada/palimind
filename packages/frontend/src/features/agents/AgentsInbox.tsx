@@ -21,22 +21,27 @@ export default function AgentsInbox({ open, onClose }: { open: boolean; onClose:
   const [items, setItems] = useState<Approval[]>([]);
   const [takeovers, setTakeovers] = useState<BrowserTakeover[]>([]);
   const [questions, setQuestions] = useState<AgentQuestion[]>([]);
+  const [deliveries, setDeliveries] = useState<
+    { id: string; agent_name?: string; target_agent_id?: string; text?: string; status?: string; created_at?: number }[]
+  >([]);
   const [agents, setAgents] = useState<AgentListItem[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
 
   const refresh = useCallback(async () => {
     try {
-      const [data, browser, roster, pendingQuestions] = await Promise.all([
+      const [data, browser, roster, pendingQuestions, queue] = await Promise.all([
         api.agents.inbox(),
         api.browser.takeovers('', 'pending'),
         api.agents.list(),
         api.agents.questions().catch(() => ({ questions: [] })),
+        api.agentTasks.deliveries('queued').catch(() => ({ deliveries: [] })),
       ]);
       setItems(data.approvals || []);
       setTakeovers((browser.takeovers || []) as unknown as BrowserTakeover[]);
       setAgents(roster.agents || []);
       setQuestions(pendingQuestions.questions || []);
+      setDeliveries((queue.deliveries || []) as typeof deliveries);
     } catch {
       // best effort
     }
@@ -80,7 +85,7 @@ export default function AgentsInbox({ open, onClose }: { open: boolean; onClose:
     window.dispatchEvent(new CustomEvent('palimind:browser-takeover'));
   };
 
-  const total = items.length + takeovers.length + questions.length;
+  const total = items.length + takeovers.length + questions.length + deliveries.length;
 
   const answer = async (question: AgentQuestion, value: string, choice = '') => {
     await api.agents.answer(question.agent_id, question.id, value, choice);
@@ -185,6 +190,26 @@ export default function AgentsInbox({ open, onClose }: { open: boolean; onClose:
               })}
             </>
           )}
+          {deliveries.length > 0 && (
+            <>
+              <div className="inbox__group">Queued messages</div>
+              {deliveries.slice(0, 8).map((delivery) => (
+                <article key={delivery.id} className="inbox__item">
+                  <div className="inbox__item-head">
+                    <span className="inbox__icon"><MessageCircle size={16} /></span>
+                    <div className="inbox__item-id">
+                      <span className="inbox__item-name">
+                        {delivery.agent_name || delivery.target_agent_id || 'Agent'}
+                      </span>
+                      <span className="inbox__item-tool">{delivery.status || 'queued'}</span>
+                    </div>
+                    <Chip tone="muted">queued</Chip>
+                  </div>
+                  <p className="inbox__summary">{delivery.text}</p>
+                </article>
+              ))}
+            </>
+          )}
           {takeovers.length > 0 && (
             <>
               <div className="inbox__group">Browser handoffs</div>
@@ -224,7 +249,7 @@ export default function AgentsInbox({ open, onClose }: { open: boolean; onClose:
               ))}
             </>
           )}
-          {items.length === 0 && takeovers.length === 0 && questions.length === 0 ? (
+          {items.length === 0 && takeovers.length === 0 && questions.length === 0 && deliveries.length === 0 ? (
             <EmptyState
               icon={<Check size={22} />}
               title="All clear"

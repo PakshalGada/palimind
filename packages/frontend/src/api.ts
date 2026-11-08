@@ -825,6 +825,10 @@ export const api = {
       }).then(res => res.json() as Promise<{ text?: string; error?: string }>),
   },
   agentTasks: {
+    deliveries: (status = '', limit = 50) =>
+      get<{ deliveries?: Record<string, unknown>[]; error?: string }>(
+        `/agents/deliveries?status=${encodeURIComponent(status)}&limit=${limit}`,
+      ),
     list: (agentId: string, includeClosed = false) =>
       get<{ tasks?: Record<string, unknown>[]; error?: string }>(
         `/agents/${agentId}/tasks?include_closed=${includeClosed}`,

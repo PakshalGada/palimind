@@ -56,6 +56,17 @@ def _queue_task(agent_id: str, task: dict[str, Any], input_text: str) -> dict[st
     return {"delivery": delivery, "queue_item": item}
 
 
+@router.get("/deliveries")
+async def list_deliveries(status: str = "", limit: int = 50):
+    """Cross-agent mailbox deliveries (the Inbox message queue)."""
+    items = mailbox.list_deliveries("", status=status, limit=max(1, min(int(limit or 50), 200)))
+    registry = get_registry()
+    for item in items:
+        agent = registry.get_by_id(str(item.get("target_agent_id") or ""))
+        item["agent_name"] = agent.label if agent is not None else item.get("target_agent_id")
+    return {"deliveries": items}
+
+
 @router.get("/{agent_id}/tasks")
 async def list_agent_tasks(agent_id: str, include_closed: bool = False, status: str = ""):
     if _agent(agent_id) is None:
