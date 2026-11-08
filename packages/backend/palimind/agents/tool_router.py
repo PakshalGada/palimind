@@ -62,6 +62,7 @@ _STOPWORDS = {
 _CORE_TOOLS = (
     "tool_search",
     "todo_write",
+    "ask_user",
     "read_file",
     "list_files",
     "grep_files",

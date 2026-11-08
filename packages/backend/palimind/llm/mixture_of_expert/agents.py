@@ -679,7 +679,7 @@ def run_agent(
         )
     # Discovery and the run checklist must always be reachable, even when the
     # agent uses a strict pack.
-    for must_have in ("tool_search", "todo_write"):
+    for must_have in ("tool_search", "todo_write", "ask_user"):
         if must_have in TOOL_REGISTRY and must_have not in visible_tools:
             visible_tools.append(must_have)
 
@@ -720,6 +720,10 @@ Checklist updates are bookkeeping, not progress. After creating the list,
 immediately call the real tool for the current item (web_search, fetch_url,
 read_file, search_replace, run_python, …). Never call todo_write twice in a row
 without a work tool in between.
+
+If a decision, missing detail or credential genuinely blocks the task, call
+ask_user with one short question and a few concrete options, then continue with
+the answer. Do not ask for information you can find with a tool.
 
 Be concise and effective."""
 
