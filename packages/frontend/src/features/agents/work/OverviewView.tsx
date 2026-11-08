@@ -25,6 +25,66 @@ function statusTone(status?: string): 'success' | 'warn' | 'danger' | 'muted' {
   return 'muted';
 }
 
+interface UsageRow {
+  prompt_tokens: number;
+  completion_tokens: number;
+  cost_estimate: number;
+  calls: number;
+}
+
+interface UsageAggregate {
+  total?: UsageRow;
+  by_agent?: ({ agent_id: string } & UsageRow)[];
+  by_day?: ({ day: string } & UsageRow)[];
+  by_provider?: ({ provider: string } & UsageRow)[];
+  unpriced_calls?: number;
+}
+
+function compactTokens(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}m`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return String(value);
+}
+
+function tokensOf(
+  row: { prompt_tokens?: number; completion_tokens?: number } | undefined,
+): number {
+  return (row?.prompt_tokens || 0) + (row?.completion_tokens || 0);
+}
+
+function Bars({
+  rows,
+  totalLabel,
+}: {
+  rows: { label: string; tokens: number; cost?: number }[];
+  totalLabel: string;
+}) {
+  const max = Math.max(1, ...rows.map((row) => row.tokens));
+  return (
+    <div className="ag-insights__bars">
+      {rows.length === 0 && <p className="ag-overview__empty">No usage recorded yet.</p>}
+      {rows.map((row) => (
+        <div key={row.label} className="ag-insights__bar-row">
+          <span className="ag-insights__bar-label">{row.label}</span>
+          <span className="ag-insights__bar-track">
+            <span
+              className="ag-insights__bar-fill"
+              style={{ width: `${Math.max(2, (row.tokens / max) * 100)}%` }}
+            />
+          </span>
+          <span className="ag-insights__bar-value">
+            {compactTokens(row.tokens)}
+            {row.cost !== undefined && row.cost > 0 && (
+              <em>${row.cost.toFixed(4)}</em>
+            )}
+          </span>
+        </div>
+      ))}
+      {rows.length > 0 && <span className="ag-insights__total">{totalLabel}</span>}
+    </div>
+  );
+}
+
 export default function OverviewView({
   agents,
   teams,
@@ -43,21 +103,29 @@ export default function OverviewView({
   } = useApp();
   const [questions, setQuestions] = useState<AgentQuestion[]>([]);
   const [runs, setRuns] = useState<RecentRun[]>([]);
+  const [usage, setUsage] = useState<UsageAggregate | null>(null);
+  const [usageDays, setUsageDays] = useState(7);
   const [busy, setBusy] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const [q, r] = await Promise.all([
+      const end = new Date();
+      const start = new Date(end.getTime() - (usageDays - 1) * 86_400_000);
+      const [q, r, u] = await Promise.all([
         api.agents.questions().catch(() => ({ questions: [] })),
-        api.agents.recentRuns(40).catch(() => ({ runs: [] })),
+        api.agents.recentRuns(60).catch(() => ({ runs: [] })),
+        api.usage
+          .get('', start.toISOString().slice(0, 10), end.toISOString().slice(0, 10))
+          .catch(() => null),
       ]);
       setQuestions(q.questions || []);
       setRuns(r.runs || []);
+      setUsage((u as UsageAggregate | null) ?? null);
       void refreshOverview();
     } catch {
       // best effort
     }
-  }, [refreshOverview]);
+  }, [refreshOverview, usageDays]);
 
   useEffect(() => {
     void refresh();
@@ -87,6 +155,45 @@ export default function OverviewView({
         0,
       );
   }, [runs]);
+
+  const stageRows = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const run of runs) {
+      for (const [stage, value] of Object.entries(run.usage_stages || {})) {
+        totals.set(
+          stage,
+          (totals.get(stage) || 0) + (value.prompt_tokens || 0) + (value.completion_tokens || 0),
+        );
+      }
+    }
+    return [...totals.entries()]
+      .map(([label, tokens]) => ({ label, tokens }))
+      .sort((a, b) => b.tokens - a.tokens);
+  }, [runs]);
+
+  const agentRows = useMemo(() => {
+    if (usage?.by_agent?.length) {
+      return usage.by_agent
+        .map((row) => ({
+          label: nameFor(agents, row.agent_id) || 'Unattributed',
+          tokens: tokensOf(row),
+          cost: row.cost_estimate,
+        }))
+        .sort((a, b) => b.tokens - a.tokens)
+        .slice(0, 8);
+    }
+    const totals = new Map<string, number>();
+    for (const run of runs) {
+      totals.set(run.agent_name, (totals.get(run.agent_name) || 0) + tokensOf(run.usage));
+    }
+    return [...totals.entries()]
+      .map(([label, tokens]) => ({ label, tokens }))
+      .sort((a, b) => b.tokens - a.tokens);
+  }, [agents, runs, usage]);
+
+  const periodTokens = tokensOf(usage?.total);
+  const periodCost = usage?.total?.cost_estimate || 0;
+  const periodCalls = usage?.total?.calls || 0;
 
   const waiting = useMemo(() => {
     const items: {
@@ -164,6 +271,54 @@ export default function OverviewView({
         <Stat label="Scheduled" value={counts?.scheduled ?? 0} />
         <Stat label="Tokens today" value={todayTokens.toLocaleString()} />
       </div>
+
+      <section className="ag-overview__panel ag-insights">
+        <header>
+          <h3>Usage · last {usageDays} days</h3>
+          <div className="ag-insights__range">
+            <select value={usageDays} onChange={(event) => setUsageDays(Number(event.target.value))}>
+              <option value={7}>7 days</option>
+              <option value={30}>30 days</option>
+              <option value={90}>90 days</option>
+            </select>
+            <span>{periodCalls} calls</span>
+          </div>
+        </header>
+        <div className="ag-insights__stats">
+          <div>
+            <span>Tokens</span>
+            <strong>{compactTokens(periodTokens || todayTokens)}</strong>
+          </div>
+          <div>
+            <span>Prompt</span>
+            <strong>{compactTokens(usage?.total?.prompt_tokens || 0)}</strong>
+          </div>
+          <div>
+            <span>Completion</span>
+            <strong>{compactTokens(usage?.total?.completion_tokens || 0)}</strong>
+          </div>
+          <div>
+            <span>Est. cost</span>
+            <strong>${periodCost.toFixed(4)}</strong>
+          </div>
+          {(usage?.unpriced_calls || 0) > 0 && (
+            <div>
+              <span>Unpriced</span>
+              <strong>{usage?.unpriced_calls}</strong>
+            </div>
+          )}
+        </div>
+        <div className="ag-insights__grid">
+          <div className="ag-insights__col">
+            <div className="ag-insights__col-head">By stage</div>
+            <Bars rows={stageRows} totalLabel="Stages come from the latest runs' event usage." />
+          </div>
+          <div className="ag-insights__col">
+            <div className="ag-insights__col-head">By agent</div>
+            <Bars rows={agentRows} totalLabel="Recorded provider calls in this period." />
+          </div>
+        </div>
+      </section>
 
       <section className="ag-overview__panel">
         <header>
