@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Menu } from 'lucide-react';
 import { useApp } from '../../AppContext';
 import ConversationRail from './ConversationRail';
@@ -34,8 +34,10 @@ export default function AgentsWorkspace() {
     agentsSettingsOpen,
     browserOpen,
     setBrowserOpen,
+    inbox,
   } = useApp();
   const { agents, teams, channels, takeovers, refresh } = useAgentRoster();
+  const previousWaiting = useRef<number | null>(null);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [channelModalOpen, setChannelModalOpen] = useState(false);
@@ -48,6 +50,22 @@ export default function AgentsWorkspace() {
     const timer = window.setInterval(() => void refreshInbox(), 10_000);
     return () => window.clearInterval(timer);
   }, [refreshOverview, refreshInbox]);
+
+  useEffect(() => {
+    const waiting = inbox.length + takeovers.length;
+    const previous = previousWaiting.current;
+    previousWaiting.current = waiting;
+    if (previous === null || waiting <= previous) return;
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    try {
+      new Notification('PaliMind agents need you', {
+        body: `${waiting - previous} new item${waiting - previous === 1 ? '' : 's'} waiting in the Inbox.`,
+        tag: 'palimind-agents-inbox',
+      });
+    } catch {
+      // notifications are best-effort
+    }
+  }, [inbox.length, takeovers.length]);
 
   useEffect(() => {
     const onInbox = () => setInboxOpen(true);

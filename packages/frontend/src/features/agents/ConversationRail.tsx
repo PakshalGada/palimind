@@ -1,4 +1,4 @@
-import { useMemo, useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import {
   Bot,
   Hash,
@@ -110,6 +110,18 @@ export default function ConversationRail({
   const [newMenu, setNewMenu] = useState<{ x: number; y: number } | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [pins, setPins] = useState<string[]>(() => readPins());
+  const [sections, setSections] = useState<{ id: string; name: string; sort_order?: number }[]>([]);
+
+  useEffect(() => {
+    const load = () =>
+      api.agents.sections
+        .list()
+        .then((data) => setSections(data.sections || []))
+        .catch(() => setSections([]));
+    void load();
+    window.addEventListener('palimind:agents-changed', load);
+    return () => window.removeEventListener('palimind:agents-changed', load);
+  }, []);
 
   const statusById = useMemo(() => {
     const map = new Map<string, string>();
@@ -179,6 +191,28 @@ export default function ConversationRail({
         }),
     [agents, q, statusById, statusFilter, pins],
   );
+  const groupedAgents = useMemo(() => {
+    const pending = new Map<string, AgentListItem[]>();
+    for (const agent of filteredAgents) {
+      const sectionId = (agent as AgentListItem & { section_id?: string }).section_id || '';
+      const list = pending.get(sectionId) || [];
+      list.push(agent);
+      pending.set(sectionId, list);
+    }
+    const groups = sections
+      .slice()
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+      .map((section) => ({
+        id: section.id,
+        name: section.name,
+        agents: pending.get(section.id) || [],
+      }))
+      .filter((group) => group.agents.length > 0);
+    const unassigned = pending.get('') || [];
+    if (unassigned.length > 0) groups.push({ id: '', name: 'Direct', agents: unassigned });
+    return groups;
+  }, [filteredAgents, sections]);
+
   const filteredTeams = useMemo(
     () =>
       teams.filter((team) =>
@@ -313,8 +347,10 @@ export default function ConversationRail({
       <div className="ag-rail__scroll">
         {filteredAgents.length > 0 && (
           <section className="ag-rail__section" aria-label="Direct agent chats">
-            <div className="ag-rail__section-head">Direct</div>
-            {filteredAgents.map((agent) => {
+            {groupedAgents.map((group) => (
+            <div key={group.id || 'direct'} className="ag-rail__group">
+            <div className="ag-rail__section-head">{group.name}</div>
+            {group.agents.map((agent) => {
               const status = statusLabel(agent);
               return (
                 <button
@@ -389,6 +425,8 @@ export default function ConversationRail({
                 </button>
               );
             })}
+            </div>
+            ))}
           </section>
         )}
 
@@ -514,6 +552,22 @@ export default function ConversationRail({
               label: 'Run now',
               action: () => {
                 void api.agents.runNow(menu.agent.id).then(() => {
+                  window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+                });
+              },
+            },
+            ...sections.map((section) => ({
+              label: `Move to ${section.name}`,
+              action: () => {
+                void api.agents.sections.assign(section.id, menu.agent.id).then(() => {
+                  window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+                });
+              },
+            })),
+            {
+              label: 'No section',
+              action: () => {
+                void api.agents.sections.assign('', menu.agent.id).then(() => {
                   window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
                 });
               },

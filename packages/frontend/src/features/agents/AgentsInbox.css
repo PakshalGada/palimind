@@ -38,3 +38,14 @@
 .inbox__spacer { flex: 1; }
 .inbox__always { border: none; background: transparent; color: var(--text-muted); font-size: var(--type-xs); text-align: left; cursor: pointer; padding: 2px 0; }
 .inbox__always:hover { color: var(--text-main); }
+
+.inbox__answer {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 9px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: var(--type-sm);
+}

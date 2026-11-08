@@ -116,3 +116,39 @@ def test_record_run_persists_suggestions_and_usage_stages(monkeypatch) -> None:
     assert entry["suggestions"] == ["What changed?", "Add a test."]
     assert entry["usage_stages"]["agent"] == {"prompt_tokens": 100, "completion_tokens": 50}
     assert entry["usage_stages"]["followups"] == {"prompt_tokens": 7, "completion_tokens": 3}
+
+
+def test_starter_prompts_follow_the_agent_brief() -> None:
+    from types import SimpleNamespace
+
+    from palimind.agents.suggestions import starter_prompts
+
+    prompts = starter_prompts(
+        SimpleNamespace(
+            display_name="Scout",
+            name="scout",
+            goal="Track competitor releases every morning.",
+            title="",
+            description="",
+            skills=["competitor-watch"],
+            tool_pack="research",
+        )
+    )
+    assert 1 <= len(prompts) <= 4
+    joined = " ".join(prompts).lower()
+    assert "competitor" in joined
+    assert all("…" not in prompt or prompt.endswith("…") for prompt in prompts)
+
+    generic = starter_prompts(
+        SimpleNamespace(
+            display_name="",
+            name="helper",
+            goal="",
+            title="",
+            description="",
+            skills=[],
+            tool_pack="auto",
+        )
+    )
+    assert 1 <= len(generic) <= 4
+    assert all(isinstance(prompt, str) and prompt for prompt in generic)

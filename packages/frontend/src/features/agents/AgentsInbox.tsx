@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Check, Globe2, Inbox as InboxIcon, ShieldAlert, X } from 'lucide-react';
+import { Check, Globe2, Inbox as InboxIcon, MessageCircle, ShieldAlert, X } from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import AgentAvatar from '../../components/AgentAvatar';
 import { Button, Chip, EmptyState } from '../../ui/primitives';
-import type { AgentListItem, Approval, BrowserTakeover } from '../../types';
+import type { AgentListItem, AgentQuestion, Approval, BrowserTakeover } from '../../types';
 import './AgentsInbox.css';
 
 export default function AgentsInbox({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -20,19 +20,23 @@ export default function AgentsInbox({ open, onClose }: { open: boolean; onClose:
   } = useApp();
   const [items, setItems] = useState<Approval[]>([]);
   const [takeovers, setTakeovers] = useState<BrowserTakeover[]>([]);
+  const [questions, setQuestions] = useState<AgentQuestion[]>([]);
   const [agents, setAgents] = useState<AgentListItem[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
 
   const refresh = useCallback(async () => {
     try {
-      const [data, browser, roster] = await Promise.all([
+      const [data, browser, roster, pendingQuestions] = await Promise.all([
         api.agents.inbox(),
         api.browser.takeovers('', 'pending'),
         api.agents.list(),
+        api.agents.questions().catch(() => ({ questions: [] })),
       ]);
       setItems(data.approvals || []);
       setTakeovers((browser.takeovers || []) as unknown as BrowserTakeover[]);
       setAgents(roster.agents || []);
+      setQuestions(pendingQuestions.questions || []);
     } catch {
       // best effort
     }
@@ -76,7 +80,18 @@ export default function AgentsInbox({ open, onClose }: { open: boolean; onClose:
     window.dispatchEvent(new CustomEvent('palimind:browser-takeover'));
   };
 
-  const total = items.length + takeovers.length;
+  const total = items.length + takeovers.length + questions.length;
+
+  const answer = async (question: AgentQuestion, value: string, choice = '') => {
+    await api.agents.answer(question.agent_id, question.id, value, choice);
+    setQuestions((previous) => previous.filter((item) => item.id !== question.id));
+    setAnswers((previous) => {
+      const next = { ...previous };
+      delete next[question.id];
+      return next;
+    });
+    window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+  };
 
   if (!open) return null;
 
@@ -100,6 +115,76 @@ export default function AgentsInbox({ open, onClose }: { open: boolean; onClose:
         </header>
 
         <div className="inbox__body">
+          {questions.length > 0 && (
+            <>
+              <div className="inbox__group">Questions</div>
+              {questions.map((question) => {
+                const value = answers[question.id] || '';
+                const agent = agents.find((item) => item.id === question.agent_id);
+                return (
+                  <article key={question.id} className="inbox__item">
+                    <div className="inbox__item-head">
+                      <AgentAvatar
+                        config={agent?.avatar_config}
+                        upload={agent?.avatar_upload}
+                        type={agent?.avatar_type === 'upload' ? 'upload' : 'bot'}
+                        size={32}
+                      />
+                      <div className="inbox__item-id">
+                        <span className="inbox__item-name">
+                          {agent?.display_name || agent?.name || question.agent_id}
+                        </span>
+                        <span className="inbox__item-tool">waiting for an answer</span>
+                      </div>
+                      <Chip tone="warn">
+                        <MessageCircle size={11} /> question
+                      </Chip>
+                    </div>
+                    <p className="inbox__summary">{question.question}</p>
+                    {question.options.length > 0 && (
+                      <div className="inbox__actions">
+                        {question.options.map((option) => (
+                          <Button
+                            key={option}
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => void answer(question, option, option)}
+                          >
+                            {option}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                    {question.allow_free_text && (
+                      <div className="inbox__actions">
+                        <input
+                          className="inbox__answer"
+                          value={value}
+                          placeholder="Type an answer…"
+                          onChange={(event) =>
+                            setAnswers((previous) => ({ ...previous, [question.id]: event.target.value }))
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' && value.trim()) {
+                              void answer(question, value.trim());
+                            }
+                          }}
+                        />
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          disabled={!value.trim()}
+                          onClick={() => void answer(question, value.trim())}
+                        >
+                          Answer
+                        </Button>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </>
+          )}
           {takeovers.length > 0 && (
             <>
               <div className="inbox__group">Browser handoffs</div>
@@ -139,11 +224,11 @@ export default function AgentsInbox({ open, onClose }: { open: boolean; onClose:
               ))}
             </>
           )}
-          {items.length === 0 && takeovers.length === 0 ? (
+          {items.length === 0 && takeovers.length === 0 && questions.length === 0 ? (
             <EmptyState
               icon={<Check size={22} />}
               title="All clear"
-              description="When an agent needs permission for a risky action, or needs you in the browser, it appears here."
+              description="When an agent asks a question, needs permission for a risky action, or needs you in the browser, it appears here."
             />
           ) : (
             items.map((item) => {

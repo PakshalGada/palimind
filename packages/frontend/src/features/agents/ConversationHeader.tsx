@@ -1,11 +1,15 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   FolderOpen,
   Globe2,
+  Pause,
+  Play,
   Settings2,
+  Square,
   Users,
   Hash,
 } from 'lucide-react';
+import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import AgentAvatar from '../../components/AgentAvatar';
 import { PixelGlyph } from '../../components/pixel/PixelGlyph';
@@ -26,7 +30,41 @@ export default function ConversationHeader({
   channel?: Channel | null;
   onSettings?: () => void;
 }) {
-  const { browserOpen, setBrowserOpen, setBrowserFullscreen, setSelectedAgentId } = useApp();
+  const {
+    browserOpen,
+    setBrowserOpen,
+    setBrowserFullscreen,
+    setSelectedAgentId,
+    addToast,
+  } = useApp();
+  const [paused, setPaused] = useState(false);
+  const running = Boolean(agent && (agent.running || (agent.active_runs || 0) > 0));
+
+  useEffect(() => {
+    setPaused(false);
+  }, [agent?.id]);
+
+  const togglePause = async () => {
+    if (!agent) return;
+    try {
+      if (paused) await api.agents.resume(agent.id);
+      else await api.agents.pause(agent.id);
+      setPaused((value) => !value);
+      window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : 'Could not update the run', { tone: 'error' });
+    }
+  };
+
+  const stop = async () => {
+    if (!agent) return;
+    try {
+      await api.agents.cancel(agent.id);
+      window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : 'Could not stop the run', { tone: 'error' });
+    }
+  };
 
   const label = channel?.name || team?.display_name || team?.name || agent?.display_name || agent?.name || 'Conversation';
   const status = useMemo(() => {
@@ -88,6 +126,28 @@ export default function ConversationHeader({
       </div>
 
       <div className="ag-chat-head__actions">
+        {running && (
+          <>
+            <button
+              type="button"
+              className="ag-icon-btn"
+              title={paused ? 'Resume run' : 'Pause run'}
+              aria-label={paused ? 'Resume run' : 'Pause run'}
+              onClick={() => void togglePause()}
+            >
+              {paused ? <Play size={14} /> : <Pause size={14} />}
+            </button>
+            <button
+              type="button"
+              className="ag-icon-btn"
+              title="Stop run"
+              aria-label="Stop run"
+              onClick={() => void stop()}
+            >
+              <Square size={14} />
+            </button>
+          </>
+        )}
         {agent && <SessionMenu agentId={agent.id} />}
         <button
           type="button"

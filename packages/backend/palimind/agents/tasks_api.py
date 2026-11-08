@@ -349,3 +349,13 @@ async def assign_section(section_id: str, req: Request):
         return {"agent": sections.assign_agent_section(agent_id, section_id).to_dict()}
     except Exception as exc:  # noqa: BLE001
         return {"error": str(exc)}
+
+
+@router.post("/sections/unassign")
+async def unassign_section(req: Request):
+    body = await req.json()
+    agent_id = str(body.get("agent_id") or "")
+    try:
+        return {"agent": sections.assign_agent_section(agent_id, "").to_dict()}
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc)}

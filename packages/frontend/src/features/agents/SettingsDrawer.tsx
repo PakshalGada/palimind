@@ -93,6 +93,32 @@ export default function SettingsDrawer({
   const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
   const [plugins, setPlugins] = useState<PluginRow[]>([]);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [sections, setSections] = useState<{ id: string; name: string }[]>([]);
+  const [newSection, setNewSection] = useState('');
+
+  const loadSections = useCallback(async () => {
+    try {
+      const data = await api.agents.sections.list();
+      setSections(data.sections || []);
+    } catch {
+      setSections([]);
+    }
+  }, []);
+
+  const addSection = async () => {
+    const name = newSection.trim();
+    if (!name) return;
+    await api.agents.sections.create(name);
+    setNewSection('');
+    await loadSections();
+    window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+  };
+
+  const removeSection = async (sectionId: string) => {
+    await api.agents.sections.remove(sectionId);
+    await loadSections();
+    window.dispatchEvent(new CustomEvent('palimind:agents-changed'));
+  };
 
   const loadProviders = useCallback(async () => {
     try {
@@ -160,7 +186,8 @@ export default function SettingsDrawer({
     if (!open) return;
     void loadProviders();
     void loadProfiles();
-  }, [open, loadProviders, loadProfiles]);
+    void loadSections();
+  }, [open, loadProviders, loadProfiles, loadSections]);
 
   useEffect(() => {
     if (!open) return;
@@ -494,12 +521,68 @@ export default function SettingsDrawer({
 
           {section === 'data' && (
             <section className="ag-settings__section">
+              <h3>Sections</h3>
+              <p className="ag-settings__note">
+                Group agents in the rail. Right-click an agent to move it into a section.
+              </p>
+              <div className="ag-settings__list">
+                {sections.map((item) => (
+                  <div key={item.id} className="ag-settings__row">
+                    <div>
+                      <strong>{item.name}</strong>
+                    </div>
+                    <button
+                      type="button"
+                      className="ag-icon-btn"
+                      aria-label={`Delete ${item.name}`}
+                      onClick={() => void removeSection(item.id)}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+                {sections.length === 0 && <p className="ag-settings__empty">No sections yet.</p>}
+              </div>
+              <div className="ag-settings__inline">
+                <TextInput
+                  value={newSection}
+                  onChange={(event) => setNewSection(event.target.value)}
+                  placeholder="New section name"
+                />
+                <Button size="sm" variant="secondary" onClick={() => void addSection()}>
+                  Add
+                </Button>
+              </div>
               <h3>Conversations</h3>
               <p className="ag-settings__note">
                 Clearing conversations keeps each agent's memory, settings and run history.
               </p>
               <Button variant="secondary" size="sm" onClick={() => void clearChats()}>
                 Clear all agent conversations
+              </Button>
+              <h3>Notifications</h3>
+              <p className="ag-settings__note">
+                Get a desktop notification when an agent stops to ask a question or waits for approval.
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  if (typeof Notification === 'undefined') {
+                    addToast('Notifications are not available here.', { tone: 'warning' });
+                    return;
+                  }
+                  void Notification.requestPermission().then((permission) => {
+                    addToast(
+                      permission === 'granted'
+                        ? 'Notifications enabled'
+                        : 'Notifications were not enabled',
+                      { tone: permission === 'granted' ? 'success' : 'warning' },
+                    );
+                  });
+                }}
+              >
+                Enable notifications
               </Button>
             </section>
           )}

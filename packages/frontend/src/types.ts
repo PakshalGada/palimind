@@ -408,6 +408,8 @@ export interface AgentDefinition {
   workspace_dir?: string;
   team_ids?: string[];
   tool_pack?: ToolPack;
+  section_id?: string;
+  hidden_at?: string;
   // ── Computer use (Linux) ─────────────────────────────────────────────
   desktop_access?: boolean;
   desktop_control?: boolean;

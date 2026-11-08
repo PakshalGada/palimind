@@ -201,9 +201,12 @@ export const api = {
         ),
       remove: (sectionId: string) => del<{ status?: string }>(`/agents/sections/${sectionId}`),
       assign: (sectionId: string, agentId: string) =>
-        post<{ status?: string; error?: string }>(`/agents/sections/${sectionId}/assign`, {
-          agent_id: agentId,
-        }),
+        post<{ status?: string; error?: string }>(
+          sectionId
+            ? `/agents/sections/${sectionId}/assign`
+            : '/agents/sections/unassign',
+          { agent_id: agentId },
+        ),
     },
     activity: () => get<AgentActivitySnapshot>('/agents/activity'),
     approvals: () => get<{ approvals: Approval[] }>('/agents/approvals'),
