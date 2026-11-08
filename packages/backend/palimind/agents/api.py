@@ -21,6 +21,7 @@ from palimind.agents.runtime import (
     is_running,
     resolve_approval,
     set_agent_plan,
+    validate_approval_args,
 )
 from palimind.agents.service import stream_agent
 from palimind.llm.mixture_of_expert.tools import TOOL_REGISTRY, _register_plugin_tools
@@ -1053,5 +1054,18 @@ async def approve(agent_id: str, req: Request):
     approved = bool(body.get("approved", False))
     correction = str(body.get("correction", ""))
     run_id = str(body.get("run_id", "") or "")
-    ok = await resolve_approval(agent_id, approved, correction, run_id or None)
+    override = body.get("args")
+    if approved and override is not None:
+        if not isinstance(override, dict):
+            return {"status": "error", "error": "args must be an object"}
+        error = validate_approval_args(agent_id, override, run_id or None)
+        if error:
+            return {"status": "error", "error": error}
+    ok = await resolve_approval(
+        agent_id,
+        approved,
+        correction,
+        run_id or None,
+        args=override if isinstance(override, dict) else None,
+    )
     return {"status": "ok" if ok else "no_pending"}

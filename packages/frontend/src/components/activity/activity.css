@@ -2512,3 +2512,54 @@ html[data-motion="reduced"] .act-reason__wave i { opacity: 0.6; }
     color: var(--act-muted);
     font-variant-numeric: tabular-nums;
 }
+
+/* ── edit-before-run in the approval receipt ────────────────────────────── */
+
+.act-grant__editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 1px solid var(--act-hairline);
+    border-radius: var(--radius-sm);
+    background: var(--act-surface, transparent);
+}
+
+.act-grant__editor label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: var(--type-2xs);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--act-muted);
+}
+
+.act-grant__editor textarea {
+    width: 100%;
+    padding: 7px 8px;
+    border: 1px solid var(--act-hairline);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--act-text);
+    font-family: var(--font-mono, monospace);
+    font-size: var(--type-xs);
+    line-height: 1.45;
+    resize: vertical;
+}
+
+.act-grant__editor textarea:focus {
+    outline: none;
+    border-color: var(--act-text);
+}
+
+.act-grant__editor-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.act-grant__error {
+    font-size: var(--type-xs);
+    color: var(--act-error);
+}

@@ -55,12 +55,14 @@ export function HistoryActivity({
   const store = useMemo(() => (state ? ActivityStore.fromState(state) : null), [state]);
 
   const resolveApproval = useCallback(
-    (step: ToolStep, decision: GrantDecision) => {
+    (step: ToolStep, decision: GrantDecision, args?: Record<string, unknown>) => {
       if (!store) return;
       if (!store.resolveApproval(step.id, decision)) return;
       const meta = step.approval;
       if (meta?.agentId) {
-        api.agents.approve(meta.agentId, decision !== 'deny', '', meta.runId).catch(() => undefined);
+        api.agents
+          .approve(meta.agentId, decision !== 'deny', '', meta.runId, args)
+          .catch(() => undefined);
       }
       const next = store.getState();
       if (next) persistActivity(sessionId, messageIndex, next);

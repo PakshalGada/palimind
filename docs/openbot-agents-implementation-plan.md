@@ -1130,14 +1130,14 @@ does not claim that every phase is complete.
 | Phase | Delivered | Key files |
 |---|---|---|
 | 0 | Provider protocol, fake provider, Ollama and OpenAI-compatible adapters, ACP client, provider presets, durable threads/sessions, usage records, feature flags, schema v2 tables | `agents/providers/*`, `agents/threads.py`, `storage/state_store.py`, `settings.py` |
-| 1 | Task lanes, mailbox deliveries/events/reactions, sections, hidden agents, task/mailbox/section/side-question APIs, task/mailbox/profile tools, task UI | `agents/tasks.py`, `agents/mailbox.py`, `agents/sections.py`, `agents/task_tools.py`, `agents/tasks_api.py`, `features/agents/AgentLanesPanel.tsx` |
+| 1 | Task lanes, mailbox deliveries/events/reactions, sections, hidden agents, task/mailbox/section/side-question APIs, task/mailbox/profile tools, task UI | `agents/tasks.py`, `agents/mailbox.py`, `agents/sections.py`, `agents/task_tools.py`, `agents/tasks_api.py`, `features/agents/work/TasksView.tsx`, `features/agents/AgentsInbox.tsx` |
 | 2 | Concrete Codex App Server and Claude stream-json adapters with transcript fixtures; generic ACP; Ollama/OpenAI-compatible; presets; failover gate wired into the worker call path | `agents/providers/codex.py`, `agents/providers/claude.py`, `agents/providers/jsonl.py`, `agents/failover.py`, `llm/mixture_of_expert/agents.py`, `tests/test_provider_codex_claude.py` |
-| 3 | Channel store, deterministic routing, channel tasks/revisions, archive/restore, channel tools, channel API/UI | `agents/channels.py`, `agents/channel_tools.py`, `agents/channels_api.py`, `features/agents/ChannelsPanel.tsx` |
+| 3 | Channel store, deterministic routing, channel tasks/revisions, archive/restore, channel tools, channel API/UI | `agents/channels.py`, `agents/channel_tools.py`, `agents/channels_api.py`, `features/agents/ChannelChat.tsx`, `features/agents/ConversationRail.tsx` |
 | 4 | Waits, automation listener/token files/security tests, routine quiet/failure signals, routine flows, flow tools, calendar feed, signed routine webhooks with receipts/filters, `pm agent` CLI | `agents/waits.py`, `agents/automation.py`, `agents/flows.py`, `agents/webhooks.py`, `agents/routine_tools.py`, `agents/flows_api.py`, `agents/webhooks_api.py`, `cli/commands.py` |
 | 5 | Browser profiles/tabs/takeover state and API, persistent Playwright profile launch, managed tab tools, desktop driver interface | `agents/browser_profiles.py`, `agents/tools/browser/tool.py`, `agents/tools/desktop/driver.py` |
 | 6 | Agent Skills folder support, immutable local skill library, plugin catalog/install, MCP management tools, API-key tools | `agents/skills.py`, `agents/skills_library.py`, `agents/plugins.py`, `agents/mcp_tools.py`, `agents/secrets_tools.py` |
 | 7 | Agent export/import/archive, templates, sandboxed visual replies and tools/API | `agents/sharing.py`, `agents/sharing_api.py`, `agents/visuals.py`, `agents/visual_tools.py` |
-| 8 | Local usage records/aggregates, usage API and UI, provider status API/UI | `agents/usage.py`, `agents/usage_api.py`, `agents/providers_api.py`, `features/agents/UsagePanel.tsx`, `features/agents/ProvidersPanel.tsx` |
+| 8 | Local usage records/aggregates, usage API and UI, provider status API/UI | `agents/usage.py`, `agents/usage_api.py`, `agents/providers_api.py`, `features/agents/SettingsDrawer.tsx`, `features/agents/work/OverviewView.tsx` |
 
 ### 15.2 Still open
 
@@ -1147,14 +1147,17 @@ does not claim that every phase is complete.
   tabs and takeover state exist; streaming is Phase 9.
 - 1Password/Bitwarden/GitHub connectors and remote sign-in relays.
 - Remote host/Team API/mobile client. This remains deferred by design.
-- Frontend import/export dialogs, provider sign-in forms, and full task/channel
-  conversation polish. Backend routes and basic panels exist.
+- Frontend import/export dialogs and provider sign-in forms.
+- Connector tools: the empty gmail/calendar/slack/drive/sheets folders were
+  removed rather than shipped as unavailable tools.
+- Edit-before-run approvals and the typed tool-UI contract are shipped; the
+  broader connector catalog is not.
 
 ### 15.3 Verification
 
-- Backend: `python -m pytest -m "not integration" -q` → **687 passed, 2 skipped,
+- Backend: `python -m pytest -m "not integration" -q` → **713 passed, 2 skipped,
   6 deselected**.
-- Frontend: `npm test` → **135 passed** plus the render smoke suite; `npx tsc -b`
+- Frontend: `npm test` → **147 passed** plus the render smoke suite; `npx tsc -b`
   → clean; `npm run build` → success.
 - New regression files: `test_agent_tasks_mailbox.py`,
   `test_provider_acp.py`, `test_provider_codex_claude.py`,

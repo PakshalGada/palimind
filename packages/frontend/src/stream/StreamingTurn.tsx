@@ -23,12 +23,16 @@ export default function StreamingTurn({ activeSessionId }: { activeSessionId: st
 
   if (!streamBelongsTo(state, activeSessionId)) return null;
 
-  const resolveApproval = (step: ToolStep, decision: GrantDecision) => {
+  const resolveApproval = (
+    step: ToolStep,
+    decision: GrantDecision,
+    args?: Record<string, unknown>,
+  ) => {
     activityStore.resolveApproval(step.id, decision);
     const meta = step.approval;
     if (!meta?.agentId) return;
     api.agents
-      .approve(meta.agentId, decision !== 'deny', '', meta.runId)
+      .approve(meta.agentId, decision !== 'deny', '', meta.runId, args)
       .catch(() => undefined);
   };
 

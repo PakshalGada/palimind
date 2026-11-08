@@ -313,7 +313,7 @@ export function ActivityPanel({
   agentId?: string;
   onRetry?: (step: ToolStep) => void;
   onRetryRun?: () => void;
-  onResolveApproval?: (step: ToolStep, decision: GrantDecision) => void;
+  onResolveApproval?: (step: ToolStep, decision: GrantDecision, args?: Record<string, unknown>) => void;
   /** Mode-specific body (stepper, plan, lanes, doc chips) rendered in the body. */
   bodyExtra?: React.ReactNode;
   children?: React.ReactNode;

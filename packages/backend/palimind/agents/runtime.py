@@ -226,25 +226,63 @@ def is_paused(agent_id: str) -> bool:
     return bool(ra and ra.paused.is_set())
 
 
+def _waiting_run(agent_id: str, run_id: str | None = None) -> RunningAgent | None:
+    runs = _running.get(agent_id) or {}
+    if not runs:
+        return None
+    if run_id:
+        return runs.get(run_id)
+    # Resolve the run that is actually waiting, not just the newest one.
+    waiting = [r for r in runs.values() if r.pending is not None]
+    return waiting[-1] if waiting else None
+
+
+def validate_approval_args(
+    agent_id: str, args: dict[str, Any], run_id: str | None = None
+) -> str | None:
+    """Validate an args override against the pending tool's schema.
+
+    Returns a human-readable error, or None when the override is usable. The
+    override replaces the complete argument object, not a patch.
+    """
+    if not isinstance(args, dict):
+        return "args must be an object"
+    ra = _waiting_run(agent_id, run_id)
+    if ra is None or ra.pending is None:
+        return "no pending approval"
+    tool_name = str(ra.pending.get("tool") or "")
+    if not tool_name:
+        return "no pending tool"
+    from palimind.agents.tools.base import coerce_tool_args
+    from palimind.llm.mixture_of_expert.tools import TOOL_REGISTRY
+
+    _, error = coerce_tool_args(
+        tool_name,
+        (TOOL_REGISTRY.get(tool_name) or {}).get("parameters"),
+        args,
+    )
+    return error
+
+
 async def resolve_approval(
     agent_id: str,
     approved: bool,
     correction: str = "",
     run_id: str | None = None,
+    args: dict[str, Any] | None = None,
 ) -> bool:
-    """Called by the frontend approve/reject endpoint to unblock a waiting agent."""
-    runs = _running.get(agent_id) or {}
-    if not runs:
-        return False
-    if run_id:
-        ra = runs.get(run_id)
-    else:
-        # Resolve the run that is actually waiting, not just the newest one.
-        waiting = [r for r in runs.values() if r.pending is not None]
-        ra = waiting[-1] if waiting else None
+    """Called by the frontend approve/reject endpoint to unblock a waiting agent.
+
+    ``args`` may carry a user-edited replacement for the pending tool call. The
+    API validates it first; the agent loop re-validates through call_tool.
+    """
+    ra = _waiting_run(agent_id, run_id)
     if ra is None or ra.pending is None:
         return False
-    ra.approval_result = {"approved": approved, "correction": correction}
+    result: dict[str, Any] = {"approved": approved, "correction": correction}
+    if approved and isinstance(args, dict):
+        result["args"] = dict(args)
+    ra.approval_result = result
     ra.approval_event.set()
     return True
 

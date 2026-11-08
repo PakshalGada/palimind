@@ -16,7 +16,7 @@ export interface ModeProps {
   agentId?: string;
   onRetry?: (step: ToolStep) => void;
   onRetryRun?: () => void;
-  onResolveApproval?: (step: ToolStep, decision: GrantDecision) => void;
+  onResolveApproval?: (step: ToolStep, decision: GrantDecision, args?: Record<string, unknown>) => void;
   children?: React.ReactNode;
 }
 

@@ -564,6 +564,12 @@ def _request_approval(
         )
         approved = bool((result or {}).get("approved"))
         correction = (result or {}).get("correction", "")
+        override = (result or {}).get("args")
+        if approved and isinstance(override, dict):
+            # Edit-before-run: replace the complete argument object. call_tool
+            # validates it again against the tool schema before executing.
+            tool_args.clear()
+            tool_args.update(override)
         if not approved:
             reason = "the human reviewer rejected this action"
             if correction:

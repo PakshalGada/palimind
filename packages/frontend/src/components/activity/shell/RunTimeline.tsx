@@ -22,7 +22,7 @@ interface TimelineProps {
   depth?: number;
   compact?: boolean;
   onRetry?: (step: ToolStep) => void;
-  onResolveApproval?: (step: ToolStep, decision: GrantDecision) => void;
+  onResolveApproval?: (step: ToolStep, decision: GrantDecision, args?: Record<string, unknown>) => void;
 }
 
 const MAX_VISIBLE_STEPS = 100;
@@ -141,7 +141,7 @@ function ParallelUnit({
   depth: number;
   compact?: boolean;
   onRetry?: (step: ToolStep) => void;
-  onResolveApproval?: (step: ToolStep, decision: GrantDecision) => void;
+  onResolveApproval?: (step: ToolStep, decision: GrantDecision, args?: Record<string, unknown>) => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -219,7 +219,7 @@ function ClusterUnit({
   depth: number;
   compact?: boolean;
   onRetry?: (step: ToolStep) => void;
-  onResolveApproval?: (step: ToolStep, decision: GrantDecision) => void;
+  onResolveApproval?: (step: ToolStep, decision: GrantDecision, args?: Record<string, unknown>) => void;
 }) {
   const [open, setOpen] = useState(false);
   const intent = unit.intent ?? 'research';

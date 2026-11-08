@@ -62,7 +62,7 @@ export interface ToolRowProps {
   compact?: boolean;
   browserSteps?: readonly ToolStep[];
   onRetry?: (step: ToolStep) => void;
-  onResolveApproval?: (step: ToolStep, decision: GrantDecision) => void;
+  onResolveApproval?: (step: ToolStep, decision: GrantDecision, args?: Record<string, unknown>) => void;
 }
 
 export const ToolRow = memo(function ToolRow({
@@ -168,7 +168,7 @@ export const ToolRow = memo(function ToolRow({
             step={step}
             allowedForRun={store.isAllowedForRun(step.name)}
             restored={store.restored}
-            onResolve={(decision) => onResolveApproval(step, decision)}
+            onResolve={(decision, args) => onResolveApproval(step, decision, args)}
           />
         )}
         {step.status === 'success' && !step.approval && store.isAllowedForRun(step.name) && (

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ToolStep } from '../model';
 import { Icon } from '../icons';
 import { DiffView } from '../primitives/DiffView';
@@ -108,17 +108,59 @@ export function PermissionGrant({
   allowedForRun: boolean;
   /** True when the run was restored from persisted history. */
   restored?: boolean;
-  onResolve: (decision: GrantDecision) => void;
+  onResolve: (decision: GrantDecision, args?: Record<string, unknown>) => void;
 }) {
   const primary = useRef<HTMLButtonElement>(null);
   const submitted = useRef(false);
   const pending = step.status === 'awaiting_approval';
-  const resolve = (decision: GrantDecision) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [editError, setEditError] = useState('');
+  const canEdit = Boolean(step.args && typeof step.args === 'object' && !Array.isArray(step.args));
+
+  useEffect(() => {
+    setEditing(false);
+    setDraft('');
+    setEditError('');
+  }, [step.id]);
+
+  const parseDraft = (): { value?: Record<string, unknown>; error?: string } => {
+    try {
+      const parsed = JSON.parse(draft);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return { error: 'Arguments must be a JSON object.' };
+      }
+      return { value: parsed as Record<string, unknown> };
+    } catch {
+      return { error: 'Arguments must be valid JSON.' };
+    }
+  };
+
+  const resolve = (decision: GrantDecision, args?: Record<string, unknown>) => {
     // One decision per request: a double click or held key must not send a
     // second (possibly contradicting) approval before the row re-renders.
     if (submitted.current) return;
     submitted.current = true;
-    onResolve(decision);
+    onResolve(decision, args);
+  };
+
+  const allow = (decision: 'once' | 'run') => {
+    if (!editing) {
+      resolve(decision);
+      return;
+    }
+    const parsed = parseDraft();
+    if (parsed.error) {
+      setEditError(parsed.error);
+      return;
+    }
+    resolve(decision, parsed.value);
+  };
+
+  const startEdit = () => {
+    setDraft(JSON.stringify(step.args ?? {}, null, 2));
+    setEditError('');
+    setEditing(true);
   };
   const action = plainAction(step);
   const safeAction = maskSecrets(action);
@@ -153,6 +195,7 @@ export function PermissionGrant({
       data-pending-approval={step.id}
       onKeyDown={(event) => {
         const target = event.target as HTMLElement;
+        if (target.closest('textarea, input, select')) return;
         const decision = grantDecisionForKey({
           key: event.key,
           targetIsButton: target.closest('button') != null,
@@ -185,13 +228,51 @@ export function PermissionGrant({
         </div>
       )}
 
+      {editing && (
+        <div className="act-grant__editor">
+          <label>
+            Edit arguments (JSON)
+            <textarea
+              value={draft}
+              spellCheck={false}
+              rows={Math.min(12, Math.max(4, draft.split('\n').length))}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                if (editError) setEditError('');
+              }}
+            />
+          </label>
+          {editError && <span className="act-grant__error">{editError}</span>}
+          <div className="act-grant__editor-actions">
+            <button
+              type="button"
+              className="act-btn act-btn--ghost"
+              onClick={() => {
+                setEditing(false);
+                setEditError('');
+              }}
+            >
+              Cancel edit
+            </button>
+            <button type="button" className="act-btn act-btn--primary" onClick={() => allow('once')}>
+              Allow edited
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="act-grant__foot">
         <div className="act-grant__actions">
           <button type="button" className="act-btn act-btn--danger-ghost" onClick={() => resolve('deny')}>
             Deny
           </button>
+          {canEdit && !editing && (
+            <button type="button" className="act-btn act-btn--ghost" onClick={startEdit}>
+              Edit args
+            </button>
+          )}
           <span className="act-grant__scope">
-            <button type="button" className="act-btn act-btn--ghost" onClick={() => resolve('run')}>
+            <button type="button" className="act-btn act-btn--ghost" onClick={() => allow('run')}>
               Allow for this run
             </button>
             <span className="act-grant__scope-note">Per tool name · this run only</span>
@@ -200,12 +281,16 @@ export function PermissionGrant({
             type="button"
             ref={primary}
             className="act-btn act-btn--primary"
-            onClick={() => resolve('once')}
+            onClick={() => allow('once')}
           >
             Allow once
           </button>
         </div>
-        <p className="act-grant__hint">Enter allow once · A allow for this run · Esc deny</p>
+        <p className="act-grant__hint">
+          {editing
+            ? 'Edit the JSON, then allow the corrected call.'
+            : 'Enter allow once · A allow for this run · Esc deny'}
+        </p>
       </div>
     </div>
   );

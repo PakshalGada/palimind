@@ -60,16 +60,15 @@ short, authoritative checklist in the run context:
 result, with an explicit “characters elided” marker. The tail usually holds the
 summary, totals or error that blind truncation used to discard.
 
-### 3. Live run peek on the mission-control home
+### 3. Mission control in the Agents workspace
 
-“Ask” on the agents home used to start a run and show only a toast, so the
-answer was invisible until the user opened the agent. The home now shows a live
-run card while the request is in flight: streamed answer text, the current
-step/thought, tool chips, the todo checklist with progress, Stop, and an
-“Open” action once settled. This makes the home a real mission-control surface
-instead of a launcher.
+Work → Overview is the mission-control surface: status counts, the waiting-on-you
+queue (approvals, questions, queued messages), an agent health grid with
+Run/Stop/Open, live and recent runs, usage by stage and by agent, and the
+period selector. It reads `overview`, `agents/recentRuns`, `agents/questions`
+and `usage` so it stays current without opening each conversation.
 
-Code: `AgentsHome.tsx` (`LiveRunCard`) and `AgentsHome.css`.
+Code: `features/agents/work/OverviewView.tsx` and `OverviewView.css`.
 
 ### 4. Follow-up suggestions
 
@@ -258,13 +257,32 @@ now fixed:
    runtime closeout after a delivered answer so a finished run never shows
    stale open items.
 
+## Shipped in the interactive pass
+
+- **Mid-run questions** — `ask_user` suspends the run, emits `agent:question`,
+  and resumes with the answer. Questions render inline in the run and in the
+  Inbox; timeout, cancel and skip are handled. Code: `agents/questions.py`,
+  `llm/mixture_of_expert/tools.py`, `features/agents/AgentsInbox.tsx`.
+- **Editable live plan** — checklist items can be completed, reopened or added
+  while the run is live; the edit is applied before the next step and persisted
+  on the run record. Code: `agents/runtime.py`, `ActivityPanel.tsx`,
+  `work/ActivityView.tsx`.
+- **Edit-before-run approvals** — the approval receipt accepts a complete args
+  override, validates it against the tool schema, and executes the corrected
+  call. Code: `agents/api.py`, `agents/runtime.py`, `PermissionGrant.tsx`.
+- **Typed tool UI** — tools may return `{"ui": {...}}` (`table`, `keyvalue`,
+  `chart`, `text`); `UIBody` renders it without a per-tool component.
+- **Visual replies** — `html_render` output renders in a sandboxed iframe.
+- **Work surface** — Overview, Activity, Tasks, Board and Automations. Tasks are
+  backed by `agentTasks`; the Inbox includes questions and queued messages.
+- **Rail** — status filters, pins, sections, last-run previews and quick
+  run/stop.
+
 ## Next candidates
 
-1. **Retrieval-aware checklist items** so the plan is seeded from workspace
-   contents instead of the task text alone.
-2. **Cache follow-ups in the run record and show them in history**, so a
-   reopened conversation keeps its chips.
-3. **Per-stage usage breakdown** (planner, tools, verification, follow-ups)
-   instead of one cumulative counter.
-4. **Escalation policy tuning** (cost ceiling, model allowlist) rather than a
-   single fallback model.
+1. **Connector implementations** — gmail/calendar/slack/drive/sheets were removed
+   as empty stubs; implement them as real tools before advertising them.
+2. **Interchangeable provider accounts UI** — provider sign-in and account
+   selection forms.
+3. **Visual plan diff** — compare a run's final plan with its seeded plan.
+4. **Remote host / Team API** — still deferred by design.

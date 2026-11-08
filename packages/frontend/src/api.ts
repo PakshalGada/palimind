@@ -266,11 +266,18 @@ export const api = {
         `/agents/${agentId}/cancel`,
         runId ? { run_id: runId } : undefined,
       ),
-    approve: (agentId: string, approved: boolean, correction = '', runId = '') =>
+    approve: (
+      agentId: string,
+      approved: boolean,
+      correction = '',
+      runId = '',
+      args?: Record<string, unknown>,
+    ) =>
       post<{ error?: string; status?: string }>(`/agents/${agentId}/approve`, {
         approved,
         correction,
         run_id: runId,
+        ...(args ? { args } : {}),
       }),
     runNow: (agentId: string, input = 'Run your task.') =>
       post<{ status?: string; error?: string }>(`/agents/${agentId}/run-now`, { input }),
