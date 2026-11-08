@@ -29,10 +29,12 @@ export default function DirectChat({
     selectedAgentId,
     openArtifact,
   } = useApp();
-  const { state } = useChatStreamContext();
+  const { state, activityStore } = useChatStreamContext();
   const threadRef = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const [starters, setStarters] = useState<string[]>([]);
+  const [note, setNote] = useState('');
+  const [noteSent, setNoteSent] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,6 +88,19 @@ export default function DirectChat({
 
   const prefill = (text: string) => {
     window.dispatchEvent(new CustomEvent('palimind:agent-prefill', { detail: { text } }));
+  };
+
+  const sendNote = async () => {
+    const text = note.trim();
+    if (!text) return;
+    try {
+      await api.agents.steer(agent.id, text, activityStore.getState()?.runId || '');
+      setNote('');
+      setNoteSent(true);
+      window.setTimeout(() => setNoteSent(false), 2000);
+    } catch {
+      // the next reconcile will show the run state
+    }
   };
 
   return (
@@ -157,6 +172,31 @@ export default function DirectChat({
           </>
         )}
       </div>
+      {streamingHere && (
+        <div className="ag-steer">
+          <input
+            value={note}
+            placeholder="Send a note to this run…"
+            aria-label="Send a note to this run"
+            onChange={(event) => {
+              setNote(event.target.value);
+              if (noteSent) setNoteSent(false);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && note.trim()) {
+                void sendNote();
+              }
+            }}
+          />
+          <button
+            type="button"
+            disabled={!note.trim()}
+            onClick={() => void sendNote()}
+          >
+            {noteSent ? 'Sent' : 'Steer'}
+          </button>
+        </div>
+      )}
       <InputArea
         disabled={!selectedAgentId}
         placeholder={`Message ${agent.display_name || agent.name}...`}

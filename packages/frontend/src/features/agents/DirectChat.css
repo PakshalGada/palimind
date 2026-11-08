@@ -138,3 +138,46 @@
   .ag-thread { padding: 16px 12px 4px; }
   .ag-takeover-banner { margin: 8px 12px 0; }
 }
+
+.ag-steer {
+  display: flex;
+  gap: 6px;
+  padding: 6px 14px 0;
+  flex-shrink: 0;
+}
+
+.ag-steer input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--type-xs);
+}
+
+.ag-steer input:focus {
+  outline: none;
+  border-color: var(--ink-muted);
+}
+
+.ag-steer button {
+  padding: 0 10px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: var(--type-xs);
+  cursor: pointer;
+}
+
+.ag-steer button:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--ink-muted);
+}
+
+.ag-steer button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
