@@ -153,12 +153,13 @@ def connect(canvas_agent_id: str, routine_id: str, to_agent_id: str) -> dict[str
     )
     links = list(flow.get("links") or [])
     if not any(
-        str(link.get("routine_id")) == routine_id
-        and str(link.get("to_agent_id")) == to_agent_id
+        str(link.get("routine_id")) == routine_id and str(link.get("to_agent_id")) == to_agent_id
         for link in links
     ):
         links.append({"routine_id": routine_id, "to_agent_id": to_agent_id, "created_at": _now()})
-    return save_flow(canvas_agent_id, routine_id, links=links, positions=flow.get("positions") or {})
+    return save_flow(
+        canvas_agent_id, routine_id, links=links, positions=flow.get("positions") or {}
+    )
 
 
 def disconnect(canvas_agent_id: str, routine_id: str, to_agent_id: str) -> dict[str, Any]:
@@ -173,7 +174,9 @@ def disconnect(canvas_agent_id: str, routine_id: str, to_agent_id: str) -> dict[
             and str(link.get("to_agent_id")) == to_agent_id
         )
     ]
-    return save_flow(canvas_agent_id, routine_id, links=links, positions=flow.get("positions") or {})
+    return save_flow(
+        canvas_agent_id, routine_id, links=links, positions=flow.get("positions") or {}
+    )
 
 
 def add_step(
@@ -237,7 +240,9 @@ def fail_step(step_id: str, error: str) -> dict[str, Any] | None:
     return _set_step(step_id, "failed", error=error)
 
 
-def _set_step(step_id: str, status: str, *, output: str = "", error: str = "") -> dict[str, Any] | None:
+def _set_step(
+    step_id: str, status: str, *, output: str = "", error: str = ""
+) -> dict[str, Any] | None:
     conn = state_store.state_connection()
     try:
         conn.execute(
@@ -312,7 +317,9 @@ def ready_handoffs(flow_id: str, run_id: str) -> list[dict[str, Any]]:
             {
                 "agent_id": agent_id,
                 "text": "\n\n".join(
-                    str(step.get("output") or "") for step in group if step.get("status") == "succeeded"
+                    str(step.get("output") or "")
+                    for step in group
+                    if step.get("status") == "succeeded"
                 ),
                 "steps": group,
             }

@@ -2,7 +2,7 @@
 
 AT-SPI exposes Chromium's browser chrome reliably, but its web-content refs are
 often tokenless and cannot be proven unique after a capture. The reference
-project routes Chromium/Electron web content through CDP for exactly this
+project routes Chromium web content through CDP for exactly this
 reason; Palimind uses the same split:
 
 * AT-SPI: window, menu, dialog and page *observation* (roles, names, bounds).
@@ -42,6 +42,87 @@ def find_chrome() -> Path | None:
 
             if os.access(candidate, os.X_OK):
                 return candidate
+    return None
+
+
+# Chromium-based browsers write the port they chose (including port 0 /
+# ephemeral ports) to DevToolsActivePort in the profile root. Reading it is the
+# reliable way to attach to an already-running browser; guessing 9222 only
+# works when the user passed that flag explicitly.
+def _devtools_active_port_files() -> list[Path]:
+    import os
+
+    config = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config"))
+    roots = [
+        config / "BraveSoftware" / "Brave-Browser",
+        config / "BraveSoftware" / "Brave-Browser-Beta",
+        config / "BraveSoftware" / "Brave-Browser-Nightly",
+        config / "google-chrome",
+        config / "google-chrome-beta",
+        config / "chromium",
+        config / "microsoft-edge",
+        config / "vivaldi",
+        config / "opera",
+        Path("/tmp/palimind-dogfood-chrome"),
+    ]
+    return [root / "DevToolsActivePort" for root in roots]
+
+
+def _port_from_cmdline() -> list[int]:
+    """Ports advertised by a running chromium process, if /proc is readable."""
+
+    ports: list[int] = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            raw = (entry / "cmdline").read_bytes()
+        except OSError:
+            continue
+        for argument in raw.split(b"\0"):
+            text = argument.decode("utf-8", "ignore")
+            if text.startswith("--remote-debugging-port="):
+                value = text.split("=", 1)[1]
+                if value.isdigit() and int(value) > 0:
+                    ports.append(int(value))
+    return ports
+
+
+def discover_devtools_port(
+    preferred: int | None = None,
+    host: str = "127.0.0.1",
+    timeout: float = 0.6,
+) -> int | None:
+    """Return a reachable Chromium DevTools port, or None.
+
+    Order: the caller's port, ports advertised by a running browser, ports
+    written to a profile's DevToolsActivePort, then the conventional 9222–9224.
+    """
+
+    candidates: list[int] = []
+    if preferred:
+        candidates.append(int(preferred))
+    candidates.extend(_port_from_cmdline())
+    for path in _devtools_active_port_files():
+        try:
+            first = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError:
+            continue
+        if first and first[0].strip().isdigit():
+            candidates.append(int(first[0].strip()))
+    candidates.extend([9222, 9223, 9224])
+
+    seen: set[int] = set()
+    for port in candidates:
+        if port in seen:
+            continue
+        seen.add(port)
+        try:
+            response = httpx.get(f"http://{host}:{port}/json/version", timeout=timeout)
+        except Exception:  # noqa: BLE001 - each candidate is a probe
+            continue
+        if response.status_code == 200:
+            return port
     return None
 
 
@@ -119,9 +200,7 @@ class BrowserCDP:
         assert self._socket is not None
         self._next_id += 1
         request_id = self._next_id
-        self._socket.send(
-            json.dumps({"id": request_id, "method": method, "params": params or {}})
-        )
+        self._socket.send(json.dumps({"id": request_id, "method": method, "params": params or {}}))
         deadline = time.time() + self.timeout
         while time.time() < deadline:
             raw = self._socket.recv(timeout=max(0.1, deadline - time.time()))
@@ -154,6 +233,52 @@ class BrowserCDP:
 
     def text(self) -> str:
         return str(self.evaluate("document.body ? document.body.innerText : ''"))
+
+    def page_outline(self, limit: int = 200) -> list[dict[str, Any]]:
+        """Interactive page elements with viewport bounds.
+
+        This is the fast, unambiguous observation route for Chromium page
+        content: the browser's own DOM already knows labels and geometry, so
+        the agent does not have to walk a deep AT-SPI web-wrapper tree.
+        """
+
+        expression = f"""
+        (() => {{
+          const limit = {max(1, min(int(limit), 500))};
+          const selector = 'a[href], button, input, textarea, select, summary, ' +
+            '[role="button"], [role="link"], [role="checkbox"], [role="tab"], ' +
+            '[role="menuitem"], [contenteditable="true"]';
+          const seen = new Set();
+          const out = [];
+          for (const el of document.querySelectorAll(selector)) {{
+            if (out.length >= limit) break;
+            const rect = el.getBoundingClientRect();
+            const style = window.getComputedStyle(el);
+            if (rect.width <= 0 || rect.height <= 0) continue;
+            if (style.visibility === 'hidden' || style.display === 'none') continue;
+            const name = (el.getAttribute('aria-label') || el.innerText ||
+              el.value || el.getAttribute('placeholder') || '').trim().slice(0, 120);
+            const role = el.getAttribute('role') || el.tagName.toLowerCase();
+            const key = role + '|' + name + '|' + Math.round(rect.x) + ',' + Math.round(rect.y);
+            if (seen.has(key)) continue;
+            seen.add(key);
+            out.push({{
+              role,
+              name,
+              value: ('value' in el ? String(el.value || '') : '').slice(0, 120),
+              x: Math.round(rect.x),
+              y: Math.round(rect.y),
+              width: Math.round(rect.width),
+              height: Math.round(rect.height),
+              disabled: Boolean(el.disabled),
+              href: el.tagName === 'A' ? String(el.href || '').slice(0, 200) : '',
+            }});
+          }}
+          return out;
+        }})()
+        """
+        result = self.evaluate(expression)
+        return result if isinstance(result, list) else []
 
     def click_text(self, text: str) -> dict[str, Any]:
         wanted = json.dumps(text)

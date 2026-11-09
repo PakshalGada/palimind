@@ -96,7 +96,9 @@ class ACPSession:
                 stderr=asyncio.subprocess.PIPE,
             )
         except Exception as exc:  # noqa: BLE001
-            raise ACPError(f"could not start ACP process: {exc}", cause="provider_unavailable") from exc
+            raise ACPError(
+                f"could not start ACP process: {exc}", cause="provider_unavailable"
+            ) from exc
         assert self.process.stdout is not None
         assert self.process.stderr is not None
         self._reader_task = asyncio.create_task(self._reader_loop(self.process.stdout))
@@ -159,12 +161,16 @@ class ACPSession:
         self._next_id += 1
         future: asyncio.Future = asyncio.get_running_loop().create_future()
         self._pending[request_id] = future
-        await self._send({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params or {}})
+        await self._send(
+            {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params or {}}
+        )
         try:
             response = await asyncio.wait_for(future, timeout=self.request_timeout)
         except TimeoutError as exc:
             self._pending.pop(request_id, None)
-            raise ACPError(f"ACP request timed out: {method}", cause="timeout", retryable=True) from exc
+            raise ACPError(
+                f"ACP request timed out: {method}", cause="timeout", retryable=True
+            ) from exc
         if "error" in response:
             error = response.get("error") or {}
             raise ACPError(
@@ -250,7 +256,9 @@ def normalize_update(update: dict[str, Any]) -> ProviderEvent | None:
             "usage",
             {
                 "prompt_tokens": int(usage.get("inputTokens") or usage.get("prompt_tokens") or 0),
-                "completion_tokens": int(usage.get("outputTokens") or usage.get("completion_tokens") or 0),
+                "completion_tokens": int(
+                    usage.get("outputTokens") or usage.get("completion_tokens") or 0
+                ),
             },
         )
     if kind in ("available_commands_update", "current_mode_update", "config_option_update"):
@@ -297,7 +305,11 @@ class ACPProvider:
 
     async def _session(self, thread_id: str) -> ACPSession:
         session = self._sessions.get(thread_id)
-        if session is not None and session.process is not None and session.process.returncode is None:
+        if (
+            session is not None
+            and session.process is not None
+            and session.process.returncode is None
+        ):
             return session
         if self.session_factory is not None:
             session = await self.session_factory()

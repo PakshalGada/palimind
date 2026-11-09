@@ -30,7 +30,12 @@ def _team_status(team: dict[str, Any], pending: list[dict[str, Any]]) -> str:
         return "waiting"
     if team_runtime.is_team_running(team_id):
         return "working"
-    if any(routine.get("target_type") == "team" and routine.get("target_id") == team_id and routine.get("enabled") for routine in routines.list_routines()):
+    if any(
+        routine.get("target_type") == "team"
+        and routine.get("target_id") == team_id
+        and routine.get("enabled")
+        for routine in routines.list_routines()
+    ):
         return "scheduled"
     return "idle"
 

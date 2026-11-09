@@ -28,8 +28,8 @@ use agent_desktop_core::commands::{
 };
 use agent_desktop_core::system::launch_options::LaunchOptions;
 use agent_desktop_core::{
-    AppError, AppInventoryQuery, CommandContext, Direction, ErrorCode, PlatformAdapter, ProcessId,
-    SnapshotSurface, WindowFilter, WindowInfo,
+    AppError, AppInventoryQuery, CommandContext, Direction, ErrorCode, MouseButton, PlatformAdapter,
+    ProcessId, SnapshotSurface, WindowFilter, WindowInfo,
 };
 use serde_json::{Value, json};
 use std::time::Instant;
@@ -200,6 +200,12 @@ impl Dispatcher<'_> {
             value["input_backend"] = json!(
                 std::env::var("PALIMIND_DESKTOP_INPUT_BACKEND").unwrap_or_else(|_| "auto".into())
             );
+            value["screencast_token"] = json!(
+                self.policy
+                    .desktop_dir()
+                    .join("screencast-token")
+                    .is_file()
+            );
             value["policy"] = crate::policy::status_json(self.policy);
             // Linux has no macOS-style accessibility permission prompt: the
             // real probe is whether the AT-SPI registry answers a bounded
@@ -239,7 +245,31 @@ impl Dispatcher<'_> {
                 },
                 self.adapter,
             )
-            .map(filter_dead_windows),
+            .map(filter_dead_windows)
+            .and_then(|value| match (app, value) {
+                // A launcher name can differ from the AT-SPI name (Flatpak
+                // exposes the sandbox proxy). If the exact filter found
+                // nothing, try the same alias resolution observation uses.
+                (Some(app), Value::Array(windows)) if windows.is_empty() => {
+                    alias_window(&self.windows_for_aliases(), app)
+                        .map(|window| json!([window]))
+                        .ok_or_else(|| {
+                            AppError::Adapter(
+                                agent_desktop_core::AdapterError::new(
+                                    ErrorCode::AppNotFound,
+                                    format!("No window matched application '{app}'"),
+                                )
+                                .with_suggestion(
+                                    "Run 'apps windows' without --app and pick a window id, or use the desktop id.",
+                                )
+                                .with_disposition(
+                                    agent_desktop_core::DeliverySemantics::not_delivered(),
+                                ),
+                            )
+                        })
+                }
+                (_, value) => Ok(value),
+            }),
             AppsKind::Displays => list_displays::execute(self.adapter),
         };
         self.finish("apps", record, started, result.map(|data| {
@@ -283,7 +313,7 @@ impl Dispatcher<'_> {
 
         let result = snapshot::execute(
             SnapshotArgs {
-                app: app.map(str::to_owned),
+                app: target.app.clone(),
                 window_id: effective_window.clone(),
                 max_depth,
                 include_bounds: true,
@@ -331,16 +361,25 @@ impl Dispatcher<'_> {
         }
         record.app = app.map(str::to_owned);
         record.window_id = window_id.map(str::to_owned);
-        if let Some(app_name) = app {
+        let target = match self.resolve_target(app, window_id) {
+            Ok(target) => target,
+            Err(error) => return self.finish("find", record, started, Err(error)),
+        };
+        if let Some(app_name) = target.app.as_deref() {
             if let Err(reason) = self.policy.check_app(app_name) {
                 return self.finish("find", record, started, Err(policy_error(reason)));
             }
             record.target_name = name.map(str::to_owned);
         }
+        let effective_window = target
+            .window
+            .as_ref()
+            .map(|window| window.id.clone())
+            .or_else(|| window_id.map(str::to_owned));
         let result = find::execute(
             FindArgs {
-                app: app.map(str::to_owned),
-                window_id: window_id.map(str::to_owned),
+                app: target.app.clone(),
+                window_id: effective_window,
                 root: None,
                 surface: SnapshotSurface::Window,
                 filter: FindFilterArgs {
@@ -365,6 +404,33 @@ impl Dispatcher<'_> {
             self.adapter,
             self.context,
         );
+        // Large Chromium/web-content trees can make the locator's authoritative
+        // traversal run out (or refuse incomplete evidence) while it has
+        // already seen matches. Do not discard them: run a bounded snapshot
+        // search and return best-effort candidates, clearly marked partial.
+        let result = match result {
+            Err(error) if incomplete_locator(&error) => {
+                match self.fallback_find(
+                    app,
+                    window_id,
+                    role,
+                    name,
+                    text,
+                    limit,
+                ) {
+                    Ok(value)
+                        if value
+                            .get("matches")
+                            .and_then(Value::as_array)
+                            .is_some_and(|matches| !matches.is_empty()) =>
+                    {
+                        Ok(value)
+                    }
+                    _ => Err(error),
+                }
+            }
+            other => other,
+        };
         self.finish(
             "find",
             record,
@@ -373,6 +439,57 @@ impl Dispatcher<'_> {
                 |data| json!({ "matches": data, "provenance": untrusted_provenance("at-spi2") }),
             ),
         )
+    }
+
+    /// A bounded snapshot search used only when the authoritative locator
+    /// cannot finish. The refs are real snapshot-qualified refs, but the
+    /// result is marked `partial` because the tree may have been cut short.
+    fn fallback_find(
+        &self,
+        app: Option<&str>,
+        window_id: Option<&str>,
+        role: Option<&str>,
+        name: Option<&str>,
+        text: Option<&str>,
+        limit: usize,
+    ) -> Result<Value, AppError> {
+        let target = self.resolve_target(app, window_id)?;
+        let value = snapshot::execute(
+            SnapshotArgs {
+                app: target.app.clone(),
+                window_id: target
+                    .window
+                    .as_ref()
+                    .map(|window| window.id.clone())
+                    .or_else(|| window_id.map(str::to_owned)),
+                max_depth: 40,
+                include_bounds: true,
+                interactive_only: false,
+                compact: false,
+                surface: SnapshotSurface::Window,
+                skeleton: false,
+                root_ref: None,
+                timeout_ms: Some(15_000),
+                force_electron_a11y: false,
+            },
+            self.adapter,
+            self.context,
+        )?;
+        let projected = project_snapshot(value, &target, 1_000, false);
+        let nodes = projected
+            .get("nodes")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let matches = filter_projected_matches(nodes, role, name, text, limit);
+        let total = matches.len();
+        Ok(json!({
+            "matches": matches,
+            "total_matches": total,
+            "truncated": false,
+            "partial": true,
+            "note": "The authoritative find timed out on a large tree. These matches come from a bounded snapshot search and may be incomplete; retry with a narrower role/name, or pass timeout_ms and a window_id.",
+        }))
     }
 
     pub fn wait(&self, args: crate::WaitArgs) -> Envelope {
@@ -568,14 +685,38 @@ impl Dispatcher<'_> {
                     self.context,
                 )
             }
-            ActAction::TypeText => Err(AppError::Adapter(
-                agent_desktop_core::AdapterError::new(
-                    ErrorCode::ActionNotSupported,
-                    "Global typing needs the kernel input backend",
+            ActAction::TypeText => {
+                let text = args
+                    .text
+                    .clone()
+                    .ok_or_else(|| invalid("type_text requires --text"))?;
+                if !targeting::session_is_wayland() {
+                    return Err(AppError::Adapter(
+                        agent_desktop_core::AdapterError::new(
+                            ErrorCode::ActionNotSupported,
+                            "Global typing needs the kernel input backend on X11",
+                        )
+                        .with_suggestion(
+                            "Call act with action=type and a ref, or install the uinput rule.",
+                        )
+                        .with_disposition(agent_desktop_core::DeliverySemantics::not_delivered()),
+                    ));
+                }
+                let deadline = agent_desktop_core::Deadline::after(
+                    args.timeout_ms.unwrap_or(20_000),
                 )
-                .with_suggestion("Call act with action=type and a ref, or set kernel=true after installing the uinput rule.")
-                .with_disposition(agent_desktop_core::DeliverySemantics::not_delivered()),
-            )),
+                .map_err(AppError::from)?;
+                let restored =
+                    agent_desktop_linux::type_text_via_clipboard(&text, deadline)
+                        .map_err(AppError::from)?;
+                Ok(json!({
+                    "action": "type_text",
+                    "mechanism": "clipboard-paste",
+                    "characters": text.chars().count(),
+                    "clipboard_restored": restored,
+                    "disposition": {"delivery": "delivered_unverified", "retry": "unsafe"},
+                }))
+            }
             ActAction::Launch => {
                 let app = args.app.clone().ok_or_else(|| invalid("launch requires --app"))?;
                 if let Err(reason) = self.policy.check_app(&app) {
@@ -621,7 +762,34 @@ impl Dispatcher<'_> {
                     .text
                     .clone()
                     .ok_or_else(|| invalid("type_text requires --text"))?;
-                let mut device = uinput::VirtualInput::open().map_err(kernel_error)?;
+                let mut clipboard_error: Option<agent_desktop_core::AdapterError> = None;
+                if targeting::session_is_wayland() {
+                    let deadline = agent_desktop_core::Deadline::after(
+                        args.timeout_ms.unwrap_or(20_000),
+                    )
+                    .map_err(AppError::from)?;
+                    match agent_desktop_linux::type_text_via_clipboard(&text, deadline) {
+                        Ok(restored) => {
+                            return Ok(json!({
+                                "action": "type_text",
+                                "mechanism": "clipboard-paste",
+                                "characters": text.chars().count(),
+                                "clipboard_restored": restored,
+                                "disposition": {"delivery": "delivered_unverified", "retry": "unsafe"},
+                            }));
+                        }
+                        Err(error) => clipboard_error = Some(error),
+                    }
+                }
+                let mut device = match uinput::VirtualInput::open() {
+                    Ok(device) => device,
+                    Err(error) => {
+                        if let Some(clipboard_error) = clipboard_error {
+                            return Err(AppError::from(clipboard_error));
+                        }
+                        return Err(kernel_error(error));
+                    }
+                };
                 device
                     .type_text(&text)
                     .map_err(|e| kernel_error(e.into()))?;
@@ -648,6 +816,53 @@ impl Dispatcher<'_> {
                 };
                 targeting::require_global_coordinates(args.coords_source)
                     .map_err(unproven_coordinates)?;
+                let button = if args.action == ActAction::RightClick {
+                    uinput::BUTTON_RIGHT
+                } else {
+                    uinput::BUTTON_LEFT
+                };
+                let count = if args.action == ActAction::DoubleClick {
+                    2
+                } else {
+                    1
+                };
+                let backend = std::env::var("PALIMIND_DESKTOP_INPUT_BACKEND")
+                    .unwrap_or_else(|_| "auto".to_owned())
+                    .to_ascii_lowercase();
+                let mut mutter_error: Option<agent_desktop_core::AdapterError> = None;
+                if targeting::session_is_wayland() && backend != "uinput" {
+                    let core_button = if args.action == ActAction::RightClick {
+                        MouseButton::Right
+                    } else {
+                        MouseButton::Left
+                    };
+                    let deadline = agent_desktop_core::Deadline::after(
+                        args.timeout_ms.unwrap_or(15_000),
+                    )
+                    .map_err(AppError::from)?;
+                    match agent_desktop_linux::send_absolute_pointer_click(
+                        (x, y),
+                        core_button,
+                        count,
+                        deadline,
+                    ) {
+                        Ok(()) => {
+                            return Ok(json!({
+                                "action": format!("{:?}", args.action),
+                                "mechanism": "mutter-remote-desktop",
+                                "coordinates": [x, y],
+                                "coordinate_source": args.coords_source,
+                                "disposition": {"delivery": "delivered_unverified", "retry": "unsafe"},
+                            }));
+                        }
+                        Err(error) => {
+                            if backend == "mutter" {
+                                return Err(AppError::from(error));
+                            }
+                            mutter_error = Some(error);
+                        }
+                    }
+                }
                 let displays = self
                     .adapter
                     .list_displays(agent_desktop_core::Deadline::standard()?)
@@ -665,17 +880,15 @@ impl Dispatcher<'_> {
                     display.bounds.width as u32,
                     display.bounds.height as u32,
                 );
-                let button = if args.action == ActAction::RightClick {
-                    uinput::BUTTON_RIGHT
-                } else {
-                    uinput::BUTTON_LEFT
+                let mut device = match uinput::VirtualInput::open() {
+                    Ok(device) => device,
+                    Err(error) => {
+                        if let Some(mutter_error) = mutter_error {
+                            return Err(AppError::from(mutter_error));
+                        }
+                        return Err(kernel_error(error));
+                    }
                 };
-                let count = if args.action == ActAction::DoubleClick {
-                    2
-                } else {
-                    1
-                };
-                let mut device = uinput::VirtualInput::open().map_err(kernel_error)?;
                 device
                     .move_abs(dx, dy)
                     .map_err(|e| kernel_error(e.into()))?;
@@ -744,6 +957,39 @@ impl Dispatcher<'_> {
         if let Err(error) = self.policy.prepare_dirs() {
             return self.finish("screenshot", record, started, Err(AppError::Io(error)));
         }
+        let wants_full_screen = screen.is_none() && app.is_none() && window_id.is_none();
+        let token_present = self
+            .policy
+            .desktop_dir()
+            .join("screencast-token")
+            .is_file();
+        // A restore token means the ScreenCast source was approved once, so it
+        // is both prompt-free and the only working full-screen route when the
+        // Screenshot portal has been denied. Try it before the per-call
+        // Screenshot dialog.
+        if targeting::session_is_wayland() && wants_full_screen && token_present {
+            if let Ok(capture) = crate::screencast::capture_screen(
+                self.policy.desktop_dir(),
+                &path,
+                screencast_duration("PALIMIND_DESKTOP_SCREENCAST_CONSENT_MS", 20_000),
+                screencast_duration("PALIMIND_DESKTOP_SCREENCAST_CAPTURE_MS", 10_000),
+            ) {
+                let data = json!({
+                    "path": capture.path.to_string_lossy(),
+                    "format": "png",
+                    "width": capture.width,
+                    "height": capture.height,
+                    "scale_factor": 1.0,
+                    "capture": "screencast",
+                    "scope": "screen",
+                    "node_id": capture.node_id,
+                    "restore_token_saved": capture.restore_token_saved,
+                    "screenshot_id": id,
+                    "note": "Wayland ScreenCast capture; the image is the whole monitor.",
+                });
+                return self.finish("screenshot", record, started, Ok(data));
+            }
+        }
         let result = screenshot::execute(
             ScreenshotArgs {
                 app: app.map(str::to_owned),
@@ -753,9 +999,50 @@ impl Dispatcher<'_> {
             },
             self.adapter,
         );
+        // A single window cannot be captured on Wayland, and the Screenshot
+        // portal may refuse or be denied. Fall back to the persistent
+        // ScreenCast stream, which is also the vision route for canvas apps.
+        let result = match result {
+            Err(AppError::Adapter(error))
+                if targeting::session_is_wayland()
+                    && matches!(
+                        error.code,
+                        ErrorCode::PlatformNotSupported | ErrorCode::PermDenied
+                    ) =>
+            {
+                match crate::screencast::capture_screen(
+                    self.policy.desktop_dir(),
+                    &path,
+                    screencast_duration("PALIMIND_DESKTOP_SCREENCAST_CONSENT_MS", 30_000),
+                    screencast_duration("PALIMIND_DESKTOP_SCREENCAST_CAPTURE_MS", 10_000),
+                ) {
+                    Ok(capture) => Ok(json!({
+                        "path": capture.path.to_string_lossy(),
+                        "format": "png",
+                        "width": capture.width,
+                        "height": capture.height,
+                        "scale_factor": 1.0,
+                        "capture": "screencast",
+                        "scope": "screen",
+                        "node_id": capture.node_id,
+                        "restore_token_saved": capture.restore_token_saved,
+                        "note": "Wayland ScreenCast fallback: the image is the whole monitor; OCR boxes are screen coordinates. Approve the source dialog once and later captures reuse the restore token.",
+                    })),
+                    Err(screencast_error) => Err(AppError::Adapter(
+                        screencast_error.with_suggestion(
+                            "The portal screenshot failed and the ScreenCast fallback did not complete. Approve the ScreenCast source dialog when it appears, or retry with screen=0.",
+                        ),
+                    )),
+                }
+            }
+            other => other,
+        };
         let result = result.map(|mut data| {
             data["screenshot_id"] = json!(id);
-            data["note"] = json!("Screenshot is local only and never uploaded.");
+            data["note"] = data
+                .get("note")
+                .cloned()
+                .unwrap_or_else(|| json!("Screenshot is local only and never uploaded."));
             data
         });
         self.finish("screenshot", record, started, result)
@@ -812,10 +1099,56 @@ impl Dispatcher<'_> {
         app: Option<&str>,
         window_id: Option<&str>,
     ) -> Result<Target, AppError> {
-        // The app name is already the policy key; do not spend a second
-        // `list-windows` round trip just to learn the pid. The engine resolves
-        // the target and returns the window in its own snapshot.
+        // Resolve an app alias to a real window when the accessibility name
+        // differs from the name the user/model used. Flatpak and snap apps are
+        // often exposed under their sandbox proxy (for example
+        // "xdg-dbus-proxy"), and a launcher name such as "zen" never matches
+        // the AT-SPI app name. Resolving here also fills the pid, which the
+        // snapshot projection reports to the caller.
         if let Some(app) = app {
+            // Never use an alias to sidestep policy: a protected or
+            // disallowed name must fail as itself, not be remapped to a
+            // different window that happens to be allowed.
+            if self.policy.check_app(app).is_err() {
+                return Ok(Target {
+                    app: Some(app.to_owned()),
+                    pid: None,
+                    window: None,
+                });
+            }
+            let windows = self.windows_for_aliases();
+            let exact: Vec<&WindowInfo> = windows
+                .iter()
+                .filter(|window| {
+                    window.app.eq_ignore_ascii_case(app) && pid_is_alive(window.pid)
+                })
+                .collect();
+            if !exact.is_empty() {
+                let chosen = exact
+                    .iter()
+                    .find(|window| window.state.is_focused)
+                    .copied()
+                    .unwrap_or(exact[0]);
+                return Ok(Target {
+                    app: Some(chosen.app.clone()),
+                    pid: Some(chosen.pid),
+                    // One window: address it by id so a stale twin cannot
+                    // produce AMBIGUOUS_TARGET. Several windows: leave it to
+                    // the engine's focused-window choice.
+                    window: (exact.len() == 1).then(|| chosen.clone()),
+                });
+            }
+            if let Some(window) = alias_window(&windows, app) {
+                // The resolved window is also subject to policy: never alias
+                // onto a protected or blocked process.
+                if self.policy.check_app(&window.app).is_ok() {
+                    return Ok(Target {
+                        app: Some(window.app.clone()),
+                        pid: Some(window.pid),
+                        window: Some(window),
+                    });
+                }
+            }
             return Ok(Target {
                 app: Some(app.to_owned()),
                 pid: None,
@@ -847,6 +1180,101 @@ impl Dispatcher<'_> {
             window: None,
         })
     }
+
+    /// Best-effort inventory used only for alias resolution. A failure here
+    /// must not fail the observation: the engine still gets the original name
+    /// and returns its own APP_NOT_FOUND hint.
+    fn windows_for_aliases(&self) -> Vec<WindowInfo> {
+        let Ok(deadline) = agent_desktop_core::Deadline::standard() else {
+            return Vec::new();
+        };
+        self.adapter
+            .list_windows(
+                &WindowFilter {
+                    focused_only: false,
+                    app: None,
+                },
+                deadline,
+            )
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|window| pid_is_alive(window.pid))
+            .collect()
+    }
+}
+
+/// Normalize a name for alias comparison: lowercase, and drop punctuation so
+/// "org.gnome.Calculator", "gnome-calculator" and "Gnome Calculator" meet.
+fn alias_key(value: &str) -> String {
+    value
+        .chars()
+        .filter(|character| character.is_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+fn proc_field(pid: ProcessId, file: &str) -> Option<String> {
+    std::fs::read_to_string(format!("/proc/{}/{file}", pid.get())).ok()
+}
+
+/// Pick a unique window for an alias the accessibility name did not match.
+/// Strong evidence (process name, executable, cgroup) beats a title match.
+/// A title match is only accepted when it is unique and the alias is long
+/// enough not to be a generic word.
+fn alias_window(windows: &[WindowInfo], app: &str) -> Option<WindowInfo> {
+    let raw = app.trim().to_lowercase();
+    let needle = alias_key(&raw);
+    if needle.is_empty() {
+        return None;
+    }
+    // Reverse-DNS ids such as org.gnome.Calculator also answer to their last
+    // segment.
+    let tail = raw
+        .rsplit('.')
+        .next()
+        .map(alias_key)
+        .filter(|value| !value.is_empty());
+    let keys: Vec<String> = [needle.clone(), tail.unwrap_or_default()]
+        .into_iter()
+        .filter(|value| !value.is_empty())
+        .collect();
+
+    let strong: Vec<WindowInfo> = windows
+        .iter()
+        .filter(|window| {
+            let mut evidence = vec![alias_key(&window.app)];
+            if let Some(comm) = proc_field(window.pid, "comm") {
+                evidence.push(alias_key(&comm));
+            }
+            if let Some(exe) = proc_field(window.pid, "exe") {
+                evidence.push(alias_key(&exe));
+            }
+            if let Some(cgroup) = proc_field(window.pid, "cgroup") {
+                evidence.push(alias_key(&cgroup));
+            }
+            let evidence = evidence.join(" ");
+            keys.iter().any(|key| evidence.contains(key))
+        })
+        .cloned()
+        .collect();
+    if strong.len() == 1 {
+        return strong.into_iter().next();
+    }
+    if !strong.is_empty() {
+        return None;
+    }
+    if needle.len() < 3 {
+        return None;
+    }
+    let weak: Vec<WindowInfo> = windows
+        .iter()
+        .filter(|window| {
+            let title = alias_key(&window.title);
+            keys.iter().any(|key| title.contains(key))
+        })
+        .cloned()
+        .collect();
+    (weak.len() == 1).then(|| weak.into_iter().next()).flatten()
 }
 
 fn pid_is_alive(pid: ProcessId) -> bool {
@@ -893,6 +1321,16 @@ impl AppsKind {
             Self::Displays => "displays",
         }
     }
+}
+
+
+fn screencast_duration(name: &str, default_ms: u64) -> std::time::Duration {
+    let ms = std::env::var(name)
+        .ok()
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(default_ms);
+    std::time::Duration::from_millis(ms)
 }
 
 pub fn project_snapshot(value: Value, target: &Target, max_nodes: usize, full: bool) -> Value {
@@ -1027,6 +1465,85 @@ fn flatten(
             flatten(child, out, bounds_space, secure, include_offscreen);
         }
     }
+}
+
+fn incomplete_locator(error: &AppError) -> bool {
+    let AppError::Adapter(adapter_error) = error else {
+        return false;
+    };
+    if adapter_error.code != ErrorCode::Timeout {
+        return false;
+    }
+    adapter_error
+        .details
+        .as_ref()
+        .and_then(|details| details.get("kind"))
+        .and_then(Value::as_str)
+        .is_some_and(|kind| kind.starts_with("locator_"))
+}
+
+/// Filter already-projected snapshot nodes with the same broad semantics as
+/// `find`: case-insensitive substring matches on role, name and text.
+fn filter_projected_matches(
+    nodes: Vec<Value>,
+    role: Option<&str>,
+    name: Option<&str>,
+    text: Option<&str>,
+    limit: usize,
+) -> Vec<Value> {
+    let role = role.map(str::to_lowercase);
+    let name = name.map(str::to_lowercase);
+    let text = text.map(str::to_lowercase);
+    let field = |node: &Value, key: &str| {
+        node.get(key)
+            .and_then(Value::as_str)
+            .map(str::to_lowercase)
+            .unwrap_or_default()
+    };
+    nodes
+        .into_iter()
+        .filter(|node| {
+            if node.get("ref").is_none_or(Value::is_null) {
+                return false;
+            }
+            if role
+                .as_ref()
+                .is_some_and(|wanted| !field(node, "role").contains(wanted))
+            {
+                return false;
+            }
+            if name
+                .as_ref()
+                .is_some_and(|wanted| !field(node, "name").contains(wanted))
+            {
+                return false;
+            }
+            if text.as_ref().is_some_and(|wanted| {
+                !["name", "value", "description"]
+                    .iter()
+                    .any(|key| field(node, key).contains(wanted))
+            }) {
+                return false;
+            }
+            true
+        })
+        .take(limit)
+        .map(|node| {
+            json!({
+                "ref": node.get("ref").cloned().unwrap_or(Value::Null),
+                "role": node.get("role").cloned().unwrap_or(Value::Null),
+                "name": node.get("name").cloned().unwrap_or(Value::Null),
+                "value": node.get("value").cloned().unwrap_or(Value::Null),
+                "description": node.get("description").cloned().unwrap_or(Value::Null),
+                "states": node.get("states").cloned().unwrap_or_else(|| json!([])),
+                "bounds": node.get("bounds").cloned().unwrap_or(Value::Null),
+                "interactive": node
+                    .get("actions")
+                    .and_then(Value::as_array)
+                    .is_some_and(|actions| !actions.is_empty()),
+            })
+        })
+        .collect()
 }
 
 fn endpoint(
@@ -1188,5 +1705,70 @@ mod projection_tests {
         assert_eq!(out["nodes"].as_array().unwrap().len(), 4);
         assert_eq!(out["truncated"], true);
         assert_eq!(out["complete"], false);
+    }
+
+    #[test]
+    fn fallback_match_filter_is_case_insensitive_and_keeps_refs() {
+        let nodes = vec![
+            json!({
+                "ref": "@s1:e1",
+                "role": "link",
+                "name": "Sign in",
+                "value": null,
+                "description": null,
+                "states": [],
+                "bounds": [1.0, 2.0, 3.0, 4.0],
+                "actions": ["Click"]
+            }),
+            json!({
+                "ref": null,
+                "role": "group",
+                "name": "Sign in wrapper",
+                "value": null,
+                "description": null,
+                "states": [],
+                "bounds": null,
+                "actions": []
+            }),
+            json!({
+                "ref": "@s1:e2",
+                "role": "button",
+                "name": "Delete",
+                "value": null,
+                "description": null,
+                "states": [],
+                "bounds": [5.0, 6.0, 7.0, 8.0],
+                "actions": ["Click"]
+            }),
+        ];
+        let matches = filter_projected_matches(nodes, Some("LINK"), Some("sign"), None, 20);
+        assert_eq!(matches.len(), 1, "only referenced nodes are matches");
+        assert_eq!(matches[0]["ref"], "@s1:e1");
+        assert_eq!(matches[0]["interactive"], true);
+
+        let text_matches = filter_projected_matches(
+            vec![json!({
+                "ref": "@s1:e3",
+                "role": "statictext",
+                "name": "Saved",
+                "value": "Saved",
+                "description": null,
+                "states": [],
+                "bounds": null,
+                "actions": []
+            })],
+            None,
+            None,
+            Some("saved"),
+            20,
+        );
+        assert_eq!(text_matches.len(), 1);
+    }
+
+    #[test]
+    fn alias_keys_ignore_punctuation_and_reverse_dns() {
+        assert_eq!(alias_key("org.gnome.Calculator"), "orggnomecalculator");
+        assert_eq!(alias_key("gnome-calculator"), "gnomecalculator");
+        assert_eq!(alias_key("Visual Studio Code"), "visualstudiocode");
     }
 }

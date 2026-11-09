@@ -93,7 +93,9 @@ def get_wait(wait_id: str) -> dict[str, Any] | None:
     return _row(row)
 
 
-def list_waits(agent_id: str = "", *, status: str = "open", limit: int = 100) -> list[dict[str, Any]]:
+def list_waits(
+    agent_id: str = "", *, status: str = "open", limit: int = 100
+) -> list[dict[str, Any]]:
     clauses: list[str] = []
     args: list[Any] = []
     if agent_id:

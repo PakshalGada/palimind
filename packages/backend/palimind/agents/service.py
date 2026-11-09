@@ -202,7 +202,9 @@ async def agent_sse_stream(
 
         if session_id:
             visible_input = display_input or agent_input
-            user_text = f"@{agent_name} {visible_input}".strip() if prefix_mention else visible_input
+            user_text = (
+                f"@{agent_name} {visible_input}".strip() if prefix_mention else visible_input
+            )
             await asyncio.to_thread(
                 append_message_to_session,
                 field_root,

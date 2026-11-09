@@ -37,7 +37,9 @@ def channel_history(channel_id: str = "", limit: int = 50) -> str:
     return _json(
         {
             "channel": channels.get_channel(channel_id),
-            "messages": channels.list_messages(channel_id, limit=max(1, min(int(limit or 50), 500))),
+            "messages": channels.list_messages(
+                channel_id, limit=max(1, min(int(limit or 50), 500))
+            ),
         }
     )
 
@@ -92,12 +94,20 @@ def channel_report_result(task_id: str, result: str, channel_id: str = "") -> st
     return _json({"task": channel})
 
 
-def channel_add_member(agent_id: str, role: str = "", instructions: str = "", channel_id: str = "") -> str:
+def channel_add_member(
+    agent_id: str, role: str = "", instructions: str = "", channel_id: str = ""
+) -> str:
     channel_id = _channel_id(channel_id)
     if not channel_id:
         return "Error: no channel in this turn"
     try:
-        return _json({"member": channels.add_member(channel_id, agent_id, role=role, instructions=instructions)})
+        return _json(
+            {
+                "member": channels.add_member(
+                    channel_id, agent_id, role=role, instructions=instructions
+                )
+            }
+        )
     except Exception as exc:  # noqa: BLE001
         return f"Error: {exc}"
 
@@ -121,9 +131,7 @@ def channel_list_routines(channel_id: str = "") -> str:
     from palimind.agents import routines
 
     items = [
-        r
-        for r in routines.list_routines(limit=500)
-        if str(r.get("channel_id") or "") == channel_id
+        r for r in routines.list_routines(limit=500) if str(r.get("channel_id") or "") == channel_id
     ]
     return _json({"routines": items})
 

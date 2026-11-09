@@ -131,18 +131,14 @@ async def llm_mode_stream(
         web_results = ""
         web_sources: list = []
         if web_enabled:
-            yield (
-                f"data: {json.dumps({'type': 'reasoning', 'text': 'Searching the web...'})}\n\n"
-            )
+            yield (f"data: {json.dumps({'type': 'reasoning', 'text': 'Searching the web...'})}\n\n")
             yield (
                 f"data: {json.dumps({'type': 'agent:tool_call', 'agent_id': 0, 'tool': 'web_search', 'args': {'query': visible_query}})}\n\n"
             )
             try:
                 from palimind.core.web_search import perform_web_search
 
-                web_results = await asyncio.to_thread(
-                    perform_web_search, visible_query, 6, True
-                )
+                web_results = await asyncio.to_thread(perform_web_search, visible_query, 6, True)
                 web_sources = _web_sources(web_results)
                 yield (
                     f"data: {json.dumps({'type': 'agent:tool_result', 'agent_id': 0, 'tool': 'web_search', 'result': [{'title': source.title, 'url': source.url, 'snippet': source.snippet} for source in web_sources]})}\n\n"
@@ -174,8 +170,7 @@ async def llm_mode_stream(
         query_for_model = q
         if web_results:
             query_for_model = (
-                f"{q}\n\nWEB RESEARCH RESULTS (use these and cite them by number):\n"
-                f"{web_results}"
+                f"{q}\n\nWEB RESEARCH RESULTS (use these and cite them by number):\n{web_results}"
             )
         if attachment_context:
             query_for_model = f"{query_for_model}\n\n{attachment_context}"

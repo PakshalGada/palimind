@@ -160,9 +160,7 @@ def send(
 def get_delivery(delivery_id: str) -> dict[str, Any] | None:
     conn = state_store.state_connection()
     try:
-        row = conn.execute(
-            "SELECT * FROM mailbox_deliveries WHERE id=?", (delivery_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM mailbox_deliveries WHERE id=?", (delivery_id,)).fetchone()
     finally:
         conn.close()
     return _row(row)
@@ -272,7 +270,9 @@ def update_delivery(delivery_id: str, **changes: Any) -> dict[str, Any] | None:
                         "error": value.get("error") or "",
                         "attempts": int(value.get("attempts") or 0),
                         "hold_reason": str(value.get("hold_reason") or ""),
-                        "metadata": value.get("metadata") if isinstance(value.get("metadata"), dict) else {},
+                        "metadata": value.get("metadata")
+                        if isinstance(value.get("metadata"), dict)
+                        else {},
                     }
                 ),
                 _now(),
@@ -393,9 +393,7 @@ def events(delivery_id: str) -> list[dict[str, Any]]:
 def delete_for_agent(agent_id: str) -> int:
     conn = state_store.state_connection()
     try:
-        cursor = conn.execute(
-            "DELETE FROM mailbox_deliveries WHERE target_agent_id=?", (agent_id,)
-        )
+        cursor = conn.execute("DELETE FROM mailbox_deliveries WHERE target_agent_id=?", (agent_id,))
         conn.commit()
         return int(cursor.rowcount or 0)
     finally:

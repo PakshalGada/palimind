@@ -69,12 +69,23 @@ def create_route(
             INSERT INTO webhook_routes(route_id, routine_id, event_type, filters, created_at, revoked_at)
             VALUES (?, ?, ?, ?, ?, NULL)
             """,
-            (route_id, routine_id, str(event_type or ""), json.dumps((filters or [])[:FILTER_LIMIT]), _now()),
+            (
+                route_id,
+                routine_id,
+                str(event_type or ""),
+                json.dumps((filters or [])[:FILTER_LIMIT]),
+                _now(),
+            ),
         )
         conn.commit()
     finally:
         conn.close()
-    return {"route_id": route_id, "secret": secret, "event_type": event_type, "filters": filters or []}
+    return {
+        "route_id": route_id,
+        "secret": secret,
+        "event_type": event_type,
+        "filters": filters or [],
+    }
 
 
 def get_route(route_id: str) -> dict[str, Any] | None:
@@ -162,7 +173,9 @@ def verify(
         return False
     if abs((now or _now()) - ts) > max_skew:
         return False
-    return secrets.compare_digest(signature(secret, str(timestamp), delivery_id, body), str(provided))
+    return secrets.compare_digest(
+        signature(secret, str(timestamp), delivery_id, body), str(provided)
+    )
 
 
 def record_receipt(route_id: str, delivery_id: str, routine_id: str, status: str) -> bool:

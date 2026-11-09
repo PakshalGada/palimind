@@ -66,7 +66,9 @@ def list_api_keys() -> str:
                 {
                     "name": item.name,
                     "path": str(item),
-                    "configured": bool(item.read_text("utf-8").strip()) if item.is_file() else False,
+                    "configured": bool(item.read_text("utf-8").strip())
+                    if item.is_file()
+                    else False,
                     "updated_at": item.stat().st_mtime if item.is_file() else 0,
                 }
                 for item in sorted(folder.iterdir())

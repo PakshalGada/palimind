@@ -162,7 +162,9 @@ def _target_busy(item: dict[str, Any]) -> bool:
             return True
         from palimind.agents.runtime import running_count
 
-        return running_count(str(task.get("agent_id") or "")) >= 1 and task.get("status") == "running"
+        return (
+            running_count(str(task.get("agent_id") or "")) >= 1 and task.get("status") == "running"
+        )
     if target_type == "channel":
         try:
             from palimind.agents import channels
@@ -181,7 +183,11 @@ def _target_busy(item: dict[str, Any]) -> bool:
 
 def next_due() -> dict[str, Any] | None:
     for item in list_queue(limit=1000):
-        if item.get("status") == "queued" and not item.get("hold_reason") and not _target_busy(item):
+        if (
+            item.get("status") == "queued"
+            and not item.get("hold_reason")
+            and not _target_busy(item)
+        ):
             return item
     return None
 
@@ -231,7 +237,11 @@ async def _execute(item: dict[str, Any]) -> None:
         try:
             agent_input = str(item.get("input") or task.get("input") or "")
             output = await run_agent(
-                defn, agent_input, session_id=f"_task:{target_id}", interactive=False, task_id=target_id
+                defn,
+                agent_input,
+                session_id=f"_task:{target_id}",
+                interactive=False,
+                task_id=target_id,
             )
             run_status = recorded_run_status(defn.id, agent_input, output)
             if run_status != "success":

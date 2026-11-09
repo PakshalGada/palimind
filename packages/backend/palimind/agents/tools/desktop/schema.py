@@ -18,6 +18,80 @@ UNTRUSTED_NOTE = (
 
 MAX_CHARS = 12_000
 
+# Standard window/browser chrome. It is never dropped (the user may need it),
+# but when a snapshot is truncated it is emitted after the page content so the
+# budget reaches the part of the tree the user asked about.
+_CHROME_NAMES = {
+    "minimise",
+    "minimize",
+    "maximise",
+    "maximize",
+    "restore",
+    "close",
+    "minimise tabs",
+    "minimize tabs",
+    "back",
+    "forward",
+    "reload",
+    "home",
+    "open tab in split view",
+    "bookmark this tab",
+    "view site information",
+    "address and search bar",
+    "new tab",
+    "mute tab",
+    "close side panel",
+    "take a screenshot",
+    "turn on speedreader",
+    "scroll towards the first tab",
+    "scroll towards the last tab",
+}
+_CHROME_PREFIXES = ("zoom:",)
+
+_CONTENT_ROLES = {
+    "link",
+    "statictext",
+    "heading",
+    "paragraph",
+    "text",
+    "listitem",
+    "cell",
+    "gridcell",
+    "textfield",
+    "entry",
+    "checkbox",
+    "radio",
+    "combobox",
+    "listbox",
+    "tab",
+    "image",
+    "img",
+    "article",
+    "document",
+    "row",
+}
+
+
+def _is_chrome(node: dict[str, Any]) -> bool:
+    name = str(node.get("name") or "").strip().lower()
+    if name in _CHROME_NAMES or name.startswith(_CHROME_PREFIXES):
+        return True
+    role = str(node.get("role") or "").lower()
+    return role in {"toolbar", "menubar"} and not node.get("value")
+
+
+def _is_hidden(node: dict[str, Any]) -> bool:
+    states = node.get("states") or []
+    if any(str(state).lower() in {"hidden", "offscreen"} for state in states):
+        return True
+    bounds = node.get("bounds")
+    if isinstance(bounds, list) and len(bounds) == 4:
+        try:
+            return float(bounds[2]) <= 0 or float(bounds[3]) <= 0
+        except (TypeError, ValueError):
+            return False
+    return False
+
 
 def _clip(text: str, limit: int = 120) -> str:
     text = " ".join(str(text).split())
@@ -57,9 +131,86 @@ def format_node(node: dict[str, Any]) -> str:
     return "  ".join(parts)
 
 
+def _is_noise(node: dict[str, Any]) -> bool:
+    """True for structural nodes that carry no information or action.
+
+    Chromium in particular advertises a large number of unnamed ``alert`` and
+    ``group`` wrappers. They cost tokens and push real content out of the
+    output budget. Anything with a ref, a label, a value, a description or an
+    action is kept: an unnamed button is still clickable.
+    """
+
+    if node.get("redacted"):
+        return False
+    if node.get("ref") or node.get("name") or node.get("value") or node.get("description"):
+        return False
+    if node.get("actions"):
+        return False
+    role = str(node.get("role") or "").lower()
+    if role in {"alert", "group", "panel", "section", "filler", "separator", "generic"}:
+        return True
+    return False
+
+
+def _dedupe_key(node: dict[str, Any]) -> tuple[Any, ...]:
+    bounds = node.get("bounds")
+    bounds_key = (
+        tuple(round(float(value), 1) for value in bounds)
+        if isinstance(bounds, list) and len(bounds) == 4
+        else None
+    )
+    return (
+        node.get("role"),
+        node.get("name"),
+        node.get("value"),
+        bounds_key,
+        tuple(node.get("actions") or []),
+    )
+
+
 def format_snapshot(snapshot: dict[str, Any], max_chars: int = MAX_CHARS) -> str:
     app = snapshot.get("app") or {}
     window = snapshot.get("window") or {}
+    nodes = [node for node in snapshot.get("nodes") or [] if isinstance(node, dict)]
+
+    kept: list[dict[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    dropped = 0
+    for node in nodes:
+        if _is_noise(node):
+            dropped += 1
+            continue
+        # Refs identify distinct actionable nodes even when their labels are
+        # identical (two "Close" buttons). Only de-duplicate unnamed wrappers.
+        if not node.get("ref"):
+            key = _dedupe_key(node)
+            if key in seen:
+                dropped += 1
+                continue
+            seen.add(key)
+        kept.append(node)
+
+    interactive = sum(1 for node in kept if node.get("ref") or node.get("actions"))
+    if snapshot.get("truncated"):
+        content: list[dict[str, Any]] = []
+        hidden: list[dict[str, Any]] = []
+        chrome: list[dict[str, Any]] = []
+        rest: list[dict[str, Any]] = []
+        for node in kept:
+            role = str(node.get("role") or "").lower()
+            if _is_hidden(node):
+                hidden.append(node)
+            elif _is_chrome(node):
+                chrome.append(node)
+            elif node.get("ref") or role in _CONTENT_ROLES:
+                content.append(node)
+            else:
+                rest.append(node)
+        ordered = content + rest + chrome + hidden
+        order = "content-first"
+    else:
+        ordered = kept
+        order = "tree"
     # The provenance note comes before every piece of application text,
     # including the window title: a malicious title must not be the first
     # instruction-shaped string the model reads.
@@ -71,11 +222,12 @@ def format_snapshot(snapshot: dict[str, Any], max_chars: int = MAX_CHARS) -> str
         f"window={_clip(window.get('title') or '', 60)!r} "
         f"bounds_space={snapshot.get('bounds_space')} "
         f"complete={snapshot.get('complete')} truncated={snapshot.get('truncated')} "
-        f"nodes={snapshot.get('node_count')}",
+        f"nodes={snapshot.get('node_count')} actionable={interactive} "
+        f"noise_dropped={dropped} order={order}",
     ]
     used = sum(len(line) + 1 for line in lines)
     omitted = 0
-    for node in snapshot.get("nodes") or []:
+    for node in ordered:
         line = format_node(node)
         if used + len(line) + 1 > max_chars:
             omitted += 1
@@ -83,7 +235,16 @@ def format_snapshot(snapshot: dict[str, Any], max_chars: int = MAX_CHARS) -> str
         lines.append(line)
         used += len(line) + 1
     if omitted:
-        lines.append(f"… {omitted} more nodes omitted (raise max_nodes or narrow the query)")
+        lines.append(
+            f"… {omitted} more nodes omitted (raise max_nodes, narrow with "
+            "desktop_find, or pass interactive_only=true)"
+        )
+    if snapshot.get("truncated"):
+        lines.append(
+            "… truncated=true: the tree was cut short. Retry with a larger "
+            "max_depth (40–64) and max_nodes (500–1000), or use desktop_find "
+            "with role/name/text to target the subtree directly."
+        )
     return "\n".join(lines)
 
 
@@ -101,6 +262,8 @@ def format_matches(data: Any, max_chars: int = MAX_CHARS) -> str:
             break
         lines.append(line)
         used += len(line) + 1
+    if len(lines) == 2:
+        lines.append("no matches")
     return "\n".join(lines)
 
 
@@ -114,6 +277,8 @@ def format_status(data: dict[str, Any]) -> str:
         f"state_root={data.get('state_root')}",
         f"accessibility={_permission(permissions.get('accessibility'))}",
         f"kernel_input={kernel.get('detail') or ('available' if kernel.get('accessible') else 'unavailable')}",
+        f"input_backend={data.get('input_backend')} "
+        f"screencast_token={data.get('screencast_token')}",
         f"capabilities={json.dumps(capabilities, sort_keys=True)}",
         f"enabled={policy.get('enabled')} "
         f"allowed_apps={policy.get('allowed_apps') or 'any app'} "

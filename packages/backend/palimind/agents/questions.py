@@ -156,7 +156,12 @@ def ask(
                     _pending.pop(question_id, None)
                     _events.pop(question_id, None)
                     _write_locked()
-                return {"status": "cancelled", "question_id": question_id, "answer": "", "choice": ""}
+                return {
+                    "status": "cancelled",
+                    "question_id": question_id,
+                    "answer": "",
+                    "choice": "",
+                }
         if time.time() >= deadline:
             with _lock:
                 record = dict(_pending.get(question_id) or record)

@@ -56,7 +56,11 @@ def _row(row: Any) -> dict[str, Any] | None:
 
 
 def task_limit(definition: Any) -> int:
-    raw = definition.get("task_limit", DEFAULT_TASK_LIMIT) if isinstance(definition, dict) else getattr(definition, "task_limit", DEFAULT_TASK_LIMIT)
+    raw = (
+        definition.get("task_limit", DEFAULT_TASK_LIMIT)
+        if isinstance(definition, dict)
+        else getattr(definition, "task_limit", DEFAULT_TASK_LIMIT)
+    )
     try:
         value = int(raw or DEFAULT_TASK_LIMIT)
     except (TypeError, ValueError):
@@ -228,7 +232,9 @@ def update_task(task_id: str, **changes: Any) -> dict[str, Any] | None:
                         "result": value.get("result") or "",
                         "error": value.get("error") or "",
                         "revision": int(task.get("revision") or 1),
-                        "metadata": value.get("metadata") if isinstance(value.get("metadata"), dict) else {},
+                        "metadata": value.get("metadata")
+                        if isinstance(value.get("metadata"), dict)
+                        else {},
                     }
                 ),
                 now,
@@ -247,7 +253,12 @@ def mark_running(task_id: str) -> dict[str, Any] | None:
 
 
 def complete_task(task_id: str, result: str, *, status: str = "completed") -> dict[str, Any] | None:
-    return update_task(task_id, status=status, result=str(result or ""), error="" if status == "completed" else None)
+    return update_task(
+        task_id,
+        status=status,
+        result=str(result or ""),
+        error="" if status == "completed" else None,
+    )
 
 
 def fail_task(task_id: str, error: str) -> dict[str, Any] | None:

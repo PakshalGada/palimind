@@ -222,6 +222,31 @@ def _finalize_files(root: Path, run_id: str, *, completed: bool) -> dict[str, in
     return counts
 
 
+def _full_rebuild_reason(root: Path, config: dict) -> str:
+    """Return why an existing index must be rebuilt, or an empty string.
+
+    A chunker-version or embedding-model change invalidates every stored chunk,
+    but the incremental planner otherwise sees all files as "unchanged" and
+    would report a completed run without reindexing anything.
+    """
+    from palimind.storage.vector_store import _index_path, read_stamp
+
+    if not _index_path(root).exists():
+        return ""
+    stamp = read_stamp(root) or {}
+    stamped_chunker = int(stamp.get("chunker") or 1)
+    configured_chunker = int(config.get("chunker_version") or 1)
+    if stamped_chunker != configured_chunker:
+        return f"chunk layout v{stamped_chunker} -> v{configured_chunker}"
+    stamped_model = str(stamp.get("model") or "")
+    configured_model = str(config.get("embed_model") or "")
+    if stamped_model and configured_model and stamped_model != configured_model:
+        return f"embedding model {stamped_model} -> {configured_model}"
+    if not stamp:
+        return "index has no embedding/chunker stamp"
+    return ""
+
+
 def plan_run(
     root: Path,
     *,
@@ -240,6 +265,22 @@ def plan_run(
     new_or_modified, unchanged, deleted, hashes = crawl_directory(
         source, index_root=root, config=config
     )
+    rebuild_reason = _full_rebuild_reason(root, config)
+    if rebuild_reason and unchanged:
+        # Force every unchanged file through the rebuild as well. The actual
+        # reset happens inside update_index, which clears the hashes so these
+        # paths are parsed and embedded from scratch. Their hashes must be
+        # captured here too, otherwise the run bookkeeping marks them failed.
+        from palimind.ingestion.crawler import compute_md5
+
+        for path in unchanged:
+            rel = str(path.relative_to(source))
+            if rel not in hashes:
+                digest = compute_md5(path)
+                if digest:
+                    hashes[rel] = digest
+        new_or_modified = list(new_or_modified) + list(unchanged)
+        unchanged = []
     run_id = str(uuid.uuid4())
     now = _now()
     summary: dict[str, Any] = {
@@ -256,7 +297,7 @@ def plan_run(
         "unchanged": len(unchanged),
         "failed": 0,
         "phase": "queued",
-        "message": "",
+        "message": f"Full rebuild: {rebuild_reason}" if rebuild_reason else "",
         "cancel_requested": False,
         "created_at": now,
         "started_at": None,
@@ -491,7 +532,9 @@ def process_run(
             "deleted": int(result.deleted_files),
             "unchanged": int(result.unchanged_files),
             "failed": len(result.file_errors),
-            "processed": counts.get("indexed", 0) + counts.get("deleted", 0),
+            "processed": int(result.indexed_files)
+            + int(result.deleted_files)
+            + len(result.file_errors),
             "queued": counts.get("queued", 0),
             "chunks_indexed": int(result.chunks_indexed),
             "errors": [{"path": err.path, "error": err.error} for err in result.file_errors],

@@ -45,7 +45,9 @@ CATALOG: list[dict[str, Any]] = [
 
 
 def list_plugins() -> list[dict[str, Any]]:
-    installed = {item.get("plugin_id"): item for item in state_store.list_json(NAMESPACE, limit=500)}
+    installed = {
+        item.get("plugin_id"): item for item in state_store.list_json(NAMESPACE, limit=500)
+    }
     return [{**plugin, "installed": plugin["id"] in installed} for plugin in CATALOG]
 
 
@@ -57,7 +59,9 @@ def _record_key(plugin_id: str) -> str:
     return plugin_id
 
 
-def install_plugin(plugin_id: str, *, agent_id: str = "", overwrite: bool = False) -> dict[str, Any]:
+def install_plugin(
+    plugin_id: str, *, agent_id: str = "", overwrite: bool = False
+) -> dict[str, Any]:
     plugin = get_plugin(plugin_id)
     if plugin is None:
         raise KeyError(f"unknown plugin: {plugin_id}")

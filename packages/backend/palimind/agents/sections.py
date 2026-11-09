@@ -60,9 +60,7 @@ def rename_section(section_id: str, name: str) -> dict[str, Any] | None:
         raise ValueError("section name is required")
     conn = state_store.state_connection()
     try:
-        conn.execute(
-            "UPDATE agent_sections SET name=? WHERE id=?", (name[:80], section_id)
-        )
+        conn.execute("UPDATE agent_sections SET name=? WHERE id=?", (name[:80], section_id))
         conn.commit()
     finally:
         conn.close()

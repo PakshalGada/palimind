@@ -62,6 +62,8 @@ export interface SendRequest {
   webSearch?: boolean;
   /** What the user typed when `text` is an expanded hidden skill prompt. */
   displayText?: string;
+  /** Document-mode retrieval strategy: auto (default), off, or always. */
+  ragMode?: 'auto' | 'off' | 'always';
   files?: string[];
   attachmentIds?: string[];
   activity: ActivityInfo;
@@ -227,6 +229,7 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
       params.set('web_search', request.webSearch === false ? 'false' : 'true');
       if (request.sessionId) params.set('session_id', request.sessionId);
       if (request.displayText) params.set('display_query', request.displayText);
+      if (request.ragMode) params.set('rag_mode', request.ragMode);
       if (request.files?.length) params.set('files', request.files.join(','));
       if (request.attachmentIds?.length) params.set('attachment_ids', request.attachmentIds.join(','));
       // The server echoes this in its first `session` event; Stop uses it.

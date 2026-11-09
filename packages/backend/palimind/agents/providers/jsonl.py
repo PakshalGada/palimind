@@ -113,7 +113,9 @@ class JSONLProcess:
         self._next_id += 1
         future: asyncio.Future = asyncio.get_running_loop().create_future()
         self._pending[request_id] = future
-        await self.send({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params or {}})
+        await self.send(
+            {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params or {}}
+        )
         try:
             response = await asyncio.wait_for(future, timeout=self.request_timeout)
         except TimeoutError as exc:
@@ -121,9 +123,7 @@ class JSONLProcess:
             raise ProviderError(f"{method} timed out", cause="timeout", retryable=True) from exc
         if "error" in response:
             error = response.get("error") or {}
-            raise ProviderError(
-                str(error.get("message") or f"{method} failed"), cause="protocol"
-            )
+            raise ProviderError(str(error.get("message") or f"{method} failed"), cause="protocol")
         result = response.get("result")
         return result if isinstance(result, dict) else {"value": result}
 

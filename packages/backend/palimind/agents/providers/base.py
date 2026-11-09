@@ -116,8 +116,7 @@ class ProviderClient(Protocol):
     id: str
     capabilities: ProviderCapabilities
 
-    async def list_models(self) -> list[ProviderModel]:
-        ...
+    async def list_models(self) -> list[ProviderModel]: ...
 
     async def start_session(
         self,
@@ -127,8 +126,7 @@ class ProviderClient(Protocol):
         system_prompt: str = "",
         tools: list[dict[str, Any]] | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> str:
-        ...
+    ) -> str: ...
 
     async def resume_session(
         self,
@@ -139,8 +137,7 @@ class ProviderClient(Protocol):
         system_prompt: str = "",
         tools: list[dict[str, Any]] | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> str:
-        ...
+    ) -> str: ...
 
     def send_turn(
         self,
@@ -150,14 +147,10 @@ class ProviderClient(Protocol):
         model: str = "",
         effort: str = "",
         tools: list[dict[str, Any]] | None = None,
-    ) -> AsyncIterator[ProviderEvent]:
-        ...
+    ) -> AsyncIterator[ProviderEvent]: ...
 
-    async def interrupt(self, session_id: str) -> None:
-        ...
+    async def interrupt(self, session_id: str) -> None: ...
 
-    async def read_usage(self, session_id: str) -> dict[str, Any]:
-        ...
+    async def read_usage(self, session_id: str) -> dict[str, Any]: ...
 
-    async def close(self) -> None:
-        ...
+    async def close(self) -> None: ...

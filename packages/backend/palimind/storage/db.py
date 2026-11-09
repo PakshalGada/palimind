@@ -25,6 +25,7 @@ def init_db(root: Path) -> None:
         columns = [col[1] for col in cur.fetchall()]
         if columns and "path" not in columns:
             cur.execute("DROP TABLE IF EXISTS chunks")
+            cur.execute("DROP TABLE IF EXISTS summaries_fts")
             cur.execute("DROP TABLE IF EXISTS files")
 
         # Drop removed tables from older index versions
@@ -58,9 +59,13 @@ def init_db(root: Path) -> None:
                 section_title   TEXT DEFAULT '',
                 subsection      TEXT DEFAULT '',
                 parent_section  TEXT DEFAULT '',
+                main_section    TEXT DEFAULT '',
                 page_number     INTEGER,
                 word_count      INTEGER,
                 token_estimate  INTEGER,
+                embed_text      TEXT DEFAULT '',
+                media_start_ts  REAL,
+                media_end_ts    REAL,
                 FOREIGN KEY(file_id) REFERENCES files(id) ON DELETE CASCADE
             )
         """)
@@ -95,8 +100,43 @@ def init_db(root: Path) -> None:
             """)
             cur.execute("INSERT INTO chunks_fts(rowid, content) SELECT id, content FROM chunks")
 
+        # ── FTS5 on files.summary (document-level retrieval) ───────────────
+        # Lets "which report covers X?" match a whole-document summary even
+        # when no individual chunk contains the phrasing.
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='summaries_fts'")
+        has_summary_fts = cur.fetchone() is not None
+
+        if not has_summary_fts:
+            cur.execute("""
+                CREATE VIRTUAL TABLE summaries_fts USING fts5(
+                    summary,
+                    content='files',
+                    content_rowid='id'
+                )
+            """)
+            cur.execute("""
+                CREATE TRIGGER IF NOT EXISTS files_fts_ai AFTER INSERT ON files BEGIN
+                    INSERT INTO summaries_fts(rowid, summary) VALUES (new.id, new.summary);
+                END;
+            """)
+            cur.execute("""
+                CREATE TRIGGER IF NOT EXISTS files_fts_ad AFTER DELETE ON files BEGIN
+                    INSERT INTO summaries_fts(summaries_fts, rowid, summary)
+                    VALUES('delete', old.id, old.summary);
+                END;
+            """)
+            cur.execute("""
+                CREATE TRIGGER IF NOT EXISTS files_fts_au AFTER UPDATE ON files BEGIN
+                    INSERT INTO summaries_fts(summaries_fts, rowid, summary)
+                    VALUES('delete', old.id, old.summary);
+                    INSERT INTO summaries_fts(rowid, summary) VALUES (new.id, new.summary);
+                END;
+            """)
+            cur.execute("INSERT INTO summaries_fts(rowid, summary) SELECT id, summary FROM files")
+
         # ── Backward-compatible migrations ────────────────────────────────────
         cur.execute("PRAGMA table_info(files)")
+
         file_cols = {col[1] for col in cur.fetchall()}
         for col_def in [
             ("summary", "TEXT DEFAULT ''"),
@@ -116,9 +156,11 @@ def init_db(root: Path) -> None:
             ("section_title", "TEXT DEFAULT ''"),
             ("subsection", "TEXT DEFAULT ''"),
             ("parent_section", "TEXT DEFAULT ''"),
+            ("main_section", "TEXT DEFAULT ''"),
             ("page_number", "INTEGER"),
             ("word_count", "INTEGER"),
             ("token_estimate", "INTEGER"),
+            ("embed_text", "TEXT DEFAULT ''"),
             ("media_start_ts", "REAL"),
             ("media_end_ts", "REAL"),
         ]:
@@ -179,12 +221,53 @@ def init_db(root: Path) -> None:
         conn.close()
 
 
+_SCHEMA_READY: set[str] = set()
+_SCHEMA_LOCK = threading.Lock()
+
+
+def _ensure_schema(root: Path, conn: sqlite3.Connection) -> sqlite3.Connection:
+    """Migrate an old index DB once per process before reading from it.
+
+    Read paths (`fts_search`, graph queries) used to assume the newest columns
+    existed. Against an index created by an older build, `c.main_section` made
+    the whole FTS query raise and keyword search silently returned nothing —
+    which looks exactly like "the document isn't there". Check cheaply and run
+    the idempotent migrations once.
+    """
+    key = str(db_path(root))
+    if key in _SCHEMA_READY:
+        return conn
+    with _SCHEMA_LOCK:
+        if key in _SCHEMA_READY:
+            return conn
+        try:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(chunks)")}
+            has_summary_fts = (
+                conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='summaries_fts'"
+                ).fetchone()
+                is not None
+            )
+            if "main_section" not in cols or "embed_text" not in cols or not has_summary_fts:
+                conn.close()
+                init_db(root)
+                conn = sqlite3.connect(db_path(root), timeout=30.0)
+                conn.execute("PRAGMA foreign_keys = ON")
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA synchronous=NORMAL")
+        except Exception:
+            # A read must never fail because a best-effort migration failed.
+            pass
+        _SCHEMA_READY.add(key)
+    return conn
+
+
 def get_connection(root: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path(root), timeout=30.0)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
-    return conn
+    return _ensure_schema(root, conn)
 
 
 # ── files ──────────────────────────────────────────────────────────────────────
@@ -234,11 +317,14 @@ def insert_chunks(
 ) -> list[int]:
     """Insert chunks and return the list of newly assigned primary key IDs.
 
-    *chunks_data* is a list of tuples:
-    ``(chunk_index, chunk_type, content, section_title, subsection,
-      parent_section, page_number, word_count, token_estimate)``,
-    optionally followed by ``(media_start_ts, media_end_ts)`` — or legacy
-    ``(chunk_index, chunk_type, content)``.
+    Accepted tuple layouts (oldest first):
+    * ``(chunk_index, chunk_type, content)``
+    * ``(…, section_title, subsection, parent_section, page_number,
+      word_count, token_estimate)``
+    * ``(…, media_start_ts, media_end_ts)``
+    * ``(…, media_start_ts, media_end_ts, embed_text)``
+    * ``(…, media_start_ts, media_end_ts, embed_text, main_section)``
+
     Returns ``list[int]`` of inserted row IDs in the same order.
     """
     conn.execute("DELETE FROM chunks WHERE file_id = ?", (file_id,))
@@ -246,50 +332,24 @@ def insert_chunks(
     chunk_ids: list[int] = []
     cur = conn.cursor()
     for row in chunks_data:
-        if len(row) == 3:
-            idx, ctype, content = row
-            section_title = ""
-            subsection = ""
-            parent_section = ""
-            page_number = None
-            word_count = None
-            token_estimate = None
-            media_start_ts = None
-            media_end_ts = None
-        elif len(row) == 9:
-            (
-                idx,
-                ctype,
-                content,
-                section_title,
-                subsection,
-                parent_section,
-                page_number,
-                word_count,
-                token_estimate,
-            ) = row
-            media_start_ts = None
-            media_end_ts = None
-        else:
-            (
-                idx,
-                ctype,
-                content,
-                section_title,
-                subsection,
-                parent_section,
-                page_number,
-                word_count,
-                token_estimate,
-                media_start_ts,
-                media_end_ts,
-            ) = row
+        idx, ctype, content = row[0], row[1], row[2]
+        section_title = row[3] if len(row) > 3 else ""
+        subsection = row[4] if len(row) > 4 else ""
+        parent_section = row[5] if len(row) > 5 else ""
+        page_number = row[6] if len(row) > 6 else None
+        word_count = row[7] if len(row) > 7 else None
+        token_estimate = row[8] if len(row) > 8 else None
+        media_start_ts = row[9] if len(row) > 9 else None
+        media_end_ts = row[10] if len(row) > 10 else None
+        embed_text = row[11] if len(row) > 11 else ""
+        main_section = row[12] if len(row) > 12 else ""
         cur.execute(
             """INSERT INTO chunks
                (file_id, chunk_index, chunk_type, content,
-                section_title, subsection, parent_section, page_number, word_count,
-                token_estimate, media_start_ts, media_end_ts)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                section_title, subsection, parent_section, main_section,
+                page_number, word_count, token_estimate, embed_text,
+                media_start_ts, media_end_ts)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 file_id,
                 idx,
@@ -298,9 +358,11 @@ def insert_chunks(
                 section_title or "",
                 subsection or "",
                 parent_section or "",
+                main_section or "",
                 page_number,
                 word_count,
                 token_estimate,
+                embed_text or content,
                 media_start_ts,
                 media_end_ts,
             ),
@@ -413,8 +475,8 @@ def get_rich_chunks_for_file(conn: sqlite3.Connection, path: str) -> list[dict]:
     cur = conn.execute(
         """
         SELECT c.id, c.chunk_index, c.chunk_type, c.content,
-               c.section_title, c.subsection, c.parent_section, c.page_number,
-               c.word_count, c.token_estimate,
+               c.section_title, c.subsection, c.parent_section, c.main_section,
+               c.page_number, c.word_count, c.token_estimate,
                f.doc_year, f.doc_type, f.entity_name
         FROM chunks c
         JOIN files f ON c.file_id = f.id
@@ -432,13 +494,14 @@ def get_rich_chunks_for_file(conn: sqlite3.Connection, path: str) -> list[dict]:
             "section_title": row[4] or "",
             "subsection": row[5] or "",
             "parent_section": row[6] or "",
-            "page_number": row[7],
-            "word_count": row[8],
-            "token_estimate": row[9],
+            "main_section": row[7] or "",
+            "page_number": row[8],
+            "word_count": row[9],
+            "token_estimate": row[10],
             "file_path": path,
-            "doc_year": row[10],
-            "doc_type": row[11] or "other",
-            "entity_name": row[12] or "",
+            "doc_year": row[11],
+            "doc_type": row[12] or "other",
+            "entity_name": row[13] or "",
         }
         for row in cur.fetchall()
     ]
@@ -456,7 +519,7 @@ def get_chunk_neighbors(
         """
         SELECT c.id, c.chunk_index, c.chunk_type, c.content,
                c.section_title, f.doc_year, f.doc_type,
-               c.media_start_ts, c.media_end_ts
+               c.media_start_ts, c.media_end_ts, c.page_number
         FROM chunks c
         JOIN files f ON c.file_id = f.id
         WHERE f.path = ?
@@ -478,28 +541,194 @@ def get_chunk_neighbors(
             "doc_type": row[6] or "other",
             "media_start_ts": row[7],
             "media_end_ts": row[8],
+            "page_number": row[9],
         }
         for row in cur.fetchall()
     ]
 
 
-def build_fts_query(query: str) -> str:
-    """Turn raw user text into a safe FTS5 OR-of-prefixes query.
+def get_section_chunks(
+    conn: sqlite3.Connection,
+    path: str,
+    parent_section: str,
+    section_title: str,
+    main_section: str = "",
+) -> list[dict]:
+    """Return every chunk of one section in a file, ordered by chunk_index.
 
-    Each term is emitted as a quoted string (``"term"*``) so FTS5 operators
-    and keywords (``-``, ``AND``, ``OR``, ``NOT``, ``NEAR``, ``col:``) in user
-    input can never produce a syntax error. Returns ``""`` if nothing usable.
+    This is the "parent" side of small-to-big retrieval: children are matched
+    individually, then their whole section is assembled for the LLM.
+    """
+    conditions = ["f.path = ?", "c.chunk_type IN ('text', 'table')"]
+    params: list = [path]
+
+    # Prefer the most specific identity available. Sections from different
+    # top-level items can share a subsection title, so include main_section.
+    if main_section:
+        conditions.append("c.main_section = ?")
+        params.append(main_section)
+    if parent_section:
+        conditions.append("c.parent_section = ?")
+        params.append(parent_section)
+    if section_title:
+        conditions.append("c.section_title = ?")
+        params.append(section_title)
+
+    cur = conn.execute(
+        f"""
+        SELECT c.id, c.chunk_index, c.chunk_type, c.content,
+               c.section_title, c.subsection, c.parent_section, c.main_section,
+               c.page_number, c.word_count, c.token_estimate,
+               f.doc_year, f.doc_type
+        FROM chunks c
+        JOIN files f ON c.file_id = f.id
+        WHERE {" AND ".join(conditions)}
+        ORDER BY c.chunk_index
+        """,
+        params,
+    )
+    return [
+        {
+            "chunk_db_id": row[0],
+            "chunk_index": row[1],
+            "chunk_type": row[2],
+            "content": row[3],
+            "section_title": row[4] or "",
+            "subsection": row[5] or "",
+            "parent_section": row[6] or "",
+            "main_section": row[7] or "",
+            "page_number": row[8],
+            "word_count": row[9],
+            "token_estimate": row[10],
+            "file_path": path,
+            "doc_year": row[11],
+            "doc_type": row[12] or "other",
+        }
+        for row in cur.fetchall()
+    ]
+
+
+def search_summary_files(conn: sqlite3.Connection, query: str, limit: int = 3) -> list[dict]:
+    """BM25 search over per-file summaries; returns matched documents."""
+    fts_query = build_fts_query(query)
+    if not fts_query:
+        return []
+    try:
+        cur = conn.execute(
+            """
+            SELECT f.path, f.summary, summaries_fts.rank,
+                   f.doc_year, f.doc_type, f.entity_name
+            FROM summaries_fts
+            JOIN files f ON summaries_fts.rowid = f.id
+            WHERE summaries_fts MATCH ?
+            ORDER BY summaries_fts.rank
+            LIMIT ?
+            """,
+            (fts_query, limit),
+        )
+    except Exception:
+        return []
+    return [
+        {
+            "file_path": row[0],
+            "summary": row[1] or "",
+            "score": -row[2],
+            "doc_year": row[3],
+            "doc_type": row[4] or "other",
+            "entity_name": row[5] or "",
+        }
+        for row in cur.fetchall()
+    ]
+
+
+def grep_chunks(
+    conn: sqlite3.Connection,
+    terms: list[str],
+    *,
+    limit: int = 12,
+    file_paths: list[str] | None = None,
+) -> list[dict]:
+    """Exact/substring lookup over indexed chunk text.
+
+    Backs the agentic RAG "look up the exact number/quote" step. Unlike FTS,
+    LIKE matching finds figures, tickers and quoted phrases verbatim.
+    """
+    cleaned = [t.strip() for t in terms if t and len(t.strip()) >= 2]
+    if not cleaned:
+        return []
+
+    conditions = []
+    params: list = []
+    for term in cleaned[:8]:
+        escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        conditions.append("c.content LIKE ? ESCAPE '\\'")
+        params.append(f"%{escaped}%")
+
+    where = "(" + " OR ".join(conditions) + ")"
+    if file_paths:
+        placeholders = ",".join("?" * len(file_paths))
+        where += f" AND f.path IN ({placeholders})"
+        params.extend(file_paths)
+    params.append(limit)
+
+    cur = conn.execute(
+        f"""
+        SELECT c.id, f.path, c.chunk_index, c.chunk_type, c.content,
+               c.section_title, c.subsection, c.parent_section, c.main_section,
+               c.page_number, f.doc_year, f.doc_type, f.entity_name
+        FROM chunks c
+        JOIN files f ON c.file_id = f.id
+        WHERE {where}
+        ORDER BY length(c.content) ASC
+        LIMIT ?
+        """,
+        params,
+    )
+    return [
+        {
+            "chunk_db_id": row[0],
+            "file_path": row[1],
+            "chunk_index": row[2],
+            "chunk_type": row[3],
+            "content": row[4],
+            "section_title": row[5] or "",
+            "subsection": row[6] or "",
+            "parent_section": row[7] or "",
+            "main_section": row[8] or "",
+            "page_number": row[9],
+            "doc_year": row[10],
+            "doc_type": row[11] or "other",
+            "entity_name": row[12] or "",
+            "search_type": "exact",
+        }
+        for row in cur.fetchall()
+    ]
+
+
+def build_fts_query(query: str, mode: str = "any") -> str:
+    """Turn raw user text into a safe FTS5 query.
+
+    ``mode="any"`` emits an OR-of-prefixes query (high recall). ``mode="all"``
+    emits an AND-of-prefixes query (high precision) used as an extra ranked
+    list during fusion. Each term is quoted so FTS5 operators in user text
+    ("-", AND/OR/NOT, quotes, parens, "col:") can never cause a syntax error.
+    Returns ``""`` if nothing usable.
     """
     import re as _re
 
     safe_query = _re.sub(r"[^\w\s\-]", " ", query, flags=_re.UNICODE).strip()
     terms = [w for w in safe_query.split() if len(w.strip("-")) >= 2]
-    return " OR ".join(f'"{w}"*' for w in terms)
+    if not terms:
+        return ""
+    joiner = " AND " if str(mode).lower() == "all" else " OR "
+    return joiner.join(f'"{w}"*' for w in terms)
 
 
-def fts_search(conn: sqlite3.Connection, query: str, limit: int = 5) -> list[dict]:
+def fts_search(
+    conn: sqlite3.Connection, query: str, limit: int = 5, *, mode: str = "any"
+) -> list[dict]:
     """Perform a BM25 keyword search using FTS5."""
-    fts_query = build_fts_query(query)
+    fts_query = build_fts_query(query, mode=mode)
     if not fts_query:
         return []
 
@@ -508,8 +737,8 @@ def fts_search(conn: sqlite3.Connection, query: str, limit: int = 5) -> list[dic
             """
             SELECT c.id, f.path, c.chunk_index, c.chunk_type, c.content,
                    chunks_fts.rank,
-                   c.section_title, c.subsection, c.parent_section, c.page_number,
-                   f.doc_year, f.doc_type, f.entity_name
+                   c.section_title, c.subsection, c.parent_section, c.main_section,
+                   c.page_number, f.doc_year, f.doc_type, f.entity_name
             FROM chunks_fts
             JOIN chunks c ON chunks_fts.rowid = c.id
             JOIN files f ON c.file_id = f.id
@@ -535,10 +764,11 @@ def fts_search(conn: sqlite3.Connection, query: str, limit: int = 5) -> list[dic
                 "section_title": row[6] or "",
                 "subsection": row[7] or "",
                 "parent_section": row[8] or "",
-                "page_number": row[9],
-                "doc_year": row[10],
-                "doc_type": row[11] or "other",
-                "entity_name": row[12] or "",
+                "main_section": row[9] or "",
+                "page_number": row[10],
+                "doc_year": row[11],
+                "doc_type": row[12] or "other",
+                "entity_name": row[13] or "",
             }
         )
     return results
@@ -594,8 +824,8 @@ def fts_search_filtered(
             f"""
             SELECT c.id, f.path, c.chunk_index, c.chunk_type, c.content,
                    chunks_fts.rank,
-                   c.section_title, c.subsection, c.parent_section, c.page_number,
-                   f.doc_year, f.doc_type, f.entity_name
+                   c.section_title, c.subsection, c.parent_section, c.main_section,
+                   c.page_number, f.doc_year, f.doc_type, f.entity_name
             FROM chunks_fts
             JOIN chunks c ON chunks_fts.rowid = c.id
             JOIN files f ON c.file_id = f.id
@@ -621,10 +851,11 @@ def fts_search_filtered(
                 "section_title": row[6] or "",
                 "subsection": row[7] or "",
                 "parent_section": row[8] or "",
-                "page_number": row[9],
-                "doc_year": row[10],
-                "doc_type": row[11] or "other",
-                "entity_name": row[12] or "",
+                "main_section": row[9] or "",
+                "page_number": row[10],
+                "doc_year": row[11],
+                "doc_type": row[12] or "other",
+                "entity_name": row[13] or "",
             }
         )
     return results

@@ -29,7 +29,12 @@ def browser_request_takeover(reason: str, tab_id: str = "") -> str:
         request_control(agent_id=caller, takeover_id=str(takeover.get("id") or ""))
     except Exception:
         pass
-    return _json({"takeover": takeover, "message": "Ask the user to complete this step in the browser panel."})
+    return _json(
+        {
+            "takeover": takeover,
+            "message": "Ask the user to complete this step in the browser panel.",
+        }
+    )
 
 
 def browser_list_profiles() -> str:

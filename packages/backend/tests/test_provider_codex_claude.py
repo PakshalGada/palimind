@@ -38,7 +38,9 @@ def test_codex_transcript_maps_items_and_usage() -> None:
             deltas = [e.payload["text"] for e in events if e.type == "message_delta"]
             assert deltas == ["hello ", "world"]
             assert any(e.type == "message" and e.payload["text"] == "hello world" for e in events)
-            assert any(e.type == "tool_call" and e.payload["name"] == "commandExecution" for e in events)
+            assert any(
+                e.type == "tool_call" and e.payload["name"] == "commandExecution" for e in events
+            )
             assert any(e.type == "tool_result" and e.payload["content"] == "ok" for e in events)
             assert any(e.type == "usage" and e.payload["prompt_tokens"] == 12 for e in events)
             assert types[-1] == "turn_completed"
@@ -69,7 +71,9 @@ def test_claude_transcript_maps_text_tool_and_result() -> None:
             assert types[0] == "turn_started"
             assert any(e.type == "message" and e.payload["text"] == "hello world" for e in events)
             assert any(e.type == "tool_call" and e.payload["name"] == "Read" for e in events)
-            assert any(e.type == "tool_result" and e.payload["content"] == "file text" for e in events)
+            assert any(
+                e.type == "tool_result" and e.payload["content"] == "file text" for e in events
+            )
             assert any(e.type == "usage" and e.payload["prompt_tokens"] == 9 for e in events)
             assert types[-1] == "turn_completed"
             await provider.interrupt(session)

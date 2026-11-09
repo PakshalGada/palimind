@@ -188,6 +188,19 @@ async def update_embed_model(req: Request, scope: str = "field"):
         return {"error": "embed_model is required"}
     if scope.startswith("agent:"):
         return {"status": "success", "note": "Embed model does not apply to an agent"}
+
+    # Ask the backend for the model's real dimension. Storing a stale
+    # `embed_dim` (e.g. 1024 after switching to a 768/384-dim model) used to
+    # break semantic search only at query time.
+    from palimind.config import load_config
+    from palimind.model_capabilities import probe_embedding_dim
+
+    base_url = ""
+    if server.state.active_field:
+        base_url = load_config(server.state.active_field).get("ollama_base_url", "")
+
+    embed_dim = await asyncio.to_thread(probe_embedding_dim, model_id, base_url)
+
     if scope == "chat":
         global_data = {}
         if server.GLOBAL_CONFIG_PATH.exists():
@@ -196,25 +209,51 @@ async def update_embed_model(req: Request, scope: str = "field"):
             except Exception:
                 pass
         global_data["embed_model"] = model_id
+        if embed_dim:
+            global_data["embed_dim"] = embed_dim
         server._write_global_config(global_data)
-        return {"status": "success"}
-    from palimind.config import config_path, load_config, palimind_dir, save_config
+        return {"status": "success", "embed_model": model_id, "embed_dim": embed_dim}
+    from palimind.config import save_config
 
+    root = None
     if scope.startswith("project:"):
         root = server._chat_root(scope)
         if root is None:
             return {"error": "Project not found"}
-        cfg = load_config(root)
-        cfg["embed_model"] = model_id
-        save_config(root, cfg)
-        return {"status": "success"}
-    if server.state.active_field:
-        cfg = load_config(server.state.active_field)
-        cfg["embed_model"] = model_id
-        p_dir = palimind_dir(server.state.active_field)
-        p_dir.mkdir(parents=True, exist_ok=True)
-        config_path(server.state.active_field).write_text(json.dumps(cfg, indent=2), "utf-8")
-    return {"status": "success"}
+    elif server.state.active_field:
+        root = server.state.active_field
+    if root is None:
+        return {"error": "No active workspace"}
+
+    cfg = load_config(root)
+    cfg["embed_model"] = model_id
+    if embed_dim:
+        cfg["embed_dim"] = embed_dim
+    save_config(root, cfg)
+
+    # Report whether the existing vectors match; semantic search stays usable
+    # by querying with the stamped model until the rebuild finishes.
+    reindex_required = False
+    index_dim = None
+    try:
+        from palimind.storage.vector_store import index_dimension
+
+        index_dim = await asyncio.to_thread(index_dimension, root)
+        reindex_required = bool(index_dim and embed_dim and embed_dim != index_dim)
+    except Exception:
+        pass
+    return {
+        "status": "success",
+        "embed_model": model_id,
+        "embed_dim": embed_dim,
+        "index_dim": index_dim,
+        "reindex_required": reindex_required,
+        "message": (
+            "Re-index this workspace so query and document vectors match."
+            if reindex_required
+            else "Embedding model saved."
+        ),
+    }
 
 
 @router.get("/moe/hardware-check")

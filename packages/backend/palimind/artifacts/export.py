@@ -34,11 +34,7 @@ def _plain_text(content: str) -> str:
 def _html_document(title: str, content: str, artifact_type: str) -> str:
     if artifact_type == "html" and "<html" in content.lower():
         return content
-    body = (
-        content
-        if artifact_type in {"html", "svg"}
-        else f"<pre>{html_lib.escape(content)}</pre>"
-    )
+    body = content if artifact_type in {"html", "svg"} else f"<pre>{html_lib.escape(content)}</pre>"
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -106,16 +102,16 @@ def _minimal_pdf(title: str, text: str) -> bytes:
         lines_pdf = []
         y = height - margin
         for line in page:
-            lines_pdf.append(
-                f"BT /F1 10 Tf 1 0 0 1 {margin} {y} Tm ({escape(line)}) Tj ET"
-            )
+            lines_pdf.append(f"BT /F1 10 Tf 1 0 0 1 {margin} {y} Tm ({escape(line)}) Tj ET")
             y -= line_height
         stream = "\n".join(lines_pdf).encode("latin-1", "replace")
         objects.append(
             f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width} {height}] "
             f"/Resources << /Font << /F1 3 0 R >> >> /Contents {content_id} 0 R >>".encode()
         )
-        objects.append(b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream")
+        objects.append(
+            b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream"
+        )
 
     out = bytearray(b"%PDF-1.4\n")
     offsets = [0]
@@ -185,13 +181,17 @@ def _docx_bytes(title: str, content: str) -> bytes:
                 table.style = "Table Grid"
                 for row_index, row in enumerate(rows):
                     for column in range(columns):
-                        table.cell(row_index, column).text = row[column] if column < len(row) else ""
+                        table.cell(row_index, column).text = (
+                            row[column] if column < len(row) else ""
+                        )
                 document.add_paragraph("")
             continue
 
         heading = re.match(r"^(#{1,4})\s+(.*)$", line)
         if heading:
-            document.add_heading(_inline_text(heading.group(2)), level=min(4, len(heading.group(1))))
+            document.add_heading(
+                _inline_text(heading.group(2)), level=min(4, len(heading.group(1)))
+            )
             continue
         bullet = re.match(r"^\s*[-*+]\s+(.*)$", line)
         if bullet:
@@ -585,8 +585,12 @@ def _render_cards(slide, bullets: list[str]) -> None:
         x = left + column * (card_w + gap_x)
         y = top + row * (card_h + gap_y)
         _add_rect(slide, x, y, card_w, card_h, fill=_DECK_CARD, line="E2E8F0", rounded=True)
-        _add_rect(slide, x, y, 0.07, card_h, fill=_DECK_ACCENT if index % 2 == 0 else _DECK_ACCENT_2)
-        _add_text(slide, label or "Point", x + 0.24, y + 0.22, card_w - 0.42, 0.5, size=15, bold=True)
+        _add_rect(
+            slide, x, y, 0.07, card_h, fill=_DECK_ACCENT if index % 2 == 0 else _DECK_ACCENT_2
+        )
+        _add_text(
+            slide, label or "Point", x + 0.24, y + 0.22, card_w - 0.42, 0.5, size=15, bold=True
+        )
         if detail:
             _add_text(
                 slide,
@@ -612,7 +616,9 @@ def _render_metrics(slide, metrics: list[tuple[str, str]]) -> None:
         x = left + index * (width + gap)
         value_size = 32 if len(value) <= 7 else 24 if len(value) <= 10 else 18
         _add_rect(slide, x, top, width, height, fill=_DECK_CARD, line="E2E8F0", rounded=True)
-        _add_rect(slide, x, top, width, 0.07, fill=_DECK_ACCENT if index % 2 == 0 else _DECK_ACCENT_2)
+        _add_rect(
+            slide, x, top, width, 0.07, fill=_DECK_ACCENT if index % 2 == 0 else _DECK_ACCENT_2
+        )
         _add_text(
             slide,
             value,
@@ -649,7 +655,9 @@ def _render_row_cards(slide, bullets: list[str]) -> None:
     for index, item in enumerate(items):
         y = top + index * (height + gap)
         _add_rect(slide, left, y, width, height, fill=_DECK_CARD, line="E2E8F0", rounded=True)
-        _add_rect(slide, left, y, 0.08, height, fill=_DECK_ACCENT if index % 2 == 0 else _DECK_ACCENT_2)
+        _add_rect(
+            slide, left, y, 0.08, height, fill=_DECK_ACCENT if index % 2 == 0 else _DECK_ACCENT_2
+        )
         _add_text(
             slide,
             f"{index + 1:02d}",
@@ -723,7 +731,9 @@ def _render_bullets(slide, bullets: list[str]) -> None:
                 run2.font.color.rgb = _rgb("334155")
 
 
-def _render_content(prs, slide_title: str, bullets: list[str], number: int, total: int, deck_title: str) -> None:
+def _render_content(
+    prs, slide_title: str, bullets: list[str], number: int, total: int, deck_title: str
+) -> None:
     slide = prs.slides.add_slide(prs.slide_layouts[6])
     slide.background.fill.solid()
     slide.background.fill.fore_color.rgb = _rgb(_DECK_WHITE)
@@ -736,7 +746,16 @@ def _render_content(prs, slide_title: str, bullets: list[str], number: int, tota
 
     metrics = [m for m in (_metric_of(b) for b in bullets) if m]
     if not bullets:
-        _add_text(slide, "Add detail in the next revision.", 0.8, 2.2, 4.0, 0.5, size=14, color=_DECK_MUTED)
+        _add_text(
+            slide,
+            "Add detail in the next revision.",
+            0.8,
+            2.2,
+            4.0,
+            0.5,
+            size=14,
+            color=_DECK_MUTED,
+        )
     elif len(metrics) >= 2 and len(metrics) >= len(bullets) - 1:
         _render_metrics(slide, metrics)
     elif sum(1 for b in bullets if ":" in b or "—" in b) >= 2 and len(bullets) <= 6:
@@ -785,7 +804,11 @@ def _pptx_bytes(
     artifact_type: str,
     slides: Any | None = None,
 ) -> bytes:
-    specs = _normalise_slides(slides) if slides is not None else _slide_specs(title, content, artifact_type)
+    specs = (
+        _normalise_slides(slides)
+        if slides is not None
+        else _slide_specs(title, content, artifact_type)
+    )
     return _pptx_from_specs(title, specs)
 
 

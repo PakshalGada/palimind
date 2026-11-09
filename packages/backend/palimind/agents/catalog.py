@@ -5,6 +5,7 @@ import re
 import secrets
 import threading
 import uuid
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field, fields
 from datetime import UTC, datetime
 from pathlib import Path
@@ -136,6 +137,71 @@ TOOL_PACK_CHOICES = tuple(TOOL_PACKS)
 def resolve_tool_pack(pack: str) -> list[str]:
     """Return the tool ids for *pack* (empty list means unrestricted)."""
     return list(TOOL_PACKS.get(pack or "auto", []))
+
+
+def resolve_effective_tools(
+    definition: Any,
+    *,
+    extra_tools: Iterable[str] = (),
+    skill_tools: Iterable[str] = (),
+) -> list[str]:
+    """Compose an agent's visible tool allowlist.
+
+    A desktop grant is a capability, not just a permission bit: an agent with
+    ``desktop_access``/``desktop_control`` must see the desktop tools even when
+    its ``tool_pack`` is ``auto`` or its hand-written tool list predates the
+    pack. Otherwise a user can grant Computer Use and the agent still answers
+    "desktop_* is not in my tool set".
+    """
+
+    pack = str(getattr(definition, "tool_pack", "") or "auto")
+    pack_tools = resolve_tool_pack(pack) if pack not in ("auto", "custom") else []
+    desktop_granted = bool(
+        getattr(definition, "desktop_access", False)
+        or getattr(definition, "desktop_control", False)
+    )
+    desktop_tools = resolve_tool_pack("desktop") if desktop_granted else []
+    return list(
+        dict.fromkeys(
+            [
+                *(getattr(definition, "tools", None) or []),
+                *pack_tools,
+                *desktop_tools,
+                *skill_tools,
+                *extra_tools,
+            ]
+        )
+    )
+
+
+def pinned_tools_for(definition: Any, task: str | None = None) -> list[str]:
+    """Tools the router must keep visible even in a narrow top-k window.
+
+    Desktop tools are operational capabilities: hiding ``desktop_snapshot`` or
+    ``desktop_act`` because the task did not contain the word "desktop" makes
+    the grant useless. Keep the minimum observation/action set pinned whenever
+    the agent holds a desktop grant and the task looks desktop-related.
+    """
+
+    if not (
+        getattr(definition, "desktop_access", False)
+        or getattr(definition, "desktop_control", False)
+    ):
+        return []
+    if task is not None:
+        from palimind.agents.tool_router import is_desktop_task
+
+        if not is_desktop_task(task):
+            return []
+    return [
+        "desktop_status",
+        "desktop_apps",
+        "desktop_snapshot",
+        "desktop_find",
+        "desktop_act",
+        "desktop_launch",
+        "desktop_browser",
+    ]
 
 
 # Risky tools (write/shell/browser mutations) require human approval by

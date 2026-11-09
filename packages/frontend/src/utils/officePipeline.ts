@@ -51,9 +51,13 @@ export function buildOfficePayload(
         artifact.type === 'markdown' ||
         artifact.type === 'table',
     ) || artifacts[0];
+  // Markdown fences are intentionally not artifacts anymore, but the Word
+  // export still needs the fence body (not the ``` markers) as its source.
+  const markdownFence = text.match(/```(?:markdown|md)\s*\n([\s\S]*?)\n```/i);
+  const markdownTitle = markdownFence?.[1]?.match(/^#\s+(.+)$/m)?.[1]?.trim();
   return {
     format,
-    title: document?.title || fallbackTitle,
-    content: document?.content || text,
+    title: document?.title || markdownTitle || fallbackTitle,
+    content: document?.content || markdownFence?.[1] || text,
   };
 }

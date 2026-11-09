@@ -83,7 +83,9 @@ def test_skill_folder_and_library(env, tmp_path) -> None:
         {"id": "lib-skill", "name": "Lib", "description": "d", "instructions": "one"}
     )
     assert created["revision"] == 1
-    revised = skills_library.revise_skill("lib-skill", 1, {"name": "Lib", "description": "d", "instructions": "two"})
+    revised = skills_library.revise_skill(
+        "lib-skill", 1, {"name": "Lib", "description": "d", "instructions": "two"}
+    )
     assert revised["revision"] == 2
     with pytest.raises(ValueError):
         skills_library.revise_skill("lib-skill", 1, {"name": "Lib", "instructions": "stale"})
@@ -189,7 +191,11 @@ def test_worker_failover_uses_backup_model(env) -> None:
                 "tool_calls": [],
                 "usage": {},
             }
-        return {"content": "FINAL_ANSWER:\nbackup worked", "tool_calls": [], "usage": {"prompt_tokens": 3, "completion_tokens": 2}}
+        return {
+            "content": "FINAL_ANSWER:\nbackup worked",
+            "tool_calls": [],
+            "usage": {"prompt_tokens": 3, "completion_tokens": 2},
+        }
 
     output = run_agent(
         1,
@@ -205,5 +211,3 @@ def test_worker_failover_uses_backup_model(env) -> None:
     assert "backup" in calls
     assert "backup worked" in output
     assert any(event.get("type") == "agent:failover" for event in events)
-
-

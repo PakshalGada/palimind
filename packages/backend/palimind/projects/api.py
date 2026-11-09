@@ -149,9 +149,7 @@ async def sync_project_kb(project_id: str):
 async def list_project_artifacts(project_id: str, include_content: bool = False):
     await asyncio.to_thread(_get_project_or_404, project_id)
     return {
-        "artifacts": await asyncio.to_thread(
-            artifacts.list_artifacts, project_id, include_content
-        )
+        "artifacts": await asyncio.to_thread(artifacts.list_artifacts, project_id, include_content)
     }
 
 
@@ -181,9 +179,7 @@ async def add_project_artifact_version(project_id: str, artifact_id: str, req: R
     await asyncio.to_thread(_get_project_or_404, project_id)
     body = _json_body(await req.json())
     try:
-        return await asyncio.to_thread(
-            artifacts.add_version, project_id, artifact_id, body
-        )
+        return await asyncio.to_thread(artifacts.add_version, project_id, artifact_id, body)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -193,9 +189,7 @@ async def add_project_artifact_version(project_id: str, artifact_id: str, req: R
 @router.delete("/{project_id}/artifacts/{artifact_id}")
 async def delete_project_artifact(project_id: str, artifact_id: str):
     await asyncio.to_thread(_get_project_or_404, project_id)
-    removed = await asyncio.to_thread(
-        artifacts.delete_artifact, project_id, artifact_id
-    )
+    removed = await asyncio.to_thread(artifacts.delete_artifact, project_id, artifact_id)
     if not removed:
         raise HTTPException(status_code=404, detail="Artifact not found")
     return {"status": "success", "deleted": True}
@@ -227,9 +221,7 @@ async def export_project_artifact_format(project_id: str, artifact_id: str, req:
         )
     except Exception:
         pass
-    filename = artifact_export.export_filename(
-        str(artifact.get("title") or "artifact"), extension
-    )
+    filename = artifact_export.export_filename(str(artifact.get("title") or "artifact"), extension)
     return Response(
         content=data,
         media_type=media_type,

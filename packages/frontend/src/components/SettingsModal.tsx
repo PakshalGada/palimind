@@ -91,6 +91,8 @@ interface DesktopStatusData {
   state_root?: string;
   permissions?: { accessibility?: { state?: string } };
   kernel_input?: { accessible?: boolean; detail?: string };
+  input_backend?: string;
+  screencast_token?: boolean;
   capabilities?: Record<string, boolean | string>;
   policy?: {
     enabled?: boolean;
@@ -129,7 +131,7 @@ export default function SettingsModal() {
   const [sttMsg, setSttMsg] = useState('');
   const [sttError, setSttError] = useState(false);
   const [sttBusy, setSttBusy] = useState(false);
-  const [embedModel, setEmbedModel] = useState('nomic-embed-text');
+  const [embedModel, setEmbedModel] = useState('bge-m3');
   const [embedModelMsg, setEmbedModelMsg] = useState('');
   const [embedModelError, setEmbedModelError] = useState(false);
   const [embedModelBusy, setEmbedModelBusy] = useState(false);
@@ -272,8 +274,17 @@ export default function SettingsModal() {
         setEmbedModelMsg(res.error);
         setEmbedModelError(true);
       } else {
-        setEmbedModelMsg('Saved — reindex to apply');
-        setTimeout(() => setEmbedModelMsg(''), 3000);
+        const dim = res.embed_dim ? ` (${res.embed_dim}-dim)` : '';
+        setEmbedModelMsg(
+          res.reindex_required
+            ? `Saved${dim} — reindex this workspace so query and document vectors match`
+            : `Saved${dim}`,
+        );
+        if (res.reindex_required) {
+          setTimeout(() => setEmbedModelMsg(''), 6000);
+        } else {
+          setTimeout(() => setEmbedModelMsg(''), 3000);
+        }
       }
     } catch (e) {
       setEmbedModelMsg(e instanceof Error ? e.message : String(e));
@@ -643,10 +654,11 @@ export default function SettingsModal() {
                     value={embedModel}
                     onChange={setEmbedModel}
                     options={[
+                      { value: 'bge-m3', label: 'BGE-M3', description: '566M params, 1024-dim (multilingual, recommended)' },
                       { value: 'nomic-embed-text', label: 'Nomic Embed Text', description: '137M params, 768-dim' },
                       { value: 'nomic-embed-text:v1.5', label: 'Nomic Embed Text v1.5', description: '137M params, 768-dim (better quality)' },
-                      { value: 'BAAI/bge-base-en-v1.5', label: 'BGE Base English v1.5', description: '109M params, 768-dim' },
-                      { value: 'BAAI/bge-small-en-v1.5', label: 'BGE Small English v1.5', description: '33M params, 384-dim (lightweight)' },
+                      { value: 'mxbai-embed-large', label: 'MixedBread Embed Large', description: '335M params, 1024-dim' },
+                      { value: 'all-minilm', label: 'All-MiniLM', description: '23M params, 384-dim (fastest, lower quality)' },
                     ]}
                   />
                 </div>
@@ -739,6 +751,14 @@ export default function SettingsModal() {
                         {desktop.status.kernel_input?.accessible
                           ? 'available'
                           : desktop.status.kernel_input?.detail ?? 'unavailable'}
+                      </strong>
+                    </li>
+                    <li>
+                      Wayland capture:{' '}
+                      <strong>
+                        {desktop.status.screencast_token
+                          ? 'ScreenCast approved'
+                          : 'ScreenCast approval needed on first capture'}
                       </strong>
                     </li>
                     <li>

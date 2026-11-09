@@ -387,6 +387,26 @@ async def orchestrate(
         )
         timings["plan"] = time.monotonic() - t
 
+    # A desktop-granted agent must carry its operational tools into every
+    # worker, not just the parent definition. The planner's default roles only
+    # name web_search/run_python, which is how a desktop request ended up with
+    # only file tools visible.
+    if definition is not None and (
+        getattr(definition, "desktop_access", False)
+        or getattr(definition, "desktop_control", False)
+    ):
+        from palimind.agents.catalog import pinned_tools_for, resolve_tool_pack
+        from palimind.agents.tool_router import is_desktop_task
+
+        if is_desktop_task(task):
+            desktop_tools = resolve_tool_pack("desktop")
+            pinned = pinned_tools_for(definition, task)
+            for sub_task in subtasks:
+                sub_task["tools"] = list(
+                    dict.fromkeys([*sub_task.get("tools", []), *desktop_tools])
+                )
+                sub_task["pinned_tools"] = pinned
+
     await send(
         "orchestrator:plan",
         {

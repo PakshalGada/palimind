@@ -433,8 +433,19 @@ def x_search(query: str, max_results: int = 8) -> str:
 # ── workspace knowledge tools ─────────────────────────────────────────────
 
 
-def document_search(query: str, limit: int = 6) -> str:
-    """Search the user's indexed documents (hybrid semantic + BM25 + rerank)."""
+def document_search(
+    query: str,
+    limit: int = 6,
+    doc_year: int | None = None,
+    doc_type: str | None = None,
+    entity_name: str | None = None,
+    section: str | None = None,
+) -> str:
+    """Search the user's indexed documents (hybrid semantic + BM25 + rerank).
+
+    Optional metadata filters narrow the search to a year, document type,
+    entity or section title before fusion.
+    """
     ctx = _get_context()
     root = ctx.get("root")
     if root is None:
@@ -462,15 +473,23 @@ def document_search(query: str, limit: int = 6) -> str:
             rerank_model=config.get("rerank_model") or "cross-encoder/ms-marco-MiniLM-L-6-v2",
             query_rewrite_enabled=bool(config.get("query_rewrite", True)),
             context_token_budget=config.get("context_token_budget"),
+            doc_year=doc_year,
+            doc_type=doc_type,
+            entity_name=entity_name,
+            section_title=section,
         )
     except Exception as e:
         return f"[document search unavailable: {e}]"
 
     results = context.get("results", [])
+    warnings = list(context.get("errors") or [])
     if not results:
-        return f"No indexed documents matched '{query}'."
+        hint = f"\nRetrieval diagnostics: {'; '.join(warnings[:3])}" if warnings else ""
+        return f"No indexed documents matched '{query}'.{hint}"
 
     parts = [f"=== DOCUMENT SEARCH RESULTS FOR: '{query}' ===\n"]
+    if warnings:
+        parts.append("[retrieval warning: " + "; ".join(str(w) for w in warnings[:3]) + "]\n")
     for idx, r in enumerate(results, start=1):
         fp = r.get("file_path", "") or "unknown"
         sec = r.get("section_title", "") or r.get("main_section", "")
@@ -815,7 +834,9 @@ def _normalize_todos(items: Any) -> list[dict[str, str]]:
             pass
         # A newline/;-separated list is a common fallback.
         parts = [p.strip(" -•\t") for p in re.split(r"[\n;]+", text) if p.strip()]
-        return [{"id": str(i + 1), "label": p[:500], "status": "pending"} for i, p in enumerate(parts)]
+        return [
+            {"id": str(i + 1), "label": p[:500], "status": "pending"} for i, p in enumerate(parts)
+        ]
     if isinstance(items, dict):
         items = items.get("items") or items.get("todos") or [items]
     if not isinstance(items, (list, tuple)):
@@ -827,11 +848,7 @@ def _normalize_todos(items: Any) -> list[dict[str, str]]:
             label, status = item, "pending"
         elif isinstance(item, dict):
             label = str(
-                item.get("label")
-                or item.get("title")
-                or item.get("text")
-                or item.get("task")
-                or ""
+                item.get("label") or item.get("title") or item.get("text") or item.get("task") or ""
             )
             status = str(item.get("status") or "pending").strip().lower()
             status = _TODO_ALIASES.get(status, status)
@@ -966,7 +983,9 @@ def ask_user(
             options = parsed if isinstance(parsed, list) else [options]
         except (TypeError, ValueError):
             options = [part.strip() for part in options.split("|") if part.strip()]
-    choices = [str(item) for item in (options or [])][:8] if isinstance(options, (list, tuple)) else []
+    choices = (
+        [str(item) for item in (options or [])][:8] if isinstance(options, (list, tuple)) else []
+    )
 
     def should_cancel() -> bool:
         control = ctx.get("run_control")
@@ -1250,11 +1269,31 @@ TOOL_REGISTRY: dict[str, dict] = {
     },
     "document_search": {
         "fn": document_search,
-        "description": "Search the user's indexed workspace documents (semantic + keyword).",
+        "description": (
+            "Search the user's indexed workspace documents (semantic + keyword). "
+            "Optionally filter by document year, type, entity or section."
+        ),
         "parameters": {
             "query": _p(description="The search query"),
             "limit": _p(
                 type="integer", description="Maximum chunks to return (default 6)", default=6
+            ),
+            "doc_year": _p(
+                type="integer",
+                required=False,
+                description="Only search documents from this year",
+            ),
+            "doc_type": _p(
+                required=False,
+                description="Only search this document type (report, paper, contract, memo, …)",
+            ),
+            "entity_name": _p(
+                required=False,
+                description="Only search documents mentioning this entity/company",
+            ),
+            "section": _p(
+                required=False,
+                description="Only search chunks whose section title matches this text",
             ),
         },
         "meta": _meta(1, False),

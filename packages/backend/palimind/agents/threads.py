@@ -74,7 +74,15 @@ def create_thread(
                  created_at, updated_at, archived_at)
             VALUES (?, ?, ?, ?, '', 'active', ?, ?, ?, NULL)
             """,
-            (thread_id, agent_id, kind, provider, json.dumps({"metadata": metadata or {}}), now, now),
+            (
+                thread_id,
+                agent_id,
+                kind,
+                provider,
+                json.dumps({"metadata": metadata or {}}),
+                now,
+                now,
+            ),
         )
         conn.commit()
     finally:
@@ -188,7 +196,12 @@ def update_thread(thread_id: str, **changes: Any) -> dict[str, Any] | None:
 
 
 def bind_provider_session(
-    thread_id: str, provider: str, session_id: str, *, fingerprint: str = "", metadata: dict[str, Any] | None = None
+    thread_id: str,
+    provider: str,
+    session_id: str,
+    *,
+    fingerprint: str = "",
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     now = _now()
     conn = state_store.state_connection()

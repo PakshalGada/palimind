@@ -24,6 +24,9 @@ use serde_json::{Value, json};
 pub const PROTECTED_APPS: &[&str] = &[
     "gnome-shell",
     "org.gnome.shell",
+    // GNOME Shell's own UI process is exposed on the accessibility bus as
+    // gjs-console. Treat it as the shell, not as a user application.
+    "gjs-console",
     "plasmashell",
     "plasma-desktop",
     "kwin",

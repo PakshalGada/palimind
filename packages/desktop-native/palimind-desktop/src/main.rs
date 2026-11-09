@@ -3,8 +3,8 @@
 //! One binary, two modes:
 //!
 //! * one-shot CLI (`status`, `apps`, `snapshot`, `find`, `wait`, `act`,
-//!   `screenshot`, `launch`) for debugging and for the Python client's
-//!   fallback path;
+//!   `screenshot`, `screencast`, `launch`) for debugging and for the Python
+//!   client's fallback path;
 //! * `serve`, a newline-delimited JSON-RPC daemon over stdio that the Python
 //!   backend supervises.
 //!
@@ -16,6 +16,7 @@ mod commands;
 mod daemon;
 mod envelope;
 mod policy;
+mod screencast;
 mod state;
 mod targeting;
 mod uinput;
@@ -74,9 +75,9 @@ enum Command {
         /// Explicit escape hatch: full tree, compact off.
         #[arg(long)]
         full: bool,
-        #[arg(long = "max-depth", default_value_t = 12)]
+        #[arg(long = "max-depth", default_value_t = 40)]
         max_depth: u8,
-        #[arg(long = "max-nodes", default_value_t = 300)]
+        #[arg(long = "max-nodes", default_value_t = 500)]
         max_nodes: usize,
         /// Snapshot deadline in milliseconds (large Chromium windows need more).
         #[arg(long = "timeout-ms")]
@@ -171,6 +172,16 @@ enum Command {
     Launch {
         #[arg(long)]
         app: String,
+    },
+    /// Capture the screen once through the persistent ScreenCast portal.
+    Screencast {
+        /// Output PNG path (defaults under the artifact directory).
+        #[arg(long)]
+        out: Option<std::path::PathBuf>,
+        #[arg(long = "consent-ms", default_value_t = 30_000)]
+        consent_ms: u64,
+        #[arg(long = "capture-ms", default_value_t = 10_000)]
+        capture_ms: u64,
     },
     /// Run the stdio JSON-RPC daemon used by the Python backend.
     Serve {
@@ -412,6 +423,46 @@ fn dispatch(
             "serve",
             agent_desktop_core::AppError::Internal("serve is handled before dispatch".into()),
         ),
+        Command::Screencast {
+            out,
+            consent_ms,
+            capture_ms,
+        } => {
+            let path = out.unwrap_or_else(|| {
+                policy.artifacts_dir().join(format!(
+                    "screencast-{}-{}.png",
+                    std::process::id(),
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map_or(0, |elapsed| elapsed.as_nanos())
+                ))
+            });
+            if let Err(error) = policy.prepare_dirs() {
+                return Envelope::err("screencast", agent_desktop_core::AppError::Io(error));
+            }
+            match screencast::capture_screen(
+                policy.desktop_dir(),
+                &path,
+                std::time::Duration::from_millis(consent_ms),
+                std::time::Duration::from_millis(capture_ms),
+            ) {
+                Ok(capture) => Envelope::ok(
+                    "screencast",
+                    serde_json::json!({
+                        "path": capture.path.to_string_lossy(),
+                        "format": "png",
+                        "width": capture.width,
+                        "height": capture.height,
+                        "scale_factor": 1.0,
+                        "scope": "screen",
+                        "node_id": capture.node_id,
+                        "restore_token_saved": capture.restore_token_saved,
+                        "note": "ScreenCast captures the whole monitor. Local only; never uploaded.",
+                    }),
+                ),
+                Err(error) => Envelope::err("screencast", error.into()),
+            }
+        }
     }
 }
 

@@ -202,7 +202,8 @@ def _public(artifact: dict[str, Any], *, include_content: bool = False) -> dict[
     out = {
         key: value
         for key, value in artifact.items()
-        if key in {
+        if key
+        in {
             "id",
             "project_id",
             "title",
@@ -301,7 +302,9 @@ def _find(index: dict[str, Any], artifact_id: str) -> dict[str, Any]:
     raise FileNotFoundError(f"Artifact not found: {artifact_id}")
 
 
-def _version_file(project_id: str, artifact: dict[str, Any], version: int | None) -> tuple[Path, dict[str, Any]]:
+def _version_file(
+    project_id: str, artifact: dict[str, Any], version: int | None
+) -> tuple[Path, dict[str, Any]]:
     versions = [v for v in artifact.get("versions", []) if isinstance(v, dict)]
     if not versions:
         raise FileNotFoundError("Artifact has no stored versions")

@@ -48,7 +48,9 @@ class FailoverGate:
         self._held: dict[str, float] = {}
 
     def hold(self, model_id: str, *, until: float | None = None) -> None:
-        self._held[str(model_id)] = float(until if until is not None else time.time() + self.hold_seconds)
+        self._held[str(model_id)] = float(
+            until if until is not None else time.time() + self.hold_seconds
+        )
 
     def release(self, model_id: str) -> None:
         self._held.pop(str(model_id), None)

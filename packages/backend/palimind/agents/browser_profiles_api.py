@@ -21,7 +21,11 @@ async def list_profiles():
 async def create_profile(req: Request):
     body = await req.json()
     try:
-        return {"profile": browser_profiles.create_profile(str(body.get("name") or ""), color=str(body.get("color") or ""))}
+        return {
+            "profile": browser_profiles.create_profile(
+                str(body.get("name") or ""), color=str(body.get("color") or "")
+            )
+        }
     except Exception as exc:  # noqa: BLE001
         return {"error": str(exc)}
 

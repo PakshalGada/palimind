@@ -113,9 +113,7 @@ def test_default_llm_mode_searches_web_and_emits_citations(monkeypatch) -> None:
         return iter(["The quantum result is real [1]."])
 
     monkeypatch.setattr("palimind.core.web_search.perform_web_search", fake_search)
-    monkeypatch.setattr(
-        "palimind.generative.responder.generate_response_stream", fake_generate
-    )
+    monkeypatch.setattr("palimind.generative.responder.generate_response_stream", fake_generate)
 
     async def main():
         response = await llm_stream.llm_mode_stream(
@@ -168,9 +166,7 @@ def test_moe_force_web_skips_direct_path_and_adds_researcher(monkeypatch) -> Non
         calls.append(query)
         return FORMATTED_SEARCH
 
-    plan = json.dumps(
-        [{"agent_id": 1, "label": "Analyst", "task": "answer", "tools": []}]
-    )
+    plan = json.dumps([{"agent_id": 1, "label": "Analyst", "task": "answer", "tools": []}])
     monkeypatch.setattr(
         orchestrator,
         "llm_chat_safe",

@@ -29,6 +29,8 @@ _KNOWN: tuple[tuple[str, frozenset[str], int, int], ...] = (
     ("nomic-embed-text", frozenset({"embedding"}), 8192, 768),
     ("bge-m3", frozenset({"embedding"}), 8192, 1024),
     ("bge-large", frozenset({"embedding"}), 512, 1024),
+    ("bge-base", frozenset({"embedding"}), 512, 768),
+    ("bge-small", frozenset({"embedding"}), 512, 384),
     ("mxbai-embed-large", frozenset({"embedding"}), 512, 1024),
     ("all-minilm", frozenset({"embedding"}), 512, 384),
     ("snowflake-arctic-embed", frozenset({"embedding"}), 8192, 1024),
@@ -226,6 +228,36 @@ def get_capabilities(
     with _cache_lock:
         _cache[key] = (now, caps)
     return caps
+
+
+def probe_embedding_dim(model_id: str, base_url: str) -> int:
+    """Ask Ollama for a real embedding and return its dimension.
+
+    Falls back to the name-inferred dimension, then 0 when unknown. This lets
+    the settings endpoint store the *actual* dimension instead of leaving a
+    stale default that would break the next query.
+    """
+    inferred = infer_from_name(model_id).embedding_dim
+    if not base_url:
+        return inferred
+    try:
+        import httpx
+
+        url = f"{base_url.rstrip('/')}/api/embed"
+        resp = httpx.post(
+            url,
+            json={"model": model_id, "input": "dimension probe"},
+            timeout=httpx.Timeout(connect=2.0, read=20.0, write=2.0, pool=2.0),
+            headers=proxy_auth_headers(url),
+        )
+        if resp.status_code < 400:
+            data = resp.json()
+            embeddings = data.get("embeddings") or []
+            if embeddings and embeddings[0]:
+                return len(embeddings[0])
+    except Exception:
+        pass
+    return inferred
 
 
 def clear_cache() -> None:

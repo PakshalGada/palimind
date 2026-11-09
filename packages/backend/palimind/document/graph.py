@@ -629,13 +629,34 @@ def _build_doc_graph_incremental_locked(
     return existing
 
 
+_GRAPH_CACHE: dict[str, tuple[int, int, DocGraph]] = {}
+
+
 def load_doc_graph(
     root: Path, ollama_url: str = "", light_model: str = "", force_rebuild: bool = False
 ) -> DocGraph:
-    """Load the graph from disk. Never calls an LLM unless *force_rebuild*."""
+    """Load the graph from disk. Never calls an LLM unless *force_rebuild*.
+
+    The parsed graph is cached by file mtime/size. A new engine is created for
+    every chat turn, and re-parsing a multi-hundred-KB JSON on each question
+    was a significant part of retrieval latency.
+    """
     if force_rebuild:
+        _GRAPH_CACHE.pop(str(root), None)
         return build_doc_graph(root, ollama_url, light_model)
+    path = palimind_dir(root) / GRAPH_FILE
+    try:
+        stat = path.stat()
+        key = str(root)
+        cached = _GRAPH_CACHE.get(key)
+        if cached and cached[0] == stat.st_mtime_ns and cached[1] == stat.st_size:
+            return cached[2]
+    except OSError:
+        key = ""
+        stat = None
     g = DocGraph.load(root)
     if g is not None and len(g.nodes) > 0:
+        if key and stat is not None:
+            _GRAPH_CACHE[key] = (stat.st_mtime_ns, stat.st_size, g)
         return g
     return DocGraph(root)

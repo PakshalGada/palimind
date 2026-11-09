@@ -52,7 +52,9 @@ def render(team_id: str, limit_chars: int = 12000) -> str:
     lines: list[str] = []
     used = 0
     for entry in reversed(items):
-        line = f"- [{entry.get('author', '?')}] {entry.get('label', '')}: {entry.get('content', '')}"
+        line = (
+            f"- [{entry.get('author', '?')}] {entry.get('label', '')}: {entry.get('content', '')}"
+        )
         if used + len(line) > limit_chars:
             break
         lines.append(line)

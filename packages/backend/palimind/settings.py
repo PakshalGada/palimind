@@ -301,9 +301,7 @@ AGENT_FRONTIER_MODELS: list[str] = [
 ]
 
 # Minimum complexity level that may jump to a frontier fallback.
-AGENT_FRONTIER_MIN_COMPLEXITY: str = (
-    _env_str("PALIMIND_FRONTIER_MIN_COMPLEXITY", "high") or "high"
-)
+AGENT_FRONTIER_MIN_COMPLEXITY: str = _env_str("PALIMIND_FRONTIER_MIN_COMPLEXITY", "high") or "high"
 
 # OpenAI-compatible base URL for the hosted fallback. The default is OpenCode
 # Zen, which serves models like grok-4.7 with native tool calls.
@@ -373,7 +371,9 @@ GOALS_TICK: int = _env_int("PALIMIND_GOALS_TICK", 15)
 
 # Bearer token for X API v2 recent search. Empty = fall back to the public web
 # index (DuckDuckGo site search), which needs no credentials.
-X_BEARER_TOKEN: str = _env_str("PALIMIND_X_BEARER_TOKEN", "") or _env_str("X_BEARER_TOKEN", "") or ""
+X_BEARER_TOKEN: str = (
+    _env_str("PALIMIND_X_BEARER_TOKEN", "") or _env_str("X_BEARER_TOKEN", "") or ""
+)
 
 # Maximum recent-search results requested from X per query (API max is 100).
 X_API_MAX_RESULTS: int = _env_int("PALIMIND_X_API_MAX_RESULTS", 40)
@@ -392,6 +392,7 @@ SERVER_HOST: str = "127.0.0.1"
 
 # ── Computer use (Linux desktop control) ──────────────────────────────────
 
+
 def _env_csv(name: str, default: list[str]) -> list[str]:
     raw = os.environ.get(name, "")
     if raw.strip():
@@ -409,10 +410,24 @@ DESKTOP_INPUT_BACKEND: str = _env_str("PALIMIND_DESKTOP_INPUT_BACKEND", "auto") 
 # Screenshot policy: off | on_demand | always. Never automatic per step.
 DESKTOP_SCREENSHOT: str = _env_str("PALIMIND_DESKTOP_SCREENSHOT", "on_demand") or "on_demand"
 
-# Observation budgets enforced by the native layer.
-DESKTOP_MAX_NODES: int = _env_int("PALIMIND_DESKTOP_MAX_NODES", 300)
-DESKTOP_MAX_DEPTH: int = _env_int("PALIMIND_DESKTOP_MAX_DEPTH", 12)
+# Observation budgets enforced by the native layer. Chromium/web-content trees
+# nest the page content deeper than the old 12-level default, so a shallow cap
+# returned browser chrome only. The node budget still bounds tokens; the
+# formatter drops structural noise and caps the text it emits.
+DESKTOP_MAX_NODES: int = _env_int("PALIMIND_DESKTOP_MAX_NODES", 500)
+DESKTOP_MAX_DEPTH: int = _env_int("PALIMIND_DESKTOP_MAX_DEPTH", 40)
 DESKTOP_SNAPSHOT_TTL_S: int = _env_int("PALIMIND_DESKTOP_SNAPSHOT_TTL_S", 600)
+
+# Time budgets. Large accessibility trees are slow on the first observation
+# (and slower through a cold browser); a five-second default used to return a
+# partial tree. Override per call with timeout_ms when needed.
+DESKTOP_SNAPSHOT_TIMEOUT_MS: int = _env_int("PALIMIND_DESKTOP_SNAPSHOT_TIMEOUT_MS", 20_000)
+DESKTOP_FIND_TIMEOUT_MS: int = _env_int("PALIMIND_DESKTOP_FIND_TIMEOUT_MS", 15_000)
+
+# Follow a mutating action with a bounded observation of the same target and
+# report what changed. This turns "delivered_unverified" into actionable
+# feedback for the agent. Disable for latency-sensitive runs.
+DESKTOP_VERIFY_ACTIONS: bool = _env_bool("PALIMIND_DESKTOP_VERIFY_ACTIONS", True)
 
 # Action rate limit (actions per minute).
 DESKTOP_ACTION_RATE: int = _env_int("PALIMIND_DESKTOP_ACTION_RATE", 30)
@@ -425,6 +440,7 @@ DESKTOP_BLOCKED_APPS: list[str] = _env_csv(
     "PALIMIND_DESKTOP_BLOCKED_APPS",
     [
         "gnome-shell",
+        "gjs-console",
         "plasmashell",
         "kwin_wayland",
         "kwin_x11",

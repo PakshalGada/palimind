@@ -624,12 +624,16 @@ version = "0.1.0"
 dependencies = [
  "agent-desktop-core",
  "agent-desktop-linux",
+ "async-io",
  "base64",
  "clap",
+ "futures-lite",
+ "futures-util",
  "libc",
  "serde",
  "serde_json",
  "thiserror",
+ "zbus",
 ]
 
 [[package]]

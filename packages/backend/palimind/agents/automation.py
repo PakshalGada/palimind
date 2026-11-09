@@ -125,7 +125,9 @@ class AutomationServer:
         self._httpd = ThreadingHTTPServer((self.host, self.port), Handler)
         self.port = int(self._httpd.server_address[1])
         self._write_files()
-        self._thread = threading.Thread(target=self._httpd.serve_forever, name="palimind-automation", daemon=True)
+        self._thread = threading.Thread(
+            target=self._httpd.serve_forever, name="palimind-automation", daemon=True
+        )
         self._thread.start()
         return self.url
 
@@ -324,7 +326,9 @@ class AutomationServer:
             "browserTakeovers": [],
         }
 
-    def _respond_approval(self, agent_id: str, request_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    def _respond_approval(
+        self, agent_id: str, request_id: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
         from palimind.agents.runtime import resolve_approval
 
         decision = str(body.get("decision") or "")

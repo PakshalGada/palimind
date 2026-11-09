@@ -78,7 +78,9 @@ async def receive(route_id: str, req: Request):
     data = event.get("data")
     matched, reason = webhooks.matches(route, event_type, data)
     status = "accepted" if matched else f"ignored:{reason}"
-    is_new = webhooks.record_receipt(route_id, delivery_id, str(route.get("routine_id") or ""), status)
+    is_new = webhooks.record_receipt(
+        route_id, delivery_id, str(route.get("routine_id") or ""), status
+    )
     if not is_new:
         return JSONResponse({"status": "duplicate"}, status_code=200)
     if not matched:

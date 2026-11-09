@@ -75,10 +75,18 @@ def read_stamp(root: Path) -> dict[str, Any] | None:
         return None
 
 
-def write_stamp(root: Path, model: str, dim: int) -> None:
-    """Record which embedding model + dimension produced the index."""
+def write_stamp(root: Path, model: str, dim: int, chunker: int | None = None) -> None:
+    """Record which embedding model + dimension produced the index.
+
+    ``chunker`` records the chunker version so an index built with older
+    chunking semantics is rebuilt instead of being silently mixed with new
+    child chunks.
+    """
+    payload: dict[str, Any] = {"model": model, "dim": int(dim)}
+    if chunker is not None:
+        payload["chunker"] = int(chunker)
     try:
-        _atomic_write_text(_stamp_path(root), json.dumps({"model": model, "dim": int(dim)}))
+        _atomic_write_text(_stamp_path(root), json.dumps(payload))
     except Exception:
         pass
 
@@ -173,6 +181,9 @@ def index_load_error(root: Path, expected_model: str | None = None) -> str | Non
     return None
 
 
+_COMPAT_CACHE: dict[tuple[str, int, int, str, int], str | None] = {}
+
+
 def index_compatibility_error(
     root: Path,
     *,
@@ -181,52 +192,82 @@ def index_compatibility_error(
 ) -> str | None:
     """Return an actionable incompatibility message, or ``None`` if healthy.
 
-    Unlike :func:`index_load_error` this is safe to call on every query: it
-    checks the persisted index dimension, the stamp written at build time, and
-    the model/dimension the workspace is configured to use. A mismatch must be
-    surfaced to the user (and trigger a reindex) rather than silently degrading
-    to keyword-only search.
+    The result is cached by index mtime/size: this is called on the query path,
+    and re-reading a multi-megabyte FAISS file just to ask "is it compatible?"
+    used to dominate retrieval latency.
     """
     p = _index_path(root)
     if not p.exists():
         return None
 
     try:
-        index = faiss.read_index(str(p))
-    except Exception as e:
+        stat = p.stat()
+        key = (
+            str(p),
+            int(stat.st_mtime_ns),
+            int(stat.st_size),
+            str(expected_model or ""),
+            int(expected_dim or 0),
+        )
+        if key in _COMPAT_CACHE:
+            return _COMPAT_CACHE[key]
+    except OSError:
+        key = None
+
+    index_dim = index_dimension(root)
+    if not index_dim:
         return (
-            f"The vector index at {p} could not be loaded ({e}). "
+            f"The vector index at {p} could not be loaded. "
             "Rebuild it with 'pm update' (or re-run indexing from the UI)."
         )
 
     stamp = read_stamp(root)
-    index_dim = int(getattr(index, "d", 0) or 0)
+    problem: str | None = None
     if stamp:
         stamp_dim = int(stamp.get("dim") or 0)
         stamp_model = str(stamp.get("model") or "")
         if stamp_dim and index_dim and stamp_dim != index_dim:
-            return (
+            problem = (
                 f"Vector index dimension ({index_dim}) does not match its stamp "
                 f"({stamp_dim}). The index is corrupt; rebuild it with 'pm update'."
             )
-        if expected_model and stamp_model and stamp_model != expected_model:
-            return (
+        elif expected_model and stamp_model and stamp_model != expected_model:
+            problem = (
                 f"Embedding model changed ({stamp_model} → {expected_model}) but the "
                 "vector index was not rebuilt. Run 'pm update' (or re-index from the "
                 "UI) so semantic search does not silently return wrong results."
             )
-        if expected_dim and index_dim and int(expected_dim) != index_dim:
-            return (
-                f"Configured embedding dimension ({expected_dim}) does not match the "
-                f"index dimension ({index_dim}). Set embed_dim to match embed_model or "
-                "rebuild the index with 'pm update'."
-            )
+        else:
+            # Compare against the model's *known* output dimension rather than a
+            # possibly stale embed_dim value (which used to reject healthy
+            # nomic-768 indexes after a default of 1024).
+            expected = int(expected_dim or 0)
+            if expected_model:
+                try:
+                    from palimind.model_capabilities import infer_from_name
+
+                    known = int(infer_from_name(expected_model).embedding_dim or 0)
+                    if known:
+                        expected = known
+                except Exception:
+                    pass
+            if expected and expected != index_dim:
+                problem = (
+                    f"Configured embedding dimension ({expected}) does not match the "
+                    f"index dimension ({index_dim}). Set embed_dim to match embed_model "
+                    "or rebuild the index with 'pm update'."
+                )
     elif index_dim:
-        return (
+        problem = (
             "The vector index has no embedding-model stamp (it predates stamping). "
             "Rebuild it with 'pm update' so model/dimension mismatches can be detected."
         )
-    return None
+
+    if key is not None:
+        if len(_COMPAT_CACHE) > 64:
+            _COMPAT_CACHE.clear()
+        _COMPAT_CACHE[key] = problem
+    return problem
 
 
 def reset(root: Path) -> None:
@@ -487,6 +528,60 @@ class VectorStore:
 
         self._index = new_index
         self._removed.clear()
+
+
+def index_dimension(root: Path) -> int | None:
+    """Return the persisted index dimension, or None when no index is readable.
+
+    Uses the same process cache as search so callers do not re-read a large
+    FAISS file just to ask "how wide are these vectors?".
+    """
+    if not _index_path(root).exists():
+        return None
+    cached = _get_cached_search_data(root)
+    if cached:
+        return int(getattr(cached[0], "d", 0) or 0) or None
+    try:
+        return int(getattr(faiss.read_index(str(_index_path(root))), "d", 0) or 0) or None
+    except Exception:
+        return None
+
+
+def get_vectors(root: Path, chunk_ids: set[int] | list[int]) -> dict[int, list[float]]:
+    """Return the stored embedding for each requested chunk id.
+
+    Used by MMR diversity selection so it does not have to re-embed chunks or
+    load the (potentially huge) JSON embedding cache at query time.
+    """
+    cached = _get_cached_search_data(root)
+    if not cached or not chunk_ids:
+        return {}
+    index, _meta, _removed = cached
+    wanted = {int(cid) for cid in chunk_ids}
+    ntotal = int(getattr(index, "ntotal", 0) or 0)
+    if not ntotal:
+        return {}
+    try:
+        ext_ids = faiss.vector_to_array(index.id_map)  # type: ignore[attr-defined]
+    except Exception:
+        return {}
+    # Vectorised membership keeps this O(n) in C rather than a Python loop over
+    # every stored id, which matters for large indexes.
+    wanted_arr = np.fromiter(wanted, dtype=np.int64, count=len(wanted))
+    mask = np.isin(ext_ids, wanted_arr)
+    positions = {int(ext_ids[pos]): int(pos) for pos in np.nonzero(mask)[0]}
+    if not positions:
+        return {}
+    vectors: dict[int, list[float]] = {}
+    for cid, pos in positions.items():
+        try:
+            # IndexIDMap cannot reconstruct by external id; the wrapped index
+            # reconstructs by internal position.
+            vec = index.index.reconstruct(int(pos))  # type: ignore[attr-defined]
+            vectors[cid] = np.asarray(vec, dtype="float32").tolist()
+        except Exception:
+            continue
+    return vectors
 
 
 def search(

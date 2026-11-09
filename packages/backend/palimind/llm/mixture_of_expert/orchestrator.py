@@ -379,9 +379,7 @@ async def run_moe_pipeline(
         try:
             from palimind.generative.citation import parse_web_sources
 
-            briefing_sources = [
-                source.to_dict() for source in parse_web_sources(briefing)
-            ]
+            briefing_sources = [source.to_dict() for source in parse_web_sources(briefing)]
         except Exception:
             briefing_sources = []
         await emit(
@@ -389,8 +387,7 @@ async def run_moe_pipeline(
                 "type": "agent:tool_result",
                 "agent_id": 0,
                 "tool": "web_search",
-                "result": briefing_sources
-                or {"summary": "No live sources returned"},
+                "result": briefing_sources or {"summary": "No live sources returned"},
             }
         )
 

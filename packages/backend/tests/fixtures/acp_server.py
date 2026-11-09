@@ -43,9 +43,7 @@ def respond(request_id, result):
 
 
 def notify(update):
-    write_message(
-        {"jsonrpc": "2.0", "method": "session/update", "params": {"update": update}}
-    )
+    write_message({"jsonrpc": "2.0", "method": "session/update", "params": {"update": update}})
 
 
 def main() -> int:

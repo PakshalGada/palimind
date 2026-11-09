@@ -59,7 +59,9 @@ def _file_hash(root: Path, path: str) -> str | None:
 def test_non_utf8_text_file_does_not_abort_indexing(kb_root: Path) -> None:
     from palimind.rag.indexing import update_index
 
-    (kb_root / "latin1.txt").write_bytes("Caf\xe9 cr\xe8me br\xfbl\xe9e recipe notes".encode("latin-1"))
+    (kb_root / "latin1.txt").write_bytes(
+        "Caf\xe9 cr\xe8me br\xfbl\xe9e recipe notes".encode("latin-1")
+    )
     (kb_root / "ok.md").write_text("# Title\n\nSome perfectly fine text here.", encoding="utf-8")
 
     result = update_index(kb_root)
@@ -221,10 +223,11 @@ def test_semantic_cache_is_scoped_per_index(tmp_path: Path, monkeypatch) -> None
     # no errors, so the result is cacheable.
     monkeypatch.setattr(retrieve, "_index_exists", lambda _r: True)
     monkeypatch.setattr(retrieve, "index_compatibility_error", lambda *_a, **_k: None)
+    monkeypatch.setattr(retrieve, "index_dimension", lambda _r: 1024)
     monkeypatch.setattr(embedder, "generate_embeddings_batch", lambda *_a, **_k: [])
     monkeypatch.setattr(retrieve, "_build_candidate_ids", lambda _r, _f: None)
 
-    def fake_fts(conn, q, limit=5):  # noqa: ANN001
+    def fake_fts(conn, q, limit=5, **_kw):  # noqa: ANN001
         return [{"chunk_db_id": 1, "file_path": f"{conn}", "content": "hit"}]
 
     calls: list[Path] = []

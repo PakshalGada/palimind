@@ -42,3 +42,5 @@ also asserted by `tests/test_agent_capability_benchmark.py`.
 
 `desktop-dogfood-*.json` and `x11-validation-*.json` are produced by the
 existing desktop-use gates (`make desktop-dogfood`, `make desktop-x11-check`).
+`desktop-dogfood-2026-11-09.json` is the post-reliability-pass run: 20/20,
+zero screenshots, 50 snapshots.

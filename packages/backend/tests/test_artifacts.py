@@ -40,9 +40,7 @@ def test_global_artifact_library_and_exports(artifact_home: Path) -> None:
     assert client.get(f"/api/artifacts/{artifact_id}").json()["content"].startswith("# Hello")
 
     for fmt in ("md", "html", "pdf", "docx", "pptx", "png"):
-        response = client.post(
-            f"/api/artifacts/{artifact_id}/export", json={"format": fmt}
-        )
+        response = client.post(f"/api/artifacts/{artifact_id}/export", json={"format": fmt})
         assert response.status_code == 200, fmt
         assert len(response.content) > 10
         assert "attachment" in response.headers.get("content-disposition", "")
@@ -75,9 +73,9 @@ def test_project_artifact_export(artifact_home: Path) -> None:
     assert saved.status_code == 201
     artifact_id = saved.json()["id"]
 
-    listed = client.get(
-        f"/api/projects/{project['id']}/artifacts?include_content=true"
-    ).json()["artifacts"]
+    listed = client.get(f"/api/projects/{project['id']}/artifacts?include_content=true").json()[
+        "artifacts"
+    ]
     assert listed[0]["content"].startswith("# Intro")
 
     exported = client.post(
@@ -88,4 +86,6 @@ def test_project_artifact_export(artifact_home: Path) -> None:
     assert exported.headers["content-type"].startswith(
         "application/vnd.openxmlformats-officedocument.presentationml"
     )
-    assert (store.project_dir(project["id"]) / "artifacts" / "exports" / f"{artifact_id}.pptx").exists()
+    assert (
+        store.project_dir(project["id"]) / "artifacts" / "exports" / f"{artifact_id}.pptx"
+    ).exists()

@@ -120,7 +120,9 @@ def list_library() -> list[dict[str, Any]]:
     return out
 
 
-def install_local_skill(skill_id: str, *, revision: int | None = None, overwrite: bool = True) -> dict[str, Any]:
+def install_local_skill(
+    skill_id: str, *, revision: int | None = None, overwrite: bool = True
+) -> dict[str, Any]:
     data = read_skill(skill_id, revision)
     if data is None:
         raise KeyError("skill not found in the local library")

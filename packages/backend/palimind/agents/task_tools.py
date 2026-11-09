@@ -116,7 +116,10 @@ def send_message(
         sender_id=caller,
         task_id=task_id,
         expects_reply=bool(expects_reply),
-        idempotency_key=str((_ctx().get("run_id") or "") and f"{_ctx().get('run_id')}:{target.id}:{task_id}:{text[:32]}"),
+        idempotency_key=str(
+            (_ctx().get("run_id") or "")
+            and f"{_ctx().get('run_id')}:{target.id}:{task_id}:{text[:32]}"
+        ),
     )
     from palimind.agents import queue
 
@@ -374,7 +377,9 @@ def attach_files_to_response(paths: str) -> str:
         resolved = candidate.resolve()
         if root is not None and root not in resolved.parents and resolved != root:
             continue
-        attachments.append({"name": resolved.name, "path": str(resolved), "size": resolved.stat().st_size})
+        attachments.append(
+            {"name": resolved.name, "path": str(resolved), "size": resolved.stat().st_size}
+        )
     return _json({"attachments": attachments})
 
 
@@ -429,7 +434,11 @@ TOOLS: dict[str, dict[str, Any]] = {
             "agent": {"type": "string", "description": "Agent name or id."},
             "text": {"type": "string", "description": "Message text."},
             "task_id": {"type": "string", "description": "Optional task id.", "required": False},
-            "expects_reply": {"type": "boolean", "description": "Wait for a reply conceptually.", "required": False},
+            "expects_reply": {
+                "type": "boolean",
+                "description": "Wait for a reply conceptually.",
+                "required": False,
+            },
         },
         "tier": 2,
         "requires_approval": True,
@@ -454,7 +463,9 @@ TOOLS: dict[str, dict[str, Any]] = {
     "read_agent": {
         "fn": read_agent,
         "description": "Read one agent's profile, tasks, routines and recent runs (never secrets).",
-        "parameters": {"agent": {"type": "string", "description": "Agent name or id.", "required": False}},
+        "parameters": {
+            "agent": {"type": "string", "description": "Agent name or id.", "required": False}
+        },
         "tier": 1,
         "requires_approval": False,
     },
@@ -469,9 +480,16 @@ TOOLS: dict[str, dict[str, Any]] = {
         "fn": create_agent,
         "description": "Create a persistent teammate with a profile and instructions.",
         "parameters": {
-            "name": {"type": "string", "description": "Handle (letters, digits, dash, underscore)."},
+            "name": {
+                "type": "string",
+                "description": "Handle (letters, digits, dash, underscore).",
+            },
             "title": {"type": "string", "description": "Display title.", "required": False},
-            "instructions": {"type": "string", "description": "System instructions.", "required": False},
+            "instructions": {
+                "type": "string",
+                "description": "System instructions.",
+                "required": False,
+            },
             "provider": {"type": "string", "description": "Provider id.", "required": False},
             "model": {"type": "string", "description": "Model id.", "required": False},
             "effort": {"type": "string", "description": "Reasoning effort.", "required": False},
@@ -553,7 +571,10 @@ TOOLS: dict[str, dict[str, Any]] = {
     "create_section": {
         "fn": create_section,
         "description": "Create a sidebar section.",
-        "parameters": {"name": {"type": "string"}, "sort_order": {"type": "integer", "required": False}},
+        "parameters": {
+            "name": {"type": "string"},
+            "sort_order": {"type": "integer", "required": False},
+        },
         "tier": 2,
         "requires_approval": True,
     },
@@ -574,7 +595,10 @@ TOOLS: dict[str, dict[str, Any]] = {
     "assign_agent_section": {
         "fn": assign_agent_section,
         "description": "Put an agent in a sidebar section, or ungroup it with an empty id.",
-        "parameters": {"agent": {"type": "string"}, "section_id": {"type": "string", "required": False}},
+        "parameters": {
+            "agent": {"type": "string"},
+            "section_id": {"type": "string", "required": False},
+        },
         "tier": 2,
         "requires_approval": True,
     },

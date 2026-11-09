@@ -218,10 +218,7 @@ def _is_safe_url(url: str) -> bool:
         except ValueError:
             try:
                 infos = socket.getaddrinfo(hostname, None)
-                ips = [
-                    ipaddress.ip_address(str(info[4][0]).split("%", 1)[0])
-                    for info in infos
-                ]
+                ips = [ipaddress.ip_address(str(info[4][0]).split("%", 1)[0]) for info in infos]
             except (OSError, ValueError):
                 return False
         if not ips:

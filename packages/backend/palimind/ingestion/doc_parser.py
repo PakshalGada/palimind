@@ -47,14 +47,16 @@ def parse_pptx(file_path: Path) -> str:
     text_content = []
     try:
         prs = Presentation(str(file_path))
-        for slide in prs.slides:
+        for slide_no, slide in enumerate(prs.slides, start=1):
             slide_text = []
             for shape in slide.shapes:
                 if hasattr(shape, "text"):
                     slide_text.append(shape.text)
             text = "\n".join(slide_text).strip()
             if text:
-                text_content.append(text)
+                # Same marker format as PDF pages so the chunker recovers the
+                # slide number as `page_number` (shown as "Slide N" in the UI).
+                text_content.append(f"[Page {slide_no}]\n{text}")
     except Exception as e:
         raise ParseError(f"Error parsing PPTX {file_path}: {e}") from e
 

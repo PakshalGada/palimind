@@ -41,7 +41,11 @@ async def update_channel(channel_id: str, req: Request):
     body = await req.json()
     try:
         channel = channels.update_channel(channel_id, **body)
-        return {"channel": channels.channel_detail(channel["id"])} if channel else {"error": "Channel not found"}
+        return (
+            {"channel": channels.channel_detail(channel["id"])}
+            if channel
+            else {"error": "Channel not found"}
+        )
     except Exception as exc:  # noqa: BLE001
         return {"error": str(exc)}
 
@@ -149,6 +153,8 @@ async def list_memories(channel_id: str):
 async def set_memory(channel_id: str, req: Request):
     body = await req.json()
     try:
-        return channels.set_memory(channel_id, str(body.get("key") or ""), str(body.get("value") or ""))
+        return channels.set_memory(
+            channel_id, str(body.get("key") or ""), str(body.get("value") or "")
+        )
     except Exception as exc:  # noqa: BLE001
         return {"error": str(exc)}

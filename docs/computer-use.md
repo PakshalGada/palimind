@@ -10,6 +10,17 @@ click-through ghost cursor, and the nested Xephyr/openbox X11 gate. Computer
 use is enabled by default and targets any desktop app. The 20-task dogfood
 benchmark passes its acceptance target: 20/20 (100%), zero screenshots.**
 
+A 2026-11-09 reliability pass addressed the gap between that benchmark and
+real browser use: the default observation depth is now 40 (500 nodes), large
+trees are emitted content-first, `find` returns partial matches instead of
+discarding them, mutating actions report a post-action diff, app aliases
+resolve through process/flatpak/title evidence, Chromium DevTools endpoints
+are auto-discovered, and the resolver refuses a launcher script that shares the
+sidecar's name. Wayland pointer delivery now uses Mutter RemoteDesktop when
+coordinates are proven, Unicode typing uses clipboard paste with restore, and
+a persistent xdg-desktop-portal ScreenCast capture path supplements the
+per-call Screenshot portal. No additional browser runtime is required.
+
 This document records the decisions behind Palimind's computer-use capability,
 the threat model, the licence obligations of the vendored engine, and the
 measured facts that shaped the implementation. The source plan is
@@ -178,6 +189,26 @@ Rules:
   descendants inherit the redaction).
 * The result carries a provenance marker: accessibility text is application
   data, never instructions.
+* Observation defaults are depth 40 and 500 nodes, with a 20 s snapshot
+  deadline (15 s for `find`). Chromium web-content trees nest page content
+  deeper than the old depth-12 cap, so the cap returned browser chrome only.
+  Deep trees are emitted content-first when truncated: page links, text and
+  controls precede window chrome, and hidden/zero-size nodes move to the end.
+  The formatter drops unnamed structural wrappers, de-duplicates unnamed
+  repeats, and states the truncation reason with a concrete next step.
+* When the authoritative locator cannot finish on a large tree, `find`
+  returns the matches it can prove from a bounded snapshot search, marked
+  `partial: true` with `total_matches`. It no longer discards 29 observed
+  matches because the traversal ran out of budget.
+* `desktop_act` re-observes the same app/window after a mutating action and
+  reports `new`, `removed` and `changed` nodes. The result is advisory: an
+  accessibility diff cannot see canvas or web-content effects, so the tool
+  says so and asks the agent to re-observe before retrying.
+* App names are resolved through an alias pass: exact AT-SPI name first, then
+  process name, executable, flatpak cgroup, and finally a unique window title.
+  This is why a Flatpak launcher name such as `zen` now reaches the window even
+  when AT-SPI exposes it as `xdg-dbus-proxy`. Policy is checked on the
+  requested name before resolution, so an alias cannot bypass a protected app.
 
 ### Errors
 
@@ -248,17 +279,35 @@ on drop or panic.
 * Requires the `uinput` module and `/dev/uinput` permission. Install the udev
   rule with `sudo scripts/install-uinput-udev.sh`; the user must be in the
   `input` group and log back in. Palimind never ships a setuid helper.
-* Typing uses a US keymap for ASCII; non-ASCII is refused and should use
-  clipboard paste with restore.
 * Absolute pointer coordinates are mapped from display pixels into
   `0..=65535` device units against the primary display.
 * `status` reports `available-but-not-permitted` when the device exists but
   cannot be opened.
 
+### Wayland input without `/dev/uinput`
+
+`/dev/uinput` is no longer required for Wayland pointer or Unicode typing:
+
+* **Pointer.** `agent_desktop_linux::send_absolute_pointer_click` uses the
+  existing Mutter RemoteDesktop session to move and click at proven global
+  coordinates. `PALIMIND_DESKTOP_INPUT_BACKEND=auto` tries Mutter first and
+  falls back to uinput if the compositor refuses; `mutter` makes it the only
+  route, and `uinput` keeps the old behaviour. The `TARGET` is still refused
+  unless the coordinate source is global (see §9).
+* **Unicode typing.** `agent_desktop_linux::type_text_via_clipboard` sets the
+  clipboard (`wl-copy` when installed, otherwise `xclip` through the XWayland
+  bridge), sends Ctrl+V through the compositor, waits for the focused
+  application, and restores the previous text clipboard. This replaces the
+  US-keymap refusal for non-ASCII text. If neither clipboard tool exists the
+  command fails closed with an install hint; it never silently drops text.
+
+`scripts/install-uinput-udev.sh` is still the right choice for global keys on
+X11 or when the operator prefers kernel delivery.
+
 ## 9. Wayland pointer targeting
 
-`uinput` solves delivery, not targeting. A physical pointer action on Wayland
-is allowed only when the coordinate source is global:
+A physical pointer action on Wayland is allowed only when the coordinate
+source is global:
 
 * explicit user coordinates,
 * a full-display screenshot + local OCR/vision pass,
@@ -266,9 +315,44 @@ is allowed only when the coordinate source is global:
 * known geometry from a maximized/fullscreen window.
 
 AT-SPI bounds are window-local on Wayland and are refused
-(`PLATFORM_NOT_SUPPORTED`) before any event is emitted. On X11, screen
-coordinates are available and XTEST/uinput work directly. Semantic actions
-need no coordinates and are always preferred.
+(`PLATFORM_NOT_SUPPORTED`) before any event is emitted. When the source is
+proven, delivery uses Mutter RemoteDesktop absolute motion; `/dev/uinput` is
+not required. On X11, screen coordinates are available and XTEST/uinput work
+directly. Semantic actions need no coordinates and are always preferred.
+
+### Persistent Wayland capture (ScreenCast)
+
+`palimind-desktop/src/screencast.rs` is the Wayland vision fallback. It uses
+the xdg-desktop-portal `ScreenCast` interface rather than per-call
+`Screenshot`:
+
+1. `CreateSession` → `SelectSources` (`types=1` monitor, `multiple=false`,
+   `persist_mode=2`) → `Start`.
+2. The portal returns a PipeWire node and a `restore_token`; the token is
+   written to `~/.palimind/desktop/screencast-token` (0600). Later sessions
+   pass it back, so the source dialog appears only once.
+3. `OpenPipeWireRemote` returns the PipeWire file descriptor; Palimind clears
+   `FD_CLOEXEC` and lets `gst-launch-1.0 pipewiresrc fd=… path=…` extract a
+   small burst of frames to a PNG. If the fd route is unavailable it retries
+   with `path=…` alone.
+4. The PNG goes through the normal artifact directory and 24 h retention. No
+   recording is kept; the pipeline stops after `num-buffers=30`.
+
+When the `Screenshot` portal refuses (denied) or a single window is requested
+on Wayland, `screenshot` falls back to this path and returns
+`capture=screencast`, `scope=screen`. The tool layer labels the image as the
+whole monitor and skips window-relative annotation. `desktop_screenshot` OCR
+boxes are therefore screen coordinates.
+
+Diagnostics:
+
+```bash
+palimind-desktop screencast --out /tmp/shot.png
+# status.screencast_token reports whether the restore token exists
+```
+
+The first capture requires a person to approve the portal's source dialog.
+That is the portal's consent boundary; Palimind does not bypass it.
 
 ## 10. Verification
 
@@ -426,6 +510,25 @@ unsafe); `select` uses Selection and works, while activating a menu item
 semantically may need the physical fallback. This is recorded as an open
 follow-up rather than hidden.
 
+Reliability pass (GNOME Wayland, 2026-11-09):
+
+```
+type_text "héllo 世界" via clipboard      → ok, clipboard_restored=true
+  snapshot zenity entry                    → value "héllo 世界"
+act click --x 10 --y 1000 --kernel         → mechanism "mutter-remote-desktop"
+  (no /dev/uinput; kernel_input.accessible was false)
+screencast, unapproved source dialog       → TIMEOUT after the consent budget
+screencast, denied source dialog           → PERM_DENIED (response 1)
+screencast request/gst/session unit tests  → 4 passed
+desktop dogfood (--keep-existing)          → 20/20, screenshots=0
+backend desktop suite                      → 72 passed
+```
+
+The ScreenCast path reached the portal's source dialog in both the timeout and
+denial cases and failed closed; the successful frame path requires a person to
+approve that dialog once. The restore token is then written and
+`status.screencast_token` becomes true.
+
 ## 11. UX implemented so far
 
 * **Settings > Computer use**: status (session, accessibility, kernel input,
@@ -438,6 +541,13 @@ follow-up rather than hidden.
 * **Approvals**: `desktop_act`, `desktop_launch`, `desktop_screenshot` and
   `desktop_browser` are tier 2 / risk-listed, so the existing approval card and autonomy gates
   apply. Stop is available from Settings, the popup, the tray and the HTTP API.
+* **Grant implies tools**: an agent with `desktop_access` or `desktop_control`
+  receives the desktop pack at run time even when its `tool_pack` is `auto` or
+  its hand-written tool list predates the pack. The tool router pins the
+  observation/action set for desktop-looking tasks, and the orchestrator
+  propagates the pack to its workers. This is what prevents a granted agent
+  from answering "the desktop_* tools are not in my tool set". The native
+  policy still enforces the grant and the per-app allowlist.
 * **Popup** (`?window=computer-use`): redesigned from scratch as a compact
   command surface: brand header with live state, a **Target** list of every
   window on the desktop (deduplicated, own windows hidden), region selection
@@ -461,12 +571,15 @@ follow-up rather than hidden.
   the bundles needs the appindicator development package
   (`libayatana-appindicator3-dev` on Ubuntu) because the Tauri CLI probes for
   it even though the runtime library is present.
-* **Chromium web content**: `desktop_browser` uses CDP for page actions when
-  AT-SPI refs cannot be proven unique. Chromium must run with
-  `--remote-debugging-port`; the port comes from
-  `PALIMIND_DESKTOP_CDP_PORT` (default 9222). The benchmark and an integration
-  test verify click/fill/title/text. This is an explicit fallback, not a
-  silent substitution for semantic desktop refs.
+* **Chromium web content**: `desktop_browser` uses CDP for page observation
+  and actions when AT-SPI refs cannot be proven unique or a sandboxed browser
+  hides its page. Palimind auto-discovers a running browser from
+  `DevToolsActivePort`, the process command line, or the conventional ports
+  (9222–9224); `PALIMIND_DESKTOP_CDP_PORT` or the tool's `port` argument still
+  overrides it. `snapshot` returns the page's interactive elements with
+  viewport bounds. No additional browser runtime is involved. The
+  benchmark and an integration test verify click/fill/title/text and the
+  ephemeral-port discovery path.
 * **Ghost cursor**: optional click-through overlay (`?window=cursor-ghost`)
   created on demand by `show_ghost_cursor`. It draws a pulsing ring, dashed
   target rectangle and label without moving the real pointer and uses
@@ -487,6 +600,15 @@ follow-up rather than hidden.
 
 ## 12. Remaining work
 
+* ScreenCast successful-frame approval: the portal handshake, restore-token
+  persistence and PipeWire/GStreamer pipeline are implemented and unit-tested;
+  on this host the first-use source dialog was not approved, so the run
+  correctly ended in `TIMEOUT`/`PERM_DENIED`. A person must approve the dialog
+  once; then `palimind-desktop screencast --out /tmp/shot.png` should write a
+  PNG and `status.screencast_token` should become true.
+* Flatpak Chromium browsers: `zen`/`brave` windows can now be resolved by
+  alias, but a sandboxed browser that is not on the accessibility bus exposes
+  only its menus. Page content still needs the CDP route or a shared a11y bus.
 * Live canvas-app OCR verification through the desktop portal (this headless
   session denies capture; annotation/OCR are verified on generated images).
 * KDE/wlroots best-effort validation.

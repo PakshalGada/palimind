@@ -17,6 +17,7 @@ import os
 import queue
 import shutil
 import subprocess
+import sys
 import threading
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,26 @@ _MAX_RESTARTS = 2
 
 class DesktopError(RuntimeError):
     """The native layer could not be started or stopped responding."""
+
+
+def _is_native_executable(path: Path) -> bool:
+    """Whether ``path`` is an executable binary, not a launcher script.
+
+    A shell script called ``palimind-desktop`` (the Tauri development launcher
+    has the same name) would happily accept ``serve``, start a Cargo build and
+    never speak JSON-RPC. Reject non-ELF candidates on Linux so the resolver
+    fails with a clear error instead of hanging for the RPC timeout.
+    """
+
+    if not (path.is_file() and os.access(path, os.X_OK)):
+        return False
+    if not sys.platform.startswith("linux"):
+        return True
+    try:
+        with path.open("rb") as handle:
+            return handle.read(4) == b"\x7fELF"
+    except OSError:
+        return False
 
 
 def _repo_root() -> Path | None:
@@ -47,9 +68,13 @@ def resolve_binary(explicit: str | None = None) -> Path | None:
     """
 
     candidates: list[Path] = []
+    explicit_candidates: list[Path] = []
     for value in (explicit, os.environ.get("PALIMIND_DESKTOP_BIN")):
         if value:
-            candidates.append(Path(value).expanduser())
+            # An explicit path is a deliberate override (and used by tests with
+            # fakes), so do not second-guess its format.
+            path = Path(value).expanduser()
+            explicit_candidates.append(path)
 
     root = _repo_root()
     if root is not None:
@@ -60,6 +85,10 @@ def resolve_binary(explicit: str | None = None) -> Path | None:
                 root / "packages" / "desktop-native" / "target" / "debug" / "palimind-desktop",
             ]
         )
+        binaries = root / "apps" / "desktop" / "src-tauri" / "binaries"
+        if binaries.is_dir():
+            # Tauri stages sidecars as palimind-desktop-<target-triple>.
+            candidates.extend(sorted(binaries.glob("palimind-desktop-*")))
 
     cargo_target = os.environ.get("CARGO_TARGET_DIR")
     if cargo_target:
@@ -71,12 +100,18 @@ def resolve_binary(explicit: str | None = None) -> Path | None:
             home / ".local" / "tauri-libs" / "cargo-target" / profile / "palimind-desktop"
         )
 
-    for candidate in candidates:
+    for candidate in explicit_candidates:
         if candidate.is_file() and os.access(candidate, os.X_OK):
             return candidate
 
+    for candidate in candidates:
+        if _is_native_executable(candidate):
+            return candidate
+
     found = shutil.which("palimind-desktop")
-    return Path(found) if found else None
+    if found and _is_native_executable(Path(found)):
+        return Path(found)
+    return None
 
 
 def _policy_env(allowed_apps: tuple[str, ...] | None = None) -> dict[str, str]:
@@ -266,7 +301,13 @@ class DesktopClient:
         )
 
     def screenshot(self, **kwargs: Any) -> dict[str, Any]:
-        return self.call("screenshot", {k: v for k, v in kwargs.items() if v is not None})
+        # ScreenCast's first-use source dialog can take up to 30 s; leave room
+        # for the PipeWire frame extraction after it.
+        return self.call(
+            "screenshot",
+            {k: v for k, v in kwargs.items() if v is not None},
+            timeout=45,
+        )
 
     def stop(self) -> dict[str, Any]:
         return self.call("stop", timeout=10)

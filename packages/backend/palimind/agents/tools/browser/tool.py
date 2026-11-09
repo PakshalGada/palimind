@@ -124,9 +124,14 @@ class _BrowserWorker:
     def _run(self) -> None:
         from palimind.settings import BROWSER_HEADLESS
 
-        profile = "".join(
-            c for c in os.environ.get("PALIMIND_BROWSER_PROFILE", "shared") if c.isalnum() or c in "-_"
-        ) or "shared"
+        profile = (
+            "".join(
+                c
+                for c in os.environ.get("PALIMIND_BROWSER_PROFILE", "shared")
+                if c.isalnum() or c in "-_"
+            )
+            or "shared"
+        )
         user_data = Path.home() / ".palimind" / "browser" / "profiles" / profile
         user_data.mkdir(parents=True, exist_ok=True)
         try:
@@ -759,7 +764,6 @@ def human_action(action: str, payload: dict[str, Any] | None = None) -> dict[str
     except Exception as exc:  # noqa: BLE001
         return {"error": str(exc)}
     return live_state()
-
 
 
 TOOLS: dict[str, dict[str, Any]] = {

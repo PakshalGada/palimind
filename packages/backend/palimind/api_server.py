@@ -126,6 +126,8 @@ def _split_agent_mention(text: str) -> tuple[str | None, str]:
     name = match.group(2).strip()
     stripped = (text[: match.start()] + text[match.end() :]).strip()
     return name or None, stripped
+
+
 from palimind.memory.session_store import (
     add_new_session,
     delete_session,
@@ -788,6 +790,35 @@ async def startup_event():
                 logging.getLogger("palimind.api_server").error(
                     "Vector index incompatible: %s", problem
                 )
+            # A stale chunk layout is safe to query but misses the newer
+            # child-chunk/page/summary improvements until the next Sync.
+            from palimind.storage.vector_store import read_stamp
+
+            stamp = read_stamp(state.active_field) or {}
+            stamped_chunker = int(stamp.get("chunker") or 1)
+            configured_chunker = int(cfg.get("chunker_version") or 1)
+            if stamped_chunker != configured_chunker:
+                import logging
+
+                logging.getLogger("palimind.api_server").warning(
+                    "Chunk layout changed (v%s -> v%s); run Sync to rebuild the index.",
+                    stamped_chunker,
+                    configured_chunker,
+                )
+            # Warm the embedding model off the startup critical path so the
+            # first RAG query does not pay model-load latency.
+            try:
+                from palimind.core.embedder import prewarm_model
+
+                asyncio.create_task(
+                    asyncio.to_thread(
+                        prewarm_model,
+                        cfg.get("ollama_base_url", ""),
+                        cfg.get("embed_model", ""),
+                    )
+                )
+            except Exception:
+                pass
         except Exception as exc:  # noqa: BLE001
             print(f"[startup] index compatibility check failed: {exc}")
         update_watcher(state.active_field)
@@ -1665,6 +1696,7 @@ async def chat_stream(
     rerank: bool | None = None,
     stream_id: str | None = None,
     display_query: str | None = None,
+    rag_mode: str | None = None,
 ):
     """Chat SSE stream.
 
@@ -1688,6 +1720,7 @@ async def chat_stream(
             scope,
             rerank,
             display_query,
+            rag_mode,
         )
     except BaseException:
         _unregister_chat_stream(entry)
@@ -1708,12 +1741,11 @@ async def _chat_stream_response(
     scope: str,
     rerank: bool | None,
     display_query: str | None = None,
+    rag_mode: str | None = None,
 ) -> StreamingResponse:
     display_text = (display_query or "").strip() or None
     if scope.startswith("agent:"):
-        return await _agent_scope_chat(
-            scope, q, session_id, entry, display_text=display_text
-        )
+        return await _agent_scope_chat(scope, q, session_id, entry, display_text=display_text)
 
     root = _chat_root(scope)
     if root is None:
@@ -1843,6 +1875,7 @@ async def _chat_stream_response(
             image_paths=image_paths,
             attachment_context=attachment_context,
             display_text=display_text,
+            rag_mode=rag_mode,
         )
 
     moe_sub_mode = (

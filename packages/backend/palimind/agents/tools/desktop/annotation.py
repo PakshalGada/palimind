@@ -101,9 +101,10 @@ def annotate_image(
         # window-local rectangle cannot be placed on a display screenshot. An
         # origin of 0,0 is the ambiguous case: it may be a maximized window or
         # an unproven origin, so refuse rather than mislabel the image.
-        if float(window_bounds.get("x") or 0.0) == 0.0 and float(
-            window_bounds.get("y") or 0.0
-        ) == 0.0:
+        if (
+            float(window_bounds.get("x") or 0.0) == 0.0
+            and float(window_bounds.get("y") or 0.0) == 0.0
+        ):
             raise ValueError(
                 "window-local accessibility bounds have no proven screen origin; "
                 "annotate on X11 or use OCR boxes instead"

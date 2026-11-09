@@ -127,10 +127,7 @@ def starter_prompts(definition: Any) -> list[str]:
         or getattr(definition, "title", "")
         or ""
     ).strip()
-    skills = [
-        str(item).replace("-", " ")
-        for item in (getattr(definition, "skills", None) or [])
-    ]
+    skills = [str(item).replace("-", " ") for item in (getattr(definition, "skills", None) or [])]
     pack = str(getattr(definition, "tool_pack", "") or "auto")
     candidates: list[str] = []
     if goal:

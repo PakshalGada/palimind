@@ -17,73 +17,63 @@ function fence(language, body, closed = true) {
   return `\`\`\`${language}\n${body}${closed ? '\n```' : ''}`;
 }
 
-test('detects an HTML fence and keeps its id stable while streaming', () => {
-  const first = parseArtifacts(fence('html', '<div>hello</div>', false), 2, {
+test('HTML fences stay inline and never create artifacts', () => {
+  assert.deepEqual(parseArtifacts(fence('html', '<div>hello</div>'), 2), []);
+  assert.deepEqual(
+    parseArtifacts(fence('svg', '<svg></svg>'), 2),
+    [],
+  );
+});
+
+test('keeps a slide artifact id stable while streaming', () => {
+  const first = parseArtifacts(fence('slides', '# Intro\n- one', false), 2, {
     streaming: true,
   });
   assert.equal(first.length, 1);
-  assert.equal(first[0].type, 'html');
+  assert.equal(first[0].type, 'slide-outline');
   assert.equal(first[0].id, 'fence-2-0');
   assert.equal(first[0].streaming, true);
   assert.equal(first[0].closed, false);
 
   const next = parseArtifacts(
-    fence('html', '<div>hello world</div>\n<p>more</p>', false),
+    fence('slides', '# Intro\n- one\n- two', false),
     2,
     { streaming: true },
   );
   assert.equal(next.length, 1);
   assert.equal(next[0].id, first[0].id);
-  assert.match(next[0].content, /hello world/);
+  assert.match(next[0].content, /two/);
 
-  const closed = parseArtifacts(
-    fence('html', '<div>hello world</div>\n<p>more</p>'),
-    2,
-  );
+  const closed = parseArtifacts(fence('slides', '# Intro\n- one\n- two'), 2);
   assert.equal(closed[0].id, first[0].id);
   assert.equal(closed[0].streaming, undefined);
   assert.equal(closed[0].closed, true);
 });
 
-test('treats long fenced markdown as a document', () => {
-  const artifacts = parseArtifacts(`\`\`\`markdown\n${DOC}\n\`\`\``, 0);
+test('keeps Markdown fences inline instead of creating artifacts', () => {
+  assert.deepEqual(parseArtifacts(`\`\`\`markdown\n${DOC}\n\`\`\``, 0), []);
+  assert.deepEqual(parseArtifacts(fence('md', '# Title\n\nShort note.'), 0), []);
+});
+
+test('keeps explicit office documents as artifacts', () => {
+  const artifacts = parseArtifacts(fence('docx', '# Title\n\nBody'), 0);
   assert.equal(artifacts.length, 1);
   assert.equal(artifacts[0].type, 'document');
-  assert.equal(artifacts[0].language, 'markdown');
+  assert.equal(artifacts[0].language, 'docx');
 });
 
-test('emits a table only once it is complete', () => {
-  const partial = '| Name | Value |\n| --- | --- |\n| one | 1 |';
-  assert.deepEqual(
-    parseArtifacts(partial, 0, { streaming: true }),
-    [],
-    'unterminated table should wait for more content',
-  );
-
-  const complete = `${partial}\n\nSome closing prose.`;
-  const streaming = parseArtifacts(complete, 0, { streaming: true });
-  assert.equal(streaming.length, 1);
-  assert.equal(streaming[0].type, 'table');
-  assert.equal(streaming[0].id, 'table-0-0');
-
-  const next = parseArtifacts(`${partial}\n\nSome closing prose and more.`, 0, {
-    streaming: true,
-  });
-  assert.equal(next[0].id, streaming[0].id, 'table id should not churn');
-
-  const final = parseArtifacts(partial, 0);
-  assert.equal(final.length, 1);
-  assert.equal(final[0].type, 'table');
+test('keeps Markdown tables inline instead of creating artifacts', () => {
+  const table = '| Name | Value |\n| --- | --- |\n| one | 1 |';
+  assert.deepEqual(parseArtifacts(table, 0, { streaming: true }), []);
+  assert.deepEqual(parseArtifacts(`${table}\n\nClosing prose.`, 0), []);
 });
 
-test('ignores tables inside fenced blocks', () => {
+test('ignores Markdown fences and their tables', () => {
   const artifacts = parseArtifacts(
     `\`\`\`markdown\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\`\`\`\n`,
     0,
   );
-  assert.equal(artifacts.length, 1);
-  assert.equal(artifacts[0].type, 'markdown');
-  assert.equal(artifacts[0].files, undefined);
+  assert.deepEqual(artifacts, []);
 });
 
 test('detects slide outlines', () => {
@@ -96,38 +86,18 @@ test('detects slide outlines', () => {
   assert.equal(artifacts[0].language, 'slides');
 });
 
-test('parses single-file artifacts', () => {
-  const artifacts = parseArtifacts(
-    fence('ts', '--- file: src/app.ts ---\nexport const app = 1;'),
-    0,
+test('code fences stay inline instead of creating artifacts', () => {
+  assert.deepEqual(
+    parseArtifacts(fence('ts', '--- file: src/app.ts ---\nexport const app = 1;'), 0),
+    [],
   );
-  assert.equal(artifacts.length, 1);
-  assert.equal(artifacts[0].type, 'code-file');
-  assert.equal(artifacts[0].filePaths?.[0], 'src/app.ts');
-  assert.equal(artifacts[0].files?.[0].language, 'typescript');
-  assert.equal(artifacts[0].title, 'app.ts');
-});
-
-test('parses multi-file artifacts into a file list', () => {
   const body = [
     '--- file: src/app.ts ---',
     'export const app = 1;',
     '--- file: src/styles.css ---',
     'body { margin: 0; }',
-    '--- file: README.md ---',
-    '# Demo',
   ].join('\n');
-  const artifacts = parseArtifacts(fence('', body), 0);
-  assert.equal(artifacts.length, 1);
-  assert.equal(artifacts[0].type, 'multi-file');
-  assert.deepEqual(artifacts[0].filePaths, [
-    'src/app.ts',
-    'src/styles.css',
-    'README.md',
-  ]);
-  assert.equal(artifacts[0].files?.length, 3);
-  assert.equal(artifacts[0].files?.[1].language, 'css');
-  assert.match(artifacts[0].title, /^3 files/);
+  assert.deepEqual(parseArtifacts(fence('', body), 0), []);
 });
 
 test('parseArtifactFiles ignores preamble and trims bodies', () => {
@@ -143,13 +113,13 @@ test('parseArtifactFiles ignores preamble and trims bodies', () => {
 
 test('handles malformed and truncated fences', () => {
   // A tilde fence must not be closed by backticks.
-  const mismatched = parseArtifacts('~~~html\n<div>x</div>\n```', 0);
+  const mismatched = parseArtifacts('~~~slides\n# Slide\n```', 0);
   assert.equal(mismatched.length, 1);
   assert.equal(mismatched[0].closed, false);
   assert.equal(mismatched[0].streaming, undefined);
   assert.match(mismatched[0].content, /```/);
 
-  const truncated = parseArtifacts('~~~html\n<div>x</div>', 0, { streaming: true });
+  const truncated = parseArtifacts('~~~slides\n# Slide', 0, { streaming: true });
   assert.equal(truncated[0].streaming, true);
 
   // Inline triple backticks are not fences.
@@ -159,69 +129,48 @@ test('handles malformed and truncated fences', () => {
   assert.deepEqual(parseArtifacts('```\nplain text\n```', 0), []);
 });
 
-test('recognises unfenced long-form markdown only when settled', () => {
+test('never turns unfenced prose into a document artifact', () => {
   const doc = `# Title\n\n${DOC}`;
-
-  assert.equal(
-    parseArtifacts(doc, 4, { streaming: true }).length,
-    0,
-    'streaming prose must not become a document per token',
-  );
-
-  const final = parseArtifacts(doc, 4);
-  assert.equal(final.length, 1);
-  assert.equal(final[0].type, 'document');
-  assert.equal(final[0].id, 'document-4');
-  assert.equal(final[0].title, 'Title');
-
-  assert.equal(
-    parseArtifacts(`# Title\n\n${'short prose '.repeat(20)}`, 4).length,
-    0,
-    'short prose stays in the chat',
-  );
-  assert.equal(
-    parseArtifacts('word '.repeat(900), 4).length,
-    0,
-    'long prose without headings is not a document',
-  );
+  assert.deepEqual(parseArtifacts(doc, 4), []);
+  assert.deepEqual(parseArtifacts(doc, 4, { streaming: true }), []);
+  assert.deepEqual(parseArtifacts(`# Title\n\n${'short prose '.repeat(20)}`, 4), []);
 });
 
-test('does not duplicate an unfenced document alongside fenced artifacts', () => {
-  const message = `${fence('html', '<div>app</div>')}\n\n# Notes\n\n${DOC}`;
+test('does not add a Markdown artifact next to an office artifact', () => {
+  const message = `${fence('slides', '# Deck\n- point')}\n\n# Notes\n\n${DOC}`;
   const artifacts = parseArtifacts(message, 1);
   assert.equal(artifacts.length, 1);
-  assert.equal(artifacts[0].type, 'html');
+  assert.equal(artifacts[0].type, 'slide-outline');
 });
 
 test('collectArtifacts keeps message indices and de-duplicates ids', () => {
   const artifacts = collectArtifacts([
-    { role: 'user', content: fence('html', '<div>ignored</div>') },
-    { role: 'assistant', content: fence('html', '<div>one</div>') },
-    { role: 'assistant', content: `Text\n\n${fence('python', 'print(1)')}` },
+    { role: 'user', content: fence('slides', '# ignored') },
+    { role: 'assistant', content: fence('slides', '# Deck\n- one') },
+    { role: 'assistant', content: `Text\n\n${fence('docx', '# Report')}` },
   ]);
   assert.deepEqual(
     artifacts.map(artifact => [artifact.id, artifact.type, artifact.messageIndex]),
     [
-      ['fence-1-0', 'html', 1],
-      ['fence-2-0', 'code', 2],
+      ['fence-1-0', 'slide-outline', 1],
+      ['fence-2-0', 'document', 2],
     ],
   );
 });
 
-test('auto-opens only renderable pages, docs, slides and code', () => {
-  for (const type of ['html', 'svg', 'markdown', 'document', 'slide-outline', 'code', 'code-file', 'multi-file']) {
-    assert.equal(shouldAutoOpenArtifact({ type }), true, type);
+test('auto-opens only Office/PowerPoint artifacts', () => {
+  assert.equal(shouldAutoOpenArtifact({ type: 'document' }), true);
+  assert.equal(shouldAutoOpenArtifact({ type: 'slide-outline' }), true);
+  for (const type of ['html', 'svg', 'markdown', 'table', 'code', 'code-file', 'multi-file']) {
+    assert.equal(shouldAutoOpenArtifact({ type }), false, type);
   }
-  assert.equal(shouldAutoOpenArtifact({ type: 'table' }), false);
-  assert.equal(
-    shouldAutoOpenArtifact({ type: 'table', filePaths: ['report.docx'] }),
-    false,
-    'tables never pop the panel',
-  );
   assert.equal(
     shouldAutoOpenArtifact({ type: 'code-file', filePaths: ['notes.md'] }),
+    false,
+  );
+  assert.equal(
+    shouldAutoOpenArtifact({ type: 'code-file', filePaths: ['report.docx'] }),
     true,
-    'file-backed markdown opens',
   );
 });
 

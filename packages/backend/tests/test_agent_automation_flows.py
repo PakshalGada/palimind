@@ -113,7 +113,9 @@ def test_automation_security_and_message_route(env) -> None:
         base = server.url
         token = server.token
 
-        def request(method: str, path: str, *, body: dict | None = None, origin: str = "", host: str = ""):
+        def request(
+            method: str, path: str, *, body: dict | None = None, origin: str = "", host: str = ""
+        ):
             data = json.dumps(body).encode() if body is not None else None
             req = urllib.request.Request(base + path, data=data, method=method)
             req.add_header("Authorization", f"Bearer {token}")
@@ -135,7 +137,9 @@ def test_automation_security_and_message_route(env) -> None:
         else:
             raise AssertionError("origin must be refused")
 
-        with request("POST", f"/v1/agents/{env.id}/messages", body={"text": "hello", "clientMessageId": "c1"}) as resp:
+        with request(
+            "POST", f"/v1/agents/{env.id}/messages", body={"text": "hello", "clientMessageId": "c1"}
+        ) as resp:
             sent = json.loads(resp.read())
         assert sent["messageId"]
         with request("GET", f"/v1/agents/{env.id}/deliveries/{sent['messageId']}") as resp:

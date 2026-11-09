@@ -190,6 +190,7 @@ async def run_team_endpoint(team_id: str, req: Request):
     interactive = bool(body.get("interactive", True))
     team = teams.get_team(team_id)
     if team is None:
+
         async def err():
             yield f"data: {json.dumps({'type': 'team:error', 'text': 'Team not found'})}\n\n"
 
@@ -459,9 +460,7 @@ async def agent_workspace(agent_id: str, path: str = ""):
         return {
             "files": workspace_mod.list_files(agent_id, path, str(defn.workspace_dir or "")),
             "path": path,
-            "root": str(
-                workspace_mod.ensure_workspace(agent_id, str(defn.workspace_dir or ""))
-            ),
+            "root": str(workspace_mod.ensure_workspace(agent_id, str(defn.workspace_dir or ""))),
         }
     except ValueError as exc:
         return {"error": str(exc)}

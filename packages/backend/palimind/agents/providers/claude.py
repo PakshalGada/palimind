@@ -84,7 +84,11 @@ class ClaudeProvider:
         self._started = False
 
     async def _start(self) -> JSONLProcess:
-        if self.process is not None and self.process.process is not None and self.process.process.returncode is None:
+        if (
+            self.process is not None
+            and self.process.process is not None
+            and self.process.process.returncode is None
+        ):
             return self.process
         process = JSONLProcess(
             self.command,
@@ -136,7 +140,11 @@ class ClaudeProvider:
         try:
             try:
                 message = await asyncio.wait_for(queue.get(), timeout=0.2)
-                if isinstance(message, dict) and message.get("type") == "system" and message.get("subtype") == "init":
+                if (
+                    isinstance(message, dict)
+                    and message.get("type") == "system"
+                    and message.get("subtype") == "init"
+                ):
                     reported = str(message.get("session_id") or "")
                     if reported:
                         self.session_id = reported
@@ -191,7 +199,9 @@ class ClaudeProvider:
             while True:
                 message = await asyncio.wait_for(queue.get(), timeout=self.request_timeout)
                 if message.get("type") == "__closed__":
-                    raise ProviderError("Claude process closed during turn", cause="provider_unavailable")
+                    raise ProviderError(
+                        "Claude process closed during turn", cause="provider_unavailable"
+                    )
                 kind = str(message.get("type") or "")
                 if kind == "system":
                     if message.get("subtype") == "init":
@@ -209,7 +219,9 @@ class ClaudeProvider:
                             yield ProviderEvent("message_delta", {"text": text})
                     continue
                 if kind == "assistant":
-                    body = message.get("message") if isinstance(message.get("message"), dict) else {}
+                    body = (
+                        message.get("message") if isinstance(message.get("message"), dict) else {}
+                    )
                     for block in body.get("content") or []:
                         if not isinstance(block, dict):
                             continue
@@ -237,7 +249,9 @@ class ClaudeProvider:
                         yield ProviderEvent("usage", value)
                     continue
                 if kind == "user":
-                    body = message.get("message") if isinstance(message.get("message"), dict) else {}
+                    body = (
+                        message.get("message") if isinstance(message.get("message"), dict) else {}
+                    )
                     for block in body.get("content") or []:
                         if not isinstance(block, dict) or block.get("type") != "tool_result":
                             continue

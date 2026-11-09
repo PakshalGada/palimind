@@ -144,9 +144,7 @@ def test_project_artifact_concurrent_saves_are_all_kept(isolated_home: Path) -> 
 
     project = store.create_project("p", workspace_path=isolated_home / "ws")
     threads = [
-        threading.Thread(
-            target=artifacts.save_artifact, args=(project["id"], {"content": f"c{i}"})
-        )
+        threading.Thread(target=artifacts.save_artifact, args=(project["id"], {"content": f"c{i}"}))
         for i in range(20)
     ]
     for t in threads:

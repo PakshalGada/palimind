@@ -54,7 +54,9 @@ def test_mutation_requires_desktop_control():
 
 def test_per_agent_allowlist_narrows_observation():
     definition = _def(desktop_allowed_apps=["calculator"])
-    assert _gate_tool("desktop_snapshot", {"app": "gnome-calculator"}, definition=definition) is None
+    assert (
+        _gate_tool("desktop_snapshot", {"app": "gnome-calculator"}, definition=definition) is None
+    )
     denied = _gate_tool("desktop_snapshot", {"app": "firefox"}, definition=definition)
     assert denied and "desktop_allowed_apps" in denied
 

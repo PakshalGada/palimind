@@ -33,9 +33,7 @@ def _item_text(item: dict[str, Any]) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        return "".join(
-            str(part.get("text") or "") for part in content if isinstance(part, dict)
-        )
+        return "".join(str(part.get("text") or "") for part in content if isinstance(part, dict))
     return ""
 
 
@@ -80,7 +78,11 @@ class CodexProvider:
 
     async def _process(self) -> JSONLProcess:
         process = self._sessions.get("main")
-        if process is not None and process.process is not None and process.process.returncode is None:
+        if (
+            process is not None
+            and process.process is not None
+            and process.process.returncode is None
+        ):
             return process
         process = JSONLProcess(
             self.command,
@@ -258,7 +260,9 @@ class CodexProvider:
                     continue
                 message = get_task.result()
                 if message.get("type") == "__closed__":
-                    raise ProviderError("Codex app server closed during turn", cause="provider_unavailable")
+                    raise ProviderError(
+                        "Codex app server closed during turn", cause="provider_unavailable"
+                    )
                 event = self._event_from_notification(message, session_id)
                 if event is not None:
                     yield event
@@ -282,15 +286,21 @@ class CodexProvider:
                 self._turns[session_id] = turn_id
             return ProviderEvent("turn_started", {"session_id": session_id, "turn_id": turn_id})
         if method in ("item/agentMessage/delta", "item/agent_message/delta"):
-            return ProviderEvent("message_delta", {"text": str(params.get("delta") or params.get("text") or "")})
+            return ProviderEvent(
+                "message_delta", {"text": str(params.get("delta") or params.get("text") or "")}
+            )
         if method == "item/reasoning/summaryTextDelta":
-            return ProviderEvent("thought", {"text": str(params.get("delta") or params.get("text") or "")})
+            return ProviderEvent(
+                "thought", {"text": str(params.get("delta") or params.get("text") or "")}
+            )
         if method == "thread/tokenUsage/updated":
             usage = _as_dict(params.get("tokenUsage")) or params
             total = _as_dict(usage.get("total")) or usage
             value = {
                 "prompt_tokens": int(total.get("inputTokens") or total.get("input_tokens") or 0),
-                "completion_tokens": int(total.get("outputTokens") or total.get("output_tokens") or 0),
+                "completion_tokens": int(
+                    total.get("outputTokens") or total.get("output_tokens") or 0
+                ),
             }
             self._usage[session_id] = value
             return ProviderEvent("usage", value)
@@ -345,7 +355,11 @@ class CodexProvider:
             turn = _as_dict(params.get("turn"))
             return ProviderEvent(
                 "turn_completed",
-                {"session_id": session_id, "turn_id": str(turn.get("id") or ""), "status": str(turn.get("status") or "")},
+                {
+                    "session_id": session_id,
+                    "turn_id": str(turn.get("id") or ""),
+                    "status": str(turn.get("status") or ""),
+                },
             )
         return None
 

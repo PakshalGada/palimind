@@ -13,14 +13,20 @@ router = APIRouter(prefix="/api", tags=["sharing"])
 async def export_agents(req: Request):
     body = await req.json()
     ids = [str(item) for item in (body.get("agent_ids") or [])]
-    return {"export": sharing.export_agents(ids, include_workspace=bool(body.get("include_workspace", False)))}
+    return {
+        "export": sharing.export_agents(
+            ids, include_workspace=bool(body.get("include_workspace", False))
+        )
+    }
 
 
 @router.post("/agents/import")
 async def import_agents(req: Request):
     body = await req.json()
     try:
-        return sharing.import_agents(body.get("export") if isinstance(body.get("export"), dict) else body)
+        return sharing.import_agents(
+            body.get("export") if isinstance(body.get("export"), dict) else body
+        )
     except Exception as exc:  # noqa: BLE001
         return {"error": str(exc)}
 
@@ -32,7 +38,9 @@ async def export_archive(req: Request):
     if not path:
         return {"error": "path is required"}
     try:
-        return {"path": sharing.export_archive(path, [str(i) for i in (body.get("agent_ids") or [])])}
+        return {
+            "path": sharing.export_archive(path, [str(i) for i in (body.get("agent_ids") or [])])
+        }
     except Exception as exc:  # noqa: BLE001
         return {"error": str(exc)}
 

@@ -55,8 +55,13 @@ SNAPSHOT = {
 def _enabled(monkeypatch):
     monkeypatch.setattr(tool.settings, "DESKTOP_ENABLE", True)
     monkeypatch.setattr(tool.settings, "DESKTOP_SCREENSHOT", "on_demand")
-    monkeypatch.setattr(tool.settings, "DESKTOP_MAX_NODES", 300)
-    monkeypatch.setattr(tool.settings, "DESKTOP_MAX_DEPTH", 12)
+    monkeypatch.setattr(tool.settings, "DESKTOP_MAX_NODES", 500)
+    monkeypatch.setattr(tool.settings, "DESKTOP_MAX_DEPTH", 40)
+    monkeypatch.setattr(tool.settings, "DESKTOP_SNAPSHOT_TIMEOUT_MS", 20_000)
+    monkeypatch.setattr(tool.settings, "DESKTOP_FIND_TIMEOUT_MS", 15_000)
+    monkeypatch.setattr(tool.settings, "DESKTOP_VERIFY_ACTIONS", True)
+    tool._SNAPSHOT_TARGETS.clear()
+    tool._OCR_CACHE.clear()
 
 
 def test_disabled_feature_explains_how_to_enable(monkeypatch):
@@ -113,9 +118,7 @@ def test_act_passes_confirm_destructive_through(monkeypatch):
         }
 
     monkeypatch.setattr(tool, "_envelope", fake)
-    out = tool.desktop_act(
-        action="click", ref="@s1:e1", confirm_destructive=True, headed=True
-    )
+    out = tool.desktop_act(action="click", ref="@s1:e1", confirm_destructive=True, headed=True)
     assert "delivered_unverified" in out
     assert seen["confirm_destructive"] is True
     assert seen["headed"] is True
@@ -136,9 +139,7 @@ def test_screenshot_can_be_disabled_by_policy(monkeypatch):
     assert "disabled" in out.lower()
 
 
-def test_on_demand_and_always_screenshot_policies_allow_an_explicit_capture(
-    monkeypatch, tmp_path
-):
+def test_on_demand_and_always_screenshot_policies_allow_an_explicit_capture(monkeypatch, tmp_path):
     image = tmp_path / "shot.png"
     image.write_bytes(b"png")
     for policy in ("on_demand", "always"):
@@ -249,11 +250,313 @@ def test_snapshot_budget_is_enforced():
     assert "omitted" in text
 
 
+def test_snapshot_uses_deep_defaults_and_a_generous_deadline(monkeypatch):
+    seen = {}
+
+    def fake(method, params):
+        seen.update(params)
+        return {"ok": True, "command": method, "data": {"snapshot": SNAPSHOT}}
+
+    monkeypatch.setattr(tool, "_envelope", fake)
+    tool.desktop_snapshot(app="demo")
+    assert seen["max_depth"] == 40
+    assert seen["max_nodes"] == 500
+    assert seen["timeout_ms"] == 20_000
+
+
+def test_find_uses_its_own_deadline(monkeypatch):
+    seen = {}
+
+    def fake(method, params):
+        seen.update(params)
+        return {"ok": True, "command": method, "data": {"matches": {"matches": []}}}
+
+    monkeypatch.setattr(tool, "_envelope", fake)
+    tool.desktop_find(app="demo", role="button")
+    assert seen["timeout_ms"] == 15_000
+
+
+def test_snapshot_formatter_drops_unnamed_noise_and_explains_truncation():
+    snapshot = {
+        "snapshot_id": "s1",
+        "app": {"name": "brave", "pid": 1},
+        "window": {"title": "Example"},
+        "bounds_space": "window",
+        "complete": False,
+        "truncated": True,
+        "node_count": 5,
+        "nodes": [
+            {"ref": None, "role": "group", "name": None, "bounds": [0, 0, 10, 10]},
+            {"ref": None, "role": "alert", "name": None, "bounds": [0, 0, 10, 10]},
+            {
+                "ref": "@s1:e1",
+                "role": "link",
+                "name": "Sign in",
+                "bounds": [1, 2, 3, 4],
+                "actions": ["Click"],
+            },
+        ],
+    }
+    text = schema.format_snapshot(snapshot)
+    assert "Sign in" in text
+    assert "noise_dropped=2" in text
+    assert "truncated=true" in text
+    assert "max_depth" in text
+    assert "desktop_find" in text
+
+
+def test_truncated_snapshot_is_content_first_and_hidden_last():
+    snapshot = {
+        "snapshot_id": "s1",
+        "app": {"name": "brave", "pid": 1},
+        "window": {"title": "Example"},
+        "bounds_space": "window",
+        "complete": False,
+        "truncated": True,
+        "node_count": 4,
+        "nodes": [
+            {"ref": "@s1:e1", "role": "button", "name": "Minimise", "bounds": [0, 0, 10, 10]},
+            {
+                "ref": "@s1:e2",
+                "role": "button",
+                "name": "Hidden thing",
+                "bounds": [0, 0, 0, 0],
+                "states": ["hidden"],
+            },
+            {
+                "ref": "@s1:e3",
+                "role": "link",
+                "name": "Actual page link",
+                "bounds": [10, 100, 40, 20],
+            },
+        ],
+    }
+    lines = schema.format_snapshot(snapshot).splitlines()
+    link = next(i for i, line in enumerate(lines) if "Actual page link" in line)
+    chrome = next(i for i, line in enumerate(lines) if "Minimise" in line)
+    hidden = next(i for i, line in enumerate(lines) if "Hidden thing" in line)
+    assert link < chrome < hidden
+    assert "order=content-first" in lines[2]
+
+
+def test_screencast_screenshot_is_labelled_and_skips_window_annotation(monkeypatch, tmp_path):
+    image = tmp_path / "shot.png"
+    image.write_bytes(b"png")
+
+    def should_not_annotate(*args, **kwargs):
+        raise AssertionError("a full-screen ScreenCast image must not be window-annotated")
+
+    monkeypatch.setattr(tool.annotation, "annotate_image", should_not_annotate)
+    monkeypatch.setattr(
+        tool,
+        "_envelope",
+        lambda method, params: {
+            "ok": True,
+            "command": method,
+            "data": {
+                "path": str(image),
+                "screenshot_id": "shot-screen",
+                "scale_factor": 1,
+                "capture": "screencast",
+                "scope": "screen",
+            },
+        },
+    )
+    out = tool.desktop_screenshot(app="demo", annotate=True)
+    assert "ScreenCast" in out
+    assert "annotation skipped" in out
+    assert "whole monitor" in out
+
+
+def test_status_reports_the_screencast_token_state():
+    text = schema.format_status(
+        {
+            "platform": "linux",
+            "session_type": "wayland",
+            "input_backend": "auto",
+            "screencast_token": True,
+            "permissions": {"accessibility": {"state": "granted"}},
+            "kernel_input": {"accessible": False, "detail": "available-but-not-permitted"},
+            "policy": {"enabled": True, "rate_limit_per_min": 30, "stopped": False},
+            "capabilities": {},
+        }
+    )
+    assert "screencast_token=True" in text
+    assert "input_backend=auto" in text
+
+
+def test_find_partial_results_keep_metadata(monkeypatch):
+    fake = {
+        "ok": True,
+        "command": "find",
+        "data": {
+            "matches": {
+                "matches": [
+                    {
+                        "ref": "@s1:e1",
+                        "role": "link",
+                        "name": "Sign in",
+                        "bounds": [1, 2, 3, 4],
+                        "actions": ["Click"],
+                    }
+                ],
+                "total_matches": 29,
+                "partial": True,
+                "note": "bounded snapshot search",
+            }
+        },
+    }
+    monkeypatch.setattr(tool, "_envelope", lambda method, params: fake)
+    out = tool.desktop_find(app="demo", role="link")
+    assert "Sign in" in out
+    assert "partial=true" in out
+    assert "total_matches=29" in out
+    assert "bounded snapshot search" in out
+
+
+def test_act_reports_post_action_changes(monkeypatch):
+    after = dict(SNAPSHOT)
+    after["snapshot_id"] = "s999"
+    after["nodes"] = [dict(node) for node in SNAPSHOT["nodes"]]
+    after["nodes"][0]["value"] = "42"
+    seen = {"snapshots": 0}
+
+    def fake(method, params):
+        if method == "snapshot":
+            seen["snapshots"] += 1
+            snapshot = SNAPSHOT if seen["snapshots"] == 1 else after
+            return {"ok": True, "command": method, "data": {"snapshot": snapshot}}
+        return {
+            "ok": True,
+            "command": method,
+            "data": {
+                "action": "click",
+                "disposition": {"delivery": "delivered_unverified", "retry": "unsafe"},
+                "steps": [],
+            },
+        }
+
+    monkeypatch.setattr(tool, "_envelope", fake)
+    tool.desktop_snapshot(app="gnome-calculator")
+    out = tool.desktop_act(action="click", ref="@s123abc:e1")
+    assert "delivered_unverified" in out
+    assert "verification:" in out
+    assert "changed=1" in out
+
+
+def test_act_can_skip_verification(monkeypatch):
+    calls = []
+
+    def fake(method, params):
+        calls.append(method)
+        return {
+            "ok": True,
+            "command": method,
+            "data": {
+                "action": "click",
+                "disposition": {"delivery": "delivered_unverified", "retry": "unsafe"},
+                "steps": [],
+            },
+        }
+
+    monkeypatch.setattr(tool, "_envelope", fake)
+    out = tool.desktop_act(action="click", ref="@s1:e1", verify=False)
+    assert calls == ["act"]
+    assert "verification:" not in out
+
+
+def test_resolve_binary_rejects_a_launcher_script_on_the_development_path(
+    monkeypatch, tmp_path: Path
+):
+    from palimind.agents.tools.desktop import client as desktop_client
+
+    script = tmp_path / "palimind-desktop"
+    script.write_text("#!/bin/sh\n")
+    script.chmod(0o755)
+    assert desktop_client._is_native_executable(script) is False
+
+    binary = tmp_path / "real"
+    binary.write_bytes(b"\x7fELF" + b"\0" * 8)
+    binary.chmod(0o755)
+    assert desktop_client._is_native_executable(binary) is True
+
+
 def test_resolve_binary_prefers_an_explicit_executable(tmp_path: Path):
     binary = tmp_path / "palimind-desktop"
     binary.write_text("#!/bin/sh\n")
     binary.chmod(0o755)
     assert resolve_binary(str(binary)) == binary
+
+
+def test_desktop_grant_adds_the_pack_even_when_tool_pack_is_auto():
+    from palimind.agents.catalog import (
+        AgentDefinition,
+        pinned_tools_for,
+        resolve_effective_tools,
+    )
+
+    granted = AgentDefinition.new(
+        "desktop-granted",
+        tools=["read_file", "document_search"],
+        tool_pack="auto",
+        desktop_access=True,
+        desktop_control=True,
+    )
+    effective = resolve_effective_tools(granted)
+    assert "read_file" in effective
+    assert "desktop_status" in effective
+    assert "desktop_snapshot" in effective
+    assert "desktop_act" in effective
+    assert "desktop_browser" in effective
+
+    pinned = pinned_tools_for(granted, "play Interstellar in Brave")
+    assert "desktop_snapshot" in pinned
+    assert "desktop_act" in pinned
+    assert pinned_tools_for(granted, "summarize this document") == []
+
+    ungranted = AgentDefinition.new(
+        "no-desktop",
+        tools=["read_file"],
+        tool_pack="auto",
+        desktop_access=False,
+        desktop_control=False,
+    )
+    assert "desktop_act" not in resolve_effective_tools(ungranted)
+
+
+def test_router_recognizes_and_pins_desktop_tasks():
+    from palimind.agents.tool_router import is_desktop_task, select_tools
+
+    assert is_desktop_task("play Interstellar in Brave")
+    assert is_desktop_task("click the Save button in gedit")
+    assert not is_desktop_task("summarize this PDF")
+
+    available = [
+        "read_file",
+        "document_search",
+        "run_python",
+        "web_search",
+        "desktop_status",
+        "desktop_apps",
+        "desktop_snapshot",
+        "desktop_find",
+        "desktop_act",
+        "desktop_launch",
+        "desktop_browser",
+    ]
+    registry = {
+        name: {"description": name.replace("_", " "), "parameters": {}} for name in available
+    }
+    pinned = select_tools(
+        "play Interstellar in Brave",
+        available,
+        registry,
+        top_k=8,
+        pinned=["desktop_snapshot", "desktop_act", "desktop_browser"],
+    )
+    assert "desktop_snapshot" in pinned
+    assert "desktop_act" in pinned
+    assert "desktop_browser" in pinned
 
 
 def test_desktop_tools_are_registered_for_the_agent_loop():

@@ -218,9 +218,7 @@ def test_modal_dialog_is_observable_and_its_refs_are_not_stale(desktop):
         window = None
         while time.time() < deadline and window is None:
             time.sleep(0.4)
-            windows = (desktop.apps("windows", app="zenity").get("data") or {}).get(
-                "result", []
-            )
+            windows = (desktop.apps("windows", app="zenity").get("data") or {}).get("result", [])
             window = next(
                 (item for item in windows if "adversarial modal" in item.get("title", "")),
                 None,
@@ -249,9 +247,7 @@ def test_closing_the_target_makes_old_refs_non_actionable(desktop):
     if not launch.get("ok"):
         pytest.skip(f"cannot launch calculator: {launch.get('error')}")
     time.sleep(3)
-    windows = (desktop.apps("windows", app="gnome-calculator").get("data") or {}).get(
-        "result", []
-    )
+    windows = (desktop.apps("windows", app="gnome-calculator").get("data") or {}).get("result", [])
     if not windows:
         pytest.skip("calculator did not register")
     window = windows[0]

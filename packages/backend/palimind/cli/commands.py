@@ -150,9 +150,7 @@ def stop_api_server(port: int) -> bool:
                 cmdline = " ".join(candidate.cmdline()).lower()
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
-            if "palimind.api_server" in cmdline or (
-                "uvicorn" in cmdline and "palimind" in cmdline
-            ):
+            if "palimind.api_server" in cmdline or ("uvicorn" in cmdline and "palimind" in cmdline):
                 listener = candidate
                 break
     except (psutil.AccessDenied, OSError):

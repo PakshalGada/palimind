@@ -87,6 +87,10 @@ class DocumentEngine:
         mid_term_summary: str | None = None,
         long_term_episodes: list[dict] | None = None,
         files_filter: list[str] | None = None,
+        doc_year: int | None = None,
+        doc_type: str | None = None,
+        entity_name: str | None = None,
+        section_title: str | None = None,
     ) -> dict[str, Any]:
         """Hybrid retrieval — delegates to the shared pipeline."""
         graph = self.ensure_graph()
@@ -104,6 +108,10 @@ class DocumentEngine:
             query_rewrite_enabled=self.query_rewrite_enabled,
             context_token_budget=self.context_token_budget,
             graph=graph,
+            doc_year=doc_year,
+            doc_type=doc_type,
+            entity_name=entity_name,
+            section_title=section_title,
         )
 
     def stream_answer(

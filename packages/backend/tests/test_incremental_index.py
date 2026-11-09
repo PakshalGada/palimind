@@ -65,6 +65,31 @@ def test_plan_process_and_unchanged_delta(field: Path) -> None:
     )
 
 
+def test_chunker_version_change_forces_full_rebuild(field: Path) -> None:
+    run = incremental.plan_run(field)
+    incremental.process_run(run["run_id"])
+
+    from palimind.config import load_config, save_config
+
+    config = load_config(field)
+    config["chunker_version"] = 99
+    save_config(field, config)
+
+    rebuilt = incremental.plan_run(field)
+    assert rebuilt["status"] == "queued"
+    assert rebuilt["queued"] == 2
+    assert rebuilt["unchanged"] == 0
+    assert "Full rebuild" in rebuilt["message"]
+    files = incremental.list_run_files(field, rebuilt["run_id"])
+    assert {f["path"] for f in files} == {"a.txt", "b.txt"}
+    assert all(f["status"] == "queued" for f in files)
+
+    completed = incremental.process_run(rebuilt["run_id"])
+    assert completed["status"] == "completed"
+    assert completed["indexed"] == 2
+    assert _db_files(field) == {"a.txt", "b.txt"}
+
+
 def test_deleted_file_is_removed(field: Path) -> None:
     run = incremental.plan_run(field)
     incremental.process_run(run["run_id"])

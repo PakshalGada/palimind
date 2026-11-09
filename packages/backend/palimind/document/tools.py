@@ -34,9 +34,17 @@ class DocumentToolSet:
 
     # ── search ───────────────────────────────────────────────────────────
 
-    def search_documents(self, query: str, limit: int = 8) -> dict[str, Any]:
+    def search_documents(
+        self,
+        query: str,
+        limit: int = 8,
+        doc_year: int | None = None,
+        doc_type: str | None = None,
+        entity_name: str | None = None,
+        section: str | None = None,
+    ) -> dict[str, Any]:
         """Hybrid search via the shared pipeline: semantic + BM25 + rerank
-        + graph traversal.
+        + graph traversal, optionally filtered by document metadata.
 
         Returns ranked chunks with source attribution.
         """
@@ -52,9 +60,19 @@ class DocumentToolSet:
             embed_model=self.embed_model,
             context_token_budget=None,
             graph=self.graph,
+            doc_year=doc_year,
+            doc_type=doc_type,
+            entity_name=entity_name,
+            section_title=section,
         )
         results = context.get("results", [])
-        return {"success": True, "results": results, "total": len(results)}
+        return {
+            "success": True,
+            "results": results,
+            "total": len(results),
+            "errors": context.get("errors") or [],
+            "index_error": context.get("index_error"),
+        }
 
     def search_by_metadata(
         self,

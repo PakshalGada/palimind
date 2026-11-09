@@ -50,7 +50,9 @@ async def desktop_apps(kind: str = "windows"):
     from palimind.agents.tools.desktop.client import DesktopError, get_client
 
     if kind not in ("apps", "windows", "displays"):
-        return JSONResponse({"ok": False, "error": "kind must be apps, windows or displays"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "error": "kind must be apps, windows or displays"}, status_code=400
+        )
     client = get_client()
     try:
         envelope = await asyncio.to_thread(client.apps, kind)
@@ -314,6 +316,14 @@ async def desktop_ask(req: Request):
     registry = get_registry()
     agent_id = str((body or {}).get("agent_id") or "").strip()
     definition = registry.get_by_id(agent_id) if agent_id else None
+    # The popup is a Computer Use surface: never run it on a definition that
+    # cannot observe (or, in Act mode, cannot mutate). A stale/limited agent
+    # selection used to reach the model with only file tools, which then
+    # reported "desktop_* is not in my tool set".
+    if definition is not None and not definition.desktop_access:
+        definition = None
+    if definition is not None and mode == "act" and not definition.desktop_control:
+        definition = None
     if definition is None:
         candidates = [agent for agent in registry.enabled_agents() if agent.desktop_access]
         if mode == "act":
@@ -332,8 +342,13 @@ async def desktop_ask(req: Request):
             goal="Help the user with what is on their Linux desktop.",
             custom_instructions=(
                 "Desktop tasks are multi-step. Start with desktop_snapshot for the "
-                "named app or window, then act on the snapshot refs. Read the result "
-                "after each action instead of guessing."
+                "named app or window, then act on the snapshot refs. Large trees are "
+                "returned content-first and may be marked truncated; use "
+                "desktop_find(role/name/text) to jump to a specific control instead "
+                "of guessing. Read the result after each action instead of guessing; "
+                "the tool now reports what changed. For a Chromium web page whose "
+                "content is missing from the accessibility tree, try "
+                "desktop_browser(action='snapshot') before falling back to coordinates."
             ),
             tools=resolve_tool_pack("desktop"),
             tool_pack="desktop",

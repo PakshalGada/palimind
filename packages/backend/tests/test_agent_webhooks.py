@@ -116,4 +116,6 @@ def test_webhook_http_route(env) -> None:
     assert second.json()["status"] == "duplicate"
     bad = dict(headers)
     bad["X-PaliMind-Signature"] = "sha256=bad"
-    assert client.post(f"/api/hooks/{route['route_id']}", content=body, headers=bad).status_code == 401
+    assert (
+        client.post(f"/api/hooks/{route['route_id']}", content=body, headers=bad).status_code == 401
+    )

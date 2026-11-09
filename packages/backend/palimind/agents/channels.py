@@ -86,7 +86,15 @@ def create_channel(
                                  created_at, updated_at, archived_at)
             VALUES (?, ?, ?, ?, 'active', ?, ?, ?, NULL)
             """,
-            (channel_id, name[:120], str(purpose or "")[:2000], str(lead_agent_id or ""), json.dumps(metadata or {}), now, now),
+            (
+                channel_id,
+                name[:120],
+                str(purpose or "")[:2000],
+                str(lead_agent_id or ""),
+                json.dumps(metadata or {}),
+                now,
+                now,
+            ),
         )
         for agent_id in members or []:
             if not agent_id:
@@ -173,7 +181,9 @@ def update_channel(channel_id: str, **changes: Any) -> dict[str, Any] | None:
                 str(value.get("purpose") or "")[:2000],
                 str(value.get("lead_agent_id") or ""),
                 str(value.get("status") or "active"),
-                json.dumps(value.get("metadata") if isinstance(value.get("metadata"), dict) else {}),
+                json.dumps(
+                    value.get("metadata") if isinstance(value.get("metadata"), dict) else {}
+                ),
                 _now(),
                 value.get("archived_at"),
                 channel_id,
@@ -221,7 +231,9 @@ def list_members(channel_id: str) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
-def add_member(channel_id: str, agent_id: str, *, role: str = "", instructions: str = "") -> dict[str, Any]:
+def add_member(
+    channel_id: str, agent_id: str, *, role: str = "", instructions: str = ""
+) -> dict[str, Any]:
     if get_channel(channel_id) is None:
         raise ValueError("channel not found")
     conn = state_store.state_connection()
@@ -316,7 +328,13 @@ def append_message(
                 INSERT OR REPLACE INTO channel_receipts(channel_id, operation_id, actor_id, value, created_at)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (channel_id, operation_id, str(author_id), json.dumps(message), message["created_at"]),
+                (
+                    channel_id,
+                    operation_id,
+                    str(author_id),
+                    json.dumps(message),
+                    message["created_at"],
+                ),
             )
         conn.commit()
     except Exception:
@@ -389,7 +407,16 @@ def create_task(
                                       revision, status, value, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?)
             """,
-            (task_id, channel_id, owner_agent_id, str(parent_task_id or ""), int(revision or 1), json.dumps(value), now, now),
+            (
+                task_id,
+                channel_id,
+                owner_agent_id,
+                str(parent_task_id or ""),
+                int(revision or 1),
+                json.dumps(value),
+                now,
+                now,
+            ),
         )
         conn.commit()
     finally:
@@ -406,9 +433,7 @@ def get_task(task_id: str) -> dict[str, Any] | None:
     return _task_row(row)
 
 
-def list_tasks(
-    channel_id: str = "", *, status: str = "", limit: int = 100
-) -> list[dict[str, Any]]:
+def list_tasks(channel_id: str = "", *, status: str = "", limit: int = 100) -> list[dict[str, Any]]:
     clauses: list[str] = []
     args: list[Any] = []
     if channel_id:
@@ -456,7 +481,9 @@ def update_task(task_id: str, **changes: Any) -> dict[str, Any] | None:
                         "request": value.get("request") or "",
                         "result": value.get("result") or "",
                         "error": value.get("error") or "",
-                        "metadata": value.get("metadata") if isinstance(value.get("metadata"), dict) else {},
+                        "metadata": value.get("metadata")
+                        if isinstance(value.get("metadata"), dict)
+                        else {},
                     }
                 ),
                 _now(),
@@ -473,7 +500,9 @@ def assign_task(task_id: str, agent_id: str) -> dict[str, Any] | None:
     task = get_task(task_id)
     if task is None:
         return None
-    return update_task(task_id, owner_agent_id=agent_id, revision=int(task.get("revision") or 1) + 1)
+    return update_task(
+        task_id, owner_agent_id=agent_id, revision=int(task.get("revision") or 1) + 1
+    )
 
 
 def transfer_task(task_id: str, agent_id: str) -> dict[str, Any] | None:

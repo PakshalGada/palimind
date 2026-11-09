@@ -24,7 +24,9 @@ class ProviderRegistry:
         self._instances: dict[str, ProviderClient] = {}
         self._errors: dict[str, str] = {}
 
-    def register(self, provider_id: str, factory: ProviderFactory, *, replace: bool = False) -> None:
+    def register(
+        self, provider_id: str, factory: ProviderFactory, *, replace: bool = False
+    ) -> None:
         provider_id = str(provider_id or "").strip()
         if not provider_id:
             raise ValueError("provider id is required")

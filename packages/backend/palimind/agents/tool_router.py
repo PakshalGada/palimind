@@ -76,6 +76,48 @@ _CORE_TOOLS = (
 
 # Tool families let a task mentioning "test" or "chart" pull in related tools
 # even when the description does not share the exact word.
+_DESKTOP_FAMILY = (
+    "desktop_status",
+    "desktop_apps",
+    "desktop_snapshot",
+    "desktop_find",
+    "desktop_wait",
+    "desktop_act",
+    "desktop_screenshot",
+    "desktop_launch",
+    "desktop_browser",
+)
+_DESKTOP_HINTS = {
+    "desktop",
+    "screen",
+    "window",
+    "click",
+    "type",
+    "typing",
+    "keyboard",
+    "mouse",
+    "screenshot",
+    "app",
+    "application",
+    "browser",
+    "brave",
+    "chrome",
+    "chromium",
+    "firefox",
+    "edge",
+    "vivaldi",
+    "opera",
+    "youtube",
+    "netflix",
+    "spotify",
+    "movie",
+    "video",
+    "play",
+    "calculator",
+    "gedit",
+    "nautilus",
+    "settings",
+}
 _FAMILY_HINTS: dict[str, tuple[str, ...]] = {
     "code": ("apply_patch", "edit_file", "repo_map", "code_search", "run_tests", "git_diff"),
     "test": ("run_tests", "run_python", "grep_files"),
@@ -85,18 +127,71 @@ _FAMILY_HINTS: dict[str, tuple[str, ...]] = {
     "pdf": ("pdf_read", "pdf_extract", "document_search"),
     "image": ("image_info", "image_ocr", "image_caption"),
     "audio": ("audio_transcribe",),
-    "video": ("video_frames", "audio_transcribe"),
+    "video": ("video_frames", "audio_transcribe", *_DESKTOP_FAMILY),
     "email": ("read_email", "send_email"),
     "calendar": ("calendar_ics",),
-    "browser": ("browser_open", "browser_snapshot", "browser_extract", "browse_url"),
+    "browser": (
+        "browser_open",
+        "browser_snapshot",
+        "browser_extract",
+        "browse_url",
+        *_DESKTOP_FAMILY,
+    ),
     "web": ("web_search", "fetch_url", "browse_url", "web_crawl"),
     "research": ("web_search", "fetch_url", "arxiv_search", "semantic_scholar_search"),
     "arxiv": ("arxiv_search", "semantic_scholar_search", "openalex_search", "crossref_search"),
     "paper": ("arxiv_search", "semantic_scholar_search", "openalex_search", "pubmed_search"),
     "sql": ("sqlite_query", "duckdb_query", "sqlite_schema"),
     "spreadsheet": ("xlsx_read", "xlsx_write", "csv_query", "dataframe_query"),
+    "desktop": _DESKTOP_FAMILY,
+    "play": _DESKTOP_FAMILY,
+    "application": _DESKTOP_FAMILY,
+    "app": _DESKTOP_FAMILY,
+    "screen": _DESKTOP_FAMILY,
+    "window": _DESKTOP_FAMILY,
+    "click": _DESKTOP_FAMILY,
+    "mouse": _DESKTOP_FAMILY,
+    "keyboard": _DESKTOP_FAMILY,
+    "screenshot": _DESKTOP_FAMILY,
+    "brave": _DESKTOP_FAMILY,
+    "chrome": _DESKTOP_FAMILY,
+    "chromium": _DESKTOP_FAMILY,
+    "firefox": _DESKTOP_FAMILY,
+    "edge": _DESKTOP_FAMILY,
+    "vivaldi": _DESKTOP_FAMILY,
+    "opera": _DESKTOP_FAMILY,
+    "youtube": _DESKTOP_FAMILY,
+    "netflix": _DESKTOP_FAMILY,
+    "spotify": _DESKTOP_FAMILY,
+    "movie": _DESKTOP_FAMILY,
     "mcp": ("mcp__",),
 }
+
+
+def is_desktop_task(task: str) -> bool:
+    """Whether a task is likely to need desktop/browser control.
+
+    Used only to decide which tools to pin; it never grants a capability. An
+    agent without desktop permissions still cannot call the tools even if they
+    are named here.
+    """
+
+    text = str(task or "").lower()
+    tokens = _tokens(text)
+    if tokens & _DESKTOP_HINTS:
+        return True
+    # Multi-word app/page phrases that the tokenizer splits or that are too
+    # generic to list as single tokens.
+    return any(
+        phrase in text
+        for phrase in (
+            "file manager",
+            "desktop app",
+            "open the app",
+            "switch to",
+            "on the screen",
+        )
+    )
 
 
 def _tokens(text: str) -> set[str]:

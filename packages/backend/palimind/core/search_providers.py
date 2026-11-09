@@ -39,6 +39,7 @@ def _search_defaults() -> tuple[str, str, float]:
     except Exception:  # noqa: BLE001 - settings must never break search
         return _DEFAULT_SEARCH_PROVIDER, _DEFAULT_SEARXNG_URL, _DEFAULT_SEARCH_TIMEOUT
 
+
 # Shared across router instances: searching repeatedly must not re-probe the
 # local SearXNG port on every query.
 _AVAILABILITY_CACHE: dict[str, tuple[float, bool, str]] = {}
@@ -213,9 +214,7 @@ class SearchRouter:
     ) -> None:
         cfg = config if config is not None else load_global_config()
         default_provider, default_url, _ = _search_defaults()
-        self.requested = str(
-            preferred or cfg.get("search_provider") or default_provider
-        ).lower()
+        self.requested = str(preferred or cfg.get("search_provider") or default_provider).lower()
         if self.requested not in ("auto", "ddg", "searxng"):
             self.requested = "auto"
         url = str(cfg.get("searxng_url") or default_url or "")

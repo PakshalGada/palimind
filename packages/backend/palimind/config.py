@@ -18,10 +18,28 @@ DEFAULTS = {
     # 768-dim fallback.
     "embed_model": "bge-m3",
     "embed_dim": 1024,  # Vector dimension of embed_model (1024 bge-m3, 768 nomic)
+    # Optional learned-sparse / late-interaction retrieval. Both require the
+    # `FlagEmbedding` package and a local bge-m3 checkpoint (they are not
+    # exposed by the Ollama embed endpoint); they degrade to a no-op otherwise.
+    "sparse_retrieval": False,
+    "sparse_model": "BAAI/bge-m3",
+    "colbert_rerank": False,
+    "colbert_candidates": 50,
     "chat_model": "gemma4:e2b",
     "vision_model": "llava",  # Ollama multimodal model used to caption images
-    "chunk_size": 1500,
-    "chunk_overlap": 200,
+    # Child chunks are deliberately small: retrieval matches the precise
+    # passage, then the parent section is assembled for the LLM. Larger values
+    # dilute embeddings and crowd the context window.
+    "chunk_size": 700,
+    "chunk_overlap": 120,
+    # Child-chunk size used by the indexer. Prefer these keys when migrating
+    # existing workspaces (their legacy chunk_size/chunk_overlap stay valid
+    # for callers that still read them).
+    "child_chunk_size": 700,
+    "child_chunk_overlap": 120,
+    # Bump when chunking semantics change; an index stamped with an older
+    # value is rebuilt on the next update so every chunk uses the new layout.
+    "chunker_version": 3,
     "video_chunk_chars": 800,  # transcript chunk size for videos (chars)
     "turbovec_bit_width": 4,  # 2 or 4 — compression vs accuracy trade-off (legacy, unused)
     "vector_quantization": "none",  # "none" (float32), "sq8" (8-bit scalar), or "pq" (product quant)
@@ -61,6 +79,26 @@ DEFAULTS = {
         ".tox",
     ],
     "retrieval_limit": 10,  # Number of chunks returned per retrieval call
+    # Over-fetch depth per query variant before fusion/rerank. RRF on a deep
+    # candidate pool is what makes a reranker or MMR selection useful.
+    "retrieval_candidate_depth": 50,
+    # Small-to-big retrieval: match a child chunk, then hand the LLM the whole
+    # parent section (bounded so a huge section cannot crowd the context).
+    "parent_retrieval": True,
+    "parent_max_tokens": 1500,
+    # Embedding MMR diversity selection (falls back to lexical dedupe when the
+    # stored embeddings are unavailable).
+    "mmr": True,
+    "mmr_lambda": 0.7,
+    "mmr_per_file_cap": 4,
+    # Search the per-file summary index to boost documents that match the
+    # question as a whole ("which report covers X?").
+    "summary_search": True,
+    # Agentic RAG for document mode: "auto" routes complex multi-part /
+    # multi-hop questions through a plan → parallel retrieve → verify loop.
+    "agentic_rag": "auto",  # auto | off | always
+    "agentic_rag_max_subqueries": 6,
+    "agentic_rag_max_rounds": 2,
     "context_token_budget": 8000,  # Maximum tokens assembled into LLM context
     "num_ctx": 16384,  # Ollama context window; must cover context_token_budget + prompt overhead
     "comparison_chunks_per_doc": 4,  # Chunks retrieved per document in comparison mode
@@ -74,6 +112,10 @@ DEFAULTS = {
     "rerank_opt_in": False,
     "rerank_model": "cross-encoder/ms-marco-MiniLM-L-6-v2",  # small/fast CPU model
     "query_rewrite": True,  # LLM query rewriting at retrieval time
+    # Maximum time to wait for rewritten query variants. Local 7B/9B models
+    # routinely need more than this; waiting longer made every query slower
+    # without improving results, so the base variants win the race by default.
+    "query_rewrite_timeout": 0.6,
     "auto_reindex": False,  # Watcher auto-reindexes on file change (CPU/GIL heavy; off = manual Sync)
     "video_extensions": [".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v"],
     "video_whisper_model": "base",  # Whisper tier for offline video transcription
@@ -113,6 +155,22 @@ DEFAULTS = {
 }
 
 
+# Parsed config cache keyed by (path, mtime_ns, size). Retrieval calls
+# load_config() on every query; re-reading and merging the same JSON was pure
+# overhead once the workspace settles.
+_CONFIG_CACHE: dict[tuple[str, int, int], dict] = {}
+
+
+def _embedding_dim_for_model(model_id: str) -> int:
+    """Best-effort known output dimension for an embedding model name."""
+    try:
+        from palimind.model_capabilities import infer_from_name
+
+        return int(infer_from_name(model_id).embedding_dim or 0)
+    except Exception:
+        return 0
+
+
 def palimind_dir(root: Path) -> Path:
     return root / PALIMIND_DIR
 
@@ -128,9 +186,22 @@ def db_path(root: Path) -> Path:
 def load_config(root: Path) -> dict:
     path = config_path(root)
     if path.exists():
+        try:
+            stat = path.stat()
+            cache_key = (str(path), stat.st_mtime_ns, stat.st_size)
+            cached = _CONFIG_CACHE.get(cache_key)
+            if cached is not None:
+                return dict(cached)
+        except OSError:
+            cache_key = None
+            stat = None
         with path.open() as f:
             data = json.load(f)
         merged = {**DEFAULTS, **data}
+        if cache_key is not None:
+            if len(_CONFIG_CACHE) > 64:
+                _CONFIG_CACHE.clear()
+            _CONFIG_CACHE[cache_key] = dict(merged)
     else:
         merged = dict(DEFAULTS)
     # Migration: the old default was `rerank: true`. Treat configs without the
@@ -138,6 +209,12 @@ def load_config(root: Path) -> dict:
     # cross-encoder cost on every query.
     if not merged.get("rerank_opt_in"):
         merged["rerank"] = False
+    # Keep embed_dim in sync with the model family. A stale dim (for example
+    # embed_dim=1024 after switching to nomic-embed-text) used to reject a
+    # perfectly healthy 768-dim index and disable semantic search.
+    known_dim = _embedding_dim_for_model(str(merged.get("embed_model") or ""))
+    if known_dim and int(merged.get("embed_dim") or 0) != known_dim:
+        merged["embed_dim"] = known_dim
     env_rerank = os.environ.get("PALIMIND_RERANK", "").strip().lower()
     if env_rerank:
         enabled = env_rerank in ("1", "true", "yes", "on")

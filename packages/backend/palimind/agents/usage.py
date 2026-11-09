@@ -160,7 +160,8 @@ def estimate_cost(
 ) -> float:
     return round(
         (max(0, int(prompt_tokens or 0)) / 1_000_000.0) * max(0.0, float(input_per_mtok or 0.0))
-        + (max(0, int(completion_tokens or 0)) / 1_000_000.0) * max(0.0, float(output_per_mtok or 0.0)),
+        + (max(0, int(completion_tokens or 0)) / 1_000_000.0)
+        * max(0.0, float(output_per_mtok or 0.0)),
         6,
     )
 

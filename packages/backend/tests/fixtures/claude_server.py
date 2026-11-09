@@ -17,7 +17,9 @@ def write(message):
 
 
 def main() -> int:
-    write({"type": "system", "subtype": "init", "session_id": "session-1", "model": "fixture-claude"})
+    write(
+        {"type": "system", "subtype": "init", "session_id": "session-1", "model": "fixture-claude"}
+    )
     while True:
         line = sys.stdin.readline()
         if not line:

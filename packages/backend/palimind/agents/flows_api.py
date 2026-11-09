@@ -70,7 +70,13 @@ def _calendar_token() -> str:
 
 
 def _ics_escape(value: str) -> str:
-    return str(value).replace("\\", "\\\\").replace("\n", "\\n").replace(",", "\\,").replace(";", "\\;")
+    return (
+        str(value)
+        .replace("\\", "\\\\")
+        .replace("\n", "\\n")
+        .replace(",", "\\,")
+        .replace(";", "\\;")
+    )
 
 
 @router.get("/routines/calendar.ics")

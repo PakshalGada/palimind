@@ -31,7 +31,11 @@ def _detect_type(content: str) -> str:
         return "svg"
     if lower.startswith("<!doctype html") or lower.startswith("<html"):
         return "html"
-    if lower.startswith("graph ") or lower.startswith("flowchart ") or lower.startswith("sequencediagram"):
+    if (
+        lower.startswith("graph ")
+        or lower.startswith("flowchart ")
+        or lower.startswith("sequencediagram")
+    ):
         return "mermaid"
     if "# " in text[:200] or "| ---" in text:
         return "markdown"
@@ -108,8 +112,12 @@ def save_artifact(data: dict[str, Any], artifact_id: str | None = None) -> dict[
         content = existing.get("content", "") if existing else ""
     artifact = {
         "id": artifact_id or str(uuid.uuid4().hex),
-        "title": str(data.get("title") or (existing or {}).get("title") or _detect_title(str(content or ""))),
-        "type": str(data.get("type") or (existing or {}).get("type") or _detect_type(str(content or ""))),
+        "title": str(
+            data.get("title") or (existing or {}).get("title") or _detect_title(str(content or ""))
+        ),
+        "type": str(
+            data.get("type") or (existing or {}).get("type") or _detect_type(str(content or ""))
+        ),
         "language": str(data.get("language") or (existing or {}).get("language", "")),
         "description": str(data.get("description") or (existing or {}).get("description", "")),
         "project_id": str(data.get("project_id") or (existing or {}).get("project_id", "")),

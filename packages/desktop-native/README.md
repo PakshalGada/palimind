@@ -25,12 +25,16 @@ make desktop-bundle      # release binary staged for the Tauri sidecar
 Run:
 
 ```bash
+cd packages/desktop-native
 export PALIMIND_DESKTOP_ENABLE=1
 export PALIMIND_DESKTOP_ALLOWED_APPS=gnome-calculator
-palimind-desktop status
-palimind-desktop apps windows
-palimind-desktop snapshot --app gnome-calculator -i
-palimind-desktop serve            # used by the Python backend
+# Use the cargo target, not PATH: a desktop launcher may also be named
+# palimind-desktop. `make desktop-smoke` runs the status command directly.
+cargo run --quiet -p palimind-desktop -- status
+cargo run --quiet -p palimind-desktop -- apps windows
+cargo run --quiet -p palimind-desktop -- snapshot --app gnome-calculator -i
+cargo run --quiet -p palimind-desktop -- screencast --out /tmp/shot.png
+cargo run --quiet -p palimind-desktop -- serve   # used by the Python backend
 ```
 
 The state root is `~/.palimind/desktop` (override: `PALIMIND_DESKTOP_HOME`).

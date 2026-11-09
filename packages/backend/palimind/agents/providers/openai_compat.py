@@ -62,7 +62,9 @@ class OpenAICompatibleProvider:
                 resp.raise_for_status()
                 data = resp.json()
         except Exception as exc:  # noqa: BLE001
-            raise ProviderError(f"OpenAI-compatible model list failed: {exc}", cause="network") from exc
+            raise ProviderError(
+                f"OpenAI-compatible model list failed: {exc}", cause="network"
+            ) from exc
         out: list[ProviderModel] = []
         for item in data.get("data") or []:
             model_id = str(item.get("id") or "")
@@ -128,9 +130,13 @@ class OpenAICompatibleProvider:
                     f"{base}/chat/completions", headers=_headers(), json=payload
                 )
                 if resp.status_code in (401, 403):
-                    raise ProviderError("OpenAI-compatible authentication failed", cause="authentication")
+                    raise ProviderError(
+                        "OpenAI-compatible authentication failed", cause="authentication"
+                    )
                 if resp.status_code == 429:
-                    raise ProviderError("OpenAI-compatible rate limit", cause="rate_limit", retryable=True)
+                    raise ProviderError(
+                        "OpenAI-compatible rate limit", cause="rate_limit", retryable=True
+                    )
                 if resp.status_code >= 500:
                     raise ProviderError(
                         f"OpenAI-compatible server error: {resp.status_code}",

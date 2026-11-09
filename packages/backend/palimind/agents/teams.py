@@ -136,7 +136,9 @@ def get_team(team_id: str) -> dict[str, Any] | None:
 
 
 def create_team(data: dict[str, Any]) -> dict[str, Any]:
-    if any(str(t.get("name", "")).lower() == str(data.get("name", "")).lower() for t in list_teams()):
+    if any(
+        str(t.get("name", "")).lower() == str(data.get("name", "")).lower() for t in list_teams()
+    ):
         raise ValueError(f"A team named '{data.get('name')}' already exists")
     error = validate_team(data)
     if error:
@@ -184,7 +186,9 @@ def delete_team(team_id: str) -> bool:
     return True
 
 
-def add_member(team_id: str, agent_id: str, role: str = "", manager: bool = False) -> dict[str, Any]:
+def add_member(
+    team_id: str, agent_id: str, role: str = "", manager: bool = False
+) -> dict[str, Any]:
     team = get_team(team_id)
     if team is None:
         raise KeyError("Team not found")

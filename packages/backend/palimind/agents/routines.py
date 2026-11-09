@@ -171,7 +171,9 @@ async def run_routine(routine_id: str, payload: str = "") -> str:
         status = str(result.get("status") or "success")
         mark_run(routine_id, run_id, status)
         if status == "error":
-            raise RuntimeError(str(result.get("error") or result.get("output") or "team run failed"))
+            raise RuntimeError(
+                str(result.get("error") or result.get("output") or "team run failed")
+            )
         return run_id
 
     from palimind.agents.registry import get_registry
@@ -180,7 +182,9 @@ async def run_routine(routine_id: str, payload: str = "") -> str:
     defn = get_registry().get_by_id(target_id)
     if defn is None:
         raise KeyError("Agent not found")
-    output = await run_agent(defn, input_text, session_id=f"_routine:{routine_id}", interactive=False)
+    output = await run_agent(
+        defn, input_text, session_id=f"_routine:{routine_id}", interactive=False
+    )
     last = None
     try:
         from palimind.agents.runtime import get_last_run

@@ -62,7 +62,13 @@ def test_responder_forwards_ollama_thinking_field(monkeypatch) -> None:
     reasoning: list[str] = []
     tokens = list(
         responder.generate_response_stream(
-            "q", "", [], "http://x", "qwen3:4b", "", is_chat_only=True,
+            "q",
+            "",
+            [],
+            "http://x",
+            "qwen3:4b",
+            "",
+            is_chat_only=True,
             on_reasoning=reasoning.append,
         )
     )
@@ -94,7 +100,13 @@ def test_responder_does_not_retry_after_reasoning_was_delivered(monkeypatch) -> 
     with pytest.raises(ResponseError):
         list(
             responder.generate_response_stream(
-                "q", "", [], "http://x", "m", "", is_chat_only=True,
+                "q",
+                "",
+                [],
+                "http://x",
+                "m",
+                "",
+                is_chat_only=True,
                 on_reasoning=reasoning.append,
             )
         )
@@ -445,9 +457,7 @@ def test_deep_research_failing_agent_isolated(monkeypatch) -> None:
     monkeypatch.setattr(
         dr_pipeline,
         "llm_chat_safe",
-        _fake_llm_safe(
-            {"[research-planner error": plan, "[deep-synthesis error": "the report"}
-        ),
+        _fake_llm_safe({"[research-planner error": plan, "[deep-synthesis error": "the report"}),
     )
     monkeypatch.setattr(dr_pipeline, "DR_VERIFY", False)
     monkeypatch.setattr(web_search, "perform_web_search", lambda *a, **kw: "")
@@ -474,8 +484,11 @@ def test_llm_chat_stream_raises_on_in_band_error() -> None:
     body = _ndjson([{"error": "model runner has unexpectedly stopped"}])
     transport = httpx.MockTransport(lambda req: httpx.Response(200, content=body))
     with pytest.raises(LLMError, match="unexpectedly stopped"):
-        list(llm_chat_stream([{"role": "user", "content": "hi"}], "m", "http://x",
-                             transport=transport))
+        list(
+            llm_chat_stream(
+                [{"role": "user", "content": "hi"}], "m", "http://x", transport=transport
+            )
+        )
 
 
 def test_normalize_tool_calls_non_dict_arguments() -> None:

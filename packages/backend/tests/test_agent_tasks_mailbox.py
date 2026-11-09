@@ -40,14 +40,24 @@ def an_agent(isolated):
 
 def test_provider_contract_with_fake() -> None:
     reset_provider_registry()
-    fake = FakeProvider(events=[ProviderEvent("message", {"text": "hello"}), ProviderEvent("usage", {"prompt_tokens": 2, "completion_tokens": 3})])
+    fake = FakeProvider(
+        events=[
+            ProviderEvent("message", {"text": "hello"}),
+            ProviderEvent("usage", {"prompt_tokens": 2, "completion_tokens": 3}),
+        ]
+    )
     get_provider_registry().register("fake", lambda: fake)
 
     async def run():
         models = await get_provider_registry().models("fake")
         assert models[0].id == "fake-large"
         session = await fake.start_session("thread-1", model="fake-large")
-        events = [event async for event in fake.send_turn(session, [{"role": "user", "content": "hi"}], model="fake-large")]
+        events = [
+            event
+            async for event in fake.send_turn(
+                session, [{"role": "user", "content": "hi"}], model="fake-large"
+            )
+        ]
         assert [e.type for e in events][:2] == ["turn_started", "message"]
         assert events[-1].type == "turn_completed"
         await fake.close()

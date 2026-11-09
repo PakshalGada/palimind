@@ -38,7 +38,9 @@ def test_ref_boxes_match_snapshot_bounds_within_one_pixel(tmp_path):
     # The inverse transform must recover the snapshot bounds within tolerance.
     box = annotations[0]["box"]
     recovered = [box[0], box[1], box[2] - box[0], box[3] - box[1]]
-    assert all(abs(a - b) <= 1 for a, b in zip(recovered, snapshot["nodes"][0]["bounds"], strict=False))
+    assert all(
+        abs(a - b) <= 1 for a, b in zip(recovered, snapshot["nodes"][0]["bounds"], strict=False)
+    )
 
     # A rectangle was actually painted.
     image = Image.open(path).convert("RGB")
@@ -60,9 +62,7 @@ def test_scale_and_crop_offset_transform_correctly(tmp_path):
             }
         ],
     }
-    _, annotations = annotation.annotate_image(
-        source, snapshot, scale=2.0, offset=(20.0, 10.0)
-    )
+    _, annotations = annotation.annotate_image(source, snapshot, scale=2.0, offset=(20.0, 10.0))
     assert annotations[0]["box"] == [0, 30, 60, 110]
 
 

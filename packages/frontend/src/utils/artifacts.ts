@@ -53,19 +53,18 @@ export interface Artifact {
   closed?: boolean;
 }
 
+/**
+ * Fence languages that are allowed to create an artifact.
+ *
+ * The product rule is: only generated Office/PowerPoint deliverables open the
+ * artifact panel. Markdown answers, tables, prose, HTML, SVG, diagrams and
+ * code fences stay inline in the conversation.
+ */
 const LANGUAGE_MAP: Record<string, ArtifactType> = {
-  html: 'html',
-  htm: 'html',
-  svg: 'svg',
-  mermaid: 'mermaid',
-  mmd: 'mermaid',
-  react: 'react',
-  jsx: 'react',
-  tsx: 'react',
-  markdown: 'markdown',
-  md: 'markdown',
   document: 'document',
   doc: 'document',
+  docx: 'document',
+  word: 'document',
   slides: 'slide-outline',
   slide: 'slide-outline',
   deck: 'slide-outline',
@@ -73,57 +72,9 @@ const LANGUAGE_MAP: Record<string, ArtifactType> = {
   pptx: 'slide-outline',
   presentation: 'slide-outline',
   'slide-outline': 'slide-outline',
-  table: 'table',
-  'md-table': 'table',
 };
 
-const CODE_LANGUAGES = new Set([
-  'js',
-  'javascript',
-  'ts',
-  'typescript',
-  'python',
-  'py',
-  'css',
-  'scss',
-  'less',
-  'json',
-  'yaml',
-  'yml',
-  'toml',
-  'xml',
-  'bash',
-  'sh',
-  'shell',
-  'zsh',
-  'sql',
-  'go',
-  'rust',
-  'rs',
-  'java',
-  'kotlin',
-  'swift',
-  'c',
-  'cpp',
-  'c++',
-  'cs',
-  'csharp',
-  'php',
-  'ruby',
-  'rb',
-  'dart',
-  'r',
-  'lua',
-  'graphql',
-  'diff',
-]);
-
-const PLAIN_LANGUAGES = new Set(['', 'text', 'txt', 'plain', 'plaintext']);
 const FILE_HEADER_RE = /^\s*---\s*file:\s*(.+?)\s*---\s*$/;
-
-/** Unfenced prose must clear both thresholds before it becomes a document. */
-const DOCUMENT_MIN_CHARS = 600;
-const DOCUMENT_MIN_HEADINGS = 2;
 
 const EXTENSION_LANGUAGES: Record<string, string> = {
   ts: 'typescript',
@@ -291,8 +242,6 @@ interface ScannedFence {
 
 interface FenceScan {
   fences: ScannedFence[];
-  /** Markdown lines with fenced regions blanked out, line count preserved. */
-  proseLines: string[];
 }
 
 const OPEN_FENCE_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
@@ -307,12 +256,7 @@ const CLOSE_FENCE_RE = /^ {0,3}(`{3,}|~{3,})\s*$/;
  */
 function scanFences(markdown: string): FenceScan {
   const lines = markdown.split('\n');
-  const proseLines = [...lines];
   const fences: ScannedFence[] = [];
-
-  const blank = (from: number, to: number) => {
-    for (let i = from; i < to; i++) proseLines[i] = '';
-  };
 
   let open: {
     char: string;
@@ -345,7 +289,6 @@ function scanFences(markdown: string): FenceScan {
         content: open.body.join('\n').replace(/\s+$/, ''),
         closed: true,
       });
-      blank(open.start, i + 1);
       open = null;
     } else {
       open.body.push(line);
@@ -359,10 +302,9 @@ function scanFences(markdown: string): FenceScan {
       content: open.body.join('\n').replace(/\s+$/, ''),
       closed: false,
     });
-    blank(open.start, lines.length);
   }
 
-  return { fences, proseLines };
+  return { fences };
 }
 
 function detectFenceArtifact(
@@ -374,147 +316,20 @@ function detectFenceArtifact(
   const content = fence.content;
   if (!content.trim()) return null;
 
-  const mapped = LANGUAGE_MAP[language];
-  const files = parseArtifactFiles(content);
-  const paths = files.map(file => file.path);
-
-  let type: ArtifactType | undefined = mapped;
-  if (paths.length > 1) {
-    type = 'multi-file';
-  } else if (
-    paths.length === 1 &&
-    mapped !== 'html' &&
-    mapped !== 'svg' &&
-    mapped !== 'mermaid'
-  ) {
-    type = 'code-file';
-  } else if (!type) {
-    if (CODE_LANGUAGES.has(language)) type = 'code';
-    else if (!language) type = undefined;
-    else type = 'code';
-  }
-
-  if (mapped === 'markdown') {
-    const headingCount = (content.match(/^\s*#{1,6}\s+/gm) || []).length;
-    if (content.length >= 600 || headingCount >= 3) type = 'document';
-  }
-
+  // Only Office/PowerPoint fences create artifacts. Everything else
+  // (Markdown, tables, HTML, SVG, diagrams, code) stays in the transcript.
+  const type = LANGUAGE_MAP[language];
   if (!type) return null;
-  // A plain/unknown block with no path markers and no language is just prose.
-  if (PLAIN_LANGUAGES.has(language) && !paths.length && !mapped) return null;
 
   return {
     id: `fence-${messageIndex}-${fence.ordinal}`,
     type,
     language: language || (type === 'slide-outline' ? 'slides' : ''),
-    title: deriveTitle(type, language, content, files),
+    title: deriveTitle(type, language, content, []),
     content,
     messageIndex,
-    ...(paths.length ? { filePaths: paths } : {}),
-    ...(files.length ? { files } : {}),
     ...(fence.closed || !isStreaming ? {} : { streaming: true }),
     closed: fence.closed,
-  };
-}
-
-interface TableScan {
-  artifacts: Artifact[];
-  /** True for lines that belong to a detected table. */
-  tableLines: boolean[];
-}
-
-function nearestHeading(lines: string[], index: number): string {
-  for (let i = index - 1; i >= Math.max(0, index - 4); i--) {
-    const line = lines[i]?.trim() || '';
-    if (/^#{1,6}\s+/.test(line)) return line.replace(/^#{1,6}\s+/, '').trim();
-  }
-  return '';
-}
-
-const TABLE_SEPARATOR_RE = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/;
-
-function scanMarkdownTables(
-  proseLines: string[],
-  messageIndex: number,
-  streaming: boolean,
-): TableScan {
-  const lines = proseLines;
-  const artifacts: Artifact[] = [];
-  const tableLines = new Array<boolean>(lines.length).fill(false);
-  let i = 0;
-
-  while (i < lines.length - 1) {
-    const header = lines[i];
-    const separator = lines[i + 1];
-    const isHeader = header.includes('|');
-    const isSeparator = separator.includes('|') && TABLE_SEPARATOR_RE.test(separator);
-    if (!isHeader || !isSeparator) {
-      i++;
-      continue;
-    }
-
-    const rows = [header, separator];
-    let j = i + 2;
-    while (j < lines.length && lines[j].includes('|') && lines[j].trim()) {
-      rows.push(lines[j]);
-      j++;
-    }
-
-    // A table that runs to the end of the message may still be growing. Wait
-    // for a non-empty line after it (or for the stream to finish) before
-    // emitting, otherwise every new row would rebuild the artifact.
-    const hasFollowingContent =
-      j < lines.length && lines.slice(j).some(line => line.trim().length > 0);
-    const complete = hasFollowingContent || !streaming;
-
-    if (rows.length >= 3 && complete) {
-      const content = rows.join('\n').trim();
-      const context = nearestHeading(lines, i);
-      const ordinal = artifacts.length;
-      artifacts.push({
-        id: `table-${messageIndex}-${ordinal}`,
-        type: 'table',
-        language: 'markdown',
-        title: deriveTitle('table', 'markdown', content, [], context),
-        content,
-        messageIndex,
-      });
-    }
-
-    for (let k = i; k < j; k++) tableLines[k] = true;
-    i = Math.max(j, i + 1);
-  }
-
-  return { artifacts, tableLines };
-}
-
-function detectUnfencedDocument(
-  proseLines: string[],
-  tableLines: boolean[],
-  messageIndex: number,
-  streaming: boolean,
-  nothingElseDetected: boolean,
-): Artifact | null {
-  // Only fall back to a document when the message is settled, so a document
-  // artifact is created once instead of on every streamed token.
-  if (streaming || !nothingElseDetected) return null;
-
-  const prose = proseLines
-    .map((line, index) => (tableLines[index] ? '' : line))
-    .join('\n')
-    .trim();
-  if (prose.length < DOCUMENT_MIN_CHARS) return null;
-
-  const headingCount = (prose.match(/^\s*#{1,6}\s+/gm) || []).length;
-  if (headingCount < DOCUMENT_MIN_HEADINGS) return null;
-
-  return {
-    id: `document-${messageIndex}`,
-    type: 'document',
-    language: 'markdown',
-    title: deriveTitle('document', 'markdown', prose, []),
-    content: prose,
-    messageIndex,
   };
 }
 
@@ -531,25 +346,13 @@ export function parseArtifacts(
   if (!markdown) return [];
 
   const streaming = options.streaming === true;
-  const { fences, proseLines } = scanFences(markdown);
+  const { fences } = scanFences(markdown);
   const artifacts: Artifact[] = [];
 
   for (const fence of fences) {
     const artifact = detectFenceArtifact(fence, messageIndex, streaming);
     if (artifact) artifacts.push(artifact);
   }
-
-  const tables = scanMarkdownTables(proseLines, messageIndex, streaming);
-  artifacts.push(...tables.artifacts);
-
-  const document = detectUnfencedDocument(
-    proseLines,
-    tables.tableLines,
-    messageIndex,
-    streaming,
-    artifacts.length === 0,
-  );
-  if (document) artifacts.push(document);
 
   // De-duplicate by stable id while preserving message order.
   const seen = new Set<string>();
@@ -686,31 +489,13 @@ export function triggerDownload(blob: Blob, filename: string): void {
  * short snippets should stay in the chat. Web pages, Markdown/Word-style
  * documents, slide decks and previewable code files open themselves.
  */
-const AUTO_OPEN_TYPES: ReadonlySet<ArtifactType> = new Set<ArtifactType>([
-  'html',
-  'svg',
-  'mermaid',
-  'react',
-  'markdown',
-  'document',
-  'slide-outline',
-  'code',
-  'code-file',
-  'multi-file',
-]);
-
 export function shouldAutoOpenArtifact(
   artifact: Pick<Artifact, 'type' | 'filePaths'>,
 ): boolean {
-  if (artifact.type === 'table') return false;
-  if (AUTO_OPEN_TYPES.has(artifact.type)) return true;
+  if (artifact.type === 'document' || artifact.type === 'slide-outline') return true;
   // File-backed artifacts follow their extension even when the detector
-  // classified them generically.
-  return (artifact.filePaths ?? []).some((path) =>
-    /\.(md|markdown|mdx|docx|html?|css|js|jsx|ts|tsx|py|json|ya?ml|toml|rs|go|java|kt|swift|c|cc|cpp|cs|php|rb|sh|sql)$/i.test(
-      path,
-    ),
-  );
+  // classified them generically. Only Office files open the panel.
+  return (artifact.filePaths ?? []).some((path) => /\.(docx|pptx)$/i.test(path));
 }
 
 /** True for artifacts that render as a web preview. */

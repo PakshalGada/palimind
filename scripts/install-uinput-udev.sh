@@ -53,4 +53,4 @@ fi
 echo
 echo "Installed ${RULE_PATH}"
 echo "Sign out and back in (or run 'newgrp input') before starting Palimind."
-echo "Verify with: palimind-desktop status   # kernel_input.accessible should be true"
+echo "Verify with: make desktop-smoke   # kernel_input.accessible should be true"

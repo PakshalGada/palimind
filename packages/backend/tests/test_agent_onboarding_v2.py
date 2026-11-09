@@ -20,9 +20,7 @@ def test_display_name_and_autonomy_migration() -> None:
     assert defn.autonomy_level == "off"
     assert defn.knowledge_scope["mode"] == "all"
 
-    defn = AgentDefinition.from_dict(
-        {"name": "legacy-2", "human_in_loop_threshold": 0.5}
-    )
+    defn = AgentDefinition.from_dict({"name": "legacy-2", "human_in_loop_threshold": 0.5})
     assert defn.autonomy_level == "semi"
 
 
@@ -44,14 +42,10 @@ def test_memory_mode_migration() -> None:
 
 
 def test_validation_cron_and_bounds() -> None:
-    bad_cron = AgentDefinition.new(
-        "bad-cron", run_mode="scheduled", schedule="99 99 * * *"
-    )
+    bad_cron = AgentDefinition.new("bad-cron", run_mode="scheduled", schedule="99 99 * * *")
     assert validate_definition(bad_cron) is not None
 
-    good_cron = AgentDefinition.new(
-        "good-cron", run_mode="scheduled", schedule="*/15 * * * *"
-    )
+    good_cron = AgentDefinition.new("good-cron", run_mode="scheduled", schedule="*/15 * * * *")
     assert validate_definition(good_cron) is None
 
     bad_concurrency = AgentDefinition.new("too-many", max_concurrent_runs=0)

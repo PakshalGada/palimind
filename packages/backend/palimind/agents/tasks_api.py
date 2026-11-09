@@ -19,7 +19,9 @@ def _agent(agent_id: str) -> Any:
 def _task_with_deliveries(task: dict[str, Any]) -> dict[str, Any]:
     return {
         **task,
-        "deliveries": mailbox.list_deliveries(task_agent_id(task), task_id=task.get("id") or "", limit=50),
+        "deliveries": mailbox.list_deliveries(
+            task_agent_id(task), task_id=task.get("id") or "", limit=50
+        ),
     }
 
 
@@ -119,7 +121,11 @@ async def update_agent_task(agent_id: str, task_id: str, req: Request):
     if task is None or str(task.get("agent_id")) != agent_id:
         return {"error": "Task not found"}
     body = await req.json()
-    allowed = {k: v for k, v in body.items() if k in {"title", "input", "result", "error", "metadata", "priority", "status"}}
+    allowed = {
+        k: v
+        for k, v in body.items()
+        if k in {"title", "input", "result", "error", "metadata", "priority", "status"}
+    }
     try:
         return {"task": _task_with_deliveries(tasks.update_task(task_id, **allowed) or task)}
     except Exception as exc:  # noqa: BLE001
@@ -226,9 +232,19 @@ async def send_agent_message(agent_id: str, req: Request):
             task_id=task_id,
             metadata={"delivery_id": delivery["id"]},
         )
-        return {"message_id": delivery["id"], "messageId": delivery["id"], "delivery": delivery, "queue_item": item}
+        return {
+            "message_id": delivery["id"],
+            "messageId": delivery["id"],
+            "delivery": delivery,
+            "queue_item": item,
+        }
     except Exception as exc:  # noqa: BLE001
-        return {"message_id": delivery["id"], "messageId": delivery["id"], "delivery": delivery, "error": str(exc)}
+        return {
+            "message_id": delivery["id"],
+            "messageId": delivery["id"],
+            "delivery": delivery,
+            "error": str(exc),
+        }
 
 
 @router.get("/{agent_id}/deliveries/{delivery_id}")
@@ -292,7 +308,11 @@ async def create_agent_wait(agent_id: str, req: Request):
 
     body = await req.json()
     try:
-        return {"wait": waits.create_wait(agent_id, str(body.get("note") or ""), routine_id=str(body.get("routine_id") or ""))}
+        return {
+            "wait": waits.create_wait(
+                agent_id, str(body.get("note") or ""), routine_id=str(body.get("routine_id") or "")
+            )
+        }
     except Exception as exc:  # noqa: BLE001
         return {"error": str(exc)}
 
@@ -333,7 +353,11 @@ async def list_sections():
 async def create_section(req: Request):
     body = await req.json()
     try:
-        return {"section": sections.create_section(str(body.get("name") or ""), sort_order=int(body.get("sort_order") or 0))}
+        return {
+            "section": sections.create_section(
+                str(body.get("name") or ""), sort_order=int(body.get("sort_order") or 0)
+            )
+        }
     except Exception as exc:  # noqa: BLE001
         return {"error": str(exc)}
 

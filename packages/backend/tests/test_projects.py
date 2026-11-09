@@ -124,9 +124,7 @@ def test_project_kb_sync_uses_isolated_store(project_home: Path, monkeypatch) ->
     assert status["status"] == "idle"
 
 
-def test_project_kb_actually_indexes_into_project_root(
-    project_home: Path, monkeypatch
-) -> None:
+def test_project_kb_actually_indexes_into_project_root(project_home: Path, monkeypatch) -> None:
     """The FAISS/SQLite index must live in the project folder, not the workspace."""
     from palimind.projects import kb, store
     from palimind.rag import indexing as indexing_mod
@@ -175,9 +173,7 @@ def test_project_artifacts_versions_and_export(project_home: Path) -> None:
     assert saved["session_id"] == "session-1"
     assert saved["versions"][0]["version"] == 1
 
-    updated = artifacts.add_version(
-        project["id"], saved["id"], {"content": "<h1>v2</h1>"}
-    )
+    updated = artifacts.add_version(project["id"], saved["id"], {"content": "<h1>v2</h1>"})
     assert updated["current_version"] == 2
     assert len(updated["versions"]) == 2
 
@@ -190,9 +186,7 @@ def test_project_artifacts_versions_and_export(project_home: Path) -> None:
     assert len(listed) == 1
     assert listed[0]["title"] == "Landing page"
 
-    path, filename, mime_type = artifacts.export_artifact(
-        project["id"], saved["id"], version=1
-    )
+    path, filename, mime_type = artifacts.export_artifact(project["id"], saved["id"], version=1)
     assert path.read_text(encoding="utf-8") == "<h1>v1</h1>"
     assert filename.endswith(".html")
     assert mime_type == "text/html"
@@ -252,9 +246,7 @@ def test_project_api_crud_and_scope_sessions(project_home: Path) -> None:
     assert versioned.json()["current_version"] == 2
     artifacts_list = client.get(f"/api/projects/{project_id}/artifacts").json()
     assert [a["id"] for a in artifacts_list["artifacts"]] == [artifact["id"]]
-    exported = client.get(
-        f"/api/projects/{project_id}/artifacts/{artifact['id']}/export?version=1"
-    )
+    exported = client.get(f"/api/projects/{project_id}/artifacts/{artifact['id']}/export?version=1")
     assert exported.status_code == 200
     assert exported.text == "# v1"
 

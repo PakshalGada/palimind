@@ -44,7 +44,7 @@ from palimind.storage.db import (
     upsert_file,
     upsert_file_summary,
 )
-from palimind.storage.vector_store import VectorStore, index_load_error, write_stamp
+from palimind.storage.vector_store import VectorStore, index_load_error, read_stamp, write_stamp
 from palimind.storage.vector_store import reset as reset_vector_store
 
 
@@ -71,6 +71,27 @@ def initialize_index(root: Path, *, force: bool = False) -> InitIndexResult:
     write_default_config(root)
     init_db(root)
     return InitIndexResult(root=root, index_dir=p_dir, created=True)
+
+
+def _extractive_summary(rich_chunks: list[RichChunk], max_chars: int = 900) -> str:
+    """Deterministic opening-text synopsis used when LLM summaries are off.
+
+    It gives the document-level summary index something to match without an
+    extra model call at index time.
+    """
+    parts: list[str] = []
+    used = 0
+    for chunk in rich_chunks[:4]:
+        text = " ".join((chunk.content or "").split())
+        if not text:
+            continue
+        if chunk.section_title and chunk.section_title not in ("Preamble", ""):
+            text = f"{chunk.section_title}: {text}"
+        parts.append(text)
+        used += len(text)
+        if used >= max_chars:
+            break
+    return " ".join(parts)[:max_chars].strip()
 
 
 def _build_doc_meta(file_path: Path, root: Path, text_sample: str) -> DocumentMeta:
@@ -135,8 +156,12 @@ def extract_chunks(file_path: Path, root: Path, config: dict) -> list[RichChunk]
     return rich_chunk_document(
         text,
         doc_meta,
-        chunk_size=config.get("chunk_size", 800),
-        chunk_overlap=config.get("chunk_overlap", 150),
+        chunk_size=int(config.get("child_chunk_size") or config.get("chunk_size", 700)),
+        chunk_overlap=int(
+            config.get("child_chunk_overlap")
+            if config.get("child_chunk_overlap") is not None
+            else config.get("chunk_overlap", 120)
+        ),
     )
 
 
@@ -177,6 +202,11 @@ def _extract_video_chunks(file_path: Path, root: Path, config: dict) -> list[Ric
             token_estimate=int(len(words) * 1.3),
             media_start_ts=seg.start,
             media_end_ts=seg.end,
+            file_path=rel_path,
+            embed_text=(
+                f"{rel_path} | Transcript {i + 1} | "
+                f"{int(seg.start // 60)}:{int(seg.start % 60):02d}\n{seg.text}"
+            ),
         )
         # Apply shared document meta (doc_year/doc_type/entity from filename)
         chunk.doc_year = meta.doc_year
@@ -251,10 +281,19 @@ def _update_index_locked(
     check_cancel()
 
     # A persisted index written by an older/incompatible build cannot be
-    # decoded, and an index built with a different embedding model must not be
-    # mixed with new vectors. In either case discard it plus the cached file
-    # hashes so every file is re-embedded and the store is rebuilt from scratch.
+    # decoded, and an index built with a different embedding model or chunker
+    # version must not be mixed with new vectors. In either case discard it plus
+    # the cached file hashes so every file is re-embedded and the store is
+    # rebuilt from scratch.
     index_error = index_load_error(root, expected_model=config.get("embed_model"))
+    chunker_version = int(config.get("chunker_version", 1))
+    stamp = read_stamp(root) or {}
+    stamped_chunker = int(stamp.get("chunker") or 1)
+    chunker_changed = bool(stamp) and stamped_chunker != chunker_version
+    if not index_error and chunker_changed:
+        index_error = (
+            f"Chunker changed (v{stamped_chunker} → v{chunker_version}) — rebuilding index"
+        )
     if index_error:
         report("crawl", message="Vector index incompatible — rebuilding from scratch...")
         reset_vector_store(root)
@@ -365,6 +404,10 @@ def _update_index_locked(
                         config["chat_model"],
                         max_chars=config.get("summary_max_chars", 8000),
                     )
+                elif config.get("summary_index", True):
+                    # A cheap extractive synopsis keeps the summary index useful
+                    # even when LLM summarisation is disabled.
+                    out["summary"] = _extractive_summary(rich_chunks)
 
                 return out
 
@@ -407,7 +450,7 @@ def _update_index_locked(
                     if result["error"] or result["no_chunks"] or not result["rich_chunks"]:
                         continue
                     start = len(all_texts)
-                    all_texts.extend(c.content for c in result["rich_chunks"])
+                    all_texts.extend(c.embed_text or c.content for c in result["rich_chunks"])
                     file_spans.append((i, start, len(all_texts)))
 
                 # Batch embedding — one HTTP call for the entire batch
@@ -463,6 +506,8 @@ def _update_index_locked(
                                 chunk.token_estimate,
                                 chunk.media_start_ts,
                                 chunk.media_end_ts,
+                                chunk.embed_text or chunk.content,
+                                chunk.main_section,
                             )
                         )
                         valid_infos.append((ci, chunk, emb))
@@ -493,6 +538,7 @@ def _update_index_locked(
                                 "subsection": chunk.subsection,
                                 "main_section": chunk.main_section,
                                 "parent_section": chunk.parent_section,
+                                "page_number": chunk.page_number,
                                 "doc_year": chunk.doc_year,
                                 "fiscal_year": chunk.fiscal_year or chunk.doc_year,
                                 "doc_type": chunk.doc_type,
@@ -545,7 +591,12 @@ def _update_index_locked(
         # Record which embedding model produced this index so a later model
         # switch triggers a clean rebuild instead of mixing incompatible vectors.
         if detected_dim.get("dim"):
-            write_stamp(root, config["embed_model"], detected_dim["dim"])
+            write_stamp(
+                root,
+                config["embed_model"],
+                detected_dim["dim"],
+                chunker=int(config.get("chunker_version", 1)),
+            )
     finally:
         conn.close()
 

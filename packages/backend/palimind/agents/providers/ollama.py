@@ -107,7 +107,9 @@ class OllamaProvider:
 
         content = str(result.get("content") or "")
         for call in result.get("tool_calls") or []:
-            yield ProviderEvent("tool_call", {"name": call.get("name"), "arguments": call.get("arguments") or {}})
+            yield ProviderEvent(
+                "tool_call", {"name": call.get("name"), "arguments": call.get("arguments") or {}}
+            )
         if content:
             yield ProviderEvent("message", {"text": content})
         usage = result.get("usage") or {}

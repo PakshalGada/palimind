@@ -1,0 +1,194 @@
+{
+  "total": 20,
+  "passed": 20,
+  "failed": 0,
+  "success_rate": 1.0,
+  "screenshots": 0,
+  "snapshots": 50,
+  "target": {
+    "success_rate": 0.8,
+    "screenshots": 0
+  },
+  "tasks": [
+    {
+      "id": "calc-1",
+      "category": "calculator",
+      "name": "7 + 8 = 15",
+      "ok": true,
+      "duration_ms": 4200,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "calc-2",
+      "category": "calculator",
+      "name": "9 \u00d7 6 = 54",
+      "ok": true,
+      "duration_ms": 4139,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "calc-3",
+      "category": "calculator",
+      "name": "42 \u00f7 7 = 6",
+      "ok": true,
+      "duration_ms": 4690,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "calc-4",
+      "category": "calculator",
+      "name": "12 + 30 = 42",
+      "ok": true,
+      "duration_ms": 5192,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "editor-1",
+      "category": "editor",
+      "name": "gedit exposes an editable document",
+      "ok": true,
+      "duration_ms": 164,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "editor-2",
+      "category": "editor",
+      "name": "text entry accepts typing",
+      "ok": true,
+      "duration_ms": 635,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "editor-3",
+      "category": "editor",
+      "name": "text entry accepts set_value",
+      "ok": true,
+      "duration_ms": 1065,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "editor-4",
+      "category": "editor",
+      "name": "text entry clear removes the value",
+      "ok": true,
+      "duration_ms": 158,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "files-1",
+      "category": "file manager",
+      "name": "Home lists files and view controls",
+      "ok": true,
+      "duration_ms": 212,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "files-2",
+      "category": "file manager",
+      "name": "switch from grid to list view",
+      "ok": true,
+      "duration_ms": 1175,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "files-3",
+      "category": "file manager",
+      "name": "open file search",
+      "ok": true,
+      "duration_ms": 1233,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "files-4",
+      "category": "file manager",
+      "name": "close file search",
+      "ok": true,
+      "duration_ms": 1440,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "settings-1",
+      "category": "settings",
+      "name": "Mouse panel exposes its title",
+      "ok": true,
+      "duration_ms": 1343,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "settings-2",
+      "category": "settings",
+      "name": "open settings search",
+      "ok": true,
+      "duration_ms": 2202,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "settings-3",
+      "category": "settings",
+      "name": "open the primary menu",
+      "ok": true,
+      "duration_ms": 2200,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "settings-4",
+      "category": "settings",
+      "name": "toggle Test Your Settings",
+      "ok": true,
+      "duration_ms": 2210,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "browser-1",
+      "category": "browser",
+      "name": "read page title",
+      "ok": true,
+      "duration_ms": 41993,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "browser-2",
+      "category": "browser",
+      "name": "read page heading and Save button",
+      "ok": true,
+      "duration_ms": 0,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "browser-3",
+      "category": "browser",
+      "name": "read Name field and Go link",
+      "ok": true,
+      "duration_ms": 0,
+      "error": "",
+      "notes": ""
+    },
+    {
+      "id": "browser-4",
+      "category": "browser",
+      "name": "click Save and verify page update",
+      "ok": true,
+      "duration_ms": 42176,
+      "error": "",
+      "notes": ""
+    }
+  ]
+}

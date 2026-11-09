@@ -102,8 +102,8 @@ fn dispatch(dispatcher: &Dispatcher<'_>, limiter: &RateLimiter, request: &Reques
                 string_param(params, "window_id").as_deref(),
                 bool_param(params, "interactive_only").unwrap_or(false),
                 bool_param(params, "full").unwrap_or(false),
-                number_param(params, "max_depth").unwrap_or(12) as u8,
-                number_param(params, "max_nodes").unwrap_or(300) as usize,
+                number_param(params, "max_depth").unwrap_or(40) as u8,
+                number_param(params, "max_nodes").unwrap_or(500) as usize,
                 number_param(params, "timeout_ms"),
             )
         }

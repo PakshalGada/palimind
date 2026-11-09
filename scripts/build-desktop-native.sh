@@ -18,6 +18,12 @@ DEST="$ROOT/apps/desktop/src-tauri/binaries"
 cd "$ROOT/packages/desktop-native"
 cargo build --release -p palimind-desktop
 mkdir -p "$DEST"
-cp "$TARGET_DIR/release/palimind-desktop" "$DEST/palimind-desktop-$TRIPLE"
-chmod 0755 "$DEST/palimind-desktop-$TRIPLE"
+# Stage through a temporary file and rename. A running daemon keeps the old
+# inode alive, so a direct `cp` over the sidecar fails with "Text file busy"
+# while a new observation is in flight.
+TMP="$DEST/.palimind-desktop-$TRIPLE.$$"
+trap 'rm -f "$TMP"' EXIT
+cp "$TARGET_DIR/release/palimind-desktop" "$TMP"
+chmod 0755 "$TMP"
+mv -f "$TMP" "$DEST/palimind-desktop-$TRIPLE"
 echo "staged $DEST/palimind-desktop-$TRIPLE"

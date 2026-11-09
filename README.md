@@ -187,6 +187,9 @@ Search is built into the chat flow rather than being a separate switch. When a q
 **What you get:**
 
 - Local vector search with SQLite/FTS5 metadata and FAISS HNSW vectors. No external database.
+- Child chunks with context headers and page/slide numbers, reassembled into parent sections for the answer.
+- Document-summary index, metadata filters (year, type, entity, section) and embedding-MMR diversity.
+- Agentic RAG for complex, multi-hop questions: plan sub-queries, search in parallel, look up exact figures, verify sufficiency, then answer with citations.
 - Per-file summaries and optional knowledge-graph extraction.
 - Persistent sessions and hierarchical chat memory, so follow-up questions keep context.
 - Source citations and a source ledger for agent answers.
@@ -279,7 +282,7 @@ Selecting a project makes it the active scope for Chat and Knowledge until you l
 
 ### Artifacts
 
-Answers that produce a web page, Markdown or Word document, slide deck, or code file stay compact in the transcript. Open the artifact panel to preview, edit, save, and export the result.
+Answers that produce a slide deck, Word document, web page, diagram, or code file stay compact in the transcript. Open the artifact panel to preview, edit, save, and export the result. Markdown answers and tables stay inline in the conversation and never open the artifact panel.
 
 - Browse everything you have saved in **Artifacts**.
 - Export to Markdown, HTML, PDF, DOCX, or PPTX.
@@ -295,6 +298,8 @@ Office exports are built as real OOXML files, not renamed text. PPTX output incl
 ### Computer use
 
 On Linux, agents can observe and operate ordinary desktop apps through the AT-SPI2 accessibility tree. They act on stable element references rather than pixel coordinates, capture screenshots only on demand, and fall back to physical input only when no semantic action exists.
+
+On Wayland, physical clicks use the compositor's RemoteDesktop session, Unicode typing uses clipboard paste with restore, and a one-time xdg-desktop-portal ScreenCast approval enables persistent full-screen capture without prompting again. None of these paths requires `/dev/uinput`; the kernel backend remains an opt-in alternative.
 
 It is **on by default** and works with any app, with several layers of control:
 

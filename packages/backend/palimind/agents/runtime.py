@@ -185,9 +185,7 @@ def steer_agent(agent_id: str, text: str, run_id: str | None = None) -> bool:
     return True
 
 
-def set_agent_plan(
-    agent_id: str, items: list[dict[str, Any]], run_id: str | None = None
-) -> bool:
+def set_agent_plan(agent_id: str, items: list[dict[str, Any]], run_id: str | None = None) -> bool:
     """Replace a live run's checklist with a user-edited one."""
     runs = _running.get(agent_id) or {}
     if not runs:
@@ -1260,23 +1258,18 @@ async def run_with_definition(
             "success criteria are met and always finish with FINAL_ANSWER."
         )
 
-        # Attached skills can extend the agent's tool allowlist.
-        from palimind.agents.catalog import resolve_tool_pack
-
-        pack_tools = (
-            resolve_tool_pack(definition.tool_pack)
-            if str(definition.tool_pack or "auto") not in ("auto", "custom")
-            else []
+        # Attached skills can extend the agent's tool allowlist. A desktop
+        # grant also contributes the desktop pack even when tool_pack is
+        # "auto"; see resolve_effective_tools.
+        from palimind.agents.catalog import (
+            pinned_tools_for,
+            resolve_effective_tools,
         )
-        effective_tools = list(
-            dict.fromkeys(
-                [
-                    *definition.tools,
-                    *pack_tools,
-                    *skill_tools(definition.skills),
-                    *(extra_tools or []),
-                ]
-            )
+
+        effective_tools = resolve_effective_tools(
+            definition,
+            extra_tools=extra_tools or [],
+            skill_tools=skill_tools(definition.skills),
         )
         sub_task: dict[str, Any] = {
             "agent_id": _stable_agent_int(definition.id),
@@ -1284,6 +1277,7 @@ async def run_with_definition(
             "label": definition.name,
             "task": input,
             "tools": effective_tools,
+            "pinned_tools": pinned_tools_for(definition, input),
             "context": "",
         }
 

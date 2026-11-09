@@ -48,17 +48,29 @@ def main() -> int:
         elif method == "initialized":
             continue
         elif method == "model/list":
-            result(request_id, {"data": [{"model": "fixture-codex", "displayName": "Fixture Codex"}]})
+            result(
+                request_id, {"data": [{"model": "fixture-codex", "displayName": "Fixture Codex"}]}
+            )
         elif method == "thread/start":
             result(request_id, {"thread": {"id": "thread-1", "turns": []}})
         elif method == "thread/resume":
-            result(request_id, {"thread": {"id": message.get("params", {}).get("threadId", "thread-1")}})
+            result(
+                request_id,
+                {"thread": {"id": message.get("params", {}).get("threadId", "thread-1")}},
+            )
         elif method == "turn/start":
             result(request_id, {"turn": {"id": "turn-1", "status": "inProgress"}})
-            notify("turn/started", {"threadId": "thread-1", "turn": {"id": "turn-1", "status": "inProgress"}})
+            notify(
+                "turn/started",
+                {"threadId": "thread-1", "turn": {"id": "turn-1", "status": "inProgress"}},
+            )
             notify(
                 "item/started",
-                {"threadId": "thread-1", "turnId": "turn-1", "item": {"id": "item-1", "type": "agentMessage"}},
+                {
+                    "threadId": "thread-1",
+                    "turnId": "turn-1",
+                    "item": {"id": "item-1", "type": "agentMessage"},
+                },
             )
             notify(
                 "item/agentMessage/delta",

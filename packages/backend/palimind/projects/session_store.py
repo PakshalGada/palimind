@@ -29,7 +29,9 @@ def list_sessions(project_id: str, root: Path | None = None) -> dict[str, Any]:
     return _sessions.load_sessions(root or _root(project_id))
 
 
-def new_session(project_id: str, name: str = "New Session", root: Path | None = None) -> dict[str, Any]:
+def new_session(
+    project_id: str, name: str = "New Session", root: Path | None = None
+) -> dict[str, Any]:
     return _sessions.add_new_session(root or _root(project_id), name)
 
 

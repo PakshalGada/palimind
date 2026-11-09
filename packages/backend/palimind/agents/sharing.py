@@ -33,7 +33,9 @@ def _safe_name(name: str) -> str:
 def _profile(defn: Any) -> dict[str, Any]:
     data = defn.to_dict()
     for key in list(data):
-        if key in _SECRET_FIELDS or any(hint in key.lower() for hint in ("secret", "password", "token")):
+        if key in _SECRET_FIELDS or any(
+            hint in key.lower() for hint in ("secret", "password", "token")
+        ):
             data.pop(key, None)
     data.pop("id", None)
     data.pop("created_at", None)
@@ -120,7 +122,9 @@ def import_agents(payload: dict[str, Any]) -> dict[str, Any]:
     return {"created": created, "warnings": warnings}
 
 
-def export_archive(path: str | Path, agent_ids: list[str], *, include_workspace: bool = False) -> str:
+def export_archive(
+    path: str | Path, agent_ids: list[str], *, include_workspace: bool = False
+) -> str:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     payload = export_agents(agent_ids, include_workspace=include_workspace)
@@ -192,5 +196,15 @@ def template_from_agent(agent_id: str) -> dict[str, Any]:
 def install_template(template: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(template, dict) or template.get("format") != "palimind-agent-template":
         raise ValueError("not a PaliMind agent template")
-    profile = {key: value for key, value in template.items() if key not in ("format", "version", "id", "routines")}
-    return import_agents({"format": FORMAT, "version": VERSION, "agents": [{"profile": profile, "routines": template.get("routines") or []}]})
+    profile = {
+        key: value
+        for key, value in template.items()
+        if key not in ("format", "version", "id", "routines")
+    }
+    return import_agents(
+        {
+            "format": FORMAT,
+            "version": VERSION,
+            "agents": [{"profile": profile, "routines": template.get("routines") or []}],
+        }
+    )

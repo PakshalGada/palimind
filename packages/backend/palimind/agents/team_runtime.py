@@ -205,7 +205,12 @@ async def _run_member(
     if defn is None:
         defn = _registry().get_by_id(str(member.get("agent_id")))
     if defn is None:
-        return {"agent_id": member.get("agent_id"), "name": "Unknown", "output": "", "status": "error"}
+        return {
+            "agent_id": member.get("agent_id"),
+            "name": "Unknown",
+            "output": "",
+            "status": "error",
+        }
 
     name = defn.label
     role = str(member.get("role") or defn.title or "")
@@ -276,7 +281,11 @@ async def _run_member(
         output,
         author=f"agent:{defn.id}",
         run_id=run_id,
-        meta={"from": f"agent:{defn.id}", "status": status, "duration": round(time.time() - started, 2)},
+        meta={
+            "from": f"agent:{defn.id}",
+            "status": status,
+            "duration": round(time.time() - started, 2),
+        },
     )
     await emit({"type": "team:message", "message": result_message})
     entry = blackboard.post(
@@ -314,7 +323,12 @@ async def _roundtable(
                 "Work on the part you can do best and produce a concrete result."
             )
             return await _run_member(
-                team, member, task, run_id=run_id, emit=emit, working_root=working_root,
+                team,
+                member,
+                task,
+                run_id=run_id,
+                emit=emit,
+                working_root=working_root,
                 interactive=interactive,
             )
 
@@ -383,7 +397,9 @@ async def _manager_run(
     )
 
     async def manager_emit(etype: str, payload: dict[str, Any]) -> None:
-        await emit({"type": etype, "agent_id": defn.id, "name": defn.label, "manager": True, **payload})
+        await emit(
+            {"type": etype, "agent_id": defn.id, "name": defn.label, "manager": True, **payload}
+        )
 
     prompt = _team_prompt(team, manager=True) + f"\n\nYour role: {role}"
     from palimind.agents.runtime import run_with_definition
@@ -454,7 +470,9 @@ async def run_team(
             except Exception as exc:  # noqa: BLE001
                 print(f"[teams] stream emit failed: {exc}")
 
-    async def send_message(role: str, content: str, author: str = "system", meta: dict | None = None) -> None:
+    async def send_message(
+        role: str, content: str, author: str = "system", meta: dict | None = None
+    ) -> None:
         message = append_message(
             team_id, role, content, author=author, run_id=run_id, meta=meta or {}
         )
@@ -465,7 +483,12 @@ async def run_team(
     error = ""
     started = time.time()
 
-    activity.start(f"team:{team_id}", str(team.get("display_name") or team.get("name") or "Team"), run_id, f"team:{run_id}")
+    activity.start(
+        f"team:{team_id}",
+        str(team.get("display_name") or team.get("name") or "Team"),
+        run_id,
+        f"team:{run_id}",
+    )
     reset_delegations(run_id)
 
     try:
@@ -492,7 +515,11 @@ async def run_team(
         results: list[dict[str, Any]] = []
         if run_mode == "manager":
             output, delegations = await _manager_run(
-                team, input, run_id=run_id, emit=send, working_root=working_root,
+                team,
+                input,
+                run_id=run_id,
+                emit=send,
+                working_root=working_root,
                 interactive=interactive,
             )
             if delegations == 0:
@@ -504,25 +531,40 @@ async def run_team(
                     author="system",
                 )
                 results = await _roundtable(
-                    team, input, run_id=run_id, emit=send, working_root=working_root,
+                    team,
+                    input,
+                    run_id=run_id,
+                    emit=send,
+                    working_root=working_root,
                     interactive=interactive,
                 )
                 output = await _synthesize(team, input, results, working_root)
         elif run_mode == "roundtable":
             results = await _roundtable(
-                team, input, run_id=run_id, emit=send, working_root=working_root,
+                team,
+                input,
+                run_id=run_id,
+                emit=send,
+                working_root=working_root,
                 interactive=interactive,
             )
             output = await _synthesize(team, input, results, working_root)
         else:
             results = await _chain(
-                team, input, run_id=run_id, emit=send, working_root=working_root,
+                team,
+                input,
+                run_id=run_id,
+                emit=send,
+                working_root=working_root,
                 interactive=interactive,
             )
             output = str(results[-1].get("output") or "") if results else ""
 
         if not str(output or "").strip():
-            output = "\n\n".join(str(r.get("output", "")) for r in results).strip() or "[Team run finished without output]"
+            output = (
+                "\n\n".join(str(r.get("output", "")) for r in results).strip()
+                or "[Team run finished without output]"
+            )
 
         await send_message(
             "synthesis",

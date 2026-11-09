@@ -97,7 +97,7 @@ export const api = {
   config: {
     get: (scope = 'field') => get<{ chat_model?: string; embed_model?: string; moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string; persona_name?: string; persona_system_prompt?: string }>(`/config?scope=${scope}`),
     setModel: (modelId: string, scope = 'field') => patch<{ error?: string }>(`/config/model?scope=${scope}`, { model_id: modelId }),
-    setEmbedModel: (modelId: string, scope = 'field') => patch<{ error?: string }>(`/config/embed-model?scope=${scope}`, { embed_model: modelId }),
+    setEmbedModel: (modelId: string, scope = 'field') => patch<{ error?: string; embed_dim?: number; index_dim?: number; reindex_required?: boolean; message?: string }>(`/config/embed-model?scope=${scope}`, { embed_model: modelId }),
     setMoe: (data: { moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string }, scope = 'field') => patch<{ error?: string }>(`/config/moe?scope=${scope}`, data),
     setPersona: (data: { persona_name?: string; persona_system_prompt?: string }) =>
       patch<{ error?: string; status?: string }>('/config/persona', data),

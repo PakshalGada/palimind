@@ -223,10 +223,12 @@ async def install_agent_plugin(req: Request):
 
     body = await req.json()
     try:
-        return {"plugin": install_plugin(
-            str(body.get("plugin_id") or ""),
-            overwrite=bool(body.get("overwrite", False)),
-        )}
+        return {
+            "plugin": install_plugin(
+                str(body.get("plugin_id") or ""),
+                overwrite=bool(body.get("overwrite", False)),
+            )
+        }
     except Exception as exc:  # noqa: BLE001
         return {"error": str(exc)}
 

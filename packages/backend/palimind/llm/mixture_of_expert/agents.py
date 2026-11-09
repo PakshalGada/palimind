@@ -682,6 +682,7 @@ def run_agent(
             visible_tools,
             TOOL_REGISTRY,
             top_k=max(1, int(TOOL_ROUTER_TOP_K or 12)),
+            pinned=sub_task.get("pinned_tools") or None,
         )
     # Discovery and the run checklist must always be reachable, even when the
     # agent uses a strict pack.

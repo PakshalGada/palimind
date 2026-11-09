@@ -33,7 +33,9 @@ def agents(tmp_path: Path, monkeypatch):
 
 def test_channel_crud_members_and_messages(agents) -> None:
     alpha, beta = agents
-    channel = channels.create_channel("Research", members=[alpha.id, beta.id], lead_agent_id=alpha.id)
+    channel = channels.create_channel(
+        "Research", members=[alpha.id, beta.id], lead_agent_id=alpha.id
+    )
     assert channel["name"] == "Research"
     assert len(channels.list_members(channel["id"])) == 2
     first = channels.append_message(channel["id"], "hello")

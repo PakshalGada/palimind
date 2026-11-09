@@ -59,7 +59,9 @@ def get_visual(visual_id: str) -> dict[str, Any] | None:
 
 def read_visual(visual_id: str, token: str) -> str | None:
     record = get_visual(visual_id)
-    if record is None or not secrets.compare_digest(str(record.get("token") or ""), str(token or "")):
+    if record is None or not secrets.compare_digest(
+        str(record.get("token") or ""), str(token or "")
+    ):
         return None
     try:
         return (visual_root() / visual_id / "index.html").read_text("utf-8")
