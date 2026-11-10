@@ -1,0 +1,103 @@
+name: CI
+
+# Run the test suites for every pushed commit and every pull request.
+# Integration-marked backend tests are excluded: they need a live Ollama
+# instance, Chromium, or a graphical desktop session. Run them locally with
+# `cd packages/backend && python -m pytest -m integration`.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same branch (a push and its pull_request
+# event share the branch name).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (pytest)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: packages/backend/pyproject.toml
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends bubblewrap
+
+      - name: Install backend and dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e "packages/backend[dev]"
+          # tests/test_openai_compat.py exercises the endpoint with the real
+          # SDK; it is not part of the backend's dev extra yet.
+          python -m pip install "openai>=1.0"
+
+      - name: Run backend tests
+        working-directory: packages/backend
+        run: python -m pytest -m "not integration" -q
+
+  frontend:
+    name: Frontend (node --test + render smoke)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: packages/frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: packages/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Typecheck and build
+        run: npm run build
+
+  desktop-native:
+    name: Desktop native (cargo test)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: packages/desktop-native
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.89.0
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/desktop-native -> target
+
+      - name: Run desktop native tests
+        run: cargo test --workspace
