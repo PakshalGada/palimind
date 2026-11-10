@@ -17,7 +17,7 @@ import type { ToolStep } from '@/components/activity/model';
 export default function StreamingTurn({ activeSessionId }: { activeSessionId: string | null }) {
   const { state, activityStore, openVideo, lastActivity } = useChatStreamContext();
   const { retry } = useChatStreamActions();
-  const { sessions, openArtifact } = useApp();
+  const { sessions, openArtifact, activeView } = useApp();
   const session = sessions.find((item) => item.id === activeSessionId);
   const messageIndex = nextAssistantMessageIndex(session?.messages);
 
@@ -64,6 +64,7 @@ export default function StreamingTurn({ activeSessionId }: { activeSessionId: st
               messageIndex={messageIndex}
               onOpenArtifact={openArtifact}
               onOpenVideo={openVideo}
+              bubbles={activeView === 'agents'}
             />
           </RunSurface>
         </div>

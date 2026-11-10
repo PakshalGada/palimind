@@ -1,3 +1,4 @@
+import MessageContent from '../components/MessageContent';
 import MessageBlocks from '../components/MessageBlocks';
 import { SourcesPanel } from '@/components/sources/SourcesPanel';
 import type { StreamState, VideoTarget } from './types';
@@ -72,11 +73,14 @@ export default function StreamingMessage({
   messageIndex,
   onOpenArtifact,
   onOpenVideo,
+  bubbles = false,
 }: {
   state: StreamState;
   messageIndex: number;
   onOpenArtifact: (artifactId: string) => void;
   onOpenVideo?: (target: VideoTarget) => void;
+  /** Short message bubbles are an Agents-view treatment only. */
+  bubbles?: boolean;
 }) {
   const hasAnswer = Boolean(state.answer || state.error);
   const content = state.error
@@ -84,15 +88,24 @@ export default function StreamingMessage({
     : state.answer;
   return (
     <div className="live-answer">
-      {hasAnswer && (
-        <MessageBlocks
-          content={content}
-          citations={state.citations ?? undefined}
-          messageIndex={messageIndex}
-          streaming={state.status === 'streaming'}
-          onOpenArtifact={onOpenArtifact}
-        />
-      )}
+      {hasAnswer &&
+        (bubbles ? (
+          <MessageBlocks
+            content={content}
+            citations={state.citations ?? undefined}
+            messageIndex={messageIndex}
+            streaming={state.status === 'streaming'}
+            onOpenArtifact={onOpenArtifact}
+          />
+        ) : (
+          <MessageContent
+            content={content}
+            citations={state.citations ?? undefined}
+            messageIndex={messageIndex}
+            streaming={state.status === 'streaming'}
+            onOpenArtifact={onOpenArtifact}
+          />
+        ))}
       <SourcesPanel
         citations={state.citations}
         textCitations={state.textCitations}
