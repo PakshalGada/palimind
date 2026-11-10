@@ -1193,3 +1193,44 @@
   color: var(--text-muted);
   font-size: 11px;
 }
+
+/* Model picker in the agent composer: matches the chat/RAG model switcher. */
+.ax-model-picker--composer .ax-model-picker__btn {
+  height: 24px;
+  min-height: 24px;
+  max-width: 240px;
+  padding: 2px 7px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--type-2xs);
+  gap: 5px;
+}
+.ax-model-picker--composer .ax-model-picker__btn:hover,
+.ax-model-picker--composer .ax-model-picker__btn.is-open {
+  background: var(--surface-hover);
+  color: var(--text-main);
+  border-color: transparent;
+}
+.ax-model-picker--composer .ax-model-picker__label {
+  color: inherit;
+}
+.ax-model-picker__menu--composer {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-menu);
+  z-index: 600;
+}
+.ax-model-picker__menu--composer .ax-model-picker__list {
+  max-height: none;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.ax-model-picker__menu--composer .ax-model-picker__item {
+  padding: 8px 10px;
+}

@@ -1370,6 +1370,8 @@ function InputArea({
             <ModelPicker
               value={selectedAgent?.model || ""}
               placeholder="Choose model"
+              variant="composer"
+              placement="up"
               onChange={(model, provider) => {
                 if (!selectedAgentId) return;
                 const nextProvider = provider || selectedAgent?.provider || "ollama";

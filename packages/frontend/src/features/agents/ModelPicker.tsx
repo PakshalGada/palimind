@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Cloud, HardDrive, KeyRound, Search } from 'lucide-react';
 import { api } from '../../api';
 import type { ModelItem } from '../../types';
@@ -11,21 +12,39 @@ interface ProviderStatus {
   error?: string;
 }
 
+function clampLeft(left: number, width: number): number {
+  const margin = 12;
+  return Math.max(margin, Math.min(left, window.innerWidth - width - margin));
+}
+
 export default function ModelPicker({
   value,
   onChange,
   placeholder = 'Default (global model)',
+  placement = 'auto',
+  variant = 'default',
 }: {
   value: string;
   onChange: (model: string, provider?: string) => void;
   placeholder?: string;
+  /** The composer opens upward; the inspector opens downward when there is room. */
+  placement?: 'auto' | 'up' | 'down';
+  variant?: 'default' | 'composer';
 }) {
   const [open, setOpen] = useState(false);
   const [models, setModels] = useState<ModelItem[]>([]);
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
-  const ref = useRef<HTMLDivElement>(null);
+  const [menuStyle, setMenuStyle] = useState<{
+    left: number;
+    width: number;
+    maxHeight: number;
+    top?: number;
+    bottom?: number;
+  } | null>(null);
+  const buttonRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const fetchModels = useCallback(async () => {
     setLoading(true);
@@ -43,13 +62,47 @@ export default function ModelPicker({
   }, []);
 
   useEffect(() => {
-    if (open && models.length === 0) void fetchModels();
-  }, [open, models.length, fetchModels]);
+    if ((open || variant === 'composer') && models.length === 0) void fetchModels();
+  }, [open, models.length, fetchModels, variant]);
+
+  const updatePosition = useCallback(() => {
+    const button = buttonRef.current;
+    if (!button) return;
+    const rect = button.getBoundingClientRect();
+    const width = Math.min(variant === 'composer' ? 420 : 360, window.innerWidth - 24);
+    const spaceBelow = window.innerHeight - rect.bottom - 12;
+    const spaceAbove = rect.top - 12;
+    const openUp =
+      placement === 'up' || (placement !== 'down' && (spaceBelow < 360 || spaceAbove > spaceBelow));
+    const maxHeight = Math.max(220, Math.min(openUp ? spaceAbove : spaceBelow, 440));
+    setMenuStyle({
+      left: clampLeft(rect.left, width),
+      width,
+      maxHeight,
+      ...(openUp
+        ? { bottom: window.innerHeight - rect.top + 8 }
+        : { top: rect.bottom + 8 }),
+    });
+  }, [placement, variant]);
+
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const handler = () => updatePosition();
+    window.addEventListener('resize', handler);
+    window.addEventListener('scroll', handler, true);
+    return () => {
+      window.removeEventListener('resize', handler);
+      window.removeEventListener('scroll', handler, true);
+    };
+  }, [open, updatePosition]);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (buttonRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -76,124 +129,163 @@ export default function ModelPicker({
   }, [models, query]);
 
   const label = selected
-    ? `${selected.display_name || selected.model_id} · ${selected.provider === 'opencode' ? 'OpenCode' : 'Local'}`
+    ? `${selected.display_name || selected.model_id} · ${
+        selected.provider === 'opencode' ? 'OpenCode' : 'Local'
+      }`
     : value || placeholder;
 
+  const menu =
+    open && menuStyle
+      ? createPortal(
+          <div
+            ref={menuRef}
+            className={`ax-model-picker__menu${
+              variant === 'composer' ? ' ax-model-picker__menu--composer' : ''
+            }`}
+            style={{
+              position: 'fixed',
+              left: menuStyle.left,
+              width: menuStyle.width,
+              maxHeight: menuStyle.maxHeight,
+              top: menuStyle.top ?? 'auto',
+              bottom: menuStyle.bottom ?? 'auto',
+            }}
+          >
+            <label className="ax-model-picker__search-wrap">
+              <Search size={13} />
+              <input
+                className="ui-input ax-model-picker__search"
+                placeholder="Search models..."
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                autoFocus
+              />
+            </label>
+            <div className="ax-model-picker__list">
+              <button
+                type="button"
+                className={`ax-model-picker__item${!value ? ' is-selected' : ''}`}
+                onClick={() => {
+                  onChange('');
+                  setOpen(false);
+                }}
+              >
+                <span className="ax-model-picker__name">Default (use global model)</span>
+              </button>
+
+              {loading && (
+                <div className="ax-model-picker__loading">
+                  <Spinner size={14} /> Loading models…
+                </div>
+              )}
+
+              {!loading && groups.local.length > 0 && (
+                <div className="ax-model-picker__group">
+                  <span className="ax-model-picker__group-title">
+                    <HardDrive size={12} /> On this computer
+                  </span>
+                  {groups.local.map((model) => (
+                    <ModelRow
+                      key={`local:${model.model_id}`}
+                      model={model}
+                      selected={value === model.model_id}
+                      onPick={() => {
+                        onChange(model.model_id, model.provider || 'ollama');
+                        setOpen(false);
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {!loading && (
+                <div className="ax-model-picker__group">
+                  <span className="ax-model-picker__group-title">
+                    <Cloud size={12} /> OpenCode
+                    {!opencodeReady && <em className="ax-model-picker__key">API key needed</em>}
+                  </span>
+                  {groups.hosted.length === 0 && (
+                    <div className="ax-model-picker__empty">
+                      {opencodeReady
+                        ? 'No hosted models listed.'
+                        : 'Add an OpenCode API key in Settings to use hosted models.'}
+                    </div>
+                  )}
+                  {groups.hosted.map((model) => (
+                    <ModelRow
+                      key={`hosted:${model.model_id}`}
+                      model={model}
+                      selected={value === model.model_id}
+                      onPick={() => {
+                        onChange(model.model_id, model.provider || 'ollama');
+                        setOpen(false);
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {!loading &&
+                groups.local.length === 0 &&
+                groups.hosted.length === 0 &&
+                models.length > 0 && (
+                  <div className="ax-model-picker__loading">No models found</div>
+                )}
+
+              {!loading && models.length === 0 && (
+                <div className="ax-model-picker__empty">
+                  No models available. Start Ollama or add an OpenCode key.
+                </div>
+              )}
+            </div>
+            {!opencodeReady && (
+              <div className="ax-model-picker__hint">
+                <KeyRound size={12} />
+                OpenCode models need a key: Settings → OpenCode.
+              </div>
+            )}
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
-    <div className="ax-model-picker" ref={ref}>
+    <div
+      className={`ax-model-picker${
+        variant === 'composer' ? ' ax-model-picker--composer' : ''
+      }`}
+    >
       <div
+        ref={buttonRef}
         role="button"
         tabIndex={0}
-        className="ax-model-picker__btn"
+        className={`ax-model-picker__btn${open ? ' is-open' : ''}`}
         aria-haspopup="listbox"
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        title={label}
+        onClick={() => setOpen((current) => !current)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
             event.preventDefault();
-            setOpen((value) => !value);
+            setOpen((current) => !current);
           }
         }}
       >
         <span className="ax-model-picker__label">{label}</span>
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </div>
-      {open && (
-        <div className="ax-model-picker__menu">
-          <label className="ax-model-picker__search-wrap">
-            <Search size={13} />
-            <input
-              className="ui-input ax-model-picker__search"
-              placeholder="Search models..."
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              autoFocus
-            />
-          </label>
-          <div className="ax-model-picker__list">
-            <button
-              type="button"
-              className={`ax-model-picker__item${!value ? ' is-selected' : ''}`}
-              onClick={() => {
-                onChange('');
-                setOpen(false);
-              }}
-            >
-              <span className="ax-model-picker__name">Default (use global model)</span>
-            </button>
-
-            {loading && (
-              <div className="ax-model-picker__loading">
-                <Spinner size={14} /> Loading models…
-              </div>
-            )}
-
-            {!loading && groups.local.length > 0 && (
-              <div className="ax-model-picker__group">
-                <span className="ax-model-picker__group-title">
-                  <HardDrive size={12} /> On this computer
-                </span>
-                {groups.local.map((model) => (
-                  <ModelRow
-                    key={`local:${model.model_id}`}
-                    model={model}
-                    selected={value === model.model_id}
-                    onPick={() => {
-                      onChange(model.model_id, model.provider || 'ollama');
-                      setOpen(false);
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-
-            {!loading && (
-              <div className="ax-model-picker__group">
-                <span className="ax-model-picker__group-title">
-                  <Cloud size={12} /> OpenCode
-                  {!opencodeReady && <em className="ax-model-picker__key">API key needed</em>}
-                </span>
-                {groups.hosted.length === 0 && (
-                  <div className="ax-model-picker__empty">
-                    {opencodeReady
-                      ? 'No hosted models listed.'
-                      : 'Add an OpenCode API key in Settings to use hosted models.'}
-                  </div>
-                )}
-                {groups.hosted.map((model) => (
-                  <ModelRow
-                    key={`hosted:${model.model_id}`}
-                    model={model}
-                    selected={value === model.model_id}
-                    onPick={() => {
-                      onChange(model.model_id, model.provider || 'ollama');
-                      setOpen(false);
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-
-            {!loading && groups.local.length === 0 && groups.hosted.length === 0 && models.length > 0 && (
-              <div className="ax-model-picker__loading">No models found</div>
-            )}
-
-            {!loading && models.length === 0 && (
-              <div className="ax-model-picker__empty">
-                No models available. Start Ollama or add an OpenCode key.
-              </div>
-            )}
-          </div>
-          {!opencodeReady && (
-            <div className="ax-model-picker__hint">
-              <KeyRound size={12} />
-              OpenCode models need a key: Settings → OpenCode.
-            </div>
-          )}
-        </div>
-      )}
+      {menu}
     </div>
   );
 }
@@ -216,7 +308,9 @@ function ModelRow({
     >
       <span className="ax-model-picker__name">{model.display_name || model.model_id}</span>
       <span className="ax-model-picker__meta">
-        {hosted ? 'hosted' : model.parameter_size || (model.size_gb ? `${model.size_gb}GB` : 'local')}
+        {hosted
+          ? 'hosted'
+          : model.parameter_size || (model.size_gb ? `${model.size_gb}GB` : 'local')}
       </span>
     </button>
   );
