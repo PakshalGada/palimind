@@ -57,13 +57,28 @@ test('usage, suggestions and escalation survive the stream reducer', () => {
     type: 'setEscalation',
     escalation: 'Escalated to strong-model',
   });
+  state = streamReducer(state, { type: 'setActivity', label: 'Reading files' });
+  state = streamReducer(state, {
+    type: 'setModelNotice',
+    notice: {
+      kind: 'missing_key',
+      provider: 'opencode',
+      model: 'grok-4.7',
+      action: 'add-key',
+      message: 'OpenCode is selected but no key is saved.',
+    },
+  });
   assert.equal(state.usage.prompt_tokens, 1200);
   assert.equal(state.usage.completion_tokens, 800);
   assert.deepEqual(state.suggestions, ['What changed?', 'Write a brief']);
   assert.equal(state.escalation, 'Escalated to strong-model');
+  assert.equal(state.activityLabel, 'Reading files');
+  assert.equal(state.modelNotice.action, 'add-key');
   // A new turn clears them.
   const fresh = streamReducer(state, { type: 'start', userText: 'next', sessionId: 'abc' });
   assert.equal(fresh.usage, null);
   assert.deepEqual(fresh.suggestions, []);
   assert.equal(fresh.escalation, null);
+  assert.equal(fresh.activityLabel, null);
+  assert.equal(fresh.modelNotice, null);
 });

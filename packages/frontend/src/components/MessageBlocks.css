@@ -1,0 +1,103 @@
+/* Short chat bubbles shared by live and saved agent answers. */
+.message-blocks {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.message-block {
+  max-width: min(560px, 100%);
+  padding: 7px 11px;
+  border: 1px solid transparent;
+  border-radius: 13px 13px 13px 4px;
+  background: var(--surface-2);
+  color: var(--ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  animation: message-block-in 160ms var(--ease-out);
+}
+
+.message-block .message-content {
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: var(--type-base);
+  line-height: 1.5;
+  max-width: none;
+}
+
+.message-block .message-content p {
+  margin: 0 0 5px;
+}
+
+.message-block .message-content p:last-child {
+  margin-bottom: 0;
+}
+
+.message-block .message-content h1,
+.message-block .message-content h2,
+.message-block .message-content h3 {
+  margin: 2px 0 4px;
+  font-size: var(--type-md);
+}
+
+.message-block .message-content ul,
+.message-block .message-content ol {
+  margin: 2px 0 4px;
+  padding-left: 18px;
+}
+
+.message-block .message-content table {
+  margin: 4px 0;
+}
+
+.message-block.is-live {
+  border-color: color-mix(in oklab, var(--ink) 10%, transparent);
+}
+
+.message-block.is-live::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 13px;
+  margin-left: 3px;
+  border-radius: 1px;
+  background: var(--ink-muted);
+  vertical-align: -2px;
+  animation: message-cursor 900ms steps(2, end) infinite;
+}
+
+.message-blocks__more {
+  margin-top: 2px;
+  padding: 2px 0;
+  min-height: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-size: var(--type-2xs);
+  cursor: pointer;
+}
+
+.message-blocks__more:hover {
+  color: var(--ink);
+}
+
+@keyframes message-block-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes message-cursor {
+  50% { opacity: 0.2; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-block { animation: none; }
+  .message-block.is-live::after { animation: none; }
+}

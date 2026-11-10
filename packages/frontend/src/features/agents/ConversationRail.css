@@ -364,3 +364,18 @@
 .ag-rail__row:hover .ag-rail__row-menu {
   display: inline-flex;
 }
+
+/* Unread replies in the rail */
+.ag-rail__unread {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: var(--radius-full);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}

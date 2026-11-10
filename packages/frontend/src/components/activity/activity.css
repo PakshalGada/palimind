@@ -2563,3 +2563,49 @@ html[data-motion="reduced"] .act-reason__wave i { opacity: 0.6; }
     font-size: var(--type-xs);
     color: var(--act-error);
 }
+
+/* Compact approval: one line of intent, actions, details on demand. */
+.act-grant--compact {
+    gap: 5px;
+    max-width: 480px;
+    padding: 7px 9px;
+}
+.act-grant--compact .act-grant__head {
+    flex-wrap: wrap;
+    gap: 5px;
+}
+.act-grant--compact .act-grant__title { font-size: 11px; }
+.act-grant--compact .act-grant__tool { font-size: 10px; padding: 0 5px; }
+.act-grant--compact .act-grant__action {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 12px;
+    line-height: 1.35;
+}
+.act-grant__details {
+    margin-inline-start: auto;
+    padding: 1px 6px;
+    min-height: 0;
+    border: 1px solid var(--act-border, var(--line));
+    border-radius: var(--act-radius-sm);
+    background: transparent;
+    color: var(--act-muted);
+    font-size: 10px;
+    cursor: pointer;
+}
+.act-grant__details:hover { color: var(--act-text); }
+.act-grant--compact .act-grant__foot { gap: 3px; }
+.act-grant--compact .act-grant__actions {
+    flex-wrap: nowrap;
+    gap: 5px;
+    justify-content: flex-end;
+}
+.act-grant--compact .act-grant__scope-note { display: none; }
+.act-grant--compact .act-btn {
+    min-height: 0;
+    padding: 3px 8px;
+    font-size: 11px;
+}
+.act-grant--compact .act-grant__reach { margin-top: 2px; }

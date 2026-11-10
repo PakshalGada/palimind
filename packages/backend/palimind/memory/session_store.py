@@ -140,16 +140,28 @@ def _session_dicts(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     # directly as chat latency once the history grows.
     grouped: dict[str, list[tuple[Any, ...]]] = {}
     msg_rows = conn.execute(
-        "SELECT session_id, role, content, timestamp, meta FROM messages "
+        "SELECT session_id, id, role, content, timestamp, meta FROM messages "
         "ORDER BY session_id ASC, id ASC"
     ).fetchall()
     for msg_row in msg_rows:
         grouped.setdefault(msg_row[0], []).append(msg_row[1:])
 
+    last_read = {
+        str(key).removeprefix("last_read:"): str(value)
+        for key, value in conn.execute(
+            "SELECT key, value FROM session_meta WHERE key LIKE 'last_read:%'"
+        ).fetchall()
+    }
+
     for sid, name, created_at, summary in rows:
         messages: list[dict[str, Any]] = []
-        for role, content, ts, meta_raw in grouped.get(sid, ()):
-            msg: dict[str, Any] = {"role": role, "content": content, "timestamp": ts}
+        for message_id, role, content, ts, meta_raw in grouped.get(sid, ()):
+            msg: dict[str, Any] = {
+                "id": int(message_id),
+                "role": role,
+                "content": content,
+                "timestamp": ts,
+            }
             try:
                 extra = json.loads(meta_raw or "{}")
             except (TypeError, json.JSONDecodeError):
@@ -165,6 +177,11 @@ def _session_dicts(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         }
         if summary:
             sess["summary"] = summary
+        if sid in last_read:
+            try:
+                sess["last_read_message_id"] = int(last_read[sid])
+            except (TypeError, ValueError):
+                sess["last_read_message_id"] = last_read[sid]
         sessions.append(sess)
     return sessions
 
@@ -302,15 +319,20 @@ def load_session_by_id(root: Path, session_id: str) -> dict | None:
             return None
         sid, name, created_at, summary = row
         msg_rows = conn.execute(
-            "SELECT role, content, timestamp, meta FROM messages "
+            "SELECT id, role, content, timestamp, meta FROM messages "
             "WHERE session_id=? ORDER BY id ASC",
             (sid,),
         ).fetchall()
     finally:
         conn.close()
     messages: list[dict[str, Any]] = []
-    for role, content, ts, meta_raw in msg_rows:
-        msg: dict[str, Any] = {"role": role, "content": content, "timestamp": ts}
+    for message_id, role, content, ts, meta_raw in msg_rows:
+        msg: dict[str, Any] = {
+            "id": int(message_id),
+            "role": role,
+            "content": content,
+            "timestamp": ts,
+        }
         try:
             extra = json.loads(meta_raw or "{}")
         except (TypeError, json.JSONDecodeError):
@@ -326,6 +348,18 @@ def load_session_by_id(root: Path, session_id: str) -> dict | None:
     }
     if summary:
         sess["summary"] = summary
+    conn = _connect(root)
+    try:
+        row = conn.execute(
+            "SELECT value FROM session_meta WHERE key=?", (f"last_read:{sid}",)
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is not None:
+        try:
+            sess["last_read_message_id"] = int(row[0])
+        except (TypeError, ValueError):
+            sess["last_read_message_id"] = row[0]
     return sess
 
 
@@ -506,14 +540,14 @@ def _insert_message(
     role: str,
     content: str,
     extra: dict[str, Any],
-) -> None:
+) -> int:
     # First user message becomes the session title.
     msg_count = conn.execute(
         "SELECT COUNT(*) FROM messages WHERE session_id=?", (session_id,)
     ).fetchone()[0]
     if msg_count == 0 and role == "user":
         conn.execute("UPDATE sessions SET name=? WHERE id=?", (str(content)[:200], session_id))
-    conn.execute(
+    cursor = conn.execute(
         "INSERT INTO messages(session_id, role, content, timestamp, meta) VALUES (?, ?, ?, ?, ?)",
         (
             session_id,
@@ -523,6 +557,7 @@ def _insert_message(
             json.dumps(extra, ensure_ascii=False, default=str),
         ),
     )
+    return int(cursor.lastrowid or 0)
 
 
 def _message_extra(
@@ -530,17 +565,18 @@ def _message_extra(
     mode: str,
     mode_params: dict | None,
     citations: list[dict] | dict | None,
+    extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    extra: dict[str, Any] = {}
+    out: dict[str, Any] = dict(extra or {})
     if mode:
-        extra["mode"] = mode
+        out["mode"] = mode
     if mode_params:
-        extra["mode_params"] = mode_params
+        out["mode_params"] = mode_params
     if sources:
-        extra["sources"] = sources
+        out["sources"] = sources
     if citations:
-        extra["citations"] = citations
-    return extra
+        out["citations"] = citations
+    return out
 
 
 def persist_stopped_turn(
@@ -602,8 +638,9 @@ def append_message_to_session(
     mode: str = "",
     mode_params: dict | None = None,
     citations: list[dict] | dict | None = None,
-):
-    """Append exactly one message. Other sessions/summaries are untouched.
+    extra: dict[str, Any] | None = None,
+) -> int:
+    """Append exactly one message and return its SQLite id.
 
     An assistant append for a turn that was already saved by
     ``persist_stopped_turn`` is skipped (see the stop marker above).
@@ -612,13 +649,16 @@ def append_message_to_session(
         # A new turn starts: any stop marker from the previous one is stale.
         with _LOCK:
             _STOPPED_TURNS.pop(_turn_key(root, session_id), None)
-        _append_message_row(root, session_id, role, content, sources, mode, mode_params, citations)
-        return
+        return _append_message_row(
+            root, session_id, role, content, sources, mode, mode_params, citations, extra
+        )
     # Check-and-insert atomically against ``persist_stopped_turn``.
     with _LOCK:
         if _consume_stopped_marker(root, session_id):
-            return
-        _append_message_row(root, session_id, role, content, sources, mode, mode_params, citations)
+            return 0
+        return _append_message_row(
+            root, session_id, role, content, sources, mode, mode_params, citations, extra
+        )
 
 
 def _append_message_row(
@@ -630,17 +670,19 @@ def _append_message_row(
     mode: str,
     mode_params: dict | None,
     citations: list[dict] | dict | None,
-) -> None:
-    extra = _message_extra(sources, mode, mode_params, citations)
+    extra: dict[str, Any] | None = None,
+) -> int:
+    message_extra = _message_extra(sources, mode, mode_params, citations, extra)
     conn = _connect(root)
     try:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT name FROM sessions WHERE id=?", (session_id,)).fetchone()
         if row is None:
             conn.rollback()
-            return
-        _insert_message(conn, session_id, role, content, extra)
+            return 0
+        message_id = _insert_message(conn, session_id, role, content, message_extra)
         conn.commit()
+        return message_id
     except Exception:
         conn.rollback()
         raise
@@ -690,6 +732,148 @@ def delete_session_message(root: Path, session_id: str, index: int) -> dict:
     finally:
         conn.close()
     return load_sessions(root)
+
+
+# ── Message identity, edits, reactions and read state ────────────────────
+
+
+def _message_payload(message_id: int, role: str, content: str, ts: float, meta_raw: str) -> dict:
+    msg: dict[str, Any] = {
+        "id": int(message_id),
+        "role": role,
+        "content": content,
+        "timestamp": ts,
+    }
+    try:
+        extra = json.loads(meta_raw or "{}")
+    except (TypeError, json.JSONDecodeError):
+        extra = {}
+    if isinstance(extra, dict):
+        msg.update(extra)
+    return msg
+
+
+def get_session_message(root: Path, session_id: str, message_id: int) -> dict | None:
+    conn = _connect(root)
+    try:
+        row = conn.execute(
+            "SELECT id, role, content, timestamp, meta FROM messages "
+            "WHERE session_id=? AND id=?",
+            (session_id, int(message_id)),
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return None
+    return _message_payload(*row)
+
+
+def update_session_message(
+    root: Path,
+    session_id: str,
+    message_id: int,
+    *,
+    content: str | None = None,
+    meta: dict[str, Any] | None = None,
+    deleted: bool = False,
+    edited: bool = False,
+) -> dict | None:
+    """Patch one message in place. Returns the hydrated message or None."""
+    conn = _connect(root)
+    try:
+        row = conn.execute(
+            "SELECT id, role, content, timestamp, meta FROM messages "
+            "WHERE session_id=? AND id=?",
+            (session_id, int(message_id)),
+        ).fetchone()
+        if row is None:
+            return None
+        mid, role, current, ts, meta_raw = row
+        try:
+            extra = json.loads(meta_raw or "{}")
+        except (TypeError, json.JSONDecodeError):
+            extra = {}
+        if not isinstance(extra, dict):
+            extra = {}
+        if meta:
+            extra.update(meta)
+        if deleted:
+            extra["deleted_at"] = time.time()
+        if edited:
+            extra["edited_at"] = time.time()
+        new_content = current if content is None else str(content)
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(
+            "UPDATE messages SET content=?, meta=? WHERE session_id=? AND id=?",
+            (
+                new_content,
+                json.dumps(extra, ensure_ascii=False, default=str),
+                session_id,
+                int(message_id),
+            ),
+        )
+        conn.commit()
+        return _message_payload(
+            mid,
+            role,
+            new_content,
+            ts,
+            json.dumps(extra, ensure_ascii=False, default=str),
+        )
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def truncate_after_message(root: Path, session_id: str, message_id: int) -> dict:
+    """Drop every message after ``message_id`` (the message itself stays)."""
+    conn = _connect(root)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(
+            "DELETE FROM messages WHERE session_id=? AND id>?",
+            (session_id, int(message_id)),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    return load_sessions(root)
+
+
+def set_last_read_message(root: Path, session_id: str, message_id: int | str) -> dict:
+    conn = _connect(root)
+    try:
+        conn.execute(
+            "INSERT INTO session_meta(key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (f"last_read:{session_id}", str(message_id)),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return load_sessions(root)
+
+
+def clear_deleted_message(root: Path, session_id: str, message_id: int) -> None:
+    """Hard-delete one message. Used by the explicit Delete action."""
+    conn = _connect(root)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(
+            "DELETE FROM messages WHERE session_id=? AND id=?",
+            (session_id, int(message_id)),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 async def background_update_memory(

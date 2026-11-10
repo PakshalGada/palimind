@@ -25,6 +25,7 @@ export const EMPTY_DEF: Partial<AgentDefinition> = {
   display_name: '',
   system_prompt: '',
   model: '',
+  provider: 'ollama',
   temperature: 0.2,
   context_budget: 8000,
   tools: [],
@@ -61,6 +62,7 @@ export const EMPTY_DEF: Partial<AgentDefinition> = {
   workspace_dir: '',
   team_ids: [],
   tool_pack: 'auto',
+  unrestricted_tools: true,
 };
 
 export function fmtTime(ts?: number | null): string {

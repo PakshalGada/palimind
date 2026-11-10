@@ -29,10 +29,42 @@ CHAT_REPLY_STYLE = (
 )
 
 
+def chat_style_for(definition: Any) -> str:
+    """The chat style plus the agent's own manner, when it has one."""
+    style = str(getattr(definition, "personality_style", "") or "").strip()
+    if not style:
+        return CHAT_REPLY_STYLE
+    return (
+        f"{CHAT_REPLY_STYLE}\n"
+        f"Your manner: {style}. Sound like a person with that manner, not a "
+        "brand or a documentation page."
+    )
+
+
 def agent_sse(etype: str, payload: dict[str, Any]) -> str:
     """Serialize an agent reasoning-chain event as an SSE frame."""
     event = {"type": etype, **payload}
     return f"data: {json.dumps(event)}\n\n"
+
+
+def _activity_label(tool: str) -> str:
+    """A human phrase for the current tool, with no model call."""
+    name = (tool or "").lower()
+    if any(token in name for token in ("search", "web", "x_search", "arxiv", "news")):
+        return "Searching the web"
+    if any(token in name for token in ("fetch", "read_url", "page", "browser")):
+        return "Reading a page"
+    if any(token in name for token in ("write", "edit", "patch", "replace", "create")):
+        return "Writing a file"
+    if any(token in name for token in ("read", "list", "grep", "tree", "find")):
+        return "Reading files"
+    if any(token in name for token in ("shell", "python", "code", "run", "bash")):
+        return "Running a command"
+    if any(token in name for token in ("memory", "remember", "recall")):
+        return "Checking memory"
+    if any(token in name for token in ("ask", "question", "message", "agent")):
+        return "Talking to a teammate"
+    return "Working"
 
 
 async def run_agent(
@@ -161,6 +193,7 @@ async def agent_sse_stream(
     prefix_mention: bool = True,
     chat_style: bool = False,
     display_input: str | None = None,
+    reply_to: int | None = None,
 ) -> StreamingResponse:
     """Route an @agent-name chat invocation to an agent run.
 
@@ -213,23 +246,38 @@ async def agent_sse_stream(
                 user_text,
                 mode="agent",
                 mode_params=mode_params,
+                extra={"reply_to": int(reply_to)} if reply_to else None,
             )
 
         yield agent_sse("reasoning", {"text": f"Running agent '{agent_name}'..."})
+        yield agent_sse("agent:activity", {"label": "Thinking", "phase": "thinking"})
 
         full_text = ""
+        suggestions: list[str] = []
+        usage: dict = {}
         async for ev in stream_agent(
             defn,
             agent_input or "Run your task.",
             session_id or "",
             working_root=working_root,
-            extra_prompt=CHAT_REPLY_STYLE if chat_style else "",
+            extra_prompt=chat_style_for(defn) if chat_style else "",
         ):
             etype = ev.get("type", "")
             payload = {k: v for k, v in ev.items() if k != "type"}
+            if etype == "agent:tool_call":
+                yield agent_sse(
+                    "agent:activity",
+                    {"label": _activity_label(str(payload.get("tool") or "")), "phase": "working"},
+                )
+            elif etype == "agent:waiting_for_human":
+                yield agent_sse("agent:activity", {"label": "Waiting for you", "phase": "waiting"})
             yield agent_sse(etype, payload)
             if etype == "agent:completed":
                 full_text = str(payload.get("output", ""))
+                suggestions = [
+                    str(item) for item in payload.get("suggestions") or [] if str(item).strip()
+                ]
+                usage = dict(payload.get("usage") or {})
             elif etype == "error":
                 full_text = str(payload.get("text", ""))
 
@@ -242,8 +290,14 @@ async def agent_sse_stream(
                 full_text,
                 mode="agent",
                 mode_params=mode_params,
+                extra={
+                    **({"suggestions": suggestions} if suggestions else {}),
+                    **({"usage": usage} if usage else {}),
+                }
+                or None,
             )
 
+        yield agent_sse("agent:activity", {"label": "Done", "phase": "done"})
         yield agent_sse("done", {})
 
     return StreamingResponse(gen(), media_type="text/event-stream")

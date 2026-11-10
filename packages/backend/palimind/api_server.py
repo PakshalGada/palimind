@@ -1251,6 +1251,180 @@ async def delete_message(req: Request, scope: str = "field"):
     return sessions_data
 
 
+@app.post("/api/sessions/message/edit")
+async def edit_session_message(req: Request, scope: str = "field"):
+    """Edit one message by id. ``resend`` truncates the messages after it."""
+    from palimind.memory import session_store
+
+    root = _chat_root(scope)
+    if root is None:
+        return {"error": "No active knowledge base"}
+    data = await req.json()
+    session_id = str(data.get("session_id") or "")
+    message_id = data.get("message_id")
+    if not session_id or message_id is None:
+        return {"error": "session_id and message_id are required"}
+    content = data.get("content")
+    if content is None:
+        return {"error": "content is required"}
+    trimmed = str(content).strip()
+    if not trimmed:
+        return {"error": "Message cannot be empty."}
+    try:
+        message = await asyncio.to_thread(
+            session_store.update_session_message,
+            root,
+            session_id,
+            int(message_id),
+            content=trimmed,
+            edited=True,
+            meta={"edited_at": __import__("time").time()},
+        )
+        if data.get("resend"):
+            await asyncio.to_thread(
+                session_store.truncate_after_message, root, session_id, int(message_id)
+            )
+    except (TypeError, ValueError):
+        return {"error": "message_id must be an integer"}
+    if message is None:
+        return {"error": "Message not found"}
+    sessions_data = await asyncio.to_thread(load_sessions, root)
+    return {**sessions_data, "message": message}
+
+
+@app.post("/api/sessions/message/delete")
+async def delete_session_message_by_id(req: Request, scope: str = "field"):
+    """Soft-delete one message by id so the transcript keeps its shape."""
+    from palimind.memory import session_store
+
+    root = _chat_root(scope)
+    if root is None:
+        return {"error": "No active knowledge base"}
+    data = await req.json()
+    session_id = str(data.get("session_id") or "")
+    message_id = data.get("message_id")
+    if not session_id or message_id is None:
+        return {"error": "session_id and message_id are required"}
+    try:
+        message = await asyncio.to_thread(
+            session_store.update_session_message,
+            root,
+            session_id,
+            int(message_id),
+            deleted=True,
+        )
+    except (TypeError, ValueError):
+        return {"error": "message_id must be an integer"}
+    if message is None:
+        return {"error": "Message not found"}
+    sessions_data = await asyncio.to_thread(load_sessions, root)
+    return {**sessions_data, "message": message}
+
+
+@app.post("/api/sessions/message/prepare_regenerate")
+async def prepare_regenerate(req: Request, scope: str = "field"):
+    """Drop the answer after the selected user message and return its text."""
+    from palimind.memory import session_store
+
+    root = _chat_root(scope)
+    if root is None:
+        return {"error": "No active knowledge base"}
+    data = await req.json()
+    session_id = str(data.get("session_id") or "")
+    message_id = data.get("message_id")
+    if not session_id or message_id is None:
+        return {"error": "session_id and message_id are required"}
+    try:
+        mid = int(message_id)
+    except (TypeError, ValueError):
+        return {"error": "message_id must be an integer"}
+    session = await asyncio.to_thread(session_store.load_session_by_id, root, session_id)
+    if not session:
+        return {"error": "Session not found"}
+    target = next((m for m in session.get("messages", []) if int(m.get("id", -1)) == mid), None)
+    if target is None:
+        return {"error": "Message not found"}
+    # The selected message may be the user's prompt or its answer. Regenerate
+    # from the nearest user message at or before the selection.
+    start = None
+    for index, message in enumerate(session.get("messages", [])):
+        if int(message.get("id", -1)) == mid:
+            start = index
+            break
+    if start is None:
+        return {"error": "Message not found"}
+    while start > 0 and session["messages"][start].get("role") != "user":
+        start -= 1
+    user = session["messages"][start]
+    if user.get("role") != "user":
+        return {"error": "No prompt found to regenerate from"}
+    await asyncio.to_thread(session_store.truncate_session_messages, root, session_id, start)
+    sessions_data = await asyncio.to_thread(load_sessions, root)
+    return {**sessions_data, "input": str(user.get("content") or ""), "message_id": user["id"]}
+
+
+@app.get("/api/sessions/message/reactions")
+async def list_message_reactions(session_id: str = "", message_id: int = 0):
+    if not session_id or not message_id:
+        return {"reactions": []}
+    from palimind.agents import mailbox
+
+    reactions = await asyncio.to_thread(
+        mailbox.list_reactions, f"session:{session_id}:{message_id}"
+    )
+    return {"reactions": reactions}
+
+
+@app.post("/api/sessions/message/reactions")
+async def toggle_message_reaction(req: Request):
+    from palimind.agents import mailbox
+
+    data = await req.json()
+    session_id = str(data.get("session_id") or "")
+    message_id = data.get("message_id")
+    emoji = str(data.get("emoji") or "").strip()
+    actor = str(data.get("actor") or "user")
+    if not session_id or message_id is None or not emoji:
+        return {"error": "session_id, message_id and emoji are required"}
+    try:
+        mid = int(message_id)
+    except (TypeError, ValueError):
+        return {"error": "message_id must be an integer"}
+    key = f"session:{session_id}:{mid}"
+    existing = await asyncio.to_thread(mailbox.list_reactions, key)
+    match = next(
+        (r for r in existing if r.get("emoji") == emoji and r.get("actor_id") == actor),
+        None,
+    )
+    if match:
+        await asyncio.to_thread(
+            mailbox.unreact, key, emoji, actor_kind="user", actor_id=actor
+        )
+        return {"reactions": await asyncio.to_thread(mailbox.list_reactions, key)}
+    await asyncio.to_thread(
+        mailbox.react, key, emoji, actor_kind="user", actor_id=actor
+    )
+    return {"reactions": await asyncio.to_thread(mailbox.list_reactions, key)}
+
+
+@app.post("/api/sessions/message/read")
+async def mark_session_read(req: Request, scope: str = "field"):
+    from palimind.memory import session_store
+
+    root = _chat_root(scope)
+    if root is None:
+        return {"error": "No active knowledge base"}
+    data = await req.json()
+    session_id = str(data.get("session_id") or "")
+    message_id = data.get("message_id")
+    if not session_id or message_id is None:
+        return {"error": "session_id and message_id are required"}
+    sessions_data = await asyncio.to_thread(
+        session_store.set_last_read_message, root, session_id, int(message_id)
+    )
+    return sessions_data
+
+
 async def _run_agent_and_record(agent_id: str, prompt: str, session_id: str) -> str:
     """Run an agent and record the exchange in its own chat history."""
     from palimind.agents.registry import get_registry
@@ -1431,6 +1605,8 @@ async def _agent_scope_chat(
     session_id: str | None,
     entry: "_ChatStreamEntry | None" = None,
     display_text: str | None = None,
+    attachment_ids: str | None = None,
+    reply_to: int | None = None,
 ) -> StreamingResponse:
     """Route a chat to an agent, or to any agent mentioned in the message.
 
@@ -1442,7 +1618,6 @@ async def _agent_scope_chat(
     from palimind.agents.registry import get_registry
     from palimind.agents.service import agent_sse_stream
     from palimind.config import load_global_config
-    from palimind.opencode.router import resolve_model_url
 
     agent_id = scope.split(":", 1)[1].strip()
     defn = get_registry().get_by_id(agent_id)
@@ -1467,7 +1642,30 @@ async def _agent_scope_chat(
     _ensure_agent_sessions(agent_id)
     global_cfg = load_global_config()
     ollama_url = global_cfg.get("ollama_base_url", "http://localhost:11434")
-    model = responder.model or global_cfg.get("chat_model", "llama3")
+    from palimind.agents.providers.resolver import resolve_agent_model
+
+    resolved = await asyncio.to_thread(
+        resolve_agent_model,
+        responder,
+        global_chat_model=str(global_cfg.get("chat_model") or ""),
+        ollama_url=ollama_url,
+    )
+    if not resolved.ok:
+        async def model_error_stream():
+            yield f"data: {json.dumps({'type': 'agent:model_notice', 'kind': resolved.error, 'provider': resolved.provider, 'model': resolved.model, 'action': resolved.action, 'message': resolved.message})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'text': resolved.message})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+        return StreamingResponse(model_error_stream(), media_type="text/event-stream")
+    model = resolved.model
+    ollama_url = resolved.base_url
+    if attachment_ids:
+        from palimind.uploads import build_attachment_context, resolve_attachments
+
+        resolved = await asyncio.to_thread(resolve_attachments, attachment_ids)
+        context = build_attachment_context(resolved)
+        if context:
+            agent_input = f"{agent_input}\n\n{context}".strip()
     agent_root = _agent_chat_root(agent_id)
     session_id = await _resolve_chat_session(agent_root, session_id)
     if entry is not None:
@@ -1482,12 +1680,13 @@ async def _agent_scope_chat(
         responder.name,
         agent_input or "Run your task.",
         session_id,
-        await asyncio.to_thread(resolve_model_url, model, ollama_url),
+        ollama_url,
         model,
         working_root=None,
         prefix_mention=False,
         chat_style=True,
         display_input=display_text,
+        reply_to=reply_to,
     )
 
 
@@ -1697,6 +1896,7 @@ async def chat_stream(
     stream_id: str | None = None,
     display_query: str | None = None,
     rag_mode: str | None = None,
+    reply_to: int | None = None,
 ):
     """Chat SSE stream.
 
@@ -1721,6 +1921,7 @@ async def chat_stream(
             rerank,
             display_query,
             rag_mode,
+            reply_to,
         )
     except BaseException:
         _unregister_chat_stream(entry)
@@ -1742,10 +1943,19 @@ async def _chat_stream_response(
     rerank: bool | None,
     display_query: str | None = None,
     rag_mode: str | None = None,
+    reply_to: int | None = None,
 ) -> StreamingResponse:
     display_text = (display_query or "").strip() or None
     if scope.startswith("agent:"):
-        return await _agent_scope_chat(scope, q, session_id, entry, display_text=display_text)
+        return await _agent_scope_chat(
+            scope,
+            q,
+            session_id,
+            entry,
+            display_text=display_text,
+            attachment_ids=attachment_ids,
+            reply_to=reply_to,
+        )
 
     root = _chat_root(scope)
     if root is None:

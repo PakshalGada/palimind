@@ -48,6 +48,10 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
       return next({ usage: action.usage });
     case 'setSuggestions':
       return next({ suggestions: action.suggestions });
+    case 'setActivity':
+      return next({ activityLabel: action.label });
+    case 'setModelNotice':
+      return next({ modelNotice: action.notice });
     case 'setEscalation':
       return next({ escalation: action.escalation });
     case 'setDuration':

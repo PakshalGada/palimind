@@ -8,15 +8,22 @@ export interface Session {
   id: string;
   name: string;
   created_at?: number;
+  last_read_message_id?: number;
   messages: Message[];
 }
 
 export interface Message {
+  id?: number;
   role: 'user' | 'system';
   content: string;
   timestamp?: number;
   sources?: string[];
   citations?: CitationPayload;
+  reply_to?: number;
+  edited_at?: number;
+  deleted_at?: number;
+  reactions?: { id?: string; emoji: string; actor_kind?: string; actor_id?: string }[];
+  suggestions?: string[];
   /** Which agent produced an assistant turn (multi-agent chats). */
   mode_params?: { agent_name?: string; agent_id?: string; [key: string]: unknown };
 }
@@ -409,8 +416,13 @@ export interface AgentDefinition {
   workspace_dir?: string;
   team_ids?: string[];
   tool_pack?: ToolPack;
+  unrestricted_tools?: boolean;
   section_id?: string;
   hidden_at?: string;
+  // ── Provider choice (local Ollama or hosted OpenCode) ────────────────
+  provider?: string;
+  provider_account_id?: string;
+  backup_models?: { provider?: string; model?: string }[];
   // ── Computer use (Linux) ─────────────────────────────────────────────
   desktop_access?: boolean;
   desktop_control?: boolean;
@@ -652,6 +664,7 @@ export interface AgentListItem extends AgentDefinition {
   active_runs?: number;
   last_run_status: string | null;
   last_run_at?: number | null;
+  unread_count?: number;
 }
 
 export interface MemoryEntry {

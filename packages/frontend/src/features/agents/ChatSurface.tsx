@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Sparkles, Plus, Users, Inbox, Globe2 } from 'lucide-react';
+import { Sparkles, Plus, Users, Inbox, Globe2, HardDrive, Cloud, KeyRound } from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import { Button } from '../../ui/primitives';
@@ -29,6 +29,24 @@ export default function ChatSurface({
     setBrowserFullscreen,
   } = useApp();
   const [teamSettings, setTeamSettings] = useState(false);
+  const [readiness, setReadiness] = useState<{ local: boolean; opencode: boolean } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.agents
+      .setupStatus()
+      .then((status) => {
+        if (cancelled) return;
+        setReadiness({
+          local: Boolean(status.local?.ready),
+          opencode: Boolean(status.opencode?.ready),
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const agent = selectedAgentId ? agents.find((item) => item.id === selectedAgentId) || null : null;
   const team = selectedTeamId ? teams.find((item) => item.id === selectedTeamId) || null : null;
@@ -106,26 +124,38 @@ export default function ChatSurface({
       <span className="ag-welcome__mark">
         <Sparkles size={26} />
       </span>
-      <h1>Talk to your team</h1>
+      <h1>{agents.length === 0 ? 'Build your first teammate' : 'Talk to your team'}</h1>
       <p>
-        Pick an agent, a team or a channel to start. Use <code>@</code> in any
-        chat to call another agent.
+        {agents.length === 0
+          ? 'Pick a role, choose a local model or your OpenCode key, and give it a first task. You can change everything later.'
+          : 'Pick an agent, a team or a channel to start. Use @ in any chat to call another agent.'}
       </p>
+      <div className="ag-welcome__status" aria-label="Model readiness">
+        <span className={readiness?.local ? 'is-ready' : ''}>
+          <HardDrive size={13} /> {readiness?.local ? 'Local model ready' : 'No local model found'}
+        </span>
+        <span className={readiness?.opencode ? 'is-ready' : ''}>
+          {readiness?.opencode ? <Cloud size={13} /> : <KeyRound size={13} />}
+          {readiness?.opencode ? 'OpenCode key ready' : 'OpenCode key not added'}
+        </span>
+      </div>
       <div className="ag-welcome__actions">
         <Button
           variant="primary"
           size="sm"
           onClick={() => window.dispatchEvent(new CustomEvent('palimind:new-agent'))}
         >
-          <Plus size={14} /> New agent
+          <Plus size={14} /> {agents.length === 0 ? 'Create your first agent' : 'New agent'}
         </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => window.dispatchEvent(new CustomEvent('palimind:new-team'))}
-        >
-          <Users size={14} /> New team
-        </Button>
+        {agents.length > 0 && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => window.dispatchEvent(new CustomEvent('palimind:new-team'))}
+          >
+            <Users size={14} /> New team
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="sm"
@@ -141,6 +171,11 @@ export default function ChatSurface({
           <Globe2 size={14} /> Browser
         </Button>
       </div>
+      {agents.length === 0 && (
+        <div className="ag-welcome__readiness-note">
+          <span>Start local and private, or paste an OpenCode key in Settings → OpenCode.</span>
+        </div>
+      )}
     </div>
   );
 }

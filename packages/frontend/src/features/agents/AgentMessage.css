@@ -203,3 +203,144 @@
   .ag-msg__user-body { max-width: 82%; }
   .ag-thread .message.user-message .message-content { max-width: 82%; }
 }
+
+/* ── actions, reactions, reply, edit ────────────────────────────── */
+.ag-msg__toolbar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity var(--dur-2) var(--ease-out);
+}
+.ag-msg:hover .ag-msg__toolbar { opacity: 1; }
+.ag-msg__toolbar > button,
+.ag-msg__toolbar .msg-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    min-height: 0;
+    border: none;
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--ink-muted);
+    cursor: pointer;
+}
+.ag-msg__toolbar > button:hover,
+.ag-msg__toolbar .msg-action-btn:hover { color: var(--ink); background: var(--surface-2); }
+.ag-msg__toolbar .msg-actions { display: inline-flex; gap: 0; border: none; background: transparent; padding: 0; }
+.ag-msg__toolbar .msg-actions-copy { position: relative; }
+.ag-msg__react { position: relative; display: inline-flex; }
+.ag-msg__react-menu {
+    position: absolute;
+    bottom: 26px;
+    left: 0;
+    display: flex;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-1);
+    box-shadow: var(--shadow-md);
+    z-index: 20;
+}
+.ag-msg__react-menu button {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    min-height: 0;
+    border: none;
+    background: transparent;
+    font-size: 15px;
+    cursor: pointer;
+    border-radius: var(--radius-xs);
+}
+.ag-msg__react-menu button:hover { background: var(--surface-2); }
+.ag-msg__reactions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.ag-msg__reaction {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 6px;
+    min-height: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-full);
+    background: var(--surface-1);
+    font-size: var(--type-xs);
+    cursor: pointer;
+}
+.ag-msg__reaction.is-mine { border-color: var(--ink-muted); }
+.ag-msg__user-reply-quote,
+.ag-msg__reply-quote {
+    max-width: 100%;
+    padding: 4px 8px;
+    border-left: 2px solid var(--ink-muted);
+    color: var(--ink-muted);
+    font-size: var(--type-2xs);
+}
+.ag-msg__reply-quote p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-msg__deleted {
+    padding: 6px 10px;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-sm);
+    color: var(--ink-muted);
+    font-size: var(--type-xs);
+    font-style: italic;
+}
+.ag-msg__edit { display: flex; flex-direction: column; gap: 6px; width: min(620px, 100%); }
+.ag-msg__edit textarea {
+    width: 100%;
+    resize: vertical;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--type-sm);
+}
+.ag-msg__edit-actions { display: flex; gap: 6px; }
+.ag-msg__edit-actions button {
+    padding: 4px 10px;
+    min-height: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink-secondary);
+    font-size: var(--type-xs);
+    cursor: pointer;
+}
+.ag-msg__edit-actions button.is-primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+/* Short-bubble answer and quick actions */
+.ag-msg__blocks { width: 100%; }
+.ag-msg__quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-out);
+}
+.ag-msg:hover .ag-msg__quick { opacity: 1; }
+.ag-msg__quick button {
+  padding: 3px 8px;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-size: var(--type-2xs);
+  cursor: pointer;
+}
+.ag-msg__quick button:hover { background: var(--surface-2); color: var(--ink); }
+@media (prefers-reduced-motion: reduce) {
+  .ag-msg__quick { opacity: 1; }
+}

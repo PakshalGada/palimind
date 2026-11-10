@@ -114,12 +114,14 @@ export function PermissionGrant({
   const submitted = useRef(false);
   const pending = step.status === 'awaiting_approval';
   const [editing, setEditing] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [draft, setDraft] = useState('');
   const [editError, setEditError] = useState('');
   const canEdit = Boolean(step.args && typeof step.args === 'object' && !Array.isArray(step.args));
 
   useEffect(() => {
     setEditing(false);
+    setShowDetails(false);
     setDraft('');
     setEditError('');
   }, [step.id]);
@@ -160,6 +162,7 @@ export function PermissionGrant({
   const startEdit = () => {
     setDraft(JSON.stringify(step.args ?? {}, null, 2));
     setEditError('');
+    setShowDetails(true);
     setEditing(true);
   };
   const action = plainAction(step);
@@ -189,7 +192,7 @@ export function PermissionGrant({
 
   return (
     <div
-      className={`act-grant${restored ? '' : ' act-attention'}`}
+      className={`act-grant act-grant--compact${restored ? '' : ' act-attention'}`}
       role="group"
       aria-label={`Needs approval: ${safeAction}`}
       data-pending-approval={step.id}
@@ -211,15 +214,23 @@ export function PermissionGrant({
       </span>
 
       <div className="act-grant__head">
-        <Icon name="lock" size={15} />
+        <Icon name="lock" size={14} />
         <span className="act-grant__title">Needs approval</span>
         <code className="act-grant__tool act-mono">{toolLabel(step.name)}</code>
         {restored && <span className="act-grant__note">Requested earlier</span>}
+        <button
+          type="button"
+          className="act-grant__details"
+          onClick={() => setShowDetails((value) => !value)}
+          aria-expanded={showDetails}
+        >
+          {showDetails ? 'Hide details' : 'Details'}
+        </button>
       </div>
 
       <div className="act-grant__action">{safeAction}</div>
 
-      <Payload step={step} />
+      {showDetails && <Payload step={step} />}
 
       {destructive && (
         <div className="act-grant__warning">
@@ -286,7 +297,7 @@ export function PermissionGrant({
             Allow once
           </button>
         </div>
-        <p className="act-grant__hint">
+        <p className="act-grant__hint act-visually-hidden">
           {editing
             ? 'Edit the JSON, then allow the corrected call.'
             : 'Enter allow once · A allow for this run · Esc deny'}

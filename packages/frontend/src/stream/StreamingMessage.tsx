@@ -1,4 +1,4 @@
-import MessageContent from '../components/MessageContent';
+import MessageBlocks from '../components/MessageBlocks';
 import { SourcesPanel } from '@/components/sources/SourcesPanel';
 import type { StreamState, VideoTarget } from './types';
 
@@ -85,7 +85,7 @@ export default function StreamingMessage({
   return (
     <div className="live-answer">
       {hasAnswer && (
-        <MessageContent
+        <MessageBlocks
           content={content}
           citations={state.citations ?? undefined}
           messageIndex={messageIndex}

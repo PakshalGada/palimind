@@ -82,6 +82,35 @@ export const api = {
     remove: (sessionId: string, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/remove?scope=${scope}`, { session_id: sessionId }),
     truncate: (sessionId: string, keepCount: number, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/truncate?scope=${scope}`, { session_id: sessionId, keep_count: keepCount }),
     deleteMessage: (sessionId: string, index: number, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/delete_message?scope=${scope}`, { session_id: sessionId, index }),
+    editMessage: (sessionId: string, messageId: number, content: string, scope = 'field', resend = false) =>
+      post<{ error?: string; sessions: unknown[]; active_session_id: string; message?: unknown }>(
+        `/sessions/message/edit?scope=${scope}`,
+        { session_id: sessionId, message_id: messageId, content, resend },
+      ),
+    deleteMessageById: (sessionId: string, messageId: number, scope = 'field') =>
+      post<{ error?: string; sessions: unknown[]; active_session_id: string; message?: unknown }>(
+        `/sessions/message/delete?scope=${scope}`,
+        { session_id: sessionId, message_id: messageId },
+      ),
+    prepareRegenerate: (sessionId: string, messageId: number, scope = 'field') =>
+      post<{ error?: string; sessions: unknown[]; active_session_id: string; input?: string; message_id?: number }>(
+        `/sessions/message/prepare_regenerate?scope=${scope}`,
+        { session_id: sessionId, message_id: messageId },
+      ),
+    reactions: (sessionId: string, messageId: number) =>
+      get<{ reactions: { id: string; emoji: string; actor_kind: string; actor_id: string }[] }>(
+        `/sessions/message/reactions?session_id=${encodeURIComponent(sessionId)}&message_id=${messageId}`,
+      ),
+    toggleReaction: (sessionId: string, messageId: number, emoji: string, actor = 'user') =>
+      post<{ error?: string; reactions: { id: string; emoji: string; actor_kind: string; actor_id: string }[] }>(
+        '/sessions/message/reactions',
+        { session_id: sessionId, message_id: messageId, emoji, actor },
+      ),
+    markRead: (sessionId: string, messageId: number, scope = 'field') =>
+      post<{ error?: string; sessions: unknown[]; active_session_id: string }>(
+        `/sessions/message/read?scope=${scope}`,
+        { session_id: sessionId, message_id: messageId },
+      ),
   },
   sync: () => post<{ status: string; indexed_files?: number; deleted_files?: number; error?: string }>('/update'),
   files: {
@@ -175,6 +204,13 @@ export const api = {
   },
   agents: {
     list: () => get<{ agents?: AgentListItem[]; error?: string }>('/agents'),
+    setupStatus: () =>
+      get<{
+        local?: { ready?: boolean; models?: string[]; ollama_url?: string };
+        opencode?: { key_present?: boolean; ready?: boolean; models?: string[] };
+        default_model?: string;
+        error?: string;
+      }>('/agents/setup-status'),
     create: (defn: Partial<AgentDefinition>) => post<AgentListItem & { error?: string }>('/agents/create', defn),
     update: (agentId: string, changes: Partial<AgentDefinition>) =>
       patch<AgentListItem & { error?: string }>(`/agents/${agentId}`, changes),
@@ -227,6 +263,28 @@ export const api = {
       ),
     starters: (agentId: string) =>
       get<{ prompts: string[]; error?: string }>(`/agents/${agentId}/starters`),
+    send: (
+      agentId: string,
+      text: string,
+      opts: { threadId?: string; clientMessageId?: string; taskId?: string; expectsReply?: boolean } = {},
+    ) =>
+      post<{
+        message_id?: string;
+        messageId?: string;
+        delivery?: Record<string, unknown>;
+        queue_item?: Record<string, unknown>;
+        error?: string;
+      }>(`/agents/${agentId}/messages`, {
+        text,
+        thread_id: opts.threadId || '',
+        client_message_id: opts.clientMessageId || '',
+        task_id: opts.taskId || '',
+        expects_reply: opts.expectsReply ?? true,
+      }),
+    deliveries: (status = '', limit = 50) =>
+      get<{ deliveries?: Record<string, unknown>[]; error?: string }>(
+        `/agents/deliveries?status=${encodeURIComponent(status)}&limit=${limit}`,
+      ),
     recentRuns: (limit = 30) => get<{ runs: RecentRun[] }>(`/agents/runs/recent?limit=${limit}`),
     recallPreview: (agentId: string, query: string, k = 8) =>
       post<{ entries: MemoryEntry[] }>(`/agents/${agentId}/recall-preview`, { query, k }),
@@ -458,8 +516,6 @@ export const api = {
       del<{ agent?: AgentDefinition; error?: string }>(
         `/agents/${agentId}/approvals/always-allow/${encodeURIComponent(tool)}`,
       ),
-    steer: (agentId: string, text: string, runId = '') =>
-      post<{ status?: string; error?: string }>(`/agents/${agentId}/steer`, { text, run_id: runId }),
     pause: (agentId: string) => post<{ status?: string }>(`/agents/${agentId}/pause`),
     resume: (agentId: string) => post<{ status?: string }>(`/agents/${agentId}/resume`),
     workspace: {
@@ -537,8 +593,6 @@ export const api = {
     cancel: (teamId: string) => post<{ status?: string; cancelled?: number }>(`/agents/teams/${teamId}/cancel`),
     pause: (teamId: string) => post<{ status?: string }>(`/agents/teams/${teamId}/pause`),
     resume: (teamId: string) => post<{ status?: string }>(`/agents/teams/${teamId}/resume`),
-    steer: (teamId: string, text: string, agentId = '') =>
-      post<{ status?: string }>(`/agents/teams/${teamId}/steer`, { text, agent_id: agentId }),
     runs: (teamId: string, limit = 30) =>
       get<{ runs: TeamRun[]; error?: string }>(`/agents/teams/${teamId}/runs?limit=${limit}`),
     runDetail: (teamId: string, runId: string) =>

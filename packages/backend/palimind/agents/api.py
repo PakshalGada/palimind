@@ -40,7 +40,68 @@ def _agent_item(defn: AgentDefinition) -> dict[str, Any]:
     item["active_runs"] = running_count(defn.id)
     item["last_run_status"] = last.get("status") if last else None
     item["last_run_at"] = last.get("timestamp") if last else None
+    item["unread_count"] = _unread_count(defn.id)
     return item
+
+
+def _unread_count(agent_id: str) -> int:
+    """Count agent replies after the active conversation's last-read marker."""
+    try:
+        from palimind.agents.chat import agent_session_root
+        from palimind.memory import session_store
+
+        root = agent_session_root(agent_id)
+        if not session_store.has_session_data(root):
+            return 0
+        data = session_store.load_sessions(root)
+        active = data.get("active_session_id")
+        session = next((item for item in data.get("sessions", []) if item.get("id") == active), None)
+        if not session:
+            return 0
+        last_read = int(session.get("last_read_message_id") or 0)
+        if last_read <= 0:
+            return 0
+        return sum(
+            1
+            for message in session.get("messages", [])
+            if int(message.get("id") or 0) > last_read and message.get("role") != "user"
+        )
+    except Exception:
+        return 0
+
+
+@router.get("/setup-status")
+async def agent_setup_status():
+    """Readiness for the agent wizard. Lists models; never runs a completion."""
+    import asyncio
+
+    from palimind.agents.providers_api import _opencode_catalog, _opencode_key_present
+    from palimind.config import load_global_config
+    from palimind.opencode.router import fetch_ollama_model_ids
+
+    config = load_global_config()
+    ollama_url = str(config.get("ollama_base_url") or "http://localhost:11434")
+    try:
+        local_models = sorted(
+            await asyncio.to_thread(fetch_ollama_model_ids, ollama_url)
+        )
+    except Exception:
+        local_models = []
+    key_present = await asyncio.to_thread(_opencode_key_present)
+    hosted_models = await asyncio.to_thread(_opencode_catalog) if key_present else []
+    return {
+        "local": {
+            "ollama_url": ollama_url,
+            "ready": bool(local_models),
+            "models": local_models,
+        },
+        "opencode": {
+            "key_present": key_present,
+            "ready": bool(key_present and hosted_models),
+            "models": [model.get("id") for model in hosted_models],
+        },
+        "default_model": str(config.get("chat_model") or ""),
+    }
 
 
 @router.get("")

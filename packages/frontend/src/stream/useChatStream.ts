@@ -66,6 +66,8 @@ export interface SendRequest {
   ragMode?: 'auto' | 'off' | 'always';
   files?: string[];
   attachmentIds?: string[];
+  /** Marker for a reply quote; stored on the user message. */
+  replyTo?: number;
   activity: ActivityInfo;
   agentLoading?: { seed: string; name: string } | null;
 }
@@ -232,6 +234,7 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
       if (request.ragMode) params.set('rag_mode', request.ragMode);
       if (request.files?.length) params.set('files', request.files.join(','));
       if (request.attachmentIds?.length) params.set('attachment_ids', request.attachmentIds.join(','));
+      if (request.replyTo) params.set('reply_to', String(request.replyTo));
       // The server echoes this in its first `session` event; Stop uses it.
       let streamKey = makeStreamKey();
       params.set('stream_id', streamKey);
@@ -378,6 +381,26 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
               suggestions: (event.suggestions ?? []).filter(
                 (item): item is string => typeof item === 'string' && item.trim().length > 0,
               ),
+            });
+            break;
+
+          case 'agent:activity':
+            dispatch({
+              type: 'setActivity',
+              label: typeof event.label === 'string' && event.label ? event.label : null,
+            });
+            break;
+
+          case 'agent:model_notice':
+            dispatch({
+              type: 'setModelNotice',
+              notice: {
+                kind: String(event.kind || 'provider'),
+                provider: String(event.provider || ''),
+                model: String(event.model || ''),
+                action: String(event.action || ''),
+                message: String(event.message || 'The model is not available.'),
+              },
             });
             break;
 

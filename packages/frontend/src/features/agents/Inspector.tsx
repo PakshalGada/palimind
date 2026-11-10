@@ -710,9 +710,20 @@ export default function Inspector({
                   <pre className="ax-settings__prompt">{composeSystemPrompt(draft) || 'No instructions yet.'}</pre>
                 </Field>
                 <div className="ax-form__grid">
+                  <Field label="Where it runs" hint="Local is private; OpenCode uses your API key.">
+                    <Select
+                      value={draft.provider || 'ollama'}
+                      onChange={(e) => patch({ provider: e.target.value, model: '' })}
+                    >
+                      <option value="ollama">Local (Ollama)</option>
+                      <option value="opencode">OpenCode (API key)</option>
+                    </Select>
+                  </Field>
                   <Field label="Model" hint="Empty uses the workspace default.">
                     <ModelPicker value={draft.model || ''} onChange={(v) => patch({ model: v })} />
                   </Field>
+                </div>
+                <div className="ax-form__grid">
                   <Field label={`Temperature · ${(draft.temperature ?? 0.2).toFixed(1)}`}>
                     <input
                       type="range"

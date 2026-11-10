@@ -151,3 +151,31 @@
 .ag-modal-agent-name { color: var(--ink); font-size: var(--type-sm); font-weight: var(--weight-medium); }
 .ag-modal-agent-role { color: var(--ink-muted); font-size: var(--type-xs); line-height: 1.35; }
 .ag-modal-agent .ui-chip { position: absolute; top: 6px; right: 6px; }
+
+/* First-run provider readiness */
+.ag-welcome__status {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.ag-welcome__status span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  color: var(--ink-muted);
+  font-size: var(--type-xs);
+}
+.ag-welcome__status span.is-ready {
+  border-color: var(--ink-muted);
+  color: var(--ink-secondary);
+}
+.ag-welcome__readiness-note {
+  margin-top: 4px;
+  color: var(--ink-muted);
+  font-size: var(--type-xs);
+}

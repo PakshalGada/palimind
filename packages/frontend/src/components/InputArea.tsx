@@ -144,6 +144,10 @@ function InputArea({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState("");
+  // A quoted message the next send replies to. Set by the message row.
+  const [replyTarget, setReplyTarget] = useState<
+    { messageId?: number; author: string; content: string } | null
+  >(null);
   // When set, the next handleSend() uses this text instead of the composer
   // value. Used by the "regenerate" command to replay a previous message.
   const sendOverrideRef = useRef<string | null>(null);
@@ -180,10 +184,14 @@ function InputArea({
   const levelRef = useRef(0);
 
   useEffect(() => {
-    api.agents
-      .list()
-      .then((d) => setAllAgents((d.agents || []).filter((a) => a.enabled)))
-      .catch(() => {});
+    const load = () =>
+      api.agents
+        .list()
+        .then((d) => setAllAgents((d.agents || []).filter((a) => a.enabled)))
+        .catch(() => {});
+    void load();
+    window.addEventListener('palimind:agents-changed', load);
+    return () => window.removeEventListener('palimind:agents-changed', load);
   }, []);
 
   useEffect(() => {
@@ -547,6 +555,33 @@ function InputArea({
       }
       return;
     }
+    if (activeView === "agents" && selectedAgentId && isGenerating && !sendingRef.current) {
+      const text = value.trim();
+      if (!text) return;
+      sendingRef.current = true;
+      setLocalBusy(true);
+      try {
+        const result = await api.agents.send(selectedAgentId, text, {
+          threadId: activeSessionId || undefined,
+          clientMessageId: `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          expectsReply: true,
+        });
+        if (result.error) {
+          addToast(result.error, { tone: "error" });
+          return;
+        }
+        setValue("");
+        setReplyTarget(null);
+        addToast("Queued — the agent will pick this up next.", { tone: "success" });
+        window.dispatchEvent(new CustomEvent("palimind:agents-changed"));
+      } catch (e) {
+        addToast(e instanceof Error ? e.message : "Could not queue the message", { tone: "error" });
+      } finally {
+        setLocalBusy(false);
+        sendingRef.current = false;
+      }
+      return;
+    }
     if (isGenerating || sendingRef.current || disabled) return;
     const override = sendOverrideRef.current;
     sendOverrideRef.current = null;
@@ -658,6 +693,7 @@ function InputArea({
       if (fromComposer) {
         setValue("");
         setAttachedFiles([]);
+        setReplyTarget(null);
       }
 
       // ── activity-chain metadata (same shell for every mode) ───────────
@@ -718,6 +754,7 @@ function InputArea({
         displayText: activeSkill ? visibleText : undefined,
         files: selectedFiles.size > 0 ? Array.from(selectedFiles) : undefined,
         attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
+        replyTo: isChatView ? replyTarget?.messageId : undefined,
         activity: {
           mode: actMode,
           title: actTitle,
@@ -756,6 +793,7 @@ function InputArea({
     slashCommands,
     sendMessage,
     addToast,
+    replyTarget?.messageId,
   ]);
 
   const findLastMessage = useCallback(
@@ -834,9 +872,31 @@ function InputArea({
       setValue(text);
       requestAnimationFrame(() => textareaRef.current?.focus());
     };
+    const agentHandler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as
+        | { messageId?: number; author?: string; content?: string }
+        | undefined;
+      if (!detail?.content) return;
+      setReplyTarget({
+        messageId: detail.messageId,
+        author: detail.author || 'message',
+        content: detail.content,
+      });
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    };
     window.addEventListener('palimind:prefill-composer', handler);
-    return () => window.removeEventListener('palimind:prefill-composer', handler);
+    window.addEventListener('palimind:agent-prefill', handler);
+    window.addEventListener('palimind:agent-reply', agentHandler);
+    return () => {
+      window.removeEventListener('palimind:prefill-composer', handler);
+      window.removeEventListener('palimind:agent-prefill', handler);
+      window.removeEventListener('palimind:agent-reply', agentHandler);
+    };
   }, []);
+
+  useEffect(() => {
+    setReplyTarget(null);
+  }, [activeSessionId]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Enter while an IME is composing confirms the candidate; never submit.
@@ -919,6 +979,15 @@ function InputArea({
   };
 
   const isAdvancedMode = chatMode === "llm" && llmSubMode !== "default";
+  const selectedAgent =
+    activeView === "agents" && selectedAgentId
+      ? allAgents.find((agent) => agent.id === selectedAgentId)
+      : undefined;
+  const selectedAgentLabel = selectedAgent
+    ? `${selectedAgent.provider === "opencode" ? "OpenCode" : "Local"} · ${
+        selectedAgent.model || "default"
+      }`
+    : "Choose a model";
   const modeLabel =
     llmSubMode === "moe"
       ? "Mixture of Experts"
@@ -948,6 +1017,22 @@ function InputArea({
       )}
 
 
+
+      {replyTarget && (
+        <div className="composer-reply-chip" role="status">
+          <span className="composer-reply-chip__label">Replying to {replyTarget.author}</span>
+          <span className="composer-reply-chip__text">
+            {replyTarget.content.replace(/\s+/g, " ").slice(0, 120)}
+          </span>
+          <button
+            type="button"
+            aria-label="Cancel reply"
+            onClick={() => setReplyTarget(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <PromptInput
         className="ai-command-center"
@@ -1281,7 +1366,25 @@ function InputArea({
             </>
           )}
 
-          <ModelSwitcher />
+          {activeView === "agents" ? (
+            <button
+              type="button"
+              className="agent-model-pill"
+              title="Change this agent's model and provider"
+              onClick={() => {
+                if (!selectedAgentId) return;
+                window.dispatchEvent(
+                  new CustomEvent("palimind:open-agent-config", {
+                    detail: { agentId: selectedAgentId, tab: "instructions" },
+                  }),
+                );
+              }}
+            >
+              {selectedAgentLabel}
+            </button>
+          ) : (
+            <ModelSwitcher />
+          )}
 
           {burstNonce > 0 && (
             <PixelBurst key={burstNonce} className="composer-burst" />

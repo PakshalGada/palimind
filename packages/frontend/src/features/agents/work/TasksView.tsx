@@ -202,7 +202,7 @@ export default function TasksView({ agents }: { agents: AgentListItem[] }) {
           {!loading && visible.length === 0 && (
             <EmptyState
               title={filter === 'done' ? 'No finished tasks' : 'No tasks yet'}
-              description="Tasks are queued agent runs you can steer, stop and reply to."
+              description="Tasks are queued agent runs you can stop and reply to."
             />
           )}
         </div>

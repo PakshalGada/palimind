@@ -4,14 +4,14 @@ import { useApp } from '../../AppContext';
 import { useCommandHandler } from '../../commands/useCommand';
 import type { AgentListItem } from '../../types';
 import type { InspectorSection } from './types';
-import AgentOnboarding from './AgentOnboarding';
+import AgentWizard from './AgentWizard';
 import Inspector from './Inspector';
 import './agents.css';
 import './AgentManager.css';
 
 /**
  * Hosts the agent create wizard and the settings inspector. The main Agents
- * area is the shared ChatArea; this component only exists so the sidebar's
+ * area is AgentsWorkspace; this component only exists so the sidebar's
  * "New Agent" / settings actions still have somewhere to go.
  */
 export default function AgentManager() {
@@ -70,7 +70,7 @@ export default function AgentManager() {
 
   return (
     <>
-      <AgentOnboarding
+      <AgentWizard
         open={creating}
         onClose={() => setCreating(false)}
         onCreated={(id) => {

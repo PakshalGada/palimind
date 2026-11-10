@@ -127,6 +127,15 @@ export type StreamEvent =
       skipped?: boolean;
     }
   | { type: 'agent:suggestions'; suggestions?: string[] }
+  | { type: 'agent:activity'; label?: string; phase?: string }
+  | {
+      type: 'agent:model_notice';
+      kind?: string;
+      provider?: string;
+      model?: string;
+      action?: string;
+      message?: string;
+    }
   | {
       type: 'agent:completed';
       output?: string;
@@ -141,6 +150,14 @@ export type StreamEvent =
   | { type: 'orchestrator'; data: Record<string, unknown> };
 
 export type StreamStatus = 'idle' | 'streaming' | 'done' | 'error';
+
+export interface ModelNotice {
+  kind: string;
+  provider: string;
+  model: string;
+  action: string;
+  message: string;
+}
 
 /** Everything the live assistant turn needs to render, nothing else. */
 export interface StreamState {
@@ -171,6 +188,10 @@ export interface StreamState {
   suggestions: string[];
   /** Set when a run was escalated to a stronger model near the step limit. */
   escalation: string | null;
+  /** Human label for the current agent step (Thinking, Reading files, …). */
+  activityLabel: string | null;
+  /** A provider/model problem that needs a user action. */
+  modelNotice: ModelNotice | null;
   answerStarted: boolean;
   /** Bumped on every visible change so consumers can auto-scroll cheaply. */
   revision: number;
@@ -193,6 +214,8 @@ export const initialStreamState: StreamState = {
   usage: null,
   suggestions: [],
   escalation: null,
+  activityLabel: null,
+  modelNotice: null,
   answerStarted: false,
   revision: 0,
 };
@@ -210,6 +233,8 @@ export type StreamAction =
   | { type: 'setApproval'; approval: ApprovalPrompt | null }
   | { type: 'setUsage'; usage: TokenUsage | null }
   | { type: 'setSuggestions'; suggestions: string[] }
+  | { type: 'setActivity'; label: string | null }
+  | { type: 'setModelNotice'; notice: ModelNotice | null }
   | { type: 'setEscalation'; escalation: string | null }
   | { type: 'setDuration'; duration: string }
   | { type: 'answerStarted' }

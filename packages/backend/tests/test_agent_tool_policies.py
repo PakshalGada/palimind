@@ -36,3 +36,41 @@ def test_invalid_policy_values_are_dropped_on_load() -> None:
         }
     )
     assert agent.tool_policies == {"web_search": "deny"}
+
+
+def test_unrestricted_agent_can_use_any_tool_but_still_asks_for_risky_actions() -> None:
+    from palimind.agents.catalog import AgentDefinition
+    from palimind.llm.mixture_of_expert.agents import _gate_tool, _tool_allowed
+
+    defn = AgentDefinition.new(
+        "unrestricted",
+        display_name="Unrestricted",
+        tier_policy="tier1",
+        write_access=False,
+        shell_access=False,
+        unrestricted_tools=True,
+        autonomy_level="semi",
+    )
+
+    # The allowlist and tier/access flags do not block the tool.
+    assert _tool_allowed("run_shell", {"tools": ["web_search"]}, defn) is True
+    assert _tool_allowed("desktop_act", {"tools": []}, defn) is True
+    assert _gate_tool("write_file", {"path": "x"}, definition=defn) is not None
+    assert "needs human approval" in str(_gate_tool("write_file", {"path": "x"}, definition=defn))
+
+    # A small approval prompt still governs the risky action.
+    approved = _gate_tool(
+        "write_file",
+        {"path": "x"},
+        definition=defn,
+        approval_provider=lambda _request: {"approved": True},
+    )
+    assert approved is None
+
+    denied = _gate_tool(
+        "write_file",
+        {"path": "x"},
+        definition=defn,
+        approval_provider=lambda _request: {"approved": False},
+    )
+    assert denied is not None

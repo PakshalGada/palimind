@@ -69,28 +69,36 @@ export const BOT_LABELS = Object.fromEntries(
   types.map((t) => [t, presets[t].label]),
 ) as Record<BotType, string>;
 
-/** A friendly set of colours for the swatch picker. */
+/** A friendly, colourful set of swatches for the avatar picker. */
 export const BOT_COLORS = [
-  '#c5c5c5',
-  '#8c8c8c',
-  '#a2a2a2',
-  '#b5b5b5',
-  '#727272',
-  '#535353',
-  '#d4d4d4',
-  '#9b9b9b',
+  '#e5484d',
+  '#f76b15',
+  '#f5a524',
+  '#e2c541',
+  '#99a300',
+  '#46a758',
+  '#12a594',
+  '#00a2c7',
+  '#0091ff',
+  '#3e63dd',
+  '#6e56cf',
+  '#8e4ec6',
+  '#ab4aba',
+  '#d6409f',
+  '#e93d82',
+  '#f2555a',
+  '#ff8a65',
+  '#ffd166',
+  '#7bdff2',
+  '#4cc9f0',
+  '#4361ee',
+  '#b5179e',
+  '#f72585',
+  '#1c1c1c',
+  '#6b6b6b',
+  '#a1a1a1',
   '#d0d0d0',
-  '#b9b9b9',
-  '#e4e4e4',
-  '#d7d7d7',
-  '#aaaaaa',
-  '#dadada',
-  '#e1e1e1',
-  '#7e7e7e',
-  '#f4f4f4',
-  '#ededed',
-  '#ececec',
-  '#e6e6e6',
+  '#f0f0f0',
 ];
 
 export interface BotPreset {
@@ -104,42 +112,42 @@ export const BOT_PRESETS: BotPreset[] = [
   {
     id: 'mochi',
     name: 'Mochi',
-    config: { type: 'cat', color: '#b9b9b9', shading: 'fabric', hat: 'party', bowTie: true, blush: true },
+    config: { type: 'cat', color: '#ff8a65', shading: 'fabric', hat: 'party', bowTie: true, blush: true },
   },
   {
     id: 'pixel',
     name: 'Pixel',
-    config: { type: 'droid', color: '#e1e1e1', shading: 'plastic', glasses: 'round', headphones: true },
+    config: { type: 'droid', color: '#4cc9f0', shading: 'plastic', glasses: 'round', headphones: true },
   },
   {
     id: 'nova',
     name: 'Nova',
-    config: { type: 'star', color: '#d4d4d4', shading: 'fabric', hat: 'crown', blush: true },
+    config: { type: 'star', color: '#ffd166', shading: 'fabric', hat: 'crown', blush: true },
   },
   {
     id: 'pip',
     name: 'Pip',
-    config: { type: 'clover', color: '#c5c5c5', shading: 'smooth', bowTie: true, blush: true },
+    config: { type: 'clover', color: '#46a758', shading: 'smooth', bowTie: true, blush: true },
   },
   {
     id: 'boo',
     name: 'Boo',
-    config: { type: 'ghost', color: '#f4f4f4', shading: 'fabric', blush: true },
+    config: { type: 'ghost', color: '#c7b9ff', shading: 'fabric', blush: true },
   },
   {
     id: 'zeke',
     name: 'Zeke',
-    config: { type: 'alien', color: '#9b9b9b', shading: 'plastic', glasses: 'shades' },
+    config: { type: 'alien', color: '#12a594', shading: 'plastic', glasses: 'shades' },
   },
   {
     id: 'milo',
     name: 'Milo',
-    config: { type: 'mech', color: '#7e7e7e', shading: 'crisp', hat: 'beanie', headphones: true },
+    config: { type: 'mech', color: '#6e56cf', shading: 'crisp', hat: 'beanie', headphones: true },
   },
   {
     id: 'luna',
     name: 'Luna',
-    config: { type: 'drop', color: '#535353', shading: 'plastic', hat: 'beret', bowTie: true, blush: true },
+    config: { type: 'drop', color: '#3e63dd', shading: 'plastic', hat: 'beret', bowTie: true, blush: true },
   },
 ];
 
@@ -173,7 +181,7 @@ export function configFromSeed(seed: string): BotAvatarConfig {
   const type = choose(BOT_TYPES);
   return {
     type,
-    color: BOT_PALETTE[type],
+    color: choose(BOT_COLORS),
     shading: choose(BOT_SHADINGS),
     hat: choose(BOT_HATS),
     glasses: choose(BOT_GLASSES),
@@ -186,7 +194,7 @@ export function randomBotConfig(): BotAvatarConfig {
   const type = pick(BOT_TYPES);
   return {
     type,
-    color: BOT_PALETTE[type],
+    color: pick(BOT_COLORS),
     shading: pick(BOT_SHADINGS),
     hat: pick(BOT_HATS),
     glasses: pick(BOT_GLASSES),

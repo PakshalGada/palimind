@@ -163,7 +163,12 @@ export default function AvatarCustomizer({
 
   const pickType = (next: BotType) => {
     const wasDefault = !config.color || config.color === BOT_PALETTE[type];
-    patchConfig({ type: next, ...(wasDefault ? { color: BOT_PALETTE[next] } : {}) });
+    patchConfig({
+      type: next,
+      ...(wasDefault
+        ? { color: BOT_COLORS[Math.floor(Math.random() * BOT_COLORS.length)] }
+        : {}),
+    });
   };
 
   const shuffle = () => {

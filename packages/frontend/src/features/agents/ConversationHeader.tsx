@@ -8,6 +8,7 @@ import {
   Square,
   Users,
   Hash,
+  Search,
 } from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
@@ -24,11 +25,13 @@ export default function ConversationHeader({
   team,
   channel,
   onSettings,
+  onSearch,
 }: {
   agent?: AgentListItem | null;
   team?: Team | null;
   channel?: Channel | null;
   onSettings?: () => void;
+  onSearch?: () => void;
 }) {
   const {
     browserOpen,
@@ -147,6 +150,23 @@ export default function ConversationHeader({
               <Square size={14} />
             </button>
           </>
+        )}
+        {onSearch && (
+          <button
+            type="button"
+            className="ag-icon-btn"
+            title="Find in conversation"
+            aria-label="Find in conversation"
+            onClick={onSearch}
+          >
+            <Search size={14} />
+          </button>
+        )}
+        {agent && (
+          <span className="ag-chat-head__model" title={`${agent.provider || 'ollama'} · ${agent.model || 'default model'}`}>
+            {agent.provider === 'opencode' ? 'OpenCode' : 'Local'}
+            <em>{agent.model || 'default'}</em>
+          </span>
         )}
         {agent && <SessionMenu agentId={agent.id} />}
         <button

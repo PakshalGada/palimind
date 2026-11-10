@@ -92,3 +92,23 @@
   .ag-chat-head { padding: 0 8px 0 12px; }
   .ag-chat-head__meta { max-width: 150px; }
 }
+
+/* Model/provider badge */
+.ag-chat-head__model {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 220px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  color: var(--ink-muted);
+  font-size: var(--type-2xs);
+  white-space: nowrap;
+}
+.ag-chat-head__model em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink-secondary);
+  font-style: normal;
+}

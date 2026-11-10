@@ -1103,14 +1103,20 @@ async def run_with_definition(
         )
 
         chat_model, ollama_url, light_model = _field_models(calling_root)
-        requested_model = definition.model or chat_model or "llama3"
-        model, fallback_note = _resolve_available_model(requested_model, chat_model, ollama_url)
+        from palimind.agents.providers.resolver import resolve_agent_model
+
+        resolved = resolve_agent_model(
+            definition, global_chat_model=chat_model, ollama_url=ollama_url
+        )
+        if not resolved.ok:
+            raise RuntimeError(f"{resolved.message} [{resolved.action}]")
+        model = resolved.model
+        ollama_url = resolved.base_url
+        fallback_note = ""
         from palimind.opencode.router import resolve_model_url
 
-        # The agent may use a model different from the field's chat_model (e.g. an
-        # OpenCode-proxy model); re-resolve the URL against the actual model so
-        # proxy-served models are not called on the local Ollama instance.
-        ollama_url = resolve_model_url(model, ollama_url)
+        if resolved.provider == "ollama" and resolved.source != "agent":
+            model, fallback_note = _resolve_available_model(model, chat_model, ollama_url)
         from palimind.agents.registry import get_registry
 
         working_root = calling_root if calling_root is not None else get_registry().field_root

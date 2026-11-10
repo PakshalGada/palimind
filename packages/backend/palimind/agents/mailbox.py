@@ -370,6 +370,27 @@ def list_reactions(message_id: str) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+def unreact(
+    message_id: str,
+    emoji: str,
+    *,
+    actor_kind: str = "agent",
+    actor_id: str = "",
+) -> bool:
+    """Remove one reaction. Returns True when a row was deleted."""
+    conn = state_store.state_connection()
+    try:
+        cursor = conn.execute(
+            "DELETE FROM agent_reactions "
+            "WHERE message_id=? AND actor_kind=? AND actor_id=? AND emoji=?",
+            (message_id, actor_kind, actor_id, emoji),
+        )
+        conn.commit()
+        return bool(cursor.rowcount)
+    finally:
+        conn.close()
+
+
 def events(delivery_id: str) -> list[dict[str, Any]]:
     conn = state_store.state_connection()
     try:

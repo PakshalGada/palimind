@@ -441,8 +441,9 @@ def _gate_tool(
     proceed.
     """
     if definition is not None:
+        unrestricted = bool(getattr(definition, "unrestricted_tools", False))
         # tier_policy gate
-        policy = getattr(definition, "tier_policy", "tier1+2") or "tier1+2"
+        policy = "all" if unrestricted else (getattr(definition, "tier_policy", "tier1+2") or "tier1+2")
         allowed = TIER_POLICY_ALLOWED.get(policy, TIER_POLICY_ALLOWED["tier1+2"])
         if _tool_tier(tool_name) not in allowed:
             return (
@@ -451,11 +452,11 @@ def _gate_tool(
             )
 
         # access-flag gates
-        if tool_name in ("write_file", "search_replace") and not getattr(
+        if not unrestricted and tool_name in ("write_file", "search_replace") and not getattr(
             definition, "write_access", True
         ):
             return f"Access denied: this agent does not have write_access ('{tool_name}' blocked)"
-        if tool_name in ("run_python", "run_shell") and not getattr(
+        if not unrestricted and tool_name in ("run_python", "run_shell") and not getattr(
             definition, "shell_access", True
         ):
             return f"Access denied: this agent does not have shell_access ('{tool_name}' blocked)"
@@ -463,7 +464,7 @@ def _gate_tool(
         # Computer use: observation and mutation are separate grants. The
         # native layer re-checks the app allowlist, but a per-agent allowlist
         # narrows it further here before any RPC is made.
-        if tool_name.startswith("desktop_"):
+        if not unrestricted and tool_name.startswith("desktop_"):
             if not getattr(definition, "desktop_access", False):
                 return (
                     f"Access denied: this agent does not have desktop_access "
@@ -1561,6 +1562,8 @@ def _tool_allowed(tool_name: str, sub_task: dict[str, Any], definition: Any | No
     regress. Explicit packs and explicit tool lists are honoured strictly.
     """
     tools = sub_task.get("tools")
+    if definition is not None and bool(getattr(definition, "unrestricted_tools", False)):
+        return True
     if not tools:
         return True
     if tool_name in tools:

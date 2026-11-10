@@ -271,6 +271,10 @@ class AgentDefinition:
     workspace_dir: str = ""
     team_ids: list[str] = field(default_factory=list)
     tool_pack: str = "auto"
+    # Every registered tool is available to the agent; approvals still gate
+    # risky actions. New API-created agents default to True; a programmatic
+    # AgentDefinition.new() keeps the legacy narrow default unless asked.
+    unrestricted_tools: bool = False
     # ── Computer use (Linux) ────────────────────────────────────────────
     desktop_access: bool = False
     desktop_control: bool = False
@@ -306,14 +310,14 @@ class AgentDefinition:
         temperature: float = 0.2,
         context_budget: int = 8000,
         tools: list[str] | None = None,
-        tier_policy: str = "tier1+2",
+        tier_policy: str = "all",
         run_mode: str = "on_demand",
         schedule: str | None = None,
         watcher_pattern: str | None = None,
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
         human_in_loop_threshold: float = DEFAULT_HITL_THRESHOLD,
-        write_access: bool = False,
-        shell_access: bool = False,
+        write_access: bool = True,
+        shell_access: bool = True,
         enabled: bool = True,
         self_critique: bool = False,
         skills: list[str] | None = None,
@@ -340,6 +344,7 @@ class AgentDefinition:
         workspace_dir: str = "",
         team_ids: list[str] | None = None,
         tool_pack: str = "auto",
+        unrestricted_tools: bool = False,
         desktop_access: bool = False,
         desktop_control: bool = False,
         desktop_allowed_apps: list[str] | None = None,
@@ -399,6 +404,7 @@ class AgentDefinition:
             workspace_dir=workspace_dir,
             team_ids=list(team_ids or []),
             tool_pack=tool_pack,
+            unrestricted_tools=unrestricted_tools,
             desktop_access=desktop_access or desktop_control,
             desktop_control=desktop_control,
             desktop_allowed_apps=list(desktop_allowed_apps or []),
@@ -455,6 +461,7 @@ class AgentDefinition:
         cleaned.setdefault("workspace_dir", "")
         cleaned.setdefault("team_ids", [])
         cleaned.setdefault("tool_pack", "auto")
+        cleaned.setdefault("unrestricted_tools", True)
         cleaned.setdefault("desktop_access", False)
         cleaned.setdefault("desktop_control", False)
         cleaned.setdefault("desktop_allowed_apps", [])
@@ -559,6 +566,7 @@ class AgentDefinition:
         if cleaned.get("busy_message_mode") not in ("queue", "steer"):
             cleaned["busy_message_mode"] = "queue"
         cleaned["allow_automation"] = bool(cleaned.get("allow_automation"))
+        cleaned["unrestricted_tools"] = bool(cleaned.get("unrestricted_tools", True))
         cleaned["notifications"] = (
             cleaned.get("notifications") if isinstance(cleaned.get("notifications"), dict) else {}
         )

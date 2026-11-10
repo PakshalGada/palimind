@@ -382,6 +382,11 @@ export default function ConversationRail({
                     {status === 'working' && (
                       <PixelGlyph sprite={pixelForStatus('working')} cell={1.1} />
                     )}
+                    {(agent.unread_count || 0) > 0 && (
+                      <span className="ag-rail__unread" aria-label={`${agent.unread_count} unread`}>
+                        {agent.unread_count}
+                      </span>
+                    )}
                     <span>{relTime(agent.last_run_at)}</span>
                   </span>
                   <span className="ag-rail__quick">
