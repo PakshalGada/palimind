@@ -432,6 +432,7 @@ async def run_team(
     interactive: bool = True,
     working_root: Path | None = None,
     post_user_message: bool = True,
+    target_agent_id: str = "",
 ) -> dict[str, Any]:
     """Run a team and return the persisted run payload."""
     team_id = str(team.get("id"))
@@ -513,7 +514,35 @@ async def run_team(
             await send_message("user", input, author="user")
 
         results: list[dict[str, Any]] = []
-        if run_mode == "manager":
+        if target_agent_id:
+            member = next(
+                (
+                    item
+                    for item in members
+                    if str(item.get("agent_id")) == target_agent_id
+                ),
+                None,
+            )
+            if member is None:
+                await send_message(
+                    "system",
+                    "That agent is not a member of this team.",
+                    author="system",
+                )
+                results = []
+            else:
+                result = await _run_member(
+                    team,
+                    member,
+                    input,
+                    run_id=run_id,
+                    emit=send,
+                    working_root=working_root,
+                    interactive=interactive,
+                )
+                results = [result]
+                output = str(result.get("output") or "")
+        elif run_mode == "manager":
             output, delegations = await _manager_run(
                 team,
                 input,

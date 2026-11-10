@@ -67,6 +67,12 @@ export default function TeamChat({
     if (busy) return;
     setBusy(true);
     setLiveMembers({});
+    const mention = text.match(/@([\w-]{1,64})/);
+    const target =
+      mention &&
+      memberAgents.find(
+        (agent) => agent.name === mention[1] || agent.display_name === mention[1],
+      );
     try {
       await api.teams.runStream(teamId, text, (event) => {
         if (event.type === 'team:message' && event.message) {
@@ -102,7 +108,7 @@ export default function TeamChat({
             },
           }));
         }
-      });
+      }, { mode: team?.mode, targetAgentId: target?.id });
       await refresh();
       void refreshOverview();
     } catch (e) {
@@ -128,6 +134,10 @@ export default function TeamChat({
     const raw = author.replace(/^agent:/, '');
     return agents.find((agent) => agent.id === raw || agent.name === raw);
   };
+
+  const memberAgents = team
+    ? agents.filter((agent) => team.members.some((member) => member.agent_id === agent.id))
+    : agents;
 
   return (
     <div className="ag-chat">
@@ -210,6 +220,7 @@ export default function TeamChat({
       <InputArea
         onLocalSend={send}
         disabled={busy}
+        mentionAgents={memberAgents}
         placeholder="Message the team..."
       />
     </div>

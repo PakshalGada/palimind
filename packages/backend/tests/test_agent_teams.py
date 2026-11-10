@@ -99,3 +99,36 @@ def test_routines_and_queue(two_agents) -> None:
     assert queue.cancel_item(item["id"])["status"] == "cancelled"
     queue.clear_target("agent", first.id)
     assert queue.list_queue("agent", first.id) == []
+
+
+def test_team_target_agent_runs_only_the_mentioned_member(two_agents, monkeypatch) -> None:
+    import asyncio
+
+    from palimind.agents import team_runtime
+
+    first, second = two_agents
+    team = teams.create_team(
+        {"name": "mention-team", "members": [{"agent_id": first.id}, {"agent_id": second.id}]}
+    )
+    seen: list[str] = []
+
+    async def fake_member(team_arg, member, task, **kwargs):
+        seen.append(str(member.get("agent_id")))
+        return {"agent_id": member.get("agent_id"), "name": "Beta", "output": "hello", "status": "ok"}
+
+    monkeypatch.setattr(team_runtime, "_run_member", fake_member)
+
+    async def emit(_event):
+        return None
+
+    result = asyncio.run(
+        team_runtime.run_team(
+            team,
+            "@team-beta hello",
+            emit=emit,
+            target_agent_id=second.id,
+        )
+    )
+    assert result["output"] == "hello"
+    assert seen == [second.id]
+    teams.delete_team(team["id"])

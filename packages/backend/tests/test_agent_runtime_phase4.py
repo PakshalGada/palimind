@@ -253,8 +253,6 @@ def test_smaller_agent_model_prepares_escalation_to_field_model(monkeypatch) -> 
         return "done"
 
     monkeypatch.setattr(rt, "run_agent", fake_run_agent)
-    monkeypatch.setattr(rt, "AGENT_ESCALATION_MODEL", "")
-    monkeypatch.setattr(rt, "AGENT_ESCALATION_MODELS", ["not-installed", "test-model"])
 
     defn = AgentDefinition.new(
         "escalation",
@@ -269,10 +267,9 @@ def test_smaller_agent_model_prepares_escalation_to_field_model(monkeypatch) -> 
 
     out = asyncio.run(rt.run_with_definition(defn, "do work", emit=emit))
     assert out == "done"
-    # The ordered list skips the missing model and picks the installed one.
-    assert seen[0]["escalation_model"] == "test-model"
-    assert seen[0]["escalation_url"] == "http://x"
-    assert "escalation_max_cost_usd" in seen[0]
+    # No automatic escalation: the user's model is the only model used.
+    assert seen[0]["escalation_model"] == ""
+    assert seen[0]["escalation_url"] == ""
 
 
 def test_usage_events_reach_the_client_with_cost(monkeypatch) -> None:
@@ -340,11 +337,11 @@ def test_capability_router_can_switch_the_run_model(monkeypatch) -> None:
     )
     out = asyncio.run(rt.run_with_definition(defn, "do work", emit=emit))
     assert out.endswith("done")
-    assert "Model routed" in out
-    assert seen[0]["model"] == "frontier-model"
-    route_event = next(p for t, p in events if t == "agent:model_route")
-    assert route_event["provider"] == "hosted"
-    assert calls[0]["model_route"]["model"] == "frontier-model"
+    assert "Model routed" not in out
+    # The router never replaces the user's selected model.
+    assert seen[0]["model"] != "frontier-model"
+    assert all(t != "agent:model_route" for t, _ in events)
+    assert calls[0]["model_route"] is None
 
 
 def test_hard_small_model_routes_to_grok_with_openai_client(monkeypatch) -> None:
@@ -397,8 +394,7 @@ def test_hard_small_model_routes_to_grok_with_openai_client(monkeypatch) -> None
         )
     )
     assert out.endswith("SAVED=3192")
-    assert seen[0]["model"] == "grok-4.7"
-    assert seen[0]["model_client"] is not None
-    route_event = next(p for t, p in events if t == "agent:model_route")
-    assert route_event["provider"] == "hosted"
-    assert calls[0]["model_route"]["model"] == "grok-4.7"
+    assert seen[0]["model"] == "qwen3.5:4b"
+    assert seen[0]["model_client"] is None
+    assert all(t != "agent:model_route" for t, _ in events)
+    assert calls[0]["model_route"] is None

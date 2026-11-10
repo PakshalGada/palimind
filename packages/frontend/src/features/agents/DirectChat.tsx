@@ -270,16 +270,7 @@ export default function DirectChat({
         ) : (
           <>
             {messages.map((message, index) => {
-              const previous = messages[index - 1];
-              const authorName =
-                message.mode_params?.agent_name || message.mode_params?.agent_id || '';
-              const previousName =
-                previous?.mode_params?.agent_name || previous?.mode_params?.agent_id || '';
-              const showAuthor =
-                message.role !== 'user' &&
-                (index === 0 ||
-                  previous?.role === 'user' ||
-                  authorName !== previousName);
+              const showAuthor = message.role !== 'user';
               const replied = message.reply_to ? byId.get(message.reply_to) : undefined;
               const isMatch = matches.includes(index);
               return (

@@ -17,7 +17,7 @@ export default function ModelPicker({
   placeholder = 'Default (global model)',
 }: {
   value: string;
-  onChange: (model: string) => void;
+  onChange: (model: string, provider?: string) => void;
   placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -141,7 +141,7 @@ export default function ModelPicker({
                     model={model}
                     selected={value === model.model_id}
                     onPick={() => {
-                      onChange(model.model_id);
+                      onChange(model.model_id, model.provider || 'ollama');
                       setOpen(false);
                     }}
                   />
@@ -168,7 +168,7 @@ export default function ModelPicker({
                     model={model}
                     selected={value === model.model_id}
                     onPick={() => {
-                      onChange(model.model_id);
+                      onChange(model.model_id, model.provider || 'ollama');
                       setOpen(false);
                     }}
                   />

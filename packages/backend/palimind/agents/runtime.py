@@ -21,14 +21,10 @@ from palimind.llm.mixture_of_expert.tools import set_tool_context
 from palimind.settings import (
     AGENT_AUTO_MEMORY_EXTRACT,
     AGENT_ESCALATION_MAX_USD,
-    AGENT_ESCALATION_MODEL,
-    AGENT_ESCALATION_MODELS,
     AGENT_FOLLOWUPS,
-    AGENT_FRONTIER_BASE_URL,
     AGENT_MEMORY_RECALL_LIMIT,
     AGENT_RUN_HISTORY_LIMIT,
     PLAN_REVIEW_TIMEOUT,
-    REASONING_CLASSIFIER_MODEL,
     SELF_CRITIQUE_MAX_RETRIES,
 )
 
@@ -889,7 +885,7 @@ async def _verify_and_maybe_retry(
     """
     from palimind.agents import self_critique as sc
 
-    verify_model = light_model or model
+    verify_model = model
     threshold = definition.verify_confidence_threshold or None
 
     async def _run_verification(text: str) -> dict[str, Any]:
@@ -1113,8 +1109,6 @@ async def run_with_definition(
         model = resolved.model
         ollama_url = resolved.base_url
         fallback_note = ""
-        from palimind.opencode.router import resolve_model_url
-
         if resolved.provider == "ollama" and resolved.source != "agent":
             model, fallback_note = _resolve_available_model(model, chat_model, ollama_url)
         from palimind.agents.registry import get_registry
@@ -1158,7 +1152,7 @@ async def run_with_definition(
         effective_iterations = definition.max_iterations
         effective_context = definition.context_budget
         if definition.reasoning_effort and definition.reasoning_effort != "off":
-            classifier_model = REASONING_CLASSIFIER_MODEL or light_model or model
+            classifier_model = model
             effort_info = await asyncio.to_thread(
                 ar.resolve_effort,
                 input,
@@ -1287,45 +1281,8 @@ async def run_with_definition(
             "context": "",
         }
 
-        # Capability-aware routing: keep the requested model unless the task
-        # needs a capability it lacks, or a complex task on a small local model
-        # has a configured hosted/frontier fallback.
-        try:
-            from palimind.agents.model_routing import route_model
-
-            hosted: set[str] = set()
-            try:
-                from palimind.opencode.router import opencode_model_ids
-
-                hosted = set(opencode_model_ids())
-            except Exception:
-                hosted = set()
-            route = route_model(
-                input,
-                model,
-                candidates=[chat_model, light_model, *AGENT_ESCALATION_MODELS],
-                ollama_url=ollama_url,
-                tools=effective_tools,
-                complexity=str(effort_info.get("level") or "standard"),
-                hosted_models=hosted,
-            )
-            route_info = route.to_dict()
-            if route.model and route.model != model:
-                previous = model
-                model = route.model
-                if route.provider != "hosted":
-                    ollama_url = resolve_model_url(model, ollama_url)
-                fallback_note = f"Model routed from '{previous}' to '{model}' ({route.reason})." + (
-                    f" {fallback_note}" if fallback_note else ""
-                )
-                route_info["previous"] = previous
-            if route.provider == "hosted":
-                route_model_client = _hosted_model_client(AGENT_FRONTIER_BASE_URL)
-
-            if emit is not None:
-                await emit("agent:model_route", route_info)
-        except Exception as exc:  # noqa: BLE001 - routing must never block a run
-            print(f"[agents] model routing failed: {exc}")
+        # Agent runs use exactly the model the user selected. There is no
+        # capability routing, frontier fallback, or escalation between models.
 
         # ── Phase 4.4: planning mode ─────────────────────────────────────────
         from palimind.agents import planner as planner_mod
@@ -1337,7 +1294,7 @@ async def run_with_definition(
                 plan = await asyncio.to_thread(
                     planner_mod.generate_plan,
                     input,
-                    light_model or model,
+                    model,
                     ollama_url,
                     agent_id=definition.id,
                     available_tools=effective_tools,
@@ -1372,36 +1329,10 @@ async def run_with_definition(
                 if not plan_rejected:
                     custom_prompt = _plan_prompt_block(custom_prompt, plan)
 
-        # Automatic model escalation: when the agent's own model is smaller
-        # than the knowledge base's chat model (or an explicit escalation model
-        # is configured), keep it ready for the exhausted-budget synthesis.
-        # Candidate order: explicit ordered list → single override → field
-        # chat model. Only an installed model different from the current one
-        # is eligible. A hosted route already uses the strongest configured
-        # model, so it must not escalate into a local model.
-        if route_info.get("provider") == "hosted":
-            candidates: list[str] = []
-        else:
-            candidates = list(AGENT_ESCALATION_MODELS)
-            if AGENT_ESCALATION_MODEL:
-                candidates.append(AGENT_ESCALATION_MODEL)
-            candidates.append(chat_model)
-        try:
-            from palimind.opencode.router import available_model_ids
-
-            available = available_model_ids(ollama_url)
-        except Exception:
-            available = set()
+        # No automatic escalation: a failed or budget-limited run stays on
+        # the model the user chose.
         escalation_model = ""
-        for candidate in candidates:
-            candidate = str(candidate or "").strip()
-            if not candidate or candidate == model:
-                continue
-            if available and candidate not in available:
-                continue
-            escalation_model = candidate
-            break
-        escalation_url = resolve_model_url(escalation_model, ollama_url) if escalation_model else ""
+        escalation_url = ""
 
         start = time.time()
         if plan_rejected:
@@ -1422,7 +1353,7 @@ async def run_with_definition(
                         input,
                         model=model,
                         ollama_url=ollama_url,
-                        light_model=light_model,
+                        light_model=model,
                         definition=run_definition,
                         working_root=working_root,
                         num_agents=definition.orchestration_agents or None,
@@ -1484,7 +1415,7 @@ async def run_with_definition(
                     output=output,
                     model=model,
                     ollama_url=ollama_url,
-                    light_model=light_model,
+                    light_model=model,
                     custom_prompt=custom_prompt,
                     sub_task=sub_task,
                     effective_iterations=effective_iterations,
@@ -1523,7 +1454,7 @@ async def run_with_definition(
                         generate_suggestions,
                         input,
                         output,
-                        light_model or model,
+                        model,
                         ollama_url,
                         tool_names=tool_names,
                         usage_cb=_add_usage,
@@ -1616,7 +1547,7 @@ async def run_with_definition(
             # Keep a reference so the task is not garbage-collected mid-run.
             extract = asyncio.create_task(
                 asyncio.to_thread(
-                    _extract_facts, definition, input, output, light_model, ollama_url
+                    _extract_facts, definition, input, output, model, ollama_url
                 )
             )
             _background_tasks.add(extract)

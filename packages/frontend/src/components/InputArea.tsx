@@ -2,6 +2,7 @@ import { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { ArrowUp, Loader2, Mic, Square } from "lucide-react";
 import ModelSwitcher from "./ModelSwitcher";
+import ModelPicker from "../features/agents/ModelPicker";
 import OfficeExportWatcher, { type OfficeJob } from "./OfficeExportWatcher";
 import {
   applyMention as applyAgentMention,
@@ -99,12 +100,15 @@ interface InputAreaProps {
   onLocalSend?: (text: string) => Promise<void> | void;
   placeholder?: string;
   disabled?: boolean;
+  /** Agents the @ picker may mention. Defaults to every enabled agent. */
+  mentionAgents?: AgentListItem[];
 }
 
 function InputArea({
   onLocalSend,
   placeholder = "Ask me anything...",
   disabled = false,
+  mentionAgents,
 }: InputAreaProps = {}) {
   const {
     chatMode,
@@ -338,8 +342,9 @@ function InputArea({
     };
   }, [setIsRecording]);
 
+  const mentionPool = mentionAgents ?? allAgents;
   const mentionMatches = mention
-    ? allAgents.filter((a) =>
+    ? mentionPool.filter((a) =>
         a.name.toLowerCase().includes(mention.query.toLowerCase()) ||
         (a.display_name || "").toLowerCase().includes(mention.query.toLowerCase()),
       )
@@ -983,11 +988,6 @@ function InputArea({
     activeView === "agents" && selectedAgentId
       ? allAgents.find((agent) => agent.id === selectedAgentId)
       : undefined;
-  const selectedAgentLabel = selectedAgent
-    ? `${selectedAgent.provider === "opencode" ? "OpenCode" : "Local"} · ${
-        selectedAgent.model || "default"
-      }`
-    : "Choose a model";
   const modeLabel =
     llmSubMode === "moe"
       ? "Mixture of Experts"
@@ -1170,7 +1170,7 @@ function InputArea({
         />
 
         <div className="composer-footer">
-          {chatMode === "llm" && (
+          {chatMode === "llm" && activeView !== "agents" && (
             <>
             <div className="moe-toggle-wrapper">
               <button
@@ -1367,21 +1367,18 @@ function InputArea({
           )}
 
           {activeView === "agents" ? (
-            <button
-              type="button"
-              className="agent-model-pill"
-              title="Change this agent's model and provider"
-              onClick={() => {
+            <ModelPicker
+              value={selectedAgent?.model || ""}
+              placeholder="Choose model"
+              onChange={(model, provider) => {
                 if (!selectedAgentId) return;
-                window.dispatchEvent(
-                  new CustomEvent("palimind:open-agent-config", {
-                    detail: { agentId: selectedAgentId, tab: "instructions" },
-                  }),
-                );
+                const nextProvider = provider || selectedAgent?.provider || "ollama";
+                void api.agents
+                  .update(selectedAgentId, { model, provider: nextProvider })
+                  .then(() => window.dispatchEvent(new CustomEvent("palimind:agents-changed")))
+                  .catch(() => undefined);
               }}
-            >
-              {selectedAgentLabel}
-            </button>
+            />
           ) : (
             <ModelSwitcher />
           )}

@@ -211,6 +211,7 @@ async def run_team_endpoint(team_id: str, req: Request):
                 mode=str(mode) if mode else None,
                 emit=emit,
                 interactive=interactive,
+                target_agent_id=str(body.get("target_agent_id") or ""),
             )
         )
         try:

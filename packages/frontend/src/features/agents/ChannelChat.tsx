@@ -66,6 +66,12 @@ export default function ChannelChat({
     return agents.find((agent) => agent.id === message.author_id || agent.name === message.author_id);
   };
 
+  const memberAgents = channel?.members
+    ? agents.filter((agent) =>
+        (channel.members || []).some((member) => member.agent_id === agent.id),
+      )
+    : agents;
+
   const onScroll = () => {
     const el = threadRef.current;
     if (!el) return;
@@ -126,6 +132,7 @@ export default function ChannelChat({
       <InputArea
         onLocalSend={send}
         disabled={busy}
+        mentionAgents={memberAgents}
         placeholder={`Message #${channel?.name || 'channel'}...`}
       />
     </div>

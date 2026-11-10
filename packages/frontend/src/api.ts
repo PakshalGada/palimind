@@ -562,12 +562,17 @@ export const api = {
       teamId: string,
       input: string,
       onEvent: (ev: { type: string; [k: string]: unknown }) => void,
-      opts: { mode?: string; interactive?: boolean } = {},
+      opts: { mode?: string; interactive?: boolean; targetAgentId?: string } = {},
     ): Promise<void> => {
       const res = await fetch(`${BASE}/agents/teams/${teamId}/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input, ...opts }),
+        body: JSON.stringify({
+          input,
+          mode: opts.mode,
+          interactive: opts.interactive,
+          target_agent_id: opts.targetAgentId || '',
+        }),
       });
       if (!res.ok || !res.body) throw new Error(`run team failed: ${res.status}`);
       const reader = res.body.getReader();
