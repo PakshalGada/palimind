@@ -39,6 +39,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends bubblewrap
 
+      - name: Verify bubblewrap works
+        run: |
+          if ! bwrap --ro-bind / / --dev /dev --proc /proc true; then
+            echo "::warning::bubblewrap cannot create namespaces on this runner; sandbox tests will be skipped"
+            sudo apt-get remove -y bubblewrap
+          fi
+
       - name: Install backend and dev dependencies
         run: |
           python -m pip install --upgrade pip
@@ -49,7 +56,22 @@ jobs:
 
       - name: Run backend tests
         working-directory: packages/backend
-        run: python -m pytest -m "not integration" -q
+        run: |
+          set +e
+          python -m pytest -m "not integration" -q 2>&1 | tee pytest.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            {
+              echo "### Backend test failures"
+              echo '```'
+              grep -E "^(FAILED|ERROR)" pytest.log | head -50
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            grep -E "^FAILED " pytest.log | while IFS= read -r line; do
+              echo "::error title=Backend test failed::$line"
+            done
+          fi
+          exit "$status"
 
   frontend:
     name: Frontend (node --test + render smoke)
@@ -99,5 +121,10 @@ jobs:
         with:
           workspaces: packages/desktop-native -> target
 
+      - name: Install virtual display
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb
+
       - name: Run desktop native tests
-        run: cargo test --workspace
+        run: xvfb-run -a cargo test --workspace
