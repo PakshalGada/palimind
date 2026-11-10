@@ -41,7 +41,8 @@ jobs:
 
       - name: Verify bubblewrap works
         run: |
-          if ! bwrap --ro-bind / / --dev /dev --proc /proc true; then
+          if ! bwrap --die-with-parent --new-session --unshare-all --cap-drop ALL \
+              --clearenv --ro-bind / / --dev /dev --proc /proc /bin/true; then
             echo "::warning::bubblewrap cannot create namespaces on this runner; sandbox tests will be skipped"
             sudo apt-get remove -y bubblewrap
           fi
@@ -56,6 +57,11 @@ jobs:
 
       - name: Run backend tests
         working-directory: packages/backend
+        env:
+          # GitHub-hosted runners block the user namespaces bubblewrap needs.
+          # The sandbox-only tests skip when bwrap is unavailable; the
+          # remaining tests still run unsandboxed because CI code is trusted.
+          PALIMIND_ALLOW_UNSANDBOXED_EXEC: "1"
         run: |
           set +e
           python -m pytest -m "not integration" -q 2>&1 | tee pytest.log
