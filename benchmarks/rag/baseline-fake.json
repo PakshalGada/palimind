@@ -1,0 +1,2524 @@
+{
+  "generated_at": "2026-11-10T12:19:23.763601+00:00",
+  "mode": "fake",
+  "model": "eval-hash",
+  "corpus": "/home/pakshal/palimind/benchmarks/rag/corpus",
+  "golden": "/home/pakshal/palimind/benchmarks/rag/golden.jsonl",
+  "limit": 10,
+  "rerank": false,
+  "cases": [
+    {
+      "id": "revenue-2023",
+      "query": "What was total revenue in 2023?",
+      "expected": [
+        {
+          "file": "annual_report_2023.md",
+          "section": "Revenue"
+        }
+      ],
+      "retrieved": [
+        {
+          "file": "annual_report_2023.md",
+          "section": "Revenue",
+          "page": null,
+          "score": 0.065,
+          "retrieval": "semantic+keyword",
+          "preview": "Revenue\nAcme Corp reported total revenue of $4.2 billion in 2023, an increase of 12% over the prior year. Subscription revenue contributed $3.1 billion, while services revenue contributed $1.1 billion"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Incident Response",
+          "page": null,
+          "score": 0.063432,
+          "retrieval": "semantic+keyword",
+          "preview": "Incident Response\nA severity-one incident must be reported within fifteen minutes. The incident commander coordinates containment, communications, and the post-incident review.\n\nAccess Control\nAccess "
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Outlook",
+          "page": null,
+          "score": 0.063406,
+          "retrieval": "semantic+keyword",
+          "preview": "Outlook\nManagement expects revenue between $4.8 billion and $5.0 billion in 2024, driven by international expansion and renewals.\n\nRisk Factors\nThe principal risks include supply chain disruption, for"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors",
+          "page": null,
+          "score": 0.060928,
+          "retrieval": "semantic+keyword",
+          "preview": "Risk Factors\nThe principal risks include supply chain disruption, foreign exchange volatility, and increased competition in the enterprise segment. A prolonged outage of the primary cloud region could"
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Decisions",
+          "page": null,
+          "score": 0.057465,
+          "retrieval": "semantic+keyword",
+          "preview": "Decisions\nThe team approved the new indexing pipeline and agreed to defer the graph rebuild until the next release.\n\nAction Items\nPriya will update the retrieval benchmark by Friday. Marco will profil"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Budget",
+          "page": null,
+          "score": 0.057802,
+          "retrieval": "semantic+keyword",
+          "preview": "Budget\nThe approved project budget is $850,000, including $120,000 for contractor support and $60,000 for training.\n\nTimeline\nThe migration begins on March 4 and the production cutover is scheduled fo"
+        },
+        {
+          "file": "product_spec.md",
+          "section": "API Limits",
+          "page": null,
+          "score": 0.0582,
+          "retrieval": "semantic+keyword",
+          "preview": "API Limits\nThe public API allows 600 requests per minute per tenant. Burst traffic up to 900 requests per minute is accepted for ten seconds. Responses include a Retry-After header when throttled.\n\nAu"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Data Retention",
+          "page": null,
+          "score": 0.031746,
+          "retrieval": "semantic",
+          "preview": "Data Retention\nAudit logs are retained for seven years. Customer records are retained for the duration of the contract plus ninety days. Backup tapes are destroyed after eighteen months.\n\nAccess Contr"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Abstract",
+          "page": null,
+          "score": 0.03125,
+          "retrieval": "semantic",
+          "preview": "Abstract\nWe study retrieval quality for local document assistants and propose a hybrid sparse-dense pipeline."
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Results",
+          "page": null,
+          "score": 0.027397,
+          "retrieval": "semantic",
+          "preview": "Results\nReciprocal-rank fusion improved Recall@10 by 9.4 points over dense retrieval alone. Reranking improved nDCG@10 by 6.1 points but added 180 milliseconds per query."
+        }
+      ],
+      "metrics": {
+        "expected_total": 1,
+        "ranks": [
+          1
+        ],
+        "matched": 1,
+        "recall@5": 1.0,
+        "recall@10": 1.0,
+        "mrr@10": 1.0,
+        "mrr": 1.0,
+        "ndcg@10": 1.0
+      },
+      "phrase_hit": 1.0,
+      "latency_ms": 18.3,
+      "errors": [],
+      "diagnostics": {
+        "cache_hit": false,
+        "lanes": [
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "keyword",
+            "weight": 1.0,
+            "count": 7
+          },
+          {
+            "type": "keyword",
+            "weight": 0.9,
+            "count": 7
+          }
+        ],
+        "fused_count": 17,
+        "reranked": false,
+        "mmr": true,
+        "summary_results": 2,
+        "graph_results": 0,
+        "parent_expanded": 0,
+        "budget_used": 1363,
+        "budget_total": 8000,
+        "dropped_blocks": 0,
+        "index": {
+          "model": "eval-hash",
+          "dim": 64,
+          "chunker": 3
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "risk-factors",
+      "query": "What are the principal risk factors?",
+      "expected": [
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors"
+        }
+      ],
+      "retrieved": [
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors",
+          "page": null,
+          "score": 0.065,
+          "retrieval": "semantic+keyword",
+          "preview": "Risk Factors\nThe principal risks include supply chain disruption, foreign exchange volatility, and increased competition in the enterprise segment. A prolonged outage of the primary cloud region could"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Data Retention",
+          "page": null,
+          "score": 0.062398,
+          "retrieval": "semantic+keyword",
+          "preview": "Data Retention\nAudit logs are retained for seven years. Customer records are retained for the duration of the contract plus ninety days. Backup tapes are destroyed after eighteen months.\n\nAccess Contr"
+        },
+        {
+          "file": "product_spec.md",
+          "section": "Rate Limiting",
+          "page": null,
+          "score": 0.060948,
+          "retrieval": "semantic+keyword",
+          "preview": "Rate Limiting\nRate limits are enforced per tenant and per endpoint. Administrative endpoints have a lower limit of 60 requests per minute.\n\nAuthentication\nClients authenticate with short-lived OAuth 2"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Dependencies",
+          "page": null,
+          "score": 0.062474,
+          "retrieval": "semantic+keyword",
+          "preview": "Dependencies\nThe project depends on the identity service upgrade and the completion of the network segmentation work.\n\nBudget\nThe approved project budget is $850,000, including $120,000 for contractor"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Access Control",
+          "page": null,
+          "score": 0.059144,
+          "retrieval": "semantic+keyword",
+          "preview": "Access Control\nAccess follows the principle of least privilege. Production access requires multi-factor authentication and approval from the security team. Quarterly access reviews are mandatory.\n\nDat"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Incident Response",
+          "page": null,
+          "score": 0.057792,
+          "retrieval": "semantic+keyword",
+          "preview": "Incident Response\nA severity-one incident must be reported within fifteen minutes. The incident commander coordinates containment, communications, and the post-incident review.\n\nAccess Control\nAccess "
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Action Items",
+          "page": null,
+          "score": 0.059557,
+          "retrieval": "semantic+keyword",
+          "preview": "Action Items\nPriya will update the retrieval benchmark by Friday. Marco will profile the embedding cache. Dana will draft the migration runbook.\n\nDecisions\nThe team approved the new indexing pipeline "
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Decisions",
+          "page": null,
+          "score": 0.061489,
+          "retrieval": "semantic+keyword",
+          "preview": "Decisions\nThe team approved the new indexing pipeline and agreed to defer the graph rebuild until the next release.\n\nAction Items\nPriya will update the retrieval benchmark by Friday. Marco will profil"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Budget",
+          "page": null,
+          "score": 0.056108,
+          "retrieval": "semantic+keyword",
+          "preview": "Budget\nThe approved project budget is $850,000, including $120,000 for contractor support and $60,000 for training."
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Timeline",
+          "page": null,
+          "score": 0.060104,
+          "retrieval": "semantic+keyword",
+          "preview": "Timeline\nThe migration begins on March 4 and the production cutover is scheduled for June 17. A two-week freeze precedes the cutover."
+        }
+      ],
+      "metrics": {
+        "expected_total": 1,
+        "ranks": [
+          1
+        ],
+        "matched": 1,
+        "recall@5": 1.0,
+        "recall@10": 1.0,
+        "mrr@10": 1.0,
+        "mrr": 1.0,
+        "ndcg@10": 1.0
+      },
+      "phrase_hit": 1.0,
+      "latency_ms": 12.7,
+      "errors": [],
+      "diagnostics": {
+        "cache_hit": false,
+        "lanes": [
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "keyword",
+            "weight": 1.0,
+            "count": 13
+          },
+          {
+            "type": "keyword",
+            "weight": 0.9,
+            "count": 13
+          }
+        ],
+        "fused_count": 17,
+        "reranked": false,
+        "mmr": true,
+        "summary_results": 2,
+        "graph_results": 0,
+        "parent_expanded": 0,
+        "budget_used": 1315,
+        "budget_total": 8000,
+        "dropped_blocks": 0,
+        "index": {
+          "model": "eval-hash",
+          "dim": 64,
+          "chunker": 3
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "outlook-2024",
+      "query": "What revenue does management expect in 2024?",
+      "expected": [
+        {
+          "file": "annual_report_2023.md",
+          "section": "Outlook"
+        }
+      ],
+      "retrieved": [
+        {
+          "file": "annual_report_2023.md",
+          "section": "Revenue",
+          "page": null,
+          "score": 0.064481,
+          "retrieval": "semantic+keyword",
+          "preview": "Revenue\nAcme Corp reported total revenue of $4.2 billion in 2023, an increase of 12% over the prior year. Subscription revenue contributed $3.1 billion, while services revenue contributed $1.1 billion"
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Decisions",
+          "page": null,
+          "score": 0.061946,
+          "retrieval": "semantic+keyword",
+          "preview": "Decisions\nThe team approved the new indexing pipeline and agreed to defer the graph rebuild until the next release.\n\nAction Items\nPriya will update the retrieval benchmark by Friday. Marco will profil"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Outlook",
+          "page": null,
+          "score": 0.064454,
+          "retrieval": "semantic+keyword",
+          "preview": "Outlook\nManagement expects revenue between $4.8 billion and $5.0 billion in 2024, driven by international expansion and renewals.\n\nRisk Factors\nThe principal risks include supply chain disruption, for"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors",
+          "page": null,
+          "score": 0.061409,
+          "retrieval": "semantic+keyword",
+          "preview": "Risk Factors\nThe principal risks include supply chain disruption, foreign exchange volatility, and increased competition in the enterprise segment. A prolonged outage of the primary cloud region could"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Incident Response",
+          "page": null,
+          "score": 0.060496,
+          "retrieval": "semantic+keyword",
+          "preview": "Incident Response\nA severity-one incident must be reported within fifteen minutes. The incident commander coordinates containment, communications, and the post-incident review.\n\nAccess Control\nAccess "
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Budget",
+          "page": null,
+          "score": 0.057009,
+          "retrieval": "semantic+keyword",
+          "preview": "Budget\nThe approved project budget is $850,000, including $120,000 for contractor support and $60,000 for training.\n\nTimeline\nThe migration begins on March 4 and the production cutover is scheduled fo"
+        },
+        {
+          "file": "product_spec.md",
+          "section": "API Limits",
+          "page": null,
+          "score": 0.055815,
+          "retrieval": "semantic+keyword",
+          "preview": "API Limits\nThe public API allows 600 requests per minute per tenant. Burst traffic up to 900 requests per minute is accepted for ten seconds. Responses include a Retry-After header when throttled.\n\nAu"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Data Retention",
+          "page": null,
+          "score": 0.028571,
+          "retrieval": "semantic",
+          "preview": "Data Retention\nAudit logs are retained for seven years. Customer records are retained for the duration of the contract plus ninety days. Backup tapes are destroyed after eighteen months.\n\nAccess Contr"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Method",
+          "page": null,
+          "score": 0.030769,
+          "retrieval": "semantic",
+          "preview": "Method\nWe evaluated 240 questions across six document collections, comparing BM25, dense retrieval, and reciprocal-rank fusion. Each run used the same chunker and token budget."
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Action Items",
+          "page": null,
+          "score": 0.030303,
+          "retrieval": "semantic",
+          "preview": "Action Items\nPriya will update the retrieval benchmark by Friday. Marco will profile the embedding cache. Dana will draft the migration runbook."
+        }
+      ],
+      "metrics": {
+        "expected_total": 1,
+        "ranks": [
+          3
+        ],
+        "matched": 1,
+        "recall@5": 1.0,
+        "recall@10": 1.0,
+        "mrr@10": 0.3333333333333333,
+        "mrr": 0.3333333333333333,
+        "ndcg@10": 0.5
+      },
+      "phrase_hit": 1.0,
+      "latency_ms": 11.6,
+      "errors": [],
+      "diagnostics": {
+        "cache_hit": false,
+        "lanes": [
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "keyword",
+            "weight": 1.0,
+            "count": 7
+          },
+          {
+            "type": "keyword",
+            "weight": 0.9,
+            "count": 7
+          }
+        ],
+        "fused_count": 17,
+        "reranked": false,
+        "mmr": true,
+        "summary_results": 2,
+        "graph_results": 0,
+        "parent_expanded": 0,
+        "budget_used": 1370,
+        "budget_total": 8000,
+        "dropped_blocks": 0,
+        "index": {
+          "model": "eval-hash",
+          "dim": 64,
+          "chunker": 3
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "log-retention",
+      "query": "How long are audit logs retained?",
+      "expected": [
+        {
+          "file": "policy_manual.md",
+          "section": "Data Retention"
+        }
+      ],
+      "retrieved": [
+        {
+          "file": "policy_manual.md",
+          "section": "Data Retention",
+          "page": null,
+          "score": 0.065,
+          "retrieval": "semantic+keyword",
+          "preview": "Data Retention\nAudit logs are retained for seven years. Customer records are retained for the duration of the contract plus ninety days. Backup tapes are destroyed after eighteen months.\n\nAccess Contr"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Access Control",
+          "page": null,
+          "score": 0.061414,
+          "retrieval": "semantic+keyword",
+          "preview": "Access Control\nAccess follows the principle of least privilege. Production access requires multi-factor authentication and approval from the security team. Quarterly access reviews are mandatory.\n\nDat"
+        },
+        {
+          "file": "product_spec.md",
+          "section": "Rate Limiting",
+          "page": null,
+          "score": 0.058925,
+          "retrieval": "semantic+keyword",
+          "preview": "Rate Limiting\nRate limits are enforced per tenant and per endpoint. Administrative endpoints have a lower limit of 60 requests per minute.\n\nAuthentication\nClients authenticate with short-lived OAuth 2"
+        },
+        {
+          "file": "product_spec.md",
+          "section": "Authentication",
+          "page": null,
+          "score": 0.032787,
+          "retrieval": "semantic",
+          "preview": "Authentication\nClients authenticate with short-lived OAuth 2.0 access tokens. Tokens expire after sixty minutes and must be refreshed with a rotating refresh token.\n\nAPI Limits\nThe public API allows 6"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Abstract",
+          "page": null,
+          "score": 0.032258,
+          "retrieval": "semantic",
+          "preview": "Abstract\nWe study retrieval quality for local document assistants and propose a hybrid sparse-dense pipeline.\n\nMethod\nWe evaluated 240 questions across six document collections, comparing BM25, dense "
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Decisions",
+          "page": null,
+          "score": 0.031746,
+          "retrieval": "semantic",
+          "preview": "Decisions\nThe team approved the new indexing pipeline and agreed to defer the graph rebuild until the next release.\n\nAction Items\nPriya will update the retrieval benchmark by Friday. Marco will profil"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Revenue",
+          "page": null,
+          "score": 0.03125,
+          "retrieval": "semantic",
+          "preview": "Revenue\nAcme Corp reported total revenue of $4.2 billion in 2023, an increase of 12% over the prior year. Subscription revenue contributed $3.1 billion, while services revenue contributed $1.1 billion"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Budget",
+          "page": null,
+          "score": 0.029412,
+          "retrieval": "semantic",
+          "preview": "Budget\nThe approved project budget is $850,000, including $120,000 for contractor support and $60,000 for training.\n\nTimeline\nThe migration begins on March 4 and the production cutover is scheduled fo"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Results",
+          "page": null,
+          "score": 0.028986,
+          "retrieval": "semantic",
+          "preview": "Results\nReciprocal-rank fusion improved Recall@10 by 9.4 points over dense retrieval alone. Reranking improved nDCG@10 by 6.1 points but added 180 milliseconds per query."
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Incident Response",
+          "page": null,
+          "score": 0.027027,
+          "retrieval": "semantic",
+          "preview": "Incident Response\nA severity-one incident must be reported within fifteen minutes. The incident commander coordinates containment, communications, and the post-incident review."
+        }
+      ],
+      "metrics": {
+        "expected_total": 1,
+        "ranks": [
+          1
+        ],
+        "matched": 1,
+        "recall@5": 1.0,
+        "recall@10": 1.0,
+        "mrr@10": 1.0,
+        "mrr": 1.0,
+        "ndcg@10": 1.0
+      },
+      "phrase_hit": 1.0,
+      "latency_ms": 7.3,
+      "errors": [],
+      "diagnostics": {
+        "cache_hit": false,
+        "lanes": [
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "keyword",
+            "weight": 1.0,
+            "count": 3
+          },
+          {
+            "type": "keyword",
+            "weight": 0.9,
+            "count": 3
+          }
+        ],
+        "fused_count": 17,
+        "reranked": false,
+        "mmr": true,
+        "summary_results": 2,
+        "graph_results": 0,
+        "parent_expanded": 0,
+        "budget_used": 1357,
+        "budget_total": 8000,
+        "dropped_blocks": 0,
+        "index": {
+          "model": "eval-hash",
+          "dim": 64,
+          "chunker": 3
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "access-control",
+      "query": "What is required for production access?",
+      "expected": [
+        {
+          "file": "policy_manual.md",
+          "section": "Access Control"
+        }
+      ],
+      "retrieved": [
+        {
+          "file": "project_notes.md",
+          "section": "Budget",
+          "page": null,
+          "score": 0.063978,
+          "retrieval": "semantic+keyword",
+          "preview": "Budget\nThe approved project budget is $850,000, including $120,000 for contractor support and $60,000 for training.\n\nTimeline\nThe migration begins on March 4 and the production cutover is scheduled fo"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Access Control",
+          "page": null,
+          "score": 0.063925,
+          "retrieval": "semantic+keyword",
+          "preview": "Access Control\nAccess follows the principle of least privilege. Production access requires multi-factor authentication and approval from the security team. Quarterly access reviews are mandatory.\n\nDat"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Timeline",
+          "page": null,
+          "score": 0.062398,
+          "retrieval": "semantic+keyword",
+          "preview": "Timeline\nThe migration begins on March 4 and the production cutover is scheduled for June 17. A two-week freeze precedes the cutover.\n\nBudget\nThe approved project budget is $850,000, including $120,00"
+        },
+        {
+          "file": "product_spec.md",
+          "section": "Authentication",
+          "page": null,
+          "score": 0.058328,
+          "retrieval": "semantic+keyword",
+          "preview": "Authentication\nClients authenticate with short-lived OAuth 2.0 access tokens. Tokens expire after sixty minutes and must be refreshed with a rotating refresh token.\n\nAPI Limits\nThe public API allows 6"
+        },
+        {
+          "file": "product_spec.md",
+          "section": "API Limits",
+          "page": null,
+          "score": 0.059538,
+          "retrieval": "semantic+keyword",
+          "preview": "API Limits\nThe public API allows 600 requests per minute per tenant. Burst traffic up to 900 requests per minute is accepted for ten seconds. Responses include a Retry-After header when throttled.\n\nAu"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Data Retention",
+          "page": null,
+          "score": 0.057802,
+          "retrieval": "semantic+keyword",
+          "preview": "Data Retention\nAudit logs are retained for seven years. Customer records are retained for the duration of the contract plus ninety days. Backup tapes are destroyed after eighteen months.\n\nAccess Contr"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Abstract",
+          "page": null,
+          "score": 0.060534,
+          "retrieval": "semantic+keyword",
+          "preview": "Abstract\nWe study retrieval quality for local document assistants and propose a hybrid sparse-dense pipeline.\n\nMethod\nWe evaluated 240 questions across six document collections, comparing BM25, dense "
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors",
+          "page": null,
+          "score": 0.057344,
+          "retrieval": "semantic+keyword",
+          "preview": "Risk Factors\nThe principal risks include supply chain disruption, foreign exchange volatility, and increased competition in the enterprise segment. A prolonged outage of the primary cloud region could"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Results",
+          "page": null,
+          "score": 0.030769,
+          "retrieval": "semantic",
+          "preview": "Results\nReciprocal-rank fusion improved Recall@10 by 9.4 points over dense retrieval alone. Reranking improved nDCG@10 by 6.1 points but added 180 milliseconds per query."
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Method",
+          "page": null,
+          "score": 0.032787,
+          "retrieval": "semantic",
+          "preview": "Method\nWe evaluated 240 questions across six document collections, comparing BM25, dense retrieval, and reciprocal-rank fusion. Each run used the same chunker and token budget."
+        }
+      ],
+      "metrics": {
+        "expected_total": 1,
+        "ranks": [
+          2
+        ],
+        "matched": 1,
+        "recall@5": 1.0,
+        "recall@10": 1.0,
+        "mrr@10": 0.5,
+        "mrr": 0.5,
+        "ndcg@10": 0.6309297535714575
+      },
+      "phrase_hit": 1.0,
+      "latency_ms": 7.4,
+      "errors": [],
+      "diagnostics": {
+        "cache_hit": false,
+        "lanes": [
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "keyword",
+            "weight": 1.0,
+            "count": 8
+          },
+          {
+            "type": "keyword",
+            "weight": 0.9,
+            "count": 8
+          }
+        ],
+        "fused_count": 17,
+        "reranked": false,
+        "mmr": true,
+        "summary_results": 2,
+        "graph_results": 0,
+        "parent_expanded": 0,
+        "budget_used": 1373,
+        "budget_total": 8000,
+        "dropped_blocks": 0,
+        "index": {
+          "model": "eval-hash",
+          "dim": 64,
+          "chunker": 3
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "incident-report",
+      "query": "How quickly must a severity-one incident be reported?",
+      "expected": [
+        {
+          "file": "policy_manual.md",
+          "section": "Incident Response"
+        }
+      ],
+      "retrieved": [
+        {
+          "file": "policy_manual.md",
+          "section": "Incident Response",
+          "page": null,
+          "score": 0.065,
+          "retrieval": "semantic+keyword",
+          "preview": "Incident Response\nA severity-one incident must be reported within fifteen minutes. The incident commander coordinates containment, communications, and the post-incident review.\n\nAccess Control\nAccess "
+        },
+        {
+          "file": "product_spec.md",
+          "section": "Authentication",
+          "page": null,
+          "score": 0.062894,
+          "retrieval": "semantic+keyword",
+          "preview": "Authentication\nClients authenticate with short-lived OAuth 2.0 access tokens. Tokens expire after sixty minutes and must be refreshed with a rotating refresh token.\n\nAPI Limits\nThe public API allows 6"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Revenue",
+          "page": null,
+          "score": 0.061895,
+          "retrieval": "semantic+keyword",
+          "preview": "Revenue\nAcme Corp reported total revenue of $4.2 billion in 2023, an increase of 12% over the prior year. Subscription revenue contributed $3.1 billion, while services revenue contributed $1.1 billion"
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Action Items",
+          "page": null,
+          "score": 0.057085,
+          "retrieval": "semantic+keyword",
+          "preview": "Action Items\nPriya will update the retrieval benchmark by Friday. Marco will profile the embedding cache. Dana will draft the migration runbook.\n\nDecisions\nThe team approved the new indexing pipeline "
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Outlook",
+          "page": null,
+          "score": 0.059144,
+          "retrieval": "semantic+keyword",
+          "preview": "Outlook\nManagement expects revenue between $4.8 billion and $5.0 billion in 2024, driven by international expansion and renewals.\n\nRisk Factors\nThe principal risks include supply chain disruption, for"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Timeline",
+          "page": null,
+          "score": 0.057009,
+          "retrieval": "semantic+keyword",
+          "preview": "Timeline\nThe migration begins on March 4 and the production cutover is scheduled for June 17. A two-week freeze precedes the cutover.\n\nBudget\nThe approved project budget is $850,000, including $120,00"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors",
+          "page": null,
+          "score": 0.032787,
+          "retrieval": "semantic",
+          "preview": "Risk Factors\nThe principal risks include supply chain disruption, foreign exchange volatility, and increased competition in the enterprise segment. A prolonged outage of the primary cloud region could"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Data Retention",
+          "page": null,
+          "score": 0.030303,
+          "retrieval": "semantic",
+          "preview": "Data Retention\nAudit logs are retained for seven years. Customer records are retained for the duration of the contract plus ninety days. Backup tapes are destroyed after eighteen months.\n\nAccess Contr"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Abstract",
+          "page": null,
+          "score": 0.032258,
+          "retrieval": "semantic",
+          "preview": "Abstract\nWe study retrieval quality for local document assistants and propose a hybrid sparse-dense pipeline."
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Results",
+          "page": null,
+          "score": 0.030769,
+          "retrieval": "semantic",
+          "preview": "Results\nReciprocal-rank fusion improved Recall@10 by 9.4 points over dense retrieval alone. Reranking improved nDCG@10 by 6.1 points but added 180 milliseconds per query."
+        }
+      ],
+      "metrics": {
+        "expected_total": 1,
+        "ranks": [
+          1
+        ],
+        "matched": 1,
+        "recall@5": 1.0,
+        "recall@10": 1.0,
+        "mrr@10": 1.0,
+        "mrr": 1.0,
+        "ndcg@10": 1.0
+      },
+      "phrase_hit": 1.0,
+      "latency_ms": 7.3,
+      "errors": [],
+      "diagnostics": {
+        "cache_hit": false,
+        "lanes": [
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "keyword",
+            "weight": 1.0,
+            "count": 6
+          },
+          {
+            "type": "keyword",
+            "weight": 0.9,
+            "count": 6
+          }
+        ],
+        "fused_count": 17,
+        "reranked": false,
+        "mmr": true,
+        "summary_results": 2,
+        "graph_results": 0,
+        "parent_expanded": 0,
+        "budget_used": 1351,
+        "budget_total": 8000,
+        "dropped_blocks": 0,
+        "index": {
+          "model": "eval-hash",
+          "dim": 64,
+          "chunker": 3
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "project-cutover",
+      "query": "When is the production cutover scheduled?",
+      "expected": [
+        {
+          "file": "project_notes.md",
+          "section": "Timeline"
+        }
+      ],
+      "retrieved": [
+        {
+          "file": "project_notes.md",
+          "section": "Timeline",
+          "page": null,
+          "score": 0.065,
+          "retrieval": "semantic+keyword",
+          "preview": "Timeline\nThe migration begins on March 4 and the production cutover is scheduled for June 17. A two-week freeze precedes the cutover.\n\nBudget\nThe approved project budget is $850,000, including $120,00"
+        },
+        {
+          "file": "product_spec.md",
+          "section": "API Limits",
+          "page": null,
+          "score": 0.060133,
+          "retrieval": "semantic+keyword",
+          "preview": "API Limits\nThe public API allows 600 requests per minute per tenant. Burst traffic up to 900 requests per minute is accepted for ten seconds. Responses include a Retry-After header when throttled.\n\nAu"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Access Control",
+          "page": null,
+          "score": 0.060948,
+          "retrieval": "semantic+keyword",
+          "preview": "Access Control\nAccess follows the principle of least privilege. Production access requires multi-factor authentication and approval from the security team. Quarterly access reviews are mandatory.\n\nDat"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Budget",
+          "page": null,
+          "score": 0.060009,
+          "retrieval": "semantic+keyword",
+          "preview": "Budget\nThe approved project budget is $850,000, including $120,000 for contractor support and $60,000 for training.\n\nTimeline\nThe migration begins on March 4 and the production cutover is scheduled fo"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Dependencies",
+          "page": null,
+          "score": 0.060457,
+          "retrieval": "semantic+keyword",
+          "preview": "Dependencies\nThe project depends on the identity service upgrade and the completion of the network segmentation work.\n\nBudget\nThe approved project budget is $850,000, including $120,000 for contractor"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Method",
+          "page": null,
+          "score": 0.05993,
+          "retrieval": "semantic+keyword",
+          "preview": "Method\nWe evaluated 240 questions across six document collections, comparing BM25, dense retrieval, and reciprocal-rank fusion. Each run used the same chunker and token budget.\n\nAbstract\nWe study retr"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Incident Response",
+          "page": null,
+          "score": 0.056513,
+          "retrieval": "semantic+keyword",
+          "preview": "Incident Response\nA severity-one incident must be reported within fifteen minutes. The incident commander coordinates containment, communications, and the post-incident review.\n\nAccess Control\nAccess "
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Data Retention",
+          "page": null,
+          "score": 0.054563,
+          "retrieval": "semantic+keyword",
+          "preview": "Data Retention\nAudit logs are retained for seven years. Customer records are retained for the duration of the contract plus ninety days. Backup tapes are destroyed after eighteen months.\n\nAccess Contr"
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Decisions",
+          "page": null,
+          "score": 0.060481,
+          "retrieval": "semantic+keyword",
+          "preview": "Decisions\nThe team approved the new indexing pipeline and agreed to defer the graph rebuild until the next release."
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors",
+          "page": null,
+          "score": 0.056527,
+          "retrieval": "semantic+keyword",
+          "preview": "Risk Factors\nThe principal risks include supply chain disruption, foreign exchange volatility, and increased competition in the enterprise segment. A prolonged outage of the primary cloud region could"
+        }
+      ],
+      "metrics": {
+        "expected_total": 1,
+        "ranks": [
+          1
+        ],
+        "matched": 1,
+        "recall@5": 1.0,
+        "recall@10": 1.0,
+        "mrr@10": 1.0,
+        "mrr": 1.0,
+        "ndcg@10": 1.0
+      },
+      "phrase_hit": 1.0,
+      "latency_ms": 7.7,
+      "errors": [],
+      "diagnostics": {
+        "cache_hit": false,
+        "lanes": [
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "keyword",
+            "weight": 1.0,
+            "count": 12
+          },
+          {
+            "type": "keyword",
+            "weight": 0.9,
+            "count": 12
+          }
+        ],
+        "fused_count": 17,
+        "reranked": false,
+        "mmr": true,
+        "summary_results": 2,
+        "graph_results": 0,
+        "parent_expanded": 0,
+        "budget_used": 1281,
+        "budget_total": 8000,
+        "dropped_blocks": 0,
+        "index": {
+          "model": "eval-hash",
+          "dim": 64,
+          "chunker": 3
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "project-budget",
+      "query": "What is the approved project budget?",
+      "expected": [
+        {
+          "file": "project_notes.md",
+          "section": "Budget"
+        }
+      ],
+      "retrieved": [
+        {
+          "file": "project_notes.md",
+          "section": "Budget",
+          "page": null,
+          "score": 0.065,
+          "retrieval": "semantic+keyword",
+          "preview": "Budget\nThe approved project budget is $850,000, including $120,000 for contractor support and $60,000 for training.\n\nTimeline\nThe migration begins on March 4 and the production cutover is scheduled fo"
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Decisions",
+          "page": null,
+          "score": 0.063432,
+          "retrieval": "semantic+keyword",
+          "preview": "Decisions\nThe team approved the new indexing pipeline and agreed to defer the graph rebuild until the next release.\n\nAction Items\nPriya will update the retrieval benchmark by Friday. Marco will profil"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Method",
+          "page": null,
+          "score": 0.061409,
+          "retrieval": "semantic+keyword",
+          "preview": "Method\nWe evaluated 240 questions across six document collections, comparing BM25, dense retrieval, and reciprocal-rank fusion. Each run used the same chunker and token budget.\n\nAbstract\nWe study retr"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Dependencies",
+          "page": null,
+          "score": 0.062894,
+          "retrieval": "semantic+keyword",
+          "preview": "Dependencies\nThe project depends on the identity service upgrade and the completion of the network segmentation work.\n\nBudget\nThe approved project budget is $850,000, including $120,000 for contractor"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Timeline",
+          "page": null,
+          "score": 0.061946,
+          "retrieval": "semantic+keyword",
+          "preview": "Timeline\nThe migration begins on March 4 and the production cutover is scheduled for June 17. A two-week freeze precedes the cutover.\n\nBudget\nThe approved project budget is $850,000, including $120,00"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors",
+          "page": null,
+          "score": 0.059127,
+          "retrieval": "semantic+keyword",
+          "preview": "Risk Factors\nThe principal risks include supply chain disruption, foreign exchange volatility, and increased competition in the enterprise segment. A prolonged outage of the primary cloud region could"
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Action Items",
+          "page": null,
+          "score": 0.058639,
+          "retrieval": "semantic+keyword",
+          "preview": "Action Items\nPriya will update the retrieval benchmark by Friday. Marco will profile the embedding cache. Dana will draft the migration runbook.\n\nDecisions\nThe team approved the new indexing pipeline "
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Access Control",
+          "page": null,
+          "score": 0.057839,
+          "retrieval": "semantic+keyword",
+          "preview": "Access Control\nAccess follows the principle of least privilege. Production access requires multi-factor authentication and approval from the security team. Quarterly access reviews are mandatory.\n\nDat"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Revenue",
+          "page": null,
+          "score": 0.05493,
+          "retrieval": "semantic+keyword",
+          "preview": "Revenue\nAcme Corp reported total revenue of $4.2 billion in 2023, an increase of 12% over the prior year. Subscription revenue contributed $3.1 billion, while services revenue contributed $1.1 billion"
+        },
+        {
+          "file": "product_spec.md",
+          "section": "API Limits",
+          "page": null,
+          "score": 0.056628,
+          "retrieval": "semantic+keyword",
+          "preview": "API Limits\nThe public API allows 600 requests per minute per tenant. Burst traffic up to 900 requests per minute is accepted for ten seconds. Responses include a Retry-After header when throttled."
+        }
+      ],
+      "metrics": {
+        "expected_total": 1,
+        "ranks": [
+          1
+        ],
+        "matched": 1,
+        "recall@5": 1.0,
+        "recall@10": 1.0,
+        "mrr@10": 1.0,
+        "mrr": 1.0,
+        "ndcg@10": 1.0
+      },
+      "phrase_hit": 1.0,
+      "latency_ms": 7.4,
+      "errors": [],
+      "diagnostics": {
+        "cache_hit": false,
+        "lanes": [
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "keyword",
+            "weight": 1.0,
+            "count": 12
+          },
+          {
+            "type": "keyword",
+            "weight": 0.9,
+            "count": 12
+          }
+        ],
+        "fused_count": 17,
+        "reranked": false,
+        "mmr": true,
+        "summary_results": 2,
+        "graph_results": 0,
+        "parent_expanded": 0,
+        "budget_used": 1218,
+        "budget_total": 8000,
+        "dropped_blocks": 0,
+        "index": {
+          "model": "eval-hash",
+          "dim": 64,
+          "chunker": 3
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "research-method",
+      "query": "What method was used to evaluate retrieval quality?",
+      "expected": [
+        {
+          "file": "research_paper.md",
+          "section": "Method"
+        }
+      ],
+      "retrieved": [
+        {
+          "file": "research_paper.md",
+          "section": "Method",
+          "page": null,
+          "score": 0.065,
+          "retrieval": "semantic+keyword",
+          "preview": "Method\nWe evaluated 240 questions across six document collections, comparing BM25, dense retrieval, and reciprocal-rank fusion. Each run used the same chunker and token budget.\n\nAbstract\nWe study retr"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Results",
+          "page": null,
+          "score": 0.060937,
+          "retrieval": "semantic+keyword",
+          "preview": "Results\nReciprocal-rank fusion improved Recall@10 by 9.4 points over dense retrieval alone. Reranking improved nDCG@10 by 6.1 points but added 180 milliseconds per query.\n\nMethod\nWe evaluated 240 ques"
+        },
+        {
+          "file": "product_spec.md",
+          "section": "Authentication",
+          "page": null,
+          "score": 0.062903,
+          "retrieval": "semantic+keyword",
+          "preview": "Authentication\nClients authenticate with short-lived OAuth 2.0 access tokens. Tokens expire after sixty minutes and must be refreshed with a rotating refresh token.\n\nAPI Limits\nThe public API allows 6"
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Decisions",
+          "page": null,
+          "score": 0.058216,
+          "retrieval": "semantic+keyword",
+          "preview": "Decisions\nThe team approved the new indexing pipeline and agreed to defer the graph rebuild until the next release.\n\nAction Items\nPriya will update the retrieval benchmark by Friday. Marco will profil"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Abstract",
+          "page": null,
+          "score": 0.062894,
+          "retrieval": "semantic+keyword",
+          "preview": "Abstract\nWe study retrieval quality for local document assistants and propose a hybrid sparse-dense pipeline.\n\nMethod\nWe evaluated 240 questions across six document collections, comparing BM25, dense "
+        },
+        {
+          "file": "product_spec.md",
+          "section": "API Limits",
+          "page": null,
+          "score": 0.059091,
+          "retrieval": "semantic+keyword",
+          "preview": "API Limits\nThe public API allows 600 requests per minute per tenant. Burst traffic up to 900 requests per minute is accepted for ten seconds. Responses include a Retry-After header when throttled.\n\nAu"
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Action Items",
+          "page": null,
+          "score": 0.060928,
+          "retrieval": "semantic+keyword",
+          "preview": "Action Items\nPriya will update the retrieval benchmark by Friday. Marco will profile the embedding cache. Dana will draft the migration runbook.\n\nDecisions\nThe team approved the new indexing pipeline "
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Revenue",
+          "page": null,
+          "score": 0.055385,
+          "retrieval": "semantic+keyword",
+          "preview": "Revenue\nAcme Corp reported total revenue of $4.2 billion in 2023, an increase of 12% over the prior year. Subscription revenue contributed $3.1 billion, while services revenue contributed $1.1 billion"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Budget",
+          "page": null,
+          "score": 0.032787,
+          "retrieval": "semantic",
+          "preview": "Budget\nThe approved project budget is $850,000, including $120,000 for contractor support and $60,000 for training."
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors",
+          "page": null,
+          "score": 0.028169,
+          "retrieval": "semantic",
+          "preview": "Risk Factors\nThe principal risks include supply chain disruption, foreign exchange volatility, and increased competition in the enterprise segment. A prolonged outage of the primary cloud region could"
+        }
+      ],
+      "metrics": {
+        "expected_total": 1,
+        "ranks": [
+          1
+        ],
+        "matched": 1,
+        "recall@5": 1.0,
+        "recall@10": 1.0,
+        "mrr@10": 1.0,
+        "mrr": 1.0,
+        "ndcg@10": 1.0
+      },
+      "phrase_hit": 1.0,
+      "latency_ms": 9.7,
+      "errors": [],
+      "diagnostics": {
+        "cache_hit": false,
+        "lanes": [
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "keyword",
+            "weight": 1.0,
+            "count": 8
+          },
+          {
+            "type": "keyword",
+            "weight": 0.9,
+            "count": 8
+          }
+        ],
+        "fused_count": 17,
+        "reranked": false,
+        "mmr": true,
+        "summary_results": 2,
+        "graph_results": 0,
+        "parent_expanded": 0,
+        "budget_used": 1208,
+        "budget_total": 8000,
+        "dropped_blocks": 0,
+        "index": {
+          "model": "eval-hash",
+          "dim": 64,
+          "chunker": 3
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "research-results",
+      "query": "How much did reciprocal-rank fusion improve Recall@10?",
+      "expected": [
+        {
+          "file": "research_paper.md",
+          "section": "Results"
+        }
+      ],
+      "retrieved": [
+        {
+          "file": "research_paper.md",
+          "section": "Method",
+          "page": null,
+          "score": 0.064481,
+          "retrieval": "semantic+keyword",
+          "preview": "Method\nWe evaluated 240 questions across six document collections, comparing BM25, dense retrieval, and reciprocal-rank fusion. Each run used the same chunker and token budget.\n\nAbstract\nWe study retr"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Results",
+          "page": null,
+          "score": 0.063925,
+          "retrieval": "semantic+keyword",
+          "preview": "Results\nReciprocal-rank fusion improved Recall@10 by 9.4 points over dense retrieval alone. Reranking improved nDCG@10 by 6.1 points but added 180 milliseconds per query.\n\nMethod\nWe evaluated 240 ques"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Budget",
+          "page": null,
+          "score": 0.032787,
+          "retrieval": "semantic",
+          "preview": "Budget\nThe approved project budget is $850,000, including $120,000 for contractor support and $60,000 for training.\n\nTimeline\nThe migration begins on March 4 and the production cutover is scheduled fo"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors",
+          "page": null,
+          "score": 0.031746,
+          "retrieval": "semantic",
+          "preview": "Risk Factors\nThe principal risks include supply chain disruption, foreign exchange volatility, and increased competition in the enterprise segment. A prolonged outage of the primary cloud region could"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Abstract",
+          "page": null,
+          "score": 0.029851,
+          "retrieval": "semantic",
+          "preview": "Abstract\nWe study retrieval quality for local document assistants and propose a hybrid sparse-dense pipeline.\n\nMethod\nWe evaluated 240 questions across six document collections, comparing BM25, dense "
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Dependencies",
+          "page": null,
+          "score": 0.030303,
+          "retrieval": "semantic",
+          "preview": "Dependencies\nThe project depends on the identity service upgrade and the completion of the network segmentation work.\n\nBudget\nThe approved project budget is $850,000, including $120,000 for contractor"
+        },
+        {
+          "file": "product_spec.md",
+          "section": "Authentication",
+          "page": null,
+          "score": 0.030769,
+          "retrieval": "semantic",
+          "preview": "Authentication\nClients authenticate with short-lived OAuth 2.0 access tokens. Tokens expire after sixty minutes and must be refreshed with a rotating refresh token.\n\nAPI Limits\nThe public API allows 6"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Timeline",
+          "page": null,
+          "score": 0.03125,
+          "retrieval": "semantic",
+          "preview": "Timeline\nThe migration begins on March 4 and the production cutover is scheduled for June 17. A two-week freeze precedes the cutover.\n\nBudget\nThe approved project budget is $850,000, including $120,00"
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Action Items",
+          "page": null,
+          "score": 0.029412,
+          "retrieval": "semantic",
+          "preview": "Action Items\nPriya will update the retrieval benchmark by Friday. Marco will profile the embedding cache. Dana will draft the migration runbook."
+        },
+        {
+          "file": "product_spec.md",
+          "section": "API Limits",
+          "page": null,
+          "score": 0.028986,
+          "retrieval": "semantic",
+          "preview": "API Limits\nThe public API allows 600 requests per minute per tenant. Burst traffic up to 900 requests per minute is accepted for ten seconds. Responses include a Retry-After header when throttled."
+        }
+      ],
+      "metrics": {
+        "expected_total": 1,
+        "ranks": [
+          2
+        ],
+        "matched": 1,
+        "recall@5": 1.0,
+        "recall@10": 1.0,
+        "mrr@10": 0.5,
+        "mrr": 0.5,
+        "ndcg@10": 0.6309297535714575
+      },
+      "phrase_hit": 1.0,
+      "latency_ms": 17.2,
+      "errors": [],
+      "diagnostics": {
+        "cache_hit": false,
+        "lanes": [
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "keyword",
+            "weight": 1.0,
+            "count": 2
+          },
+          {
+            "type": "keyword",
+            "weight": 0.9,
+            "count": 2
+          }
+        ],
+        "fused_count": 17,
+        "reranked": false,
+        "mmr": true,
+        "summary_results": 1,
+        "graph_results": 0,
+        "parent_expanded": 0,
+        "budget_used": 1142,
+        "budget_total": 8000,
+        "dropped_blocks": 0,
+        "index": {
+          "model": "eval-hash",
+          "dim": 64,
+          "chunker": 3
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "api-rate-limit",
+      "query": "What is the API rate limit per tenant?",
+      "expected": [
+        {
+          "file": "product_spec.md",
+          "section": "API Limits"
+        }
+      ],
+      "retrieved": [
+        {
+          "file": "product_spec.md",
+          "section": "Rate Limiting",
+          "page": null,
+          "score": 0.065,
+          "retrieval": "semantic+keyword",
+          "preview": "Rate Limiting\nRate limits are enforced per tenant and per endpoint. Administrative endpoints have a lower limit of 60 requests per minute.\n\nAuthentication\nClients authenticate with short-lived OAuth 2"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Timeline",
+          "page": null,
+          "score": 0.062417,
+          "retrieval": "semantic+keyword",
+          "preview": "Timeline\nThe migration begins on March 4 and the production cutover is scheduled for June 17. A two-week freeze precedes the cutover.\n\nBudget\nThe approved project budget is $850,000, including $120,00"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Results",
+          "page": null,
+          "score": 0.061434,
+          "retrieval": "semantic+keyword",
+          "preview": "Results\nReciprocal-rank fusion improved Recall@10 by 9.4 points over dense retrieval alone. Reranking improved nDCG@10 by 6.1 points but added 180 milliseconds per query.\n\nMethod\nWe evaluated 240 ques"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Budget",
+          "page": null,
+          "score": 0.058042,
+          "retrieval": "semantic+keyword",
+          "preview": "Budget\nThe approved project budget is $850,000, including $120,000 for contractor support and $60,000 for training.\n\nTimeline\nThe migration begins on March 4 and the production cutover is scheduled fo"
+        },
+        {
+          "file": "product_spec.md",
+          "section": "API Limits",
+          "page": null,
+          "score": 0.063934,
+          "retrieval": "semantic+keyword",
+          "preview": "API Limits\nThe public API allows 600 requests per minute per tenant. Burst traffic up to 900 requests per minute is accepted for ten seconds. Responses include a Retry-After header when throttled.\n\nAu"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Dependencies",
+          "page": null,
+          "score": 0.06,
+          "retrieval": "semantic+keyword",
+          "preview": "Dependencies\nThe project depends on the identity service upgrade and the completion of the network segmentation work.\n\nBudget\nThe approved project budget is $850,000, including $120,000 for contractor"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors",
+          "page": null,
+          "score": 0.059191,
+          "retrieval": "semantic+keyword",
+          "preview": "Risk Factors\nThe principal risks include supply chain disruption, foreign exchange volatility, and increased competition in the enterprise segment. A prolonged outage of the primary cloud region could"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Method",
+          "page": null,
+          "score": 0.05624,
+          "retrieval": "semantic+keyword",
+          "preview": "Method\nWe evaluated 240 questions across six document collections, comparing BM25, dense retrieval, and reciprocal-rank fusion. Each run used the same chunker and token budget.\n\nAbstract\nWe study retr"
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Action Items",
+          "page": null,
+          "score": 0.05777,
+          "retrieval": "semantic+keyword",
+          "preview": "Action Items\nPriya will update the retrieval benchmark by Friday. Marco will profile the embedding cache. Dana will draft the migration runbook."
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Decisions",
+          "page": null,
+          "score": 0.059091,
+          "retrieval": "semantic+keyword",
+          "preview": "Decisions\nThe team approved the new indexing pipeline and agreed to defer the graph rebuild until the next release."
+        }
+      ],
+      "metrics": {
+        "expected_total": 1,
+        "ranks": [
+          5
+        ],
+        "matched": 1,
+        "recall@5": 1.0,
+        "recall@10": 1.0,
+        "mrr@10": 0.2,
+        "mrr": 0.2,
+        "ndcg@10": 0.38685280723454163
+      },
+      "phrase_hit": 1.0,
+      "latency_ms": 17.6,
+      "errors": [],
+      "diagnostics": {
+        "cache_hit": false,
+        "lanes": [
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "keyword",
+            "weight": 1.0,
+            "count": 14
+          },
+          {
+            "type": "keyword",
+            "weight": 0.9,
+            "count": 14
+          }
+        ],
+        "fused_count": 17,
+        "reranked": false,
+        "mmr": true,
+        "summary_results": 2,
+        "graph_results": 0,
+        "parent_expanded": 0,
+        "budget_used": 1224,
+        "budget_total": 8000,
+        "dropped_blocks": 0,
+        "index": {
+          "model": "eval-hash",
+          "dim": 64,
+          "chunker": 3
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "auth-tokens",
+      "query": "How long do OAuth access tokens last?",
+      "expected": [
+        {
+          "file": "product_spec.md",
+          "section": "Authentication"
+        }
+      ],
+      "retrieved": [
+        {
+          "file": "product_spec.md",
+          "section": "Authentication",
+          "page": null,
+          "score": 0.065,
+          "retrieval": "semantic+keyword",
+          "preview": "Authentication\nClients authenticate with short-lived OAuth 2.0 access tokens. Tokens expire after sixty minutes and must be refreshed with a rotating refresh token.\n\nAPI Limits\nThe public API allows 6"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Access Control",
+          "page": null,
+          "score": 0.063406,
+          "retrieval": "semantic+keyword",
+          "preview": "Access Control\nAccess follows the principle of least privilege. Production access requires multi-factor authentication and approval from the security team. Quarterly access reviews are mandatory.\n\nDat"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Abstract",
+          "page": null,
+          "score": 0.060057,
+          "retrieval": "semantic+keyword",
+          "preview": "Abstract\nWe study retrieval quality for local document assistants and propose a hybrid sparse-dense pipeline.\n\nMethod\nWe evaluated 240 questions across six document collections, comparing BM25, dense "
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Method",
+          "page": null,
+          "score": 0.060928,
+          "retrieval": "semantic+keyword",
+          "preview": "Method\nWe evaluated 240 questions across six document collections, comparing BM25, dense retrieval, and reciprocal-rank fusion. Each run used the same chunker and token budget.\n\nAbstract\nWe study retr"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Budget",
+          "page": null,
+          "score": 0.032787,
+          "retrieval": "semantic",
+          "preview": "Budget\nThe approved project budget is $850,000, including $120,000 for contractor support and $60,000 for training.\n\nTimeline\nThe migration begins on March 4 and the production cutover is scheduled fo"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Results",
+          "page": null,
+          "score": 0.03125,
+          "retrieval": "semantic",
+          "preview": "Results\nReciprocal-rank fusion improved Recall@10 by 9.4 points over dense retrieval alone. Reranking improved nDCG@10 by 6.1 points but added 180 milliseconds per query.\n\nMethod\nWe evaluated 240 ques"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors",
+          "page": null,
+          "score": 0.031746,
+          "retrieval": "semantic",
+          "preview": "Risk Factors\nThe principal risks include supply chain disruption, foreign exchange volatility, and increased competition in the enterprise segment. A prolonged outage of the primary cloud region could"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Revenue",
+          "page": null,
+          "score": 0.030303,
+          "retrieval": "semantic",
+          "preview": "Revenue\nAcme Corp reported total revenue of $4.2 billion in 2023, an increase of 12% over the prior year. Subscription revenue contributed $3.1 billion, while services revenue contributed $1.1 billion"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Data Retention",
+          "page": null,
+          "score": 0.027778,
+          "retrieval": "semantic",
+          "preview": "Data Retention\nAudit logs are retained for seven years. Customer records are retained for the duration of the contract plus ninety days. Backup tapes are destroyed after eighteen months."
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Decisions",
+          "page": null,
+          "score": 0.029851,
+          "retrieval": "semantic",
+          "preview": "Decisions\nThe team approved the new indexing pipeline and agreed to defer the graph rebuild until the next release."
+        }
+      ],
+      "metrics": {
+        "expected_total": 1,
+        "ranks": [
+          1
+        ],
+        "matched": 1,
+        "recall@5": 1.0,
+        "recall@10": 1.0,
+        "mrr@10": 1.0,
+        "mrr": 1.0,
+        "ndcg@10": 1.0
+      },
+      "phrase_hit": 1.0,
+      "latency_ms": 8.5,
+      "errors": [],
+      "diagnostics": {
+        "cache_hit": false,
+        "lanes": [
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "keyword",
+            "weight": 1.0,
+            "count": 4
+          },
+          {
+            "type": "keyword",
+            "weight": 0.9,
+            "count": 4
+          }
+        ],
+        "fused_count": 17,
+        "reranked": false,
+        "mmr": true,
+        "summary_results": 2,
+        "graph_results": 0,
+        "parent_expanded": 0,
+        "budget_used": 1423,
+        "budget_total": 8000,
+        "dropped_blocks": 0,
+        "index": {
+          "model": "eval-hash",
+          "dim": 64,
+          "chunker": 3
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "meeting-actions",
+      "query": "Who will update the retrieval benchmark?",
+      "expected": [
+        {
+          "file": "meeting_notes.md",
+          "section": "Action Items"
+        }
+      ],
+      "retrieved": [
+        {
+          "file": "meeting_notes.md",
+          "section": "Action Items",
+          "page": null,
+          "score": 0.065,
+          "retrieval": "semantic+keyword",
+          "preview": "Action Items\nPriya will update the retrieval benchmark by Friday. Marco will profile the embedding cache. Dana will draft the migration runbook.\n\nDecisions\nThe team approved the new indexing pipeline "
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Abstract",
+          "page": null,
+          "score": 0.059317,
+          "retrieval": "semantic+keyword",
+          "preview": "Abstract\nWe study retrieval quality for local document assistants and propose a hybrid sparse-dense pipeline.\n\nMethod\nWe evaluated 240 questions across six document collections, comparing BM25, dense "
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Dependencies",
+          "page": null,
+          "score": 0.062474,
+          "retrieval": "semantic+keyword",
+          "preview": "Dependencies\nThe project depends on the identity service upgrade and the completion of the network segmentation work.\n\nBudget\nThe approved project budget is $850,000, including $120,000 for contractor"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Method",
+          "page": null,
+          "score": 0.062903,
+          "retrieval": "semantic+keyword",
+          "preview": "Method\nWe evaluated 240 questions across six document collections, comparing BM25, dense retrieval, and reciprocal-rank fusion. Each run used the same chunker and token budget.\n\nAbstract\nWe study retr"
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Decisions",
+          "page": null,
+          "score": 0.060977,
+          "retrieval": "semantic+keyword",
+          "preview": "Decisions\nThe team approved the new indexing pipeline and agreed to defer the graph rebuild until the next release.\n\nAction Items\nPriya will update the retrieval benchmark by Friday. Marco will profil"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Results",
+          "page": null,
+          "score": 0.056825,
+          "retrieval": "semantic+keyword",
+          "preview": "Results\nReciprocal-rank fusion improved Recall@10 by 9.4 points over dense retrieval alone. Reranking improved nDCG@10 by 6.1 points but added 180 milliseconds per query.\n\nMethod\nWe evaluated 240 ques"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Timeline",
+          "page": null,
+          "score": 0.059091,
+          "retrieval": "semantic+keyword",
+          "preview": "Timeline\nThe migration begins on March 4 and the production cutover is scheduled for June 17. A two-week freeze precedes the cutover.\n\nBudget\nThe approved project budget is $850,000, including $120,00"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors",
+          "page": null,
+          "score": 0.058209,
+          "retrieval": "semantic+keyword",
+          "preview": "Risk Factors\nThe principal risks include supply chain disruption, foreign exchange volatility, and increased competition in the enterprise segment. A prolonged outage of the primary cloud region could"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Budget",
+          "page": null,
+          "score": 0.053788,
+          "retrieval": "semantic+keyword",
+          "preview": "Budget\nThe approved project budget is $850,000, including $120,000 for contractor support and $60,000 for training."
+        },
+        {
+          "file": "product_spec.md",
+          "section": "API Limits",
+          "page": null,
+          "score": 0.057639,
+          "retrieval": "semantic+keyword",
+          "preview": "API Limits\nThe public API allows 600 requests per minute per tenant. Burst traffic up to 900 requests per minute is accepted for ten seconds. Responses include a Retry-After header when throttled."
+        }
+      ],
+      "metrics": {
+        "expected_total": 1,
+        "ranks": [
+          1
+        ],
+        "matched": 1,
+        "recall@5": 1.0,
+        "recall@10": 1.0,
+        "mrr@10": 1.0,
+        "mrr": 1.0,
+        "ndcg@10": 1.0
+      },
+      "phrase_hit": 1.0,
+      "latency_ms": 11.9,
+      "errors": [],
+      "diagnostics": {
+        "cache_hit": false,
+        "lanes": [
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "keyword",
+            "weight": 1.0,
+            "count": 14
+          },
+          {
+            "type": "keyword",
+            "weight": 0.9,
+            "count": 14
+          }
+        ],
+        "fused_count": 17,
+        "reranked": false,
+        "mmr": true,
+        "summary_results": 2,
+        "graph_results": 0,
+        "parent_expanded": 0,
+        "budget_used": 1142,
+        "budget_total": 8000,
+        "dropped_blocks": 0,
+        "index": {
+          "model": "eval-hash",
+          "dim": 64,
+          "chunker": 3
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "multi-hop-compare",
+      "query": "Compare total revenue in 2023 with the principal risk factors.",
+      "expected": [
+        {
+          "file": "annual_report_2023.md",
+          "section": "Revenue"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors"
+        }
+      ],
+      "retrieved": [
+        {
+          "file": "annual_report_2023.md",
+          "section": "Revenue",
+          "page": null,
+          "score": 0.063934,
+          "retrieval": "semantic+keyword",
+          "preview": "Revenue\nAcme Corp reported total revenue of $4.2 billion in 2023, an increase of 12% over the prior year. Subscription revenue contributed $3.1 billion, while services revenue contributed $1.1 billion"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors",
+          "page": null,
+          "score": 0.063413,
+          "retrieval": "semantic+keyword",
+          "preview": "Risk Factors\nThe principal risks include supply chain disruption, foreign exchange volatility, and increased competition in the enterprise segment. A prolonged outage of the primary cloud region could"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Outlook",
+          "page": null,
+          "score": 0.063492,
+          "retrieval": "semantic+keyword",
+          "preview": "Outlook\nManagement expects revenue between $4.8 billion and $5.0 billion in 2024, driven by international expansion and renewals.\n\nRisk Factors\nThe principal risks include supply chain disruption, for"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Incident Response",
+          "page": null,
+          "score": 0.060457,
+          "retrieval": "semantic+keyword",
+          "preview": "Incident Response\nA severity-one incident must be reported within fifteen minutes. The incident commander coordinates containment, communications, and the post-incident review.\n\nAccess Control\nAccess "
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Decisions",
+          "page": null,
+          "score": 0.060481,
+          "retrieval": "semantic+keyword",
+          "preview": "Decisions\nThe team approved the new indexing pipeline and agreed to defer the graph rebuild until the next release.\n\nAction Items\nPriya will update the retrieval benchmark by Friday. Marco will profil"
+        },
+        {
+          "file": "product_spec.md",
+          "section": "Authentication",
+          "page": null,
+          "score": 0.057672,
+          "retrieval": "semantic+keyword",
+          "preview": "Authentication\nClients authenticate with short-lived OAuth 2.0 access tokens. Tokens expire after sixty minutes and must be refreshed with a rotating refresh token.\n\nAPI Limits\nThe public API allows 6"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Data Retention",
+          "page": null,
+          "score": 0.055801,
+          "retrieval": "semantic+keyword",
+          "preview": "Data Retention\nAudit logs are retained for seven years. Customer records are retained for the duration of the contract plus ninety days. Backup tapes are destroyed after eighteen months.\n\nAccess Contr"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Budget",
+          "page": null,
+          "score": 0.057359,
+          "retrieval": "semantic+keyword",
+          "preview": "Budget\nThe approved project budget is $850,000, including $120,000 for contractor support and $60,000 for training.\n\nTimeline\nThe migration begins on March 4 and the production cutover is scheduled fo"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Dependencies",
+          "page": null,
+          "score": 0.060199,
+          "retrieval": "semantic+keyword",
+          "preview": "Dependencies\nThe project depends on the identity service upgrade and the completion of the network segmentation work."
+        },
+        {
+          "file": "product_spec.md",
+          "section": "API Limits",
+          "page": null,
+          "score": 0.054674,
+          "retrieval": "semantic+keyword",
+          "preview": "API Limits\nThe public API allows 600 requests per minute per tenant. Burst traffic up to 900 requests per minute is accepted for ten seconds. Responses include a Retry-After header when throttled."
+        }
+      ],
+      "metrics": {
+        "expected_total": 2,
+        "ranks": [
+          1,
+          2
+        ],
+        "matched": 2,
+        "recall@5": 1.0,
+        "recall@10": 1.0,
+        "mrr@10": 1.0,
+        "mrr": 1.0,
+        "ndcg@10": 1.0
+      },
+      "phrase_hit": 1.0,
+      "latency_ms": 12.5,
+      "errors": [],
+      "diagnostics": {
+        "cache_hit": false,
+        "lanes": [
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "keyword",
+            "weight": 1.0,
+            "count": 14
+          },
+          {
+            "type": "keyword",
+            "weight": 0.9,
+            "count": 14
+          }
+        ],
+        "fused_count": 17,
+        "reranked": false,
+        "mmr": true,
+        "summary_results": 2,
+        "graph_results": 0,
+        "parent_expanded": 0,
+        "budget_used": 1386,
+        "budget_total": 8000,
+        "dropped_blocks": 0,
+        "index": {
+          "model": "eval-hash",
+          "dim": 64,
+          "chunker": 3
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "multi-doc",
+      "query": "What is the audit log retention period and the API rate limit?",
+      "expected": [
+        {
+          "file": "policy_manual.md",
+          "section": "Data Retention"
+        },
+        {
+          "file": "product_spec.md",
+          "section": "API Limits"
+        }
+      ],
+      "retrieved": [
+        {
+          "file": "project_notes.md",
+          "section": "Dependencies",
+          "page": null,
+          "score": 0.061489,
+          "retrieval": "semantic+keyword",
+          "preview": "Dependencies\nThe project depends on the identity service upgrade and the completion of the network segmentation work.\n\nBudget\nThe approved project budget is $850,000, including $120,000 for contractor"
+        },
+        {
+          "file": "product_spec.md",
+          "section": "Rate Limiting",
+          "page": null,
+          "score": 0.060998,
+          "retrieval": "semantic+keyword",
+          "preview": "Rate Limiting\nRate limits are enforced per tenant and per endpoint. Administrative endpoints have a lower limit of 60 requests per minute.\n\nAuthentication\nClients authenticate with short-lived OAuth 2"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Data Retention",
+          "page": null,
+          "score": 0.059836,
+          "retrieval": "semantic+keyword",
+          "preview": "Data Retention\nAudit logs are retained for seven years. Customer records are retained for the duration of the contract plus ninety days. Backup tapes are destroyed after eighteen months.\n\nAccess Contr"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Timeline",
+          "page": null,
+          "score": 0.061434,
+          "retrieval": "semantic+keyword",
+          "preview": "Timeline\nThe migration begins on March 4 and the production cutover is scheduled for June 17. A two-week freeze precedes the cutover.\n\nBudget\nThe approved project budget is $850,000, including $120,00"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors",
+          "page": null,
+          "score": 0.061692,
+          "retrieval": "semantic+keyword",
+          "preview": "Risk Factors\nThe principal risks include supply chain disruption, foreign exchange volatility, and increased competition in the enterprise segment. A prolonged outage of the primary cloud region could"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Budget",
+          "page": null,
+          "score": 0.057186,
+          "retrieval": "semantic+keyword",
+          "preview": "Budget\nThe approved project budget is $850,000, including $120,000 for contractor support and $60,000 for training.\n\nTimeline\nThe migration begins on March 4 and the production cutover is scheduled fo"
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Decisions",
+          "page": null,
+          "score": 0.061575,
+          "retrieval": "semantic+keyword",
+          "preview": "Decisions\nThe team approved the new indexing pipeline and agreed to defer the graph rebuild until the next release.\n\nAction Items\nPriya will update the retrieval benchmark by Friday. Marco will profil"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Incident Response",
+          "page": null,
+          "score": 0.056513,
+          "retrieval": "semantic+keyword",
+          "preview": "Incident Response\nA severity-one incident must be reported within fifteen minutes. The incident commander coordinates containment, communications, and the post-incident review.\n\nAccess Control\nAccess "
+        },
+        {
+          "file": "product_spec.md",
+          "section": "API Limits",
+          "page": null,
+          "score": 0.060948,
+          "retrieval": "semantic+keyword",
+          "preview": "API Limits\nThe public API allows 600 requests per minute per tenant. Burst traffic up to 900 requests per minute is accepted for ten seconds. Responses include a Retry-After header when throttled."
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Method",
+          "page": null,
+          "score": 0.058393,
+          "retrieval": "semantic+keyword",
+          "preview": "Method\nWe evaluated 240 questions across six document collections, comparing BM25, dense retrieval, and reciprocal-rank fusion. Each run used the same chunker and token budget."
+        }
+      ],
+      "metrics": {
+        "expected_total": 2,
+        "ranks": [
+          3,
+          9
+        ],
+        "matched": 2,
+        "recall@5": 0.5,
+        "recall@10": 1.0,
+        "mrr@10": 0.3333333333333333,
+        "mrr": 0.3333333333333333,
+        "ndcg@10": 0.4911492931622974
+      },
+      "phrase_hit": 1.0,
+      "latency_ms": 8.5,
+      "errors": [],
+      "diagnostics": {
+        "cache_hit": false,
+        "lanes": [
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "keyword",
+            "weight": 1.0,
+            "count": 16
+          },
+          {
+            "type": "keyword",
+            "weight": 0.9,
+            "count": 16
+          }
+        ],
+        "fused_count": 17,
+        "reranked": false,
+        "mmr": true,
+        "summary_results": 2,
+        "graph_results": 0,
+        "parent_expanded": 0,
+        "budget_used": 1273,
+        "budget_total": 8000,
+        "dropped_blocks": 0,
+        "index": {
+          "model": "eval-hash",
+          "dim": 64,
+          "chunker": 3
+        }
+      },
+      "passed": false
+    },
+    {
+      "id": "abstain-capital",
+      "query": "What is the capital of France?",
+      "expected": [],
+      "retrieved": [
+        {
+          "file": "annual_report_2023.md",
+          "section": "Revenue",
+          "page": null,
+          "score": 0.062417,
+          "retrieval": "semantic+keyword",
+          "preview": "Revenue\nAcme Corp reported total revenue of $4.2 billion in 2023, an increase of 12% over the prior year. Subscription revenue contributed $3.1 billion, while services revenue contributed $1.1 billion"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Timeline",
+          "page": null,
+          "score": 0.062398,
+          "retrieval": "semantic+keyword",
+          "preview": "Timeline\nThe migration begins on March 4 and the production cutover is scheduled for June 17. A two-week freeze precedes the cutover.\n\nBudget\nThe approved project budget is $850,000, including $120,00"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Budget",
+          "page": null,
+          "score": 0.060652,
+          "retrieval": "semantic+keyword",
+          "preview": "Budget\nThe approved project budget is $850,000, including $120,000 for contractor support and $60,000 for training.\n\nTimeline\nThe migration begins on March 4 and the production cutover is scheduled fo"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors",
+          "page": null,
+          "score": 0.060728,
+          "retrieval": "semantic+keyword",
+          "preview": "Risk Factors\nThe principal risks include supply chain disruption, foreign exchange volatility, and increased competition in the enterprise segment. A prolonged outage of the primary cloud region could"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Dependencies",
+          "page": null,
+          "score": 0.060457,
+          "retrieval": "semantic+keyword",
+          "preview": "Dependencies\nThe project depends on the identity service upgrade and the completion of the network segmentation work.\n\nBudget\nThe approved project budget is $850,000, including $120,000 for contractor"
+        },
+        {
+          "file": "product_spec.md",
+          "section": "Rate Limiting",
+          "page": null,
+          "score": 0.056258,
+          "retrieval": "semantic+keyword",
+          "preview": "Rate Limiting\nRate limits are enforced per tenant and per endpoint. Administrative endpoints have a lower limit of 60 requests per minute.\n\nAuthentication\nClients authenticate with short-lived OAuth 2"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Data Retention",
+          "page": null,
+          "score": 0.058209,
+          "retrieval": "semantic+keyword",
+          "preview": "Data Retention\nAudit logs are retained for seven years. Customer records are retained for the duration of the contract plus ninety days. Backup tapes are destroyed after eighteen months.\n\nAccess Contr"
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Decisions",
+          "page": null,
+          "score": 0.059282,
+          "retrieval": "semantic+keyword",
+          "preview": "Decisions\nThe team approved the new indexing pipeline and agreed to defer the graph rebuild until the next release.\n\nAction Items\nPriya will update the retrieval benchmark by Friday. Marco will profil"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Method",
+          "page": null,
+          "score": 0.056692,
+          "retrieval": "semantic+keyword",
+          "preview": "Method\nWe evaluated 240 questions across six document collections, comparing BM25, dense retrieval, and reciprocal-rank fusion. Each run used the same chunker and token budget."
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Access Control",
+          "page": null,
+          "score": 0.056185,
+          "retrieval": "semantic+keyword",
+          "preview": "Access Control\nAccess follows the principle of least privilege. Production access requires multi-factor authentication and approval from the security team. Quarterly access reviews are mandatory."
+        }
+      ],
+      "metrics": {
+        "expected_total": 0,
+        "ranks": [],
+        "matched": 0,
+        "recall@5": 0.0,
+        "recall@10": 0.0,
+        "mrr@10": 0.0,
+        "mrr": 0.0,
+        "ndcg@10": 0.0
+      },
+      "phrase_hit": 1.0,
+      "latency_ms": 8.1,
+      "errors": [],
+      "diagnostics": {
+        "cache_hit": false,
+        "lanes": [
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "keyword",
+            "weight": 1.0,
+            "count": 13
+          },
+          {
+            "type": "keyword",
+            "weight": 0.9,
+            "count": 13
+          }
+        ],
+        "fused_count": 17,
+        "reranked": false,
+        "mmr": true,
+        "summary_results": 2,
+        "graph_results": 0,
+        "parent_expanded": 0,
+        "budget_used": 1239,
+        "budget_total": 8000,
+        "dropped_blocks": 0,
+        "index": {
+          "model": "eval-hash",
+          "dim": 64,
+          "chunker": 3
+        }
+      },
+      "passed": null
+    },
+    {
+      "id": "abstain-world-cup",
+      "query": "Who won the 1998 World Cup?",
+      "expected": [],
+      "retrieved": [
+        {
+          "file": "meeting_notes.md",
+          "section": "Decisions",
+          "page": null,
+          "score": 0.064481,
+          "retrieval": "semantic+keyword",
+          "preview": "Decisions\nThe team approved the new indexing pipeline and agreed to defer the graph rebuild until the next release.\n\nAction Items\nPriya will update the retrieval benchmark by Friday. Marco will profil"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Incident Response",
+          "page": null,
+          "score": 0.059082,
+          "retrieval": "semantic+keyword",
+          "preview": "Incident Response\nA severity-one incident must be reported within fifteen minutes. The incident commander coordinates containment, communications, and the post-incident review.\n\nAccess Control\nAccess "
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Dependencies",
+          "page": null,
+          "score": 0.063925,
+          "retrieval": "semantic+keyword",
+          "preview": "Dependencies\nThe project depends on the identity service upgrade and the completion of the network segmentation work.\n\nBudget\nThe approved project budget is $850,000, including $120,000 for contractor"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Timeline",
+          "page": null,
+          "score": 0.062946,
+          "retrieval": "semantic+keyword",
+          "preview": "Timeline\nThe migration begins on March 4 and the production cutover is scheduled for June 17. A two-week freeze precedes the cutover.\n\nBudget\nThe approved project budget is $850,000, including $120,00"
+        },
+        {
+          "file": "meeting_notes.md",
+          "section": "Action Items",
+          "page": null,
+          "score": 0.061414,
+          "retrieval": "semantic+keyword",
+          "preview": "Action Items\nPriya will update the retrieval benchmark by Friday. Marco will profile the embedding cache. Dana will draft the migration runbook.\n\nDecisions\nThe team approved the new indexing pipeline "
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Data Retention",
+          "page": null,
+          "score": 0.057344,
+          "retrieval": "semantic+keyword",
+          "preview": "Data Retention\nAudit logs are retained for seven years. Customer records are retained for the duration of the contract plus ninety days. Backup tapes are destroyed after eighteen months.\n\nAccess Contr"
+        },
+        {
+          "file": "policy_manual.md",
+          "section": "Access Control",
+          "page": null,
+          "score": 0.057359,
+          "retrieval": "semantic+keyword",
+          "preview": "Access Control\nAccess follows the principle of least privilege. Production access requires multi-factor authentication and approval from the security team. Quarterly access reviews are mandatory.\n\nDat"
+        },
+        {
+          "file": "project_notes.md",
+          "section": "Budget",
+          "page": null,
+          "score": 0.054968,
+          "retrieval": "semantic+keyword",
+          "preview": "Budget\nThe approved project budget is $850,000, including $120,000 for contractor support and $60,000 for training.\n\nTimeline\nThe migration begins on March 4 and the production cutover is scheduled fo"
+        },
+        {
+          "file": "annual_report_2023.md",
+          "section": "Risk Factors",
+          "page": null,
+          "score": 0.059099,
+          "retrieval": "semantic+keyword",
+          "preview": "Risk Factors\nThe principal risks include supply chain disruption, foreign exchange volatility, and increased competition in the enterprise segment. A prolonged outage of the primary cloud region could"
+        },
+        {
+          "file": "research_paper.md",
+          "section": "Method",
+          "page": null,
+          "score": 0.058786,
+          "retrieval": "semantic+keyword",
+          "preview": "Method\nWe evaluated 240 questions across six document collections, comparing BM25, dense retrieval, and reciprocal-rank fusion. Each run used the same chunker and token budget."
+        }
+      ],
+      "metrics": {
+        "expected_total": 0,
+        "ranks": [],
+        "matched": 0,
+        "recall@5": 0.0,
+        "recall@10": 0.0,
+        "mrr@10": 0.0,
+        "mrr": 0.0,
+        "ndcg@10": 0.0
+      },
+      "phrase_hit": 1.0,
+      "latency_ms": 8.3,
+      "errors": [],
+      "diagnostics": {
+        "cache_hit": false,
+        "lanes": [
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "semantic",
+            "weight": 1.0,
+            "count": 17
+          },
+          {
+            "type": "keyword",
+            "weight": 1.0,
+            "count": 12
+          },
+          {
+            "type": "keyword",
+            "weight": 0.9,
+            "count": 12
+          }
+        ],
+        "fused_count": 17,
+        "reranked": false,
+        "mmr": true,
+        "summary_results": 2,
+        "graph_results": 0,
+        "parent_expanded": 0,
+        "budget_used": 1159,
+        "budget_total": 8000,
+        "dropped_blocks": 0,
+        "index": {
+          "model": "eval-hash",
+          "dim": 64,
+          "chunker": 3
+        }
+      },
+      "passed": null
+    }
+  ],
+  "index": {
+    "files": 6,
+    "chunks": 17,
+    "errors": [],
+    "dim": 64
+  },
+  "summary": {
+    "cases": 15,
+    "recall@5": 0.9667,
+    "recall@10": 1.0,
+    "mrr": 0.7911,
+    "ndcg@10": 0.8427,
+    "phrase_hit": 1.0,
+    "latency_ms_mean": 11.0,
+    "latency_ms_p50": 9.7,
+    "latency_ms_p95": 17.6
+  },
+  "abstain_cases": 2
+}

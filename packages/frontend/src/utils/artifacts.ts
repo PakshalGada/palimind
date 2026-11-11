@@ -56,11 +56,13 @@ export interface Artifact {
 /**
  * Fence languages that are allowed to create an artifact.
  *
- * The product rule is: only generated Office/PowerPoint deliverables open the
- * artifact panel. Markdown answers, tables, prose, HTML, SVG, diagrams and
+ * The product rule is: generated HTML pages and Office/PowerPoint deliverables
+ * open the artifact panel. Markdown answers, tables, prose, SVG, diagrams and
  * code fences stay inline in the conversation.
  */
 const LANGUAGE_MAP: Record<string, ArtifactType> = {
+  html: 'html',
+  htm: 'html',
   document: 'document',
   doc: 'document',
   docx: 'document',
@@ -316,8 +318,8 @@ function detectFenceArtifact(
   const content = fence.content;
   if (!content.trim()) return null;
 
-  // Only Office/PowerPoint fences create artifacts. Everything else
-  // (Markdown, tables, HTML, SVG, diagrams, code) stays in the transcript.
+  // Only HTML pages and Office/PowerPoint fences create artifacts. Everything
+  // else (Markdown, tables, SVG, diagrams, code) stays in the transcript.
   const type = LANGUAGE_MAP[language];
   if (!type) return null;
 
@@ -487,12 +489,18 @@ export function triggerDownload(blob: Blob, filename: string): void {
  *
  * The panel is intentionally not opened for every detected block: tables and
  * short snippets should stay in the chat. Web pages, Markdown/Word-style
- * documents, slide decks and previewable code files open themselves.
+ * documents and slide decks open themselves.
  */
 export function shouldAutoOpenArtifact(
   artifact: Pick<Artifact, 'type' | 'filePaths'>,
 ): boolean {
-  if (artifact.type === 'document' || artifact.type === 'slide-outline') return true;
+  if (
+    artifact.type === 'html' ||
+    artifact.type === 'document' ||
+    artifact.type === 'slide-outline'
+  ) {
+    return true;
+  }
   // File-backed artifacts follow their extension even when the detector
   // classified them generically. Only Office files open the panel.
   return (artifact.filePaths ?? []).some((path) => /\.(docx|pptx)$/i.test(path));

@@ -4,15 +4,15 @@ import { useApp } from '../../AppContext';
 const MOBILE_QUERY = '(max-width: 900px)';
 
 /**
- * Wraps the sidebar with collapse + hover-expand behaviour.
+ * Wraps the sidebar with collapse behaviour.
  *
  * - Expanded: full navigation column.
- * - Collapsed on desktop: a slim icon rail that expands on hover/focus.
+ * - Collapsed on desktop: a slim icon rail. It only expands again through the
+ *   toggle button (or the view.toggle-sidebar command), never on hover.
  * - Mobile: an off-canvas drawer with a scrim; closed by default.
  */
 export default function ResponsiveSidebar({ children }: { children: ReactNode }) {
   const { sidebarCollapsed, setSidebarCollapsed } = useApp();
-  const [hovering, setHovering] = useState(false);
   const initialised = useRef(false);
   const [isMobile, setIsMobile] = useState(
     () => typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches,
@@ -48,7 +48,6 @@ export default function ResponsiveSidebar({ children }: { children: ReactNode })
     return () => window.removeEventListener('keydown', onKey);
   }, [isMobile, sidebarCollapsed, setSidebarCollapsed]);
 
-  const hoverExpand = !isMobile && sidebarCollapsed;
   const drawerOpen = isMobile && !sidebarCollapsed;
 
   return (
@@ -56,23 +55,10 @@ export default function ResponsiveSidebar({ children }: { children: ReactNode })
       className={[
         'app-sidebar-shell',
         sidebarCollapsed ? 'is-collapsed' : 'is-expanded',
-        hoverExpand && hovering ? 'is-hovering' : '',
         drawerOpen ? 'is-drawer-open' : '',
       ]
         .filter(Boolean)
         .join(' ')}
-      onMouseEnter={() => {
-        if (hoverExpand) setHovering(true);
-      }}
-      onMouseLeave={() => setHovering(false)}
-      onFocusCapture={() => {
-        if (hoverExpand) setHovering(true);
-      }}
-      onBlurCapture={(event) => {
-        if (hoverExpand && !event.currentTarget.contains(event.relatedTarget as Node)) {
-          setHovering(false);
-        }
-      }}
     >
       {children}
       {isMobile && (

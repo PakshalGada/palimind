@@ -17,8 +17,14 @@ function fence(language, body, closed = true) {
   return `\`\`\`${language}\n${body}${closed ? '\n```' : ''}`;
 }
 
-test('HTML fences stay inline and never create artifacts', () => {
-  assert.deepEqual(parseArtifacts(fence('html', '<div>hello</div>'), 2), []);
+test('HTML fences create previewable artifacts', () => {
+  for (const language of ['html', 'htm']) {
+    const artifacts = parseArtifacts(fence(language, '<div>hello</div>'), 2);
+    assert.equal(artifacts.length, 1, language);
+    assert.equal(artifacts[0].type, 'html', language);
+    assert.equal(artifacts[0].id, 'fence-2-0', language);
+    assert.equal(artifacts[0].content, '<div>hello</div>', language);
+  }
   assert.deepEqual(
     parseArtifacts(fence('svg', '<svg></svg>'), 2),
     [],
@@ -158,10 +164,11 @@ test('collectArtifacts keeps message indices and de-duplicates ids', () => {
   );
 });
 
-test('auto-opens only Office/PowerPoint artifacts', () => {
+test('auto-opens HTML and Office/PowerPoint artifacts', () => {
+  assert.equal(shouldAutoOpenArtifact({ type: 'html' }), true);
   assert.equal(shouldAutoOpenArtifact({ type: 'document' }), true);
   assert.equal(shouldAutoOpenArtifact({ type: 'slide-outline' }), true);
-  for (const type of ['html', 'svg', 'markdown', 'table', 'code', 'code-file', 'multi-file']) {
+  for (const type of ['svg', 'markdown', 'table', 'code', 'code-file', 'multi-file']) {
     assert.equal(shouldAutoOpenArtifact({ type }), false, type);
   }
   assert.equal(

@@ -1,0 +1,17 @@
+{"id": "revenue-2023", "query": "What was total revenue in 2023?", "expected": [{"file": "annual_report_2023.md", "section": "Revenue"}], "phrases": ["4.2 billion"]}
+{"id": "risk-factors", "query": "What are the principal risk factors?", "expected": [{"file": "annual_report_2023.md", "section": "Risk Factors"}], "phrases": ["supply chain"]}
+{"id": "outlook-2024", "query": "What revenue does management expect in 2024?", "expected": [{"file": "annual_report_2023.md", "section": "Outlook"}], "phrases": ["4.8 billion"]}
+{"id": "log-retention", "query": "How long are audit logs retained?", "expected": [{"file": "policy_manual.md", "section": "Data Retention"}], "phrases": ["seven years"]}
+{"id": "access-control", "query": "What is required for production access?", "expected": [{"file": "policy_manual.md", "section": "Access Control"}], "phrases": ["multi-factor authentication"]}
+{"id": "incident-report", "query": "How quickly must a severity-one incident be reported?", "expected": [{"file": "policy_manual.md", "section": "Incident Response"}], "phrases": ["fifteen minutes"]}
+{"id": "project-cutover", "query": "When is the production cutover scheduled?", "expected": [{"file": "project_notes.md", "section": "Timeline"}], "phrases": ["June 17"]}
+{"id": "project-budget", "query": "What is the approved project budget?", "expected": [{"file": "project_notes.md", "section": "Budget"}], "phrases": ["850,000"]}
+{"id": "research-method", "query": "What method was used to evaluate retrieval quality?", "expected": [{"file": "research_paper.md", "section": "Method"}], "phrases": ["240 questions"]}
+{"id": "research-results", "query": "How much did reciprocal-rank fusion improve Recall@10?", "expected": [{"file": "research_paper.md", "section": "Results"}], "phrases": ["9.4 points"]}
+{"id": "api-rate-limit", "query": "What is the API rate limit per tenant?", "expected": [{"file": "product_spec.md", "section": "API Limits"}], "phrases": ["600 requests per minute"]}
+{"id": "auth-tokens", "query": "How long do OAuth access tokens last?", "expected": [{"file": "product_spec.md", "section": "Authentication"}], "phrases": ["sixty minutes"]}
+{"id": "meeting-actions", "query": "Who will update the retrieval benchmark?", "expected": [{"file": "meeting_notes.md", "section": "Action Items"}], "phrases": ["Priya"]}
+{"id": "multi-hop-compare", "query": "Compare total revenue in 2023 with the principal risk factors.", "expected": [{"file": "annual_report_2023.md", "section": "Revenue"}, {"file": "annual_report_2023.md", "section": "Risk Factors"}], "phrases": ["4.2 billion", "supply chain"]}
+{"id": "multi-doc", "query": "What is the audit log retention period and the API rate limit?", "expected": [{"file": "policy_manual.md", "section": "Data Retention"}, {"file": "product_spec.md", "section": "API Limits"}], "phrases": ["seven years", "600 requests per minute"]}
+{"id": "abstain-capital", "query": "What is the capital of France?", "expected": [], "phrases": [], "abstain": true}
+{"id": "abstain-world-cup", "query": "Who won the 1998 World Cup?", "expected": [], "phrases": [], "abstain": true}

@@ -39,61 +39,45 @@
   height: 100%;
 }
 
-/* Collapsed desktop: a slim icon rail. Hovering (or focusing) floats the full
-   sidebar above the workspace without shifting the main column. */
+/* Collapsed desktop: a slim icon rail. It stays collapsed until the toggle
+   button is pressed; hover never expands it. */
 .app-sidebar-shell.is-collapsed {
   width: var(--sidebar-rail-width);
 }
 .app-sidebar-shell.is-collapsed .sidebar {
   width: var(--sidebar-rail-width);
-}
-.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-collapsible {
-  display: none !important;
-}
-.app-sidebar-shell.is-collapsed:not(.is-hovering) .sidebar {
   align-items: stretch;
 }
-.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-header,
-.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-footer {
+.app-sidebar-shell.is-collapsed .sb-collapsible {
+  display: none !important;
+}
+.app-sidebar-shell.is-collapsed .sb-header,
+.app-sidebar-shell.is-collapsed .sb-footer {
   justify-content: center;
   padding-left: 8px;
   padding-right: 8px;
 }
-.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-brand {
+.app-sidebar-shell.is-collapsed .sb-brand {
   display: none;
 }
-.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-nav-item,
-.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-icon-btn,
-.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-search {
+.app-sidebar-shell.is-collapsed .sb-nav-item,
+.app-sidebar-shell.is-collapsed .sb-icon-btn,
+.app-sidebar-shell.is-collapsed .sb-search {
   justify-content: center;
   padding-left: 0;
   padding-right: 0;
   gap: 0;
 }
-.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-search {
+.app-sidebar-shell.is-collapsed .sb-search {
   margin-left: 10px;
   margin-right: 10px;
 }
-.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-nav {
+.app-sidebar-shell.is-collapsed .sb-nav {
   padding-left: 8px;
   padding-right: 8px;
 }
-.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-context {
+.app-sidebar-shell.is-collapsed .sb-context {
   display: none;
-}
-.app-sidebar-shell.is-collapsed.is-hovering {
-  width: var(--sidebar-rail-width);
-}
-.app-sidebar-shell.is-collapsed.is-hovering .sidebar {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: var(--sidebar-width);
-  box-shadow: var(--shadow-lg);
-  animation: sidebar-unfurl var(--duration-base) var(--ease-out);
-}
-@keyframes sidebar-unfurl {
-  from { opacity: 0.65; transform: translateX(-8px); }
-  to { opacity: 1; transform: translateX(0); }
 }
 
 /* ── main column ─────────────────────────────────────────────────────── */
@@ -218,12 +202,6 @@
   .app-sidebar-shell.is-collapsed .app-sidebar-scrim {
     display: none;
   }
-  .app-sidebar-shell.is-collapsed.is-hovering .sidebar {
-    position: relative;
-    inset: auto;
-    box-shadow: none;
-    animation: none;
-  }
   .app-mobile-menu[data-visible="true"] {
     display: inline-flex;
   }
@@ -287,10 +265,10 @@
 }
 
 /* Rail: stack the avatar above settings so both fit a 64px column. */
-.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-footer {
+.app-sidebar-shell.is-collapsed .sb-footer {
   padding: 8px 4px;
 }
-.app-sidebar-shell.is-collapsed:not(.is-hovering) .sb-user {
+.app-sidebar-shell.is-collapsed .sb-user {
   flex-direction: column;
   gap: 6px;
   padding: 2px 0;
