@@ -116,6 +116,23 @@
     background: color-mix(in srgb, var(--inverse-ink) 12%, transparent);
     color: var(--inverse-ink);
 }
+/* A slash command in a sent message reads as an intentional action chip,
+   matching the composer's chip instead of looking like stray punctuation. */
+.chat-command-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 8px;
+    margin-right: 6px;
+    border: 1px solid color-mix(in srgb, var(--inverse-ink) 28%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--inverse-ink) 14%, transparent);
+    color: var(--inverse-ink);
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    vertical-align: 1px;
+}
 .message-content code {
     font-family: var(--font-mono);
     background: var(--color-code-bg);

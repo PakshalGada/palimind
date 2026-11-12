@@ -72,6 +72,47 @@ export type StreamEvent =
       }[];
     }
   | {
+      type: 'search_plan';
+      intent?: string;
+      freshness?: string;
+      entities?: string[];
+      aspects?: {
+        id?: number | string;
+        title?: string;
+        question?: string;
+        status?: string;
+        source_count?: number;
+      }[];
+    }
+  | {
+      type: 'search_query';
+      aspect_id?: number | string;
+      query?: string;
+      status?: 'running' | 'done';
+    }
+  | {
+      type: 'search_result';
+      aspect_id?: number | string;
+      query?: string;
+      count?: number;
+    }
+  | {
+      type: 'search_source';
+      title?: string;
+      url?: string;
+      domain?: string;
+      score?: number;
+    }
+  | { type: 'search_gap'; aspect_id?: number | string; question?: string }
+  | {
+      type: 'search_done';
+      sources?: number;
+      gaps?: string[];
+      queries?: number;
+      timings?: Record<string, number>;
+      aspects?: { id?: number | string; status?: string; source_count?: number }[];
+    }
+  | {
       type: 'agent_progress';
       agent_id: number;
       status?: 'working' | 'complete';
@@ -116,6 +157,7 @@ export type StreamEvent =
       allow_free_text?: boolean;
       created_at?: number;
     }
+  | { type: 'agent:message'; text?: string }
   | { type: 'agent:token'; text?: string; reset?: boolean; stream?: boolean }
   | ({ type: 'agent:usage' } & Partial<TokenUsage>)
   | {
@@ -172,6 +214,8 @@ export interface StreamState {
   sessionId: string | null;
   /** Epoch ms when this run started; used for live elapsed labels. */
   startedAt: number | null;
+  /** Short progress notes the agent sent with `say` during this turn. */
+  progress: string[];
   /** Throttled display buffer; the raw buffer is kept by the stream engine. */
   answer: string;
   thinking: string;
@@ -202,6 +246,7 @@ export const initialStreamState: StreamState = {
   userText: '',
   sessionId: null,
   startedAt: null,
+  progress: [],
   answer: '',
   thinking: '',
   sources: [],
@@ -225,6 +270,7 @@ export type StreamAction =
   | { type: 'reset' }
   | { type: 'setSession'; sessionId: string }
   | { type: 'setAnswer'; text: string }
+  | { type: 'appendProgress'; text: string }
   | { type: 'appendThinking'; text: string }
   | { type: 'setSources'; sources: string[] }
   | { type: 'setMediaCitations'; citations: MediaCitation[] }

@@ -288,6 +288,7 @@ def append_message(
     task_id: str = "",
     attachments: list[dict[str, Any]] | None = None,
     operation_id: str = "",
+    kind: str = "",
 ) -> dict[str, Any]:
     if get_channel(channel_id) is None:
         raise ValueError("channel not found")
@@ -314,6 +315,7 @@ def append_message(
             "attachments": list(attachments or []),
             "created_at": _now(),
             "operation_id": str(operation_id or ""),
+            "kind": str(kind or ""),
         }
         conn.execute(
             "INSERT INTO channel_messages(channel_id, seq, value, created_at) VALUES (?, ?, ?, ?)",
@@ -585,7 +587,7 @@ def route_message(
 async def run_queued(channel_id: str, input_text: str) -> dict[str, Any]:
     """Run one routed channel turn.  Used by the durable queue."""
     from palimind.agents.registry import get_registry
-    from palimind.agents.service import run_agent
+    from palimind.agents.service import chat_style_for, run_agent
 
     routed = route_message(channel_id, input_text, author_kind="user", author_id="user")
     task = routed.get("task")
@@ -597,6 +599,22 @@ async def run_queued(channel_id: str, input_text: str) -> dict[str, Any]:
         update_task(task["id"], status="failed", error="owner agent not found")
         return {"status": "error", "error": "owner agent not found"}
     update_task(task["id"], status="running")
+
+    async def emit(etype: str, payload: dict[str, Any]) -> None:
+        if etype != "agent:message":
+            return
+        text = str(payload.get("text") or "").strip()
+        if not text:
+            return
+        append_message(
+            channel_id,
+            text,
+            author_kind="agent",
+            author_id=owner,
+            task_id=task["id"],
+            kind="progress",
+        )
+
     try:
         output = await run_agent(
             defn,
@@ -605,6 +623,8 @@ async def run_queued(channel_id: str, input_text: str) -> dict[str, Any]:
             interactive=False,
             channel_id=channel_id,
             task_id=str(task["id"]),
+            emit=emit,
+            extra_prompt=chat_style_for(defn),
         )
         append_message(
             channel_id,

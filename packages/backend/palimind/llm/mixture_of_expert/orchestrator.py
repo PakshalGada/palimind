@@ -357,11 +357,9 @@ async def run_moe_pipeline(
     num_workers = _agent_count_for_route(route, num_workers)
     simple_route = _is_simple_route(route)
 
-    # ── Shared web briefing (one search, injected into every agent) ──────
+    # ── Shared web briefing (decomposed search, injected into every agent) ──
     briefing = ""
     if route.get("needs_web"):
-        from palimind.core.web_search import perform_web_search
-
         await emit({"type": "planning", "text": "Gathering shared web briefing..."})
         await emit(
             {
@@ -372,16 +370,47 @@ async def run_moe_pipeline(
             }
         )
         t = time.monotonic()
-        briefing = await asyncio.to_thread(
-            perform_web_search, user_query, max_results=4, fetch_content=True
-        )
-        timings["briefing"] = time.monotonic() - t
+        briefing_sources: list[dict] = []
         try:
-            from palimind.generative.citation import parse_web_sources
+            from palimind import settings
+            from palimind.core.search_pipeline import run_search_pipeline
 
-            briefing_sources = [source.to_dict() for source in parse_web_sources(briefing)]
-        except Exception:
-            briefing_sources = []
+            if settings.SEARCH_PIPELINE:
+                bundle = await run_search_pipeline(
+                    user_query,
+                    ollama_url=ollama_url,
+                    model=light_model or orchestrator_model,
+                    depth=settings.SEARCH_DEPTH or "standard",
+                    root=root,
+                    history=short_term,
+                    on_event=emit,
+                    llm_fn=llm_chat_safe,
+                )
+                briefing = bundle.to_prompt()
+                briefing_sources = [source.to_dict() for source in bundle.sources]
+            else:
+                from palimind.core.web_search import perform_web_search
+
+                briefing = await asyncio.to_thread(
+                    perform_web_search, user_query, max_results=6, fetch_content=True
+                )
+                try:
+                    from palimind.generative.citation import parse_web_sources
+
+                    briefing_sources = [source.to_dict() for source in parse_web_sources(briefing)]
+                except Exception:
+                    briefing_sources = []
+        except Exception as exc:  # noqa: BLE001 - briefing must never sink the run
+            print(f"[moe] search pipeline failed: {exc}")
+            try:
+                from palimind.core.web_search import perform_web_search
+
+                briefing = await asyncio.to_thread(
+                    perform_web_search, user_query, max_results=6, fetch_content=True
+                )
+            except Exception:
+                briefing = ""
+        timings["briefing"] = time.monotonic() - t
         await emit(
             {
                 "type": "agent:tool_result",

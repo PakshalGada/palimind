@@ -1,6 +1,8 @@
 import { formatMarkdown } from './markdown';
 import { parseSlides } from './slides';
 import { renderMermaid } from './artifactMermaid';
+import { buildArtifactOfficePayload } from './officePipeline';
+import { api } from '../api';
 import {
   artifactFilename,
   type ArtifactType,
@@ -212,6 +214,15 @@ function markdownParagraphs(
 }
 
 async function exportDocx(artifact: ExportableArtifact): Promise<Blob> {
+  // The server pipeline produces the polished cover, styled headings, banded
+  // tables and page furniture. Use it whenever the local API is reachable.
+  try {
+    const payload = buildArtifactOfficePayload(artifact, 'docx');
+    const result = await api.office.generate(payload);
+    return result.blob;
+  } catch {
+    // Offline / older backend: fall back to the client-side renderer below.
+  }
   const docx = await import('docx');
   const { Document, Packer } = docx;
   const document = new Document({
@@ -285,6 +296,17 @@ function parseSlideOutline(artifact: ExportableArtifact): SlideSpec[] {
 }
 
 async function exportPptx(artifact: ExportableArtifact): Promise<Blob> {
+  // Prefer the designed server-side deck pipeline (cover, sections, KPI cards,
+  // comparison, timeline, closing). The pptxgenjs path below is the offline
+  // fallback and intentionally stays simple.
+  try {
+    const payload = buildArtifactOfficePayload(artifact, 'pptx');
+    const result = await api.office.generate(payload);
+    return result.blob;
+  } catch {
+    // Offline / older backend: fall back to the local renderer.
+  }
+
   const PptxGenJS = (await import('pptxgenjs')).default;
   const pptx = new PptxGenJS();
   pptx.layout = 'LAYOUT_WIDE';

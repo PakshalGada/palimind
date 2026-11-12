@@ -82,3 +82,14 @@ test('usage, suggestions and escalation survive the stream reducer', () => {
   assert.equal(fresh.activityLabel, null);
   assert.equal(fresh.modelNotice, null);
 });
+
+test('progress notes appear once and reset with the next turn', () => {
+  let state = start('abc');
+  state = streamReducer(state, { type: 'appendProgress', text: 'On it — checking the files.' });
+  state = streamReducer(state, { type: 'appendProgress', text: 'On it — checking the files.' });
+  state = streamReducer(state, { type: 'appendProgress', text: 'Found it. Writing it up.' });
+  assert.deepEqual(state.progress, ['On it — checking the files.', 'Found it. Writing it up.']);
+
+  const fresh = streamReducer(state, { type: 'start', userText: 'next', sessionId: 'abc' });
+  assert.deepEqual(fresh.progress, []);
+});

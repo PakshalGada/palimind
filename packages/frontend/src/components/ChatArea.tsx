@@ -381,6 +381,17 @@ const MessageComponent = memo(function MessageComponent({
     setDraft(msg.content);
   }, [msg.content]);
 
+  const historySources = !isUser ? msg.sources ?? [] : [];
+  const artifacts = useMemo(
+    () =>
+      isUser
+        ? []
+        : parseArtifacts(msg.content, index).filter((artifact) =>
+            shouldAutoOpenArtifact(artifact),
+          ),
+    [isUser, msg.content, index],
+  );
+
   if (editing) {
     const save = () => {
       setEditing(false);
@@ -426,17 +437,6 @@ const MessageComponent = memo(function MessageComponent({
     );
   }
 
-  const historySources = !isUser ? msg.sources ?? [] : [];
-  const artifacts = useMemo(
-    () =>
-      isUser
-        ? []
-        : parseArtifacts(msg.content, index).filter((artifact) =>
-            shouldAutoOpenArtifact(artifact),
-          ),
-    [isUser, msg.content, index],
-  );
-
   return (
     <div className={`message ${isUser ? 'user-message' : 'system-message'} history-message`}>
       <div className="message-wrapper">
@@ -456,6 +456,7 @@ const MessageComponent = memo(function MessageComponent({
               content={msg.content}
               citations={msg.citations}
               messageIndex={isUser ? undefined : index}
+              commandChip={isUser}
               onOpenArtifact={onOpenArtifact}
             />
             {!isUser && (

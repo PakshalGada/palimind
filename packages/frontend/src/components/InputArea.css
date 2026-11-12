@@ -217,45 +217,106 @@
 /* ── slash command popup ── */
 .slash-command-popup {
     position: absolute;
-    bottom: calc(100% + 6px);
+    bottom: calc(100% + 8px);
     left: 10px;
     z-index: 9999;
-    background: var(--bg-color);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md, 10px);
-    box-shadow: var(--shadow-md);
-    width: min(360px, calc(100vw - 40px));
-    max-height: 300px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow-lg, var(--shadow-md));
+    width: min(440px, calc(100vw - 40px));
+    max-height: 380px;
     overflow-y: auto;
-    padding: 4px;
+    padding: 6px;
+    backdrop-filter: blur(12px);
+}
+.slash-command-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 10px 8px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 4px;
+}
+.slash-command-head__title {
+    font-size: var(--type-2xs);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+}
+.slash-command-head__query {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: var(--type-xs);
+    color: var(--ink-faint);
 }
 .slash-command-item {
     display: grid;
-    grid-template-columns: 72px 1fr;
-    gap: 8px;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    gap: 10px;
     align-items: center;
-    padding: 7px 8px;
-    border-radius: var(--radius-sm);
+    padding: 8px 9px;
+    border-radius: 10px;
+    border: 1px solid transparent;
     cursor: pointer;
+    transition:
+        background-color var(--dur-1) var(--ease-out),
+        border-color var(--dur-1) var(--ease-out);
+}
+.slash-command-item + .slash-command-item {
+    margin-top: 1px;
 }
 .slash-command-item.selected {
     background: var(--accent-bg);
+    border-color: color-mix(in srgb, var(--primary-color) 28%, transparent);
+}
+.slash-command-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--surface-3);
+    color: var(--ink-muted);
+    border: 1px solid var(--line);
+}
+.slash-command-item.selected .slash-command-icon {
+    color: var(--primary-color);
+    border-color: color-mix(in srgb, var(--primary-color) 30%, transparent);
+    background: color-mix(in srgb, var(--primary-color) 12%, var(--surface-2));
+}
+.slash-command-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 2px;
+}
+.slash-command-top {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
 }
 .slash-command-name {
     color: var(--primary-color);
     font-family: var(--font-mono);
     font-size: var(--type-xs);
     font-weight: 600;
-}
-.slash-command-info {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
+    flex-shrink: 0;
 }
 .slash-command-label {
     color: var(--text-main);
     font-size: var(--type-sm);
-    font-weight: 550;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .slash-command-desc {
     color: var(--text-muted);
@@ -263,6 +324,112 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+.slash-command-badge {
+    align-self: center;
+    padding: 2px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--ink-muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.slash-command-item.selected .slash-command-badge {
+    color: var(--primary-color);
+    border-color: color-mix(in srgb, var(--primary-color) 24%, transparent);
+    background: color-mix(in srgb, var(--primary-color) 8%, var(--surface-2));
+}
+.slash-command-foot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px 4px;
+    margin-top: 4px;
+    border-top: 1px solid var(--line);
+    font-size: 10.5px;
+    color: var(--ink-faint);
+}
+.slash-command-foot span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.slash-command-foot kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: var(--surface-3);
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    line-height: 1;
+}
+
+/* The selected skill is visible in the composer, not hidden behind an
+   invisible "armed" state. */
+.composer-command-chip {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    align-self: flex-start;
+    max-width: 100%;
+    padding: 4px 5px 4px 7px;
+    border: 1px solid color-mix(in srgb, var(--primary-color) 26%, var(--line));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--primary-color) 9%, var(--surface-2));
+    color: var(--text-main);
+}
+.composer-command-chip__icon {
+    display: inline-flex;
+    color: var(--primary-color);
+}
+.composer-command-chip__name {
+    padding: 1px 5px;
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+    color: var(--primary-color);
+    font-family: var(--font-mono);
+    font-size: var(--type-xs);
+    font-weight: 600;
+}
+.composer-command-chip__label {
+    font-size: var(--type-xs);
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+.composer-command-chip__hint {
+    font-size: 10.5px;
+    color: var(--ink-faint);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.composer-command-chip__remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 19px;
+    height: 19px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--ink-faint);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+}
+.composer-command-chip__remove:hover {
+    background: color-mix(in srgb, var(--ink) 10%, transparent);
+    color: var(--ink);
 }
 
 /* ── agent-mention popup ── */

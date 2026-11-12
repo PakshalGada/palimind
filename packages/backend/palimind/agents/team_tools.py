@@ -267,7 +267,10 @@ def register_team_tools() -> None:
         "post_to_team",
         {
             "fn": post_to_team,
-            "description": "Post a short progress update to the team thread and shared notes.",
+            "description": (
+                "Post a short update (one or two sentences) to the team thread "
+                "and shared notes. Not for your detailed result."
+            ),
             "parameters": {"content": "Update text", "label": "Optional short label"},
             "meta": _meta(1, False),
         },

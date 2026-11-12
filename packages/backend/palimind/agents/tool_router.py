@@ -63,6 +63,7 @@ _CORE_TOOLS = (
     "tool_search",
     "todo_write",
     "ask_user",
+    "say",
     "read_file",
     "list_files",
     "grep_files",

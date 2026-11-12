@@ -1,0 +1,47 @@
+/* One answer, folded by height — never split into fake bubbles. */
+
+.message-fold {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.message-fold__body {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.message-fold__body.is-collapsed {
+  overflow: hidden;
+}
+
+.message-fold__body.is-collapsed::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 64px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--bg-color));
+}
+
+.message-fold__more {
+  align-self: flex-start;
+  min-height: 0;
+  margin-top: 2px;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: var(--ink-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--type-xs);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.message-fold__more:hover {
+  color: var(--ink);
+}

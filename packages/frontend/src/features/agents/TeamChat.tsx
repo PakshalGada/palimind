@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Square, Users } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronRight, Square, Users } from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import AgentAvatar from '../../components/AgentAvatar';
+import CollapsibleMessage from '../../components/CollapsibleMessage';
 import MessageContent from '../../components/MessageContent';
 import ConversationHeader from './ConversationHeader';
 import InputArea from '../../components/InputArea';
@@ -23,6 +24,61 @@ function relTime(ts?: number): string {
 function authorName(author: string): string {
   if (!author) return 'Team';
   return author.replace(/^agent:/, '').split(':')[0];
+}
+
+/** Roles that read as teammates talking, not as run bookkeeping. */
+function isChatRole(role: string): boolean {
+  return role === 'chat' || role === 'manager' || role === 'synthesis';
+}
+
+type TeamRenderItem =
+  | { kind: 'user'; message: TeamMessage }
+  | { kind: 'notice'; message: TeamMessage }
+  | { kind: 'chat'; author: string; messages: TeamMessage[] }
+  | { kind: 'work'; messages: TeamMessage[] };
+
+/** Collapse handoffs, results and system lines into one expandable run card. */
+function TeamWorkGroup({
+  messages,
+  nameFor,
+}: {
+  messages: TeamMessage[];
+  nameFor: (author: string) => string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="ag-work">
+      <button
+        type="button"
+        className="ag-work__toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <ChevronRight size={12} className={open ? 'is-open' : undefined} />
+        <span className="ag-work__title">Work</span>
+        <span className="ag-work__count">
+          {messages.length} step{messages.length === 1 ? '' : 's'}
+        </span>
+        <span className="ag-work__hint">{open ? 'Hide' : 'Show'}</span>
+      </button>
+      {open && (
+        <div className="ag-work__body">
+          {messages.map((message) => (
+            <div key={message.id} className="ag-work__row">
+              <div className="ag-work__meta">
+                <span className="ag-work__author">{nameFor(message.author)}</span>
+                <span className="ag-work__role">{message.role}</span>
+                <time>{relTime(message.created_at)}</time>
+              </div>
+              <div className="ag-work__content">
+                <MessageContent content={message.content} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function TeamChat({
@@ -139,6 +195,33 @@ export default function TeamChat({
     ? agents.filter((agent) => team.members.some((member) => member.agent_id === agent.id))
     : agents;
 
+  const renderItems = useMemo(() => {
+    const items: TeamRenderItem[] = [];
+    for (const message of messages) {
+      if (message.role === 'user') {
+        items.push({ kind: 'user', message });
+        continue;
+      }
+      if (message.role === 'approval' || message.role === 'system') {
+        items.push({ kind: 'notice', message });
+        continue;
+      }
+      if (isChatRole(message.role)) {
+        const previous = items[items.length - 1];
+        if (previous?.kind === 'chat' && previous.author === message.author) {
+          previous.messages.push(message);
+        } else {
+          items.push({ kind: 'chat', author: message.author, messages: [message] });
+        }
+        continue;
+      }
+      const previous = items[items.length - 1];
+      if (previous?.kind === 'work') previous.messages.push(message);
+      else items.push({ kind: 'work', messages: [message] });
+    }
+    return items;
+  }, [messages]);
+
   return (
     <div className="ag-chat">
       <ConversationHeader team={team} onSettings={onOpenSettings} />
@@ -150,31 +233,42 @@ export default function TeamChat({
             <p>{team?.description || 'Give the team a task. The manager will delegate it.'}</p>
           </div>
         ) : (
-          messages.map((message) => {
-            const isUser = message.role === 'user';
-            const author = findingMember(message.author);
-            if (isUser) {
+          renderItems.map((item, index) => {
+            if (item.kind === 'user') {
               return (
-                <div key={message.id} className="ag-msg ag-msg--user">
+                <div key={item.message.id} className="ag-msg ag-msg--user">
                   <div className="ag-msg__user-body">
                     <div className="ag-msg__user-bubble">
-                      <MessageContent content={message.content} />
+                      <MessageContent content={item.message.content} />
                     </div>
-                    <div className="ag-msg__user-meta">{relTime(message.created_at)}</div>
+                    <div className="ag-msg__user-meta">{relTime(item.message.created_at)}</div>
                   </div>
                 </div>
               );
             }
-            if (message.role === 'handoff' || message.role === 'approval') {
+            if (item.kind === 'notice') {
               return (
-                <div key={message.id} className="ag-msg ag-msg--system">
-                  <span>{message.content}</span>
-                  <time>{relTime(message.created_at)}</time>
+                <div key={item.message.id} className="ag-msg ag-msg--system">
+                  <span>{item.message.content}</span>
+                  <time>{relTime(item.message.created_at)}</time>
                 </div>
               );
             }
+            if (item.kind === 'work') {
+              return (
+                <TeamWorkGroup
+                  key={`work-${item.messages[0]?.id || index}`}
+                  messages={item.messages}
+                  nameFor={(author) => {
+                    if (author === 'system') return 'Team';
+                    return findingMember(author)?.display_name || authorName(author);
+                  }}
+                />
+              );
+            }
+            const author = findingMember(item.author);
             return (
-              <div key={message.id} className="ag-msg ag-msg--agent">
+              <div key={`chat-${item.messages[0]?.id || index}`} className="ag-msg ag-msg--agent">
                 <div className="ag-msg__avatar">
                   <AgentAvatar
                     config={author?.avatar_config}
@@ -184,16 +278,23 @@ export default function TeamChat({
                   />
                 </div>
                 <div className="ag-msg__body">
-                  <div className="ag-msg__meta">
-                    <span className="ag-msg__author">
-                      {author?.display_name || authorName(message.author) || 'Team'}
-                    </span>
-                    <span className="ag-msg__handle">{message.role}</span>
-                    <span className="ag-msg__time">{relTime(message.created_at)}</span>
-                  </div>
-                  <div className="ag-msg__prose">
-                    <MessageContent content={message.content} />
-                  </div>
+                  {item.messages.map((message, messageIndex) => (
+                    <div key={message.id} className="ag-msg__chat-line">
+                      {messageIndex === 0 && (
+                        <div className="ag-msg__meta">
+                          <span className="ag-msg__author">
+                            {author?.display_name ||
+                              (item.author === 'system' ? 'Team' : authorName(item.author))}
+                          </span>
+                          <span className="ag-msg__handle">
+                            {message.role === 'synthesis' ? 'answer' : 'message'}
+                          </span>
+                          <span className="ag-msg__time">{relTime(message.created_at)}</span>
+                        </div>
+                      )}
+                      <CollapsibleMessage content={message.content} />
+                    </div>
+                  ))}
                 </div>
               </div>
             );

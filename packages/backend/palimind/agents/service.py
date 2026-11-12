@@ -22,20 +22,39 @@ __all__ = [
 # Interactive agent chats read like a person typing, not a report renderer.
 CHAT_REPLY_STYLE = (
     "[CHAT STYLE]\n"
-    "You are replying in a chat, not writing a report. Reply in 1-3 short "
-    "sentences. No headings, no preamble, no restating the request. Use a list "
-    "only when the user asks for one. Do not narrate tool calls; the interface "
-    "already shows them. If you need the user to do something, say it plainly."
+    "You are talking with a colleague in a chat, not writing a report.\n"
+    "- One reply per turn. Default to 1-3 sentences. If the user asks for a "
+    "report, document or other long deliverable, write it to your workspace "
+    "and reply with a short summary plus where it is. Do not paste it into chat.\n"
+    "- Speak in the first person, plainly and directly, like a person. No "
+    'headings, no preamble, no restating the request, no "Here is...".\n'
+    "- Do not narrate tool calls or describe your process; the interface "
+    "already shows it. On a longer task you may call say once with a short "
+    'progress note ("On it — checking the three filings."), then keep working.\n'
+    "- Ask at most one question, and only when it truly blocks you.\n"
+    "- Use a list only when the user asks for one. Otherwise write prose.\n"
+    "- The final answer is one message. Do not split it into separate notes."
+)
+
+# Teammates talk to the user in chat and leave the long-form work in the log.
+TEAM_CHAT_STYLE = (
+    "[TEAM CHAT]\n"
+    "You are a teammate in a shared chat. Anything the user sees should be "
+    "short and human: one or two sentences, first person, no report voice. "
+    "Use say for a brief progress note and post_to_team for an update the "
+    "whole team should see. Your FINAL_ANSWER is your result for the manager, "
+    "so make that complete and useful — it does not need to be chatty."
 )
 
 
-def chat_style_for(definition: Any) -> str:
+def chat_style_for(definition: Any, *, team: bool = False) -> str:
     """The chat style plus the agent's own manner, when it has one."""
     style = str(getattr(definition, "personality_style", "") or "").strip()
+    base = TEAM_CHAT_STYLE if team else CHAT_REPLY_STYLE
     if not style:
-        return CHAT_REPLY_STYLE
+        return base
     return (
-        f"{CHAT_REPLY_STYLE}\n"
+        f"{base}\n"
         f"Your manner: {style}. Sound like a person with that manner, not a "
         "brand or a documentation page."
     )
@@ -272,7 +291,23 @@ async def agent_sse_stream(
             elif etype == "agent:waiting_for_human":
                 yield agent_sse("agent:activity", {"label": "Waiting for you", "phase": "waiting"})
             yield agent_sse(etype, payload)
-            if etype == "agent:completed":
+            if etype == "agent:message":
+                # A progress note the agent chose to send. Persist it now so it
+                # survives a reload, and let the live stream render it while
+                # the run is still going.
+                progress_text = str(payload.get("text") or "").strip()
+                if session_id and progress_text:
+                    await asyncio.to_thread(
+                        append_message_to_session,
+                        field_root,
+                        session_id,
+                        "system",
+                        progress_text,
+                        mode="agent",
+                        mode_params=mode_params,
+                        extra={"kind": "progress"},
+                    )
+            elif etype == "agent:completed":
                 full_text = str(payload.get("output", ""))
                 suggestions = [
                     str(item) for item in payload.get("suggestions") or [] if str(item).strip()

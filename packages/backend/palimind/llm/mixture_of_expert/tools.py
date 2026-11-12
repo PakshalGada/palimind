@@ -1016,6 +1016,29 @@ def ask_user(
     return "The question was cancelled by the user. Stop this step and explain what you need."
 
 
+def say(text: str) -> str:
+    """Send one short progress message to the user in the current chat.
+
+    This is the agent speaking to the person, not a tool narration. Use it
+    once or twice on a long task ("On it — checking the three filings."),
+    never for the final answer and never for every step.
+    """
+    ctx = _get_context()
+    message = " ".join(str(text or "").split())
+    if not message:
+        return "Error: say needs a short message."
+    if len(message) > 400:
+        message = message[:397].rstrip() + "…"
+    emit = ctx.get("emit_event")
+    if emit is None:
+        return "Error: say is only available inside an agent run."
+    try:
+        emit("agent:message", {"text": message})
+    except Exception as exc:  # noqa: BLE001 - a failed note must not kill the run
+        return f"Error: could not send the message ({exc}). Continue working."
+    return "Message sent."
+
+
 def summarize(text: str, max_chars: int = 1000) -> str:
     """Summarize long text with the light model."""
     if len(text) <= max_chars:
@@ -1190,6 +1213,21 @@ TOOL_REGISTRY: dict[str, dict] = {
         "meta": _meta(1, False),
         "parallel_safe": False,
         "idempotent": True,
+    },
+    "say": {
+        "fn": say,
+        "description": (
+            "Send one short chat message to the user while you work. Use it "
+            "for a brief progress note or a result headline (one sentence). "
+            "Do not narrate every tool call and do not use it for the final "
+            "answer — that is sent automatically when you finish."
+        ),
+        "parameters": {
+            "text": _p(description="One short, conversational sentence for the user."),
+        },
+        "meta": _meta(1, False),
+        "parallel_safe": False,
+        "idempotent": False,
     },
     "ask_user": {
         "fn": ask_user,

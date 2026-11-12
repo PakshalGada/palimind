@@ -4,8 +4,10 @@ import type { CreateArtifactKind } from './artifactPrompts';
  * Composer slash commands.
  *
  * Typing `/` at the start of a message (or after whitespace) opens this menu;
- * typing more characters filters it. Commands that create an artifact open the
- * topic dialog with the right type already selected.
+ * typing more characters filters it. `\` is accepted as an alias for keyboard
+ * layouts where the slash sits behind the backslash. Commands that create an
+ * artifact insert their full name into the composer so the request stays
+ * visible and editable.
  */
 export type SlashCommandId =
   | 'doc'
@@ -111,7 +113,9 @@ export interface SlashToken {
 
 export function findSlashToken(text: string, cursor = text.length): SlashToken | null {
   const upto = text.slice(0, Math.max(0, Math.min(cursor, text.length)));
-  const match = /(^|\s)\/([\w-]*)$/.exec(upto);
+  // ``/`` is the canonical trigger. ``\`` is accepted as an alias so a
+  // keyboard layout where the slash sits behind the backslash still works.
+  const match = /(^|\s)[/\\]([\w-]*)$/.exec(upto);
   if (!match) return null;
   const start = upto.length - match[2].length - 1;
   return { query: match[2], start, end: upto.length };
@@ -141,6 +145,59 @@ export function stripSlashToken(text: string, token: SlashToken): string {
 }
 
 /**
+ * Replace the typed token with the full command and a trailing space.
+ *
+ * Selecting ``/ppt`` from the menu should leave ``/pptx `` in the composer,
+ * not silently delete it: the command is part of the user's request and must
+ * stay visible in both the composer and the transcript.
+ */
+export function insertSlashCommand(
+  text: string,
+  token: SlashToken,
+  command: Pick<SlashCommand, 'command'>,
+): { text: string; cursor: number } {
+  const before = text.slice(0, token.start);
+  const after = text.slice(token.end);
+  const prefix = before.replace(/\s+$/, '');
+  const suffix = after.replace(/^\s+/, '');
+  const head = `${prefix}${prefix ? ' ' : ''}${command.command}`;
+  const next = `${head}${suffix ? ` ${suffix}` : ' '}`;
+  return { text: next, cursor: head.length + 1 };
+}
+
+/** Remove a leading slash command while preserving the request text. */
+export function removeLeadingCommand(text: string, command: string): string {
+  const name = command.replace(/^[/\\]/, '');
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text
+    .replace(new RegExp(`^\\s*[/\\\\]${escaped}(?:\\s+|$)`), '')
+    .trimStart();
+}
+
+/** Return the command token at the start of a message, if any. */
+export function leadingCommand(
+  text: string,
+  commands: readonly SlashCommand[] = SLASH_COMMANDS,
+): SlashCommand | null {
+  const match = /^\s*[/\\]([A-Za-z0-9][\w-]*)(?:\s|$)/.exec(text);
+  if (!match) return null;
+  return (
+    commands.find((item) => item.command.toLowerCase() === `/${match[1].toLowerCase()}`) ?? null
+  );
+}
+
+/** Short badge used by the command palette and the composer chip. */
+export function commandBadge(command: SlashCommand): string {
+  if (command.artifact === 'word') return 'Word';
+  if (command.artifact === 'pptx') return 'Deck';
+  if (command.artifact === 'webpage') return 'Page';
+  if (command.artifact === 'code') return 'Code';
+  if (command.artifact === 'document') return 'Doc';
+  if (command.mode) return 'Mode';
+  return 'Skill';
+}
+
+/**
  * Resolve a fully typed command such as ``/pptx Q3 review`` even after the
  * slash menu has closed. Only artifact-producing skills are returned; mode
  * commands keep their normal inline behavior.
@@ -149,7 +206,7 @@ export function parseArtifactCommand(
   text: string,
   commands: readonly SlashCommand[] = SLASH_COMMANDS,
 ): { command: SlashCommand; query: string } | null {
-  const match = /^\/([A-Za-z0-9][\w-]*)\s+([\s\S]*)$/.exec(text.trim());
+  const match = /^[/\\]([A-Za-z0-9][\w-]*)\s+([\s\S]*)$/.exec(text.trim());
   if (!match) return null;
   const command = commands.find(
     (item) => item.command.toLowerCase() === `/${match[1].toLowerCase()}`,

@@ -195,6 +195,69 @@ test('experts start, stream and finish', () => {
   assert.equal(same, state);
 });
 
+test('search plan tracks aspects, coverage, gaps and sources', () => {
+  let state = reduceActivity(start(), {
+    type: 'search.plan',
+    intent: 'comparison',
+    freshness: 'recent',
+    entities: ['laptop'],
+    aspects: [
+      { id: 1, title: 'GPU and memory', question: 'Which GPU?' },
+      { id: 2, title: 'Price', question: 'How much?' },
+    ],
+  });
+  assert.equal(state.search.aspects.length, 2);
+  assert.equal(state.status, 'working');
+
+  state = reduceActivity(state, {
+    type: 'search.query',
+    aspectId: 1,
+    query: 'ml laptop gpu',
+    status: 'searching',
+  });
+  assert.equal(state.search.aspects[0].status, 'searching');
+  assert.deepEqual(state.search.aspects[0].queries, ['ml laptop gpu']);
+
+  state = reduceActivity(state, {
+    type: 'search.query',
+    aspectId: 1,
+    query: 'ml laptop gpu',
+    status: 'done',
+  });
+  assert.equal(state.search.aspects[0].status, 'done');
+  assert.equal(state.search.queries, 1);
+
+  state = reduceActivity(state, { type: 'search.gap', aspectId: 2, question: 'How much?' });
+  assert.equal(state.search.aspects[1].status, 'gap');
+
+  state = reduceActivity(state, {
+    type: 'search.done',
+    sources: 4,
+    gaps: ['How much?'],
+    queries: 3,
+    aspects: [
+      { id: 1, status: 'done', source_count: 3 },
+      { id: 2, status: 'gap', source_count: 0 },
+    ],
+  });
+  assert.equal(state.search.done, true);
+  assert.equal(state.search.sources, 4);
+  assert.deepEqual(state.search.gaps, ['How much?']);
+  assert.equal(state.search.aspects[0].sourceCount, 3);
+});
+
+test('sources with the same URL are deduped even when ids differ', () => {
+  let state = reduceActivity(start(), {
+    type: 'source.add',
+    item: { id: 'search-1', title: 'A', url: 'https://a.example/x' },
+  });
+  state = reduceActivity(state, {
+    type: 'source.add',
+    item: { id: 'cite-1', title: 'A again', url: 'https://a.example/x' },
+  });
+  assert.equal(state.sources.length, 1);
+});
+
 test('phase changes are idempotent', () => {
   const state = reduceActivity(start(), { type: 'phase', phase: 'reading' });
   assert.equal(state.phase, 'reading');

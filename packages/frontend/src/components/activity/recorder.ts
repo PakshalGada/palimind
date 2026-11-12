@@ -370,6 +370,122 @@ export class RunRecorder {
         break;
       }
 
+      case 'search_plan': {
+        const aspects = Array.isArray(event.aspects) ? event.aspects : [];
+        this.store.dispatch({
+          type: 'search.plan',
+          intent: typeof event.intent === 'string' ? event.intent : undefined,
+          freshness: typeof event.freshness === 'string' ? event.freshness : undefined,
+          entities: Array.isArray(event.entities) ? event.entities.map(String) : [],
+          aspects: aspects.map((item, index) => {
+            const record = (item && typeof item === 'object' ? item : {}) as Record<
+              string,
+              unknown
+            >;
+            return {
+              id: String(record.id ?? index + 1),
+              title:
+                typeof record.title === 'string' && record.title
+                  ? record.title
+                  : `Aspect ${index + 1}`,
+              question: typeof record.question === 'string' ? record.question : '',
+              source_count:
+                typeof record.source_count === 'number' ? record.source_count : 0,
+            };
+          }),
+        });
+        this.store.dispatch({ type: 'phase', phase: 'searching' });
+        break;
+      }
+
+      case 'search_query': {
+        this.store.dispatch({
+          type: 'search.query',
+          aspectId: Number(event.aspect_id ?? 0),
+          query: String(event.query ?? ''),
+          status: event.status === 'done' ? 'done' : 'searching',
+        });
+        this.store.dispatch({ type: 'phase', phase: 'searching' });
+        break;
+      }
+
+      case 'search_result': {
+        this.store.dispatch({
+          type: 'search.query',
+          aspectId: Number(event.aspect_id ?? 0),
+          query: String(event.query ?? ''),
+          status: 'done',
+          count: Number(event.count ?? 0),
+        });
+        break;
+      }
+
+      case 'search_source': {
+        const url = typeof event.url === 'string' ? event.url : '';
+        if (!url) break;
+        this.store.dispatch({
+          type: 'source.add',
+          item: {
+            id: `search-${url}`,
+            title: String(event.title || hostOf(url) || url),
+            url,
+            domain: typeof event.domain === 'string' ? event.domain : hostOf(url),
+            meta: {
+              points:
+                typeof event.score === 'number'
+                  ? Math.round(event.score * 100)
+                  : undefined,
+            },
+          },
+        });
+        break;
+      }
+
+      case 'search_gap': {
+        this.store.dispatch({
+          type: 'search.gap',
+          aspectId: Number(event.aspect_id ?? 0),
+          question: String(event.question ?? ''),
+        });
+        break;
+      }
+
+      case 'search_done': {
+        this.store.dispatch({
+          type: 'search.done',
+          sources: Number(event.sources ?? 0),
+          gaps: Array.isArray(event.gaps) ? event.gaps.map(String) : [],
+          queries: Number(event.queries ?? 0),
+          timings:
+            event.timings && typeof event.timings === 'object'
+              ? (event.timings as Record<string, number>)
+              : undefined,
+          aspects: Array.isArray(event.aspects)
+            ? event.aspects.map((item) => {
+                const record = (item && typeof item === 'object' ? item : {}) as Record<
+                  string,
+                  unknown
+                >;
+                return {
+                  id: String(record.id ?? ''),
+                  status:
+                    record.status === 'done' ||
+                    record.status === 'gap' ||
+                    record.status === 'searching'
+                      ? (record.status as 'done' | 'gap' | 'searching')
+                      : undefined,
+                  source_count:
+                    typeof record.source_count === 'number'
+                      ? record.source_count
+                      : undefined,
+                };
+              })
+            : undefined,
+        });
+        this.store.dispatch({ type: 'phase', phase: 'analyzing' });
+        break;
+      }
+
       case 'sources': {
         (event.sources ?? []).forEach((source, index) => {
           this.store.dispatch({

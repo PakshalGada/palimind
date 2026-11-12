@@ -136,6 +136,30 @@ export interface Expert {
   snippet?: string;
 }
 
+export type SearchAspectStatus = 'pending' | 'searching' | 'done' | 'gap';
+
+/** One sub-question from the decomposed web-search pipeline. */
+export interface SearchAspect {
+  id: string;
+  title: string;
+  question: string;
+  status: SearchAspectStatus;
+  queries: string[];
+  sourceCount: number;
+}
+
+export interface SearchState {
+  intent?: string;
+  freshness?: string;
+  entities: string[];
+  aspects: SearchAspect[];
+  sources: number;
+  gaps: string[];
+  queries: number;
+  done: boolean;
+  timings?: Record<string, number>;
+}
+
 export interface ReasoningState {
   text: string;
   done: boolean;
@@ -156,6 +180,8 @@ export interface ActivityState {
   question?: QuestionState;
   phase?: RunPhase;
   experts?: Expert[];
+  /** Decomposed web-search plan and coverage, when the pipeline ran. */
+  search?: SearchState;
   steps: ToolStep[];
   sources: ResultItem[];
   passages: Passage[];
@@ -187,6 +213,39 @@ export type ActivityEvent =
       answer?: string;
     }
   | { type: 'phase'; phase: RunPhase }
+  | {
+      type: 'search.plan';
+      intent?: string;
+      freshness?: string;
+      entities?: readonly string[];
+      aspects: readonly {
+        id: string | number;
+        title?: string;
+        question?: string;
+        status?: SearchAspectStatus;
+        source_count?: number;
+      }[];
+    }
+  | {
+      type: 'search.query';
+      aspectId: string | number;
+      query: string;
+      status: 'searching' | 'done';
+      count?: number;
+    }
+  | { type: 'search.gap'; aspectId: string | number; question?: string }
+  | {
+      type: 'search.done';
+      sources: number;
+      gaps?: readonly string[];
+      queries?: number;
+      timings?: Record<string, number>;
+      aspects?: readonly {
+        id: string | number;
+        status?: SearchAspectStatus;
+        source_count?: number;
+      }[];
+    }
   | { type: 'expert.start'; id: string; name: string }
   | { type: 'expert.delta'; id: string; text: string }
   | { type: 'expert.end'; id: string }

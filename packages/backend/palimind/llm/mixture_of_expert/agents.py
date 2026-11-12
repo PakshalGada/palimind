@@ -375,6 +375,10 @@ def _emit_event(event_cb: Callable[[str, dict], Any] | None, etype: str, payload
     """Best-effort structured event emission (SSE reasoning chain)."""
     if event_cb is None:
         return
+    # `say` is the agent talking, not a tool step: the chat bubble it produces
+    # is the visible effect, so keep it out of the activity trace.
+    if etype in ("agent:tool_call", "agent:tool_result") and payload.get("tool") == "say":
+        return
     try:
         event_cb(etype, payload)
     except Exception as e:
@@ -687,7 +691,7 @@ def run_agent(
         )
     # Discovery and the run checklist must always be reachable, even when the
     # agent uses a strict pack.
-    for must_have in ("tool_search", "todo_write", "ask_user"):
+    for must_have in ("tool_search", "todo_write", "ask_user", "say"):
         if must_have in TOOL_REGISTRY and must_have not in visible_tools:
             visible_tools.append(must_have)
 
@@ -733,6 +737,11 @@ If a decision, missing detail or credential genuinely blocks the task, call
 ask_user with one short question and a few concrete options, then continue with
 the answer. Do not ask for information you can find with a tool.
 
+On a task that will take more than a few seconds, you may call say once or
+twice with a short progress note for the user (one sentence, e.g. "On it —
+checking the three filings."). Never narrate every tool call, never repeat the
+same note, and never use say for the final answer.
+
 Be concise and effective."""
 
     if extra_system_prompt:
@@ -757,7 +766,7 @@ Be concise and effective."""
     mutated_since_verify = False
     work_tool_calls = 0
     has_work_tools = any(
-        name not in ("todo_write", "tool_search", "ask_user") for name in visible_tools
+        name not in ("todo_write", "tool_search", "ask_user", "say") for name in visible_tools
     )
     start_iteration = 0
 
@@ -1264,7 +1273,9 @@ Be concise and effective."""
                 recent_tool_calls.append(_tool_signature(call_name, native_args))
             batch_names = [str(tc.get("name") or "") for tc in result["tool_calls"]]
             work_tool_calls += sum(
-                1 for name in batch_names if name not in ("todo_write", "tool_search")
+                1
+                for name in batch_names
+                if name not in ("todo_write", "tool_search", "ask_user", "say")
             )
             if any(name in FILE_MUTATION_TOOLS for name in batch_names):
                 mutated_since_verify = True
@@ -1319,7 +1330,7 @@ Be concise and effective."""
             live.append({"role": "assistant", "content": response})
             live.append({"role": "user", "content": tool_msg})
             recent_tool_calls.append(_tool_signature(tool_name, tool_args))
-            if tool_name not in ("todo_write", "tool_search", "ask_user"):
+            if tool_name not in ("todo_write", "tool_search", "ask_user", "say"):
                 work_tool_calls += 1
             if tool_name in FILE_MUTATION_TOOLS:
                 mutated_since_verify = True
@@ -1568,7 +1579,15 @@ def _tool_allowed(tool_name: str, sub_task: dict[str, Any], definition: Any | No
         return True
     if tool_name in tools:
         return True
-    if tool_name in {"ask_agent", "post_to_team", "read_team_notes", "tool_search", "todo_write"}:
+    if tool_name in {
+        "ask_agent",
+        "post_to_team",
+        "read_team_notes",
+        "tool_search",
+        "todo_write",
+        "ask_user",
+        "say",
+    }:
         return True
     if definition is not None and str(getattr(definition, "tool_pack", "auto")) == "auto":
         return True

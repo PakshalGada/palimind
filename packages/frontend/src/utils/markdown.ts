@@ -2,6 +2,7 @@ import { marked } from 'marked';
 import markedKatex from 'marked-katex-extension';
 import DOMPurify from 'dompurify';
 import { highlightCode } from './highlight';
+import { SLASH_COMMANDS } from './slashCommands';
 import {
   ARTIFACT_TYPE_LABEL,
   parseArtifacts,
@@ -31,6 +32,8 @@ export interface MarkdownRenderOptions {
   messageIndex?: number;
   /** True while the assistant is still writing this message. */
   streaming?: boolean;
+  /** Render a leading slash command as a styled chip (user messages). */
+  commandChip?: boolean;
 }
 
 interface CodeRenderContext {
@@ -45,6 +48,21 @@ function escapeHtml(value: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+/**
+ * Turn only the leading ``/command`` of a user message into an inline chip.
+ * The body stays plain Markdown, so the command is still copyable and the
+ * rest of the message renders exactly as typed.
+ */
+function withCommandChip(text: string): string {
+  const match = /^(\s*)[/\\]([A-Za-z0-9][\w-]*)(?=\s|$)/.exec(text);
+  if (!match) return text;
+  const known = SLASH_COMMANDS.some(
+    (command) => command.command.toLowerCase() === `/${match[2].toLowerCase()}`,
+  );
+  if (!known) return text;
+  return `${match[1]}<span class="chat-command-chip">/${match[2]}</span>${text.slice(match[0].length)}`;
 }
 
 function createCodeContext(
@@ -148,11 +166,12 @@ export function formatMarkdown(
 
   ensureKatexCss(text);
 
-  const { messageIndex, streaming = false } = options;
+  const { messageIndex, streaming = false, commandChip = false } = options;
+  const source = commandChip ? withCommandChip(text) : text;
   const cacheKey =
     messageIndex != null
-      ? `${messageIndex}:${streaming ? '1' : '0'}\u0000${text}`
-      : text;
+      ? `${messageIndex}:${streaming ? '1' : '0'}:${commandChip ? 'cmd' : ''}\u0000${text}`
+      : `${commandChip ? 'cmd\u0000' : ''}${text}`;
 
   // Check cache first
   const cached = markdownCache.get(cacheKey);
@@ -183,7 +202,7 @@ export function formatMarkdown(
     );
   };
 
-  let htmlResult = marked.parse(text, { renderer, breaks: true }) as string;
+  let htmlResult = marked.parse(source, { renderer, breaks: true }) as string;
 
   htmlResult = DOMPurify.sanitize(htmlResult, {
     ADD_TAGS: [

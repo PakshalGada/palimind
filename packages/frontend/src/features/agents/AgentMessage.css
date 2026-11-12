@@ -76,6 +76,25 @@
   padding-top: 1px;
 }
 
+/* Consecutive messages from one agent read as a single speaking turn. */
+.ag-msg--grouped {
+  padding-top: 0;
+}
+.ag-msg__avatar--spacer {
+  flex: 0 0 24px;
+  width: 24px;
+}
+
+/* A short note the agent chose to send while working. */
+.ag-msg--note .ag-msg__body {
+  max-width: 560px;
+}
+.ag-msg--note .ag-msg__prose {
+  padding: 7px 11px;
+  border-radius: 13px 13px 13px 4px;
+  background: var(--surface-2);
+}
+
 .ag-msg__body {
   display: flex;
   flex-direction: column;
@@ -318,8 +337,7 @@
 }
 .ag-msg__edit-actions button.is-primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 
-/* Short-bubble answer and quick actions */
-.ag-msg__blocks { width: 100%; }
+/* Quick follow-up actions under an answer. */
 .ag-msg__quick {
   display: flex;
   flex-wrap: wrap;

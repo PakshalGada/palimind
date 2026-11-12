@@ -5,6 +5,7 @@ import {
   type ActivityState,
   type Expert,
   type PlanStep,
+  type SearchAspect,
   type ToolStep,
 } from './model';
 
@@ -161,6 +162,109 @@ export function reduceActivity(state: ActivityState, event: ActivityEvent): Acti
       const next = [...plan];
       next[index] = { ...next[index], status: event.status };
       return { ...state, plan: next };
+    }
+
+    case 'search.plan': {
+      const aspects = event.aspects.map((aspect) => ({
+        id: String(aspect.id),
+        title: aspect.title || aspect.question || `Aspect ${aspect.id}`,
+        question: aspect.question || '',
+        status: aspect.status ?? 'pending',
+        queries: [],
+        sourceCount: aspect.source_count ?? 0,
+      }));
+      return {
+        ...state,
+        search: {
+          intent: event.intent,
+          freshness: event.freshness,
+          entities: [...(event.entities ?? [])],
+          aspects,
+          sources: 0,
+          gaps: [],
+          queries: 0,
+          done: false,
+        },
+        status: deriveStatus({ ...state, status: 'working' }),
+      };
+    }
+
+    case 'search.query': {
+      const search = state.search;
+      if (!search) return state;
+      const id = String(event.aspectId);
+      const existing = search.aspects.find((aspect) => aspect.id === id);
+      const status = event.status === 'done' ? 'done' : 'searching';
+      const nextAspect: SearchAspect = existing
+        ? {
+            ...existing,
+            status,
+            queries: existing.queries.includes(event.query)
+              ? existing.queries
+              : [...existing.queries, event.query],
+          }
+        : {
+            id,
+            title: event.query,
+            question: event.query,
+            status,
+            queries: [event.query],
+            sourceCount: 0,
+          };
+      return {
+        ...state,
+        search: {
+          ...search,
+          aspects: existing
+            ? search.aspects.map((aspect) => (aspect.id === id ? nextAspect : aspect))
+            : [...search.aspects, nextAspect],
+          queries: search.queries + (event.status === 'searching' ? 1 : 0),
+        },
+      };
+    }
+
+    case 'search.gap': {
+      const search = state.search;
+      if (!search) return state;
+      const id = String(event.aspectId);
+      return {
+        ...state,
+        search: {
+          ...search,
+          aspects: search.aspects.map((aspect) =>
+            aspect.id === id ? { ...aspect, status: 'gap' } : aspect,
+          ),
+        },
+      };
+    }
+
+    case 'search.done': {
+      const search = state.search;
+      if (!search) return state;
+      const updates = new Map(
+        (event.aspects ?? []).map((aspect) => [String(aspect.id), aspect]),
+      );
+      return {
+        ...state,
+        search: {
+          ...search,
+          sources: event.sources,
+          gaps: [...(event.gaps ?? [])],
+          queries: event.queries ?? search.queries,
+          timings: event.timings,
+          done: true,
+          aspects: search.aspects.map((aspect) => {
+            const update = updates.get(aspect.id);
+            return {
+              ...aspect,
+              status:
+                update?.status ??
+                (aspect.status === 'done' ? 'done' : 'gap'),
+              sourceCount: update?.source_count ?? aspect.sourceCount,
+            };
+          }),
+        },
+      };
     }
 
     case 'phase':
@@ -330,6 +434,14 @@ export function reduceActivity(state: ActivityState, event: ActivityEvent): Acti
 
     case 'source.add': {
       if (state.sources.some((item) => item.id === event.item.id)) return state;
+      // Web-search events, tool results and the final citation map can all
+      // mention the same URL; keep one source row per URL.
+      if (
+        event.item.url &&
+        state.sources.some((item) => item.url === event.item.url)
+      ) {
+        return state;
+      }
       return { ...state, sources: [...state.sources, event.item] };
     }
 

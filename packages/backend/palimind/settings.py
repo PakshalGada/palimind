@@ -125,6 +125,31 @@ SEARXNG_URL: str = _env_str("PALIMIND_SEARXNG_URL", "http://127.0.0.1:8080") or 
 )
 SEARCH_TIMEOUT: float = _env_float("PALIMIND_SEARCH_TIMEOUT", 8.0)
 
+# ── search pipeline (query decomposition, evidence gathering) ─────────────
+# Master switch. When false, chat falls back to the single-query web search.
+SEARCH_PIPELINE: bool = _env_bool("PALIMIND_SEARCH_PIPELINE", True)
+# Global depth override: quick | standard | deep. Empty keeps each mode's
+# natural default (chat=quick, MoE=standard, deep research=deep).
+SEARCH_DEPTH: str = _env_str("PALIMIND_SEARCH_DEPTH", "") or ""
+# Ask the light model to split the query into aspects/entities. Falls back to
+# deterministic sub-questions when the model is unavailable or returns junk.
+SEARCH_DECOMPOSE: bool = _env_bool("PALIMIND_SEARCH_DECOMPOSE", True)
+# Bounded fan-out for discovery and page fetch.
+SEARCH_MAX_ASPECTS: int = _env_int("PALIMIND_SEARCH_MAX_ASPECTS", 5)
+# Hard ceiling on unique queries dispatched for one search run.
+SEARCH_MAX_QUERIES: int = _env_int("PALIMIND_SEARCH_MAX_QUERIES", 12)
+SEARCH_QUERY_CONCURRENCY: int = _env_int("PALIMIND_SEARCH_QUERY_CONCURRENCY", 4)
+SEARCH_FETCH_CONCURRENCY: int = _env_int("PALIMIND_SEARCH_FETCH_CONCURRENCY", 4)
+# A second search round fills aspects that got no usable evidence.
+SEARCH_SECOND_HOP: bool = _env_bool("PALIMIND_SEARCH_SECOND_HOP", True)
+# Reciprocal-rank fusion + lexical/quality scoring + MMR diversity.
+SEARCH_MMR: bool = _env_bool("PALIMIND_SEARCH_MMR", True)
+SEARCH_MMR_LAMBDA: float = _env_float("PALIMIND_SEARCH_MMR_LAMBDA", 0.35)
+# Per-source sentence evidence kept for the answer prompt.
+SEARCH_EVIDENCE_PER_ASPECT: int = _env_int("PALIMIND_SEARCH_EVIDENCE_PER_ASPECT", 4)
+# Hard cap on the briefing text injected into the answer prompt.
+SEARCH_PROMPT_CHARS: int = _env_int("PALIMIND_SEARCH_PROMPT_CHARS", 14_000)
+
 # ── browser tools ─────────────────────────────────────────────────────────
 
 # Domains the browser may visit. When ALLOWED is non-empty the browser is

@@ -341,6 +341,7 @@ export interface ChannelMessage {
   author_id: string;
   text: string;
   task_id?: string;
+  kind?: string;
   created_at?: number;
 }
 
@@ -849,7 +850,16 @@ export interface TeamMessage {
   team_id: string;
   seq: number;
   author: string;
-  role: 'user' | 'manager' | 'handoff' | 'result' | 'approval' | 'system' | 'synthesis' | string;
+  role:
+    | 'user'
+    | 'manager'
+    | 'chat'
+    | 'handoff'
+    | 'result'
+    | 'approval'
+    | 'system'
+    | 'synthesis'
+    | string;
   content: string;
   run_id: string | null;
   meta: Record<string, unknown>;

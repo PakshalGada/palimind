@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildOfficePayload } from '../src/utils/officePipeline.ts';
+import { buildArtifactOfficePayload, buildOfficePayload } from '../src/utils/officePipeline.ts';
 
 const answer = [
   'Here is the document you asked for.',
@@ -45,4 +45,24 @@ test('PPTX payload turns a slide outline into title/bullet slides', () => {
 test('empty answers produce no payload instead of an empty Office file', () => {
   assert.equal(buildOfficePayload('docx', '   '), null);
   assert.equal(buildOfficePayload('pptx', ''), null);
+});
+
+test('artifact previews use the same Office payload as the composer', () => {
+  const doc = buildArtifactOfficePayload(
+    { type: 'document', title: 'Launch plan', content: '# Launch plan\n\n- Ship it' },
+    'docx',
+  );
+  assert.equal(doc.format, 'docx');
+  assert.equal(doc.title, 'Launch plan');
+  assert.match(doc.content, /Ship it/);
+
+  const deck = buildArtifactOfficePayload(
+    { type: 'slide-outline', title: 'Board deck', content: '# Overview\n- Point A\n\n# Results\n- Up 20%' },
+    'pptx',
+  );
+  assert.equal(deck.format, 'pptx');
+  assert.deepEqual(deck.slides, [
+    { title: 'Overview', bullets: ['Point A'] },
+    { title: 'Results', bullets: ['Up 20%'] },
+  ]);
 });

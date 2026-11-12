@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { MessageCircle, SmilePlus } from 'lucide-react';
 import MessageContent from '../../components/MessageContent';
-import MessageBlocks from '../../components/MessageBlocks';
+import CollapsibleMessage from '../../components/CollapsibleMessage';
 import ArtifactAnswerBlock from '../../components/ArtifactAnswerBlock';
 import AgentAvatar from '../../components/AgentAvatar';
 import MessageActions from '../../components/MessageActions';
@@ -17,6 +17,8 @@ interface ThreadMessage {
   id?: number;
   role: string;
   content: string;
+  /** "progress" for a short note sent with the agent's say tool. */
+  kind?: string;
   timestamp?: number;
   citations?: CitationPayload;
   reply_to?: number;
@@ -48,6 +50,7 @@ export default function AgentMessage({
   agents,
   fallbackAgent,
   showAuthor,
+  grouped = false,
   onDeleted,
   onOpenArtifact,
   onReply,
@@ -59,6 +62,8 @@ export default function AgentMessage({
   agents: AgentListItem[];
   fallbackAgent?: AgentListItem | null;
   showAuthor: boolean;
+  /** True when the previous message is the same agent, within the same burst. */
+  grouped?: boolean;
   onDeleted?: () => void;
   onOpenArtifact?: (artifactId: string) => void;
   onReply?: (message: ThreadMessage) => void;
@@ -81,16 +86,17 @@ export default function AgentMessage({
   }, [agents, fallbackAgent, message.mode_params]);
 
   const isUser = message.role === 'user';
+  const isProgress = !isUser && message.kind === 'progress';
   const timestamp = timeLabel(message.timestamp);
   const deleted = Boolean(message.deleted_at);
   const artifacts = useMemo(
     () =>
-      isUser || deleted
+      isUser || deleted || isProgress
         ? []
         : parseArtifacts(message.content, index).filter((artifact) =>
             shouldAutoOpenArtifact(artifact),
           ),
-    [isUser, deleted, message.content, index],
+    [isUser, deleted, isProgress, message.content, index],
   );
 
   useEffect(() => {
@@ -296,7 +302,9 @@ export default function AgentMessage({
         content={message.content}
         isUser={isUser}
         bookmarked={isBookmarked(message)}
-        onRegenerate={!isUser && message.id ? () => void regenerate() : undefined}
+        onRegenerate={
+          !isUser && !isProgress && message.id ? () => void regenerate() : undefined
+        }
         onEdit={isUser && message.id ? () => setEditing(true) : undefined}
         onDelete={() => void remove()}
         onShare={() => {
@@ -347,17 +355,25 @@ export default function AgentMessage({
   }
 
   return (
-    <div className="ag-msg ag-msg--agent">
-      <div className="ag-msg__avatar">
-        <AgentAvatar
-          config={author?.avatar_config}
-          type={author?.avatar_type === 'upload' ? 'upload' : 'bot'}
-          upload={author?.avatar_upload}
-          size={24}
-        />
-      </div>
+    <div
+      className={`ag-msg ag-msg--agent${grouped ? ' ag-msg--grouped' : ''}${
+        isProgress ? ' ag-msg--note' : ''
+      }`}
+    >
+      {grouped ? (
+        <div className="ag-msg__avatar ag-msg__avatar--spacer" aria-hidden="true" />
+      ) : (
+        <div className="ag-msg__avatar">
+          <AgentAvatar
+            config={author?.avatar_config}
+            type={author?.avatar_type === 'upload' ? 'upload' : 'bot'}
+            upload={author?.avatar_upload}
+            size={24}
+          />
+        </div>
+      )}
       <div className="ag-msg__body">
-        {showAuthor && (
+        {showAuthor && !grouped && (
           <div className="ag-msg__meta">
             <span className="ag-msg__author">{author?.display_name || author?.name || 'Agent'}</span>
             {author?.name && <span className="ag-msg__handle">@{author.name}</span>}
@@ -366,29 +382,32 @@ export default function AgentMessage({
           </div>
         )}
         {replyContent ? <ReplyQuote content={replyContent} /> : null}
-        <div className="ag-msg__activity">
-          <HistoryActivity
-            sessionId={sessionId}
-            messageIndex={index}
-            mode="agent"
-            citations={message.citations}
-          />
-        </div>
+        {!isProgress && (
+          <div className="ag-msg__activity">
+            <HistoryActivity
+              sessionId={sessionId}
+              messageIndex={index}
+              mode="agent"
+              citations={message.citations}
+            />
+          </div>
+        )}
         {artifacts.length > 0 ? (
           <ArtifactAnswerBlock
             artifacts={artifacts}
             onOpen={(artifactId) => onOpenArtifact?.(artifactId)}
           />
         ) : (
-          <MessageBlocks
+          <CollapsibleMessage
             content={message.content}
             citations={message.citations}
             messageIndex={index}
             onOpenArtifact={onOpenArtifact}
-            className="ag-msg__blocks"
+            className="ag-msg__prose"
+            fold={!isProgress}
           />
         )}
-        {!isUser && !message.deleted_at && (
+        {!isUser && !isProgress && !message.deleted_at && (
           <QuickActions
             onAction={(text) =>
               window.dispatchEvent(

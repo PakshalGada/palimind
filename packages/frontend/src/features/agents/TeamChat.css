@@ -31,6 +31,88 @@
 .ag-msg--system span { max-width: 560px; text-align: center; }
 .ag-msg--system time { font-size: var(--type-2xs); }
 
+/* Member results and handoffs are run detail, not conversation. */
+.ag-work {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1px 0 1px 33px;
+  width: 100%;
+}
+.ag-work__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-size: var(--type-xs);
+  cursor: pointer;
+}
+.ag-work__toggle:hover {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+.ag-work__toggle svg {
+  transition: transform var(--dur-2) var(--ease-out);
+}
+.ag-work__toggle svg.is-open {
+  transform: rotate(90deg);
+}
+.ag-work__title {
+  color: var(--ink-secondary);
+}
+.ag-work__count {
+  font-variant-numeric: tabular-nums;
+}
+.ag-work__hint {
+  color: var(--ink-muted);
+}
+.ag-work__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 5px 0 2px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--line-subtle);
+}
+.ag-work__row {
+  min-width: 0;
+}
+.ag-work__meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--ink-muted);
+  font-size: var(--type-2xs);
+}
+.ag-work__author {
+  color: var(--ink-secondary);
+  font-weight: var(--weight-medium);
+}
+.ag-work__role {
+  font-family: var(--font-mono);
+}
+.ag-work__content {
+  margin-top: 2px;
+  color: var(--ink-secondary);
+  font-size: var(--type-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.ag-work__content .message-content {
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+.ag-msg__chat-line + .ag-msg__chat-line {
+  margin-top: 5px;
+}
+
 .ag-team-stop {
   max-width: 720px;
   margin: 0 auto;

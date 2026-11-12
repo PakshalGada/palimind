@@ -1636,6 +1636,84 @@ button.act-chip--action:hover {
     border-inline-start: 1px solid var(--act-hairline);
 }
 
+/* ── decomposed web search ──────────────────────────────────────────────── */
+
+.act-search {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--act-hairline);
+    border-radius: var(--radius-sm);
+    background: var(--act-recessed);
+}
+
+.act-search__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.act-search__title {
+    font-family: var(--font-heading);
+    font-size: var(--type-2xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--act-secondary);
+}
+
+.act-search__meta {
+    font-size: var(--type-2xs);
+}
+
+.act-search__intent {
+    font-size: var(--type-2xs);
+    line-height: 1.4;
+}
+
+.act-search__aspects {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.act-search__aspect {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 22px;
+    font-size: var(--type-sm);
+    color: var(--act-secondary);
+}
+
+.act-search__aspect--searching,
+.act-search__aspect--pending {
+    color: var(--act-muted);
+}
+
+.act-search__aspect--gap .act-search__status {
+    color: var(--act-error);
+}
+
+.act-search__question {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.act-search__status {
+    margin-left: auto;
+    font-size: var(--type-2xs);
+    text-transform: lowercase;
+}
+
 /* ── plan checklist and phases ──────────────────────────────────────────── */
 
 .act-todo {

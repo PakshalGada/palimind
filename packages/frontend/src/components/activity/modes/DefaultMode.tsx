@@ -31,7 +31,7 @@ export function DefaultMode({
   onResolveApproval,
   children,
 }: ModeProps) {
-  const idle = state.steps.length === 0 && !state.reasoning;
+  const idle = state.steps.length === 0 && !state.reasoning && !state.search;
   return (
     <>
       {idle && state.status !== 'done' && state.status !== 'stopped' && state.status !== 'error' ? (

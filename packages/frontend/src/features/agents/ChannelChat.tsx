@@ -3,6 +3,7 @@ import { Hash } from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import AgentAvatar from '../../components/AgentAvatar';
+import CollapsibleMessage from '../../components/CollapsibleMessage';
 import MessageContent from '../../components/MessageContent';
 import ConversationHeader from './ConversationHeader';
 import InputArea from '../../components/InputArea';
@@ -89,9 +90,17 @@ export default function ChannelChat({
             <p>{channel?.purpose || 'A shared room for you and a few agents.'}</p>
           </div>
         ) : (
-          messages.map((message) => {
+          messages.map((message, index) => {
             const isUser = message.author_kind === 'user';
             const author = agentFor(message);
+            const previous = index > 0 ? messages[index - 1] : undefined;
+            const grouped =
+              Boolean(previous) &&
+              previous!.author_kind === 'agent' &&
+              message.author_kind === 'agent' &&
+              previous!.author_id === message.author_id &&
+              (previous!.task_id || '') === (message.task_id || '') &&
+              Math.abs((message.created_at || 0) - (previous!.created_at || 0)) <= 120;
             if (isUser) {
               return (
                 <div key={message.id} className="ag-msg ag-msg--user">
@@ -104,24 +113,33 @@ export default function ChannelChat({
               );
             }
             return (
-              <div key={message.id} className="ag-msg ag-msg--agent">
-                <div className="ag-msg__avatar">
-                  <AgentAvatar
-                    config={author?.avatar_config}
-                    type={author?.avatar_type === 'upload' ? 'upload' : 'bot'}
-                    upload={author?.avatar_upload}
-                    size={24}
-                  />
-                </div>
-                <div className="ag-msg__body">
-                  <div className="ag-msg__meta">
-                    <span className="ag-msg__author">
-                      {author?.display_name || author?.name || message.author_id}
-                    </span>
-                    <span className="ag-msg__handle">#{message.seq}</span>
+              <div
+                key={message.id}
+                className={`ag-msg ag-msg--agent${grouped ? ' ag-msg--grouped' : ''}`}
+              >
+                {grouped ? (
+                  <div className="ag-msg__avatar ag-msg__avatar--spacer" aria-hidden="true" />
+                ) : (
+                  <div className="ag-msg__avatar">
+                    <AgentAvatar
+                      config={author?.avatar_config}
+                      type={author?.avatar_type === 'upload' ? 'upload' : 'bot'}
+                      upload={author?.avatar_upload}
+                      size={24}
+                    />
                   </div>
+                )}
+                <div className="ag-msg__body">
+                  {!grouped && (
+                    <div className="ag-msg__meta">
+                      <span className="ag-msg__author">
+                        {author?.display_name || author?.name || message.author_id}
+                      </span>
+                      <span className="ag-msg__handle">#{message.seq}</span>
+                    </div>
+                  )}
                   <div className="ag-msg__prose">
-                    <MessageContent content={message.text} />
+                    <CollapsibleMessage content={message.text} />
                   </div>
                 </div>
               </div>

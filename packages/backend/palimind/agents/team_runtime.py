@@ -40,7 +40,9 @@ TEAM_PROMPT_V2 = """You are working as part of a team.
 Plan -> act -> verify -> deliver. Use tools instead of guessing.
 When another teammate is better suited, delegate with ask_agent(agent, task, context).
 Write deliverables to your workspace when the task asks for a file.
-Finish with FINAL_ANSWER containing the complete result."""
+Keep the user in the loop with say when a task takes a while; keep those notes
+to one short sentence. Finish with FINAL_ANSWER containing the result for the
+manager (or, for the manager, the answer to the user)."""
 
 
 class TeamRunHandle:
@@ -109,9 +111,11 @@ def _synthesis_prompt(team: dict[str, Any], input: str, results: list[dict[str, 
         chunks.append(f"--- {name} ({role}) ---\n{result.get('output', '')}")
     return (
         f"Team task:\n{input}\n\n"
-        "Combine the teammates' work below into one complete, well-organised "
-        "final answer. Resolve overlap, keep the strongest evidence, and do not "
-        "mention the internal handoffs.\n\n" + "\n\n".join(chunks)
+        "Combine the teammates' work below into one final answer. Lead with the "
+        "result in a few sentences, like a teammate reporting back. Keep the "
+        "detail only if the task asked for a report; otherwise stay short. "
+        "Resolve overlap, keep the strongest evidence, and do not mention the "
+        "internal handoffs.\n\n" + "\n\n".join(chunks)
     )
 
 
@@ -233,6 +237,18 @@ async def _run_member(
     await emit({"type": "team:message", "message": handoff})
 
     async def member_emit(etype: str, payload: dict[str, Any]) -> None:
+        if etype == "agent:message":
+            text = str(payload.get("text") or "").strip()
+            if text:
+                note = append_message(
+                    team["id"],
+                    "chat",
+                    text,
+                    author=f"agent:{defn.id}",
+                    run_id=run_id,
+                    meta={"kind": "chat"},
+                )
+                await emit({"type": "team:message", "message": note})
         if etype == "agent:tool_call":
             blackboard.post(
                 team["id"],
@@ -243,7 +259,10 @@ async def _run_member(
             )
         await emit({"type": etype, "agent_id": defn.id, "name": name, **payload})
 
+    from palimind.agents.service import chat_style_for
+
     prompt = f"{_team_prompt(team, manager=False)}\n\nYour role: {role or 'Specialist'}"
+    prompt += f"\n\n{chat_style_for(defn, team=True)}"
     if previous:
         prompt += f"\n\n[PREVIOUS STEP]\n{previous[:8000]}"
 
@@ -397,11 +416,26 @@ async def _manager_run(
     )
 
     async def manager_emit(etype: str, payload: dict[str, Any]) -> None:
+        if etype == "agent:message":
+            text = str(payload.get("text") or "").strip()
+            if text:
+                note = append_message(
+                    team["id"],
+                    "chat",
+                    text,
+                    author=f"agent:{defn.id}",
+                    run_id=run_id,
+                    meta={"kind": "chat"},
+                )
+                await emit({"type": "team:message", "message": note})
         await emit(
             {"type": etype, "agent_id": defn.id, "name": defn.label, "manager": True, **payload}
         )
 
+    from palimind.agents.service import chat_style_for
+
     prompt = _team_prompt(team, manager=True) + f"\n\nYour role: {role}"
+    prompt += f"\n\n{chat_style_for(defn)}"
     from palimind.agents.runtime import run_with_definition
 
     output = await run_with_definition(

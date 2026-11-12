@@ -136,10 +136,59 @@ async def llm_mode_stream(
                 f"data: {json.dumps({'type': 'agent:tool_call', 'agent_id': 0, 'tool': 'web_search', 'args': {'query': visible_query}})}\n\n"
             )
             try:
-                from palimind.core.web_search import perform_web_search
+                from palimind import settings
 
-                web_results = await asyncio.to_thread(perform_web_search, visible_query, 6, True)
-                web_sources = _web_sources(web_results)
+                if settings.SEARCH_PIPELINE:
+                    from palimind.core.search_pipeline import run_search_pipeline
+
+                    plan_model = chat_model
+                    try:
+                        plan_model = load_config(active_field).get("light_model") or chat_model
+                    except Exception:
+                        pass
+
+                    queue: asyncio.Queue = asyncio.Queue()
+
+                    async def on_search_event(event: dict) -> None:
+                        await queue.put(event)
+
+                    search_task = asyncio.create_task(
+                        run_search_pipeline(
+                            visible_query,
+                            ollama_url=ollama_url,
+                            model=plan_model,
+                            depth=settings.SEARCH_DEPTH or "quick",
+                            root=active_field,
+                            history=history_to_send,
+                            on_event=on_search_event,
+                        )
+                    )
+                    try:
+                        while True:
+                            if search_task.done():
+                                while not queue.empty():
+                                    event = await queue.get()
+                                    yield f"data: {json.dumps(event)}\n\n"
+                                break
+                            try:
+                                event = await asyncio.wait_for(queue.get(), timeout=0.15)
+                                yield f"data: {json.dumps(event)}\n\n"
+                            except TimeoutError:
+                                continue
+                        bundle = search_task.result()
+                        web_results = bundle.to_prompt()
+                        web_sources = list(bundle.sources)
+                    finally:
+                        if not search_task.done():
+                            search_task.cancel()
+                else:
+                    from palimind.core.web_search import perform_web_search
+
+                    web_results = await asyncio.to_thread(
+                        perform_web_search, visible_query, 6, True
+                    )
+                    web_sources = _web_sources(web_results)
+
                 yield (
                     f"data: {json.dumps({'type': 'agent:tool_result', 'agent_id': 0, 'tool': 'web_search', 'result': [{'title': source.title, 'url': source.url, 'snippet': source.snippet} for source in web_sources]})}\n\n"
                 )
@@ -350,7 +399,16 @@ def _progress_event_to_sse(event: dict) -> list[str]:
         return [
             f"data: {json.dumps({'type': 'agent:plan', 'steps': steps, 'mode': 'moe', 'status': 'ready'})}\n\n"
         ]
-    elif etype in ("research_plan", "citation_map"):
+    elif etype in (
+        "research_plan",
+        "citation_map",
+        "search_plan",
+        "search_query",
+        "search_result",
+        "search_source",
+        "search_gap",
+        "search_done",
+    ):
         # Pass structured events through untouched.
         return [f"data: {json.dumps(event)}\n\n"]
     return []
@@ -591,7 +649,7 @@ async def deep_research_mode_stream(
             get_pending_plan,
             register_plan,
         )
-        from palimind.settings import DR_PLAN_REVIEW_TIMEOUT
+        from palimind.settings import DR_NUM_SUBTOPICS, DR_PLAN_REVIEW_TIMEOUT
 
         plan_event = asyncio.Event()
 
@@ -625,7 +683,7 @@ async def deep_research_mode_stream(
                 ollama_url=orch_url,
                 orchestrator_model=orch_model,
                 worker_model=work_model,
-                num_subtopics=5,
+                num_subtopics=DR_NUM_SUBTOPICS,
                 on_progress=on_progress,
                 short_term=history_to_send,
                 mid_term_summary=mid_term_summary,

@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { ArrowUp, Loader2, Mic, Square } from "lucide-react";
+import { ArrowUp, Code2, FileText, Globe2, Loader2, Mic, Presentation, Search, Sparkles, Square, Users } from "lucide-react";
 import ModelSwitcher from "./ModelSwitcher";
 import ModelPicker from "../features/agents/ModelPicker";
 import OfficeExportWatcher, { type OfficeJob } from "./OfficeExportWatcher";
@@ -12,9 +12,13 @@ import {
 } from "../utils/mentions";
 import {
   SLASH_COMMANDS,
+  commandBadge,
   filterSlashCommands,
   findSlashToken,
+  insertSlashCommand,
+  leadingCommand,
   parseArtifactCommand,
+  removeLeadingCommand,
   stripSlashToken,
   type SlashCommand,
   type SlashToken,
@@ -59,6 +63,28 @@ async function fileToBase64(file: File): Promise<string> {
 
 const TEXT_ATTACHMENT_RE =
   /\.(txt|md|markdown|csv|tsv|json|jsonl|yaml|yml|toml|ini|xml|html?|py|js|ts|tsx|jsx|sql|log|rst)$/i;
+
+function SlashCommandIcon({ command, size = 15 }: { command: SlashCommand; size?: number }) {
+  if (command.artifact === 'word' || command.artifact === 'document') {
+    return <FileText size={size} strokeWidth={1.9} />;
+  }
+  if (command.artifact === 'pptx') {
+    return <Presentation size={size} strokeWidth={1.9} />;
+  }
+  if (command.artifact === 'webpage') {
+    return <Globe2 size={size} strokeWidth={1.9} />;
+  }
+  if (command.artifact === 'code') {
+    return <Code2 size={size} strokeWidth={1.9} />;
+  }
+  if (command.mode === 'moe') {
+    return <Users size={size} strokeWidth={1.9} />;
+  }
+  if (command.mode === 'deep_research' || command.mode === 'default') {
+    return command.mode === 'default' ? <Sparkles size={size} strokeWidth={1.9} /> : <Search size={size} strokeWidth={1.9} />;
+  }
+  return <Sparkles size={size} strokeWidth={1.9} />;
+}
 
 /**
  * Build the hidden model prompt for a composer skill. Docx/pptx skills prefer
@@ -377,6 +403,13 @@ function InputArea({
     [extraSkills],
   );
   const slashMatches = slash ? filterSlashCommands(slash.query, slashCommands) : [];
+  const activeCommand = useMemo(
+    () => leadingCommand(value, slashCommands),
+    [value, slashCommands],
+  );
+  const commandQuery = activeCommand
+    ? value.replace(/^\s*[/\\][\w-]+\s*/, '').trim()
+    : '';
 
   const updateSlash = useCallback((text: string, cursor = text.length) => {
     // Don't open the slash menu inside an @agent mention.
@@ -392,22 +425,26 @@ function InputArea({
   const applySlash = useCallback(
     (command: SlashCommand) => {
       if (!slash) return;
-      const cleaned = stripSlashToken(value, slash);
-      setSlash(null);
       if (command.artifact || command.skillId) {
-        // The skill prompt is hidden; the transcript only ever shows the
-        // user's own request. With no text after the command, arm the skill
-        // and wait for the next typed message.
-        pendingSkillRef.current = command;
-        setValue(cleaned);
-        setPendingSkill(cleaned ? null : command);
-        if (cleaned) {
-          requestAnimationFrame(() => void handleSendRef.current());
-        } else {
-          requestAnimationFrame(() => textareaRef.current?.focus());
-        }
+        // Keep the command in the composer so the user can see and edit what
+        // will run. The transcript keeps the same text; the detailed skill
+        // prompt is still assembled only at send time.
+        const result = insertSlashCommand(value, slash, command);
+        pendingSkillRef.current = null;
+        setPendingSkill(null);
+        setSlash(null);
+        setValue(result.text);
+        requestAnimationFrame(() => {
+          const textarea = textareaRef.current;
+          if (!textarea) return;
+          textarea.focus();
+          textarea.setSelectionRange(result.cursor, result.cursor);
+        });
         return;
       }
+      // Mode commands switch the runtime immediately; they are not sent as
+      // text to the model, so the token is removed from the query.
+      const cleaned = stripSlashToken(value, slash);
       pendingSkillRef.current = null;
       setPendingSkill(null);
       setValue(cleaned);
@@ -425,7 +462,9 @@ function InputArea({
   const sendDisabled = disabled || (onLocalSend ? localBusy : false) || isEmpty;
   const composerPlaceholder = pendingSkill
     ? "Describe what you need..."
-    : placeholder;
+    : activeCommand && !commandQuery
+      ? `Describe the ${activeCommand.label.toLowerCase()} you need...`
+      : placeholder;
 
   const adjustHeight = useCallback(() => {
     const ta = textareaRef.current;
@@ -601,25 +640,24 @@ function InputArea({
       ? slashCommands.find(
           (item) =>
             (item.artifact || item.skillId) &&
-            item.command.toLowerCase() === text.toLowerCase(),
+            item.command.toLowerCase() === text.replace(/^\\/, '/').toLowerCase(),
         )
       : null;
     if (exactSkill) {
-      pendingSkillRef.current = exactSkill;
-      setPendingSkill(exactSkill);
-      setValue("");
+      // The command stays in the composer: the user still needs to say what
+      // the document or deck should be about.
       setSlash(null);
-      addToast("Type your request, then send.");
+      addToast(`Add a topic after ${exactSkill.command}.`);
+      requestAnimationFrame(() => textareaRef.current?.focus());
       return;
     }
 
-    // A skill selected in the composer is invisible in the transcript: the
-    // model receives the detailed skill prompt, the user still sees only the
-    // request they typed.
+    // A skill selected in the composer is visible in the transcript, but the
+    // model receives the detailed skill prompt instead of the raw command.
     const pending = fromComposer ? pendingSkillRef.current : null;
     pendingSkillRef.current = null;
     setPendingSkill(null);
-    const direct = fromComposer ? parseArtifactCommand(text, slashCommands) : null;
+    const direct = parseArtifactCommand(text, slashCommands);
     const activeSkill = pending ?? direct?.command ?? null;
     const skillQuery = pending ? text : (direct?.query ?? "");
     let visibleText = text;
@@ -644,7 +682,9 @@ function InputArea({
           });
         }
         modelText = await buildSkillRequest(activeSkill, skillQuery);
-        visibleText = skillQuery;
+        visibleText = pending
+          ? `${activeSkill.command} ${skillQuery}`.trim()
+          : text;
       }
       // Upload attachments for multimodal chat (images/PDFs/text). Separately,
       // index text-like files as captures so document-mode RAG can find them.
@@ -1094,15 +1134,57 @@ function InputArea({
           </div>
         )}
 
+        {activeCommand && (activeCommand.artifact || activeCommand.skillId) && (
+          <div
+            className="composer-command-chip"
+            role="status"
+            title={`${activeCommand.command} · ${activeCommand.description}`}
+          >
+            <span className="composer-command-chip__icon">
+              <SlashCommandIcon command={activeCommand} size={14} />
+            </span>
+            <code className="composer-command-chip__name">{activeCommand.command}</code>
+            <span className="composer-command-chip__label">{activeCommand.label}</span>
+            <span className="composer-command-chip__hint">
+              {commandQuery ? 'Press send to generate' : 'Add a topic, then send'}
+            </span>
+            <button
+              type="button"
+              className="composer-command-chip__remove"
+              aria-label={`Remove ${activeCommand.command}`}
+              title="Remove command"
+              onClick={() => {
+                const next = removeLeadingCommand(value, activeCommand.command);
+                setValue(next);
+                requestAnimationFrame(() => {
+                  const textarea = textareaRef.current;
+                  if (!textarea) return;
+                  textarea.focus();
+                  textarea.setSelectionRange(next.length, next.length);
+                });
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {slash && (
-          <div className="slash-command-popup">
-            <div className="agent-mention-header">Commands</div>
+          <div className="slash-command-popup" role="listbox" aria-label="Slash commands">
+            <div className="slash-command-head">
+              <span className="slash-command-head__title">Commands</span>
+              <span className="slash-command-head__query">
+                {slash.query ? `/${slash.query}` : 'Start typing to filter'}
+              </span>
+            </div>
             {slashMatches.length === 0 && (
               <div className="agent-mention-empty">No matching commands</div>
             )}
             {slashMatches.map((command, index) => (
               <div
                 key={command.id}
+                role="option"
+                aria-selected={index === slashIndex}
                 className={`slash-command-item${index === slashIndex ? " selected" : ""}`}
                 onMouseDown={(event) => {
                   event.preventDefault();
@@ -1110,13 +1192,24 @@ function InputArea({
                 }}
                 onMouseEnter={() => setSlashIndex(index)}
               >
-                <span className="slash-command-name">{command.command}</span>
+                <span className={`slash-command-icon slash-command-icon--${command.artifact ?? (command.mode ? 'mode' : 'skill')}`}>
+                  <SlashCommandIcon command={command} />
+                </span>
                 <span className="slash-command-info">
-                  <span className="slash-command-label">{command.label}</span>
+                  <span className="slash-command-top">
+                    <span className="slash-command-name">{command.command}</span>
+                    <span className="slash-command-label">{command.label}</span>
+                  </span>
                   <span className="slash-command-desc">{command.description}</span>
                 </span>
+                <span className="slash-command-badge">{commandBadge(command)}</span>
               </div>
             ))}
+            <div className="slash-command-foot">
+              <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+              <span><kbd>↵</kbd> insert</span>
+              <span><kbd>esc</kbd> close</span>
+            </div>
           </div>
         )}
 

@@ -21,6 +21,7 @@ import { SourceStack } from '../primitives/SourceStack';
 import { StatusIcon } from '../primitives/StatusIcon';
 import type { ActivityStore } from '../store';
 import { getToolDefinition } from '../toolRegistry';
+import { SearchPlan } from '../SearchPlan';
 import { ReasoningBlock } from './ReasoningBlock';
 import { RunTimeline } from './RunTimeline';
 import { ThinkingIndicator } from './ThinkingIndicator';
@@ -335,7 +336,7 @@ export function ActivityPanel({
   const terminal = isTerminal(state.status);
   const running = !terminal && state.status !== 'idle';
   const tools = distinctTools(steps);
-  const hasContent = steps.length > 0 || Boolean(state.reasoning);
+  const hasContent = steps.length > 0 || Boolean(state.reasoning) || Boolean(state.search);
   const canGantt = steps.length >= 3 || overlaps(steps);
   const narrow = useMediaQuery('(max-width: 560px)');
   const staticRun = history || store.restored;
@@ -616,6 +617,7 @@ export function ActivityPanel({
                   showHeader={showReasonHeader}
                 />
               )}
+              {state.search && <SearchPlan search={state.search} />}
               {state.mode === 'agent' && state.question?.status === 'pending' && (
                 <QuestionCard question={state.question} store={store} agentId={agentId} />
               )}

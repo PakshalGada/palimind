@@ -168,7 +168,18 @@ Pick a mode from the composer before sending a message:
 
 #### Web search
 
-Search is built into the chat flow rather than being a separate switch. When a question needs current information, PaliMind searches, reads the top results, and cites them. For fully offline work, avoid search-dependent questions or use a local-only agent.
+Search is built into the chat flow rather than being a separate switch. When a question needs current information, PaliMind runs a small research pipeline instead of one literal query:
+
+1. **Understand** — detect intent, entities, freshness and the right source types.
+2. **Decompose** — split the question into 2–5 non-overlapping aspects.
+3. **Search** — expand each aspect into keyword, year and source-scoped queries; route academic, code, news, medical and finance aspects to specialist sources.
+4. **Fuse** — reciprocal-rank fusion across queries, domain-quality scoring and MMR diversity.
+5. **Read** — fetch the best pages and extract sentence-level evidence per aspect.
+6. **Fill gaps** — one bounded second search round for aspects that found nothing.
+
+The activity panel shows the live search plan: each aspect, how many sources it found, and any gaps. Answers cite the evidence used. For fully offline work, avoid search-dependent questions or use a local-only agent.
+
+Depth is configurable with `PALIMIND_SEARCH_DEPTH` (`quick`, `standard`, `deep`) and can be disabled with `PALIMIND_SEARCH_PIPELINE=false`.
 
 ### Knowledge
 

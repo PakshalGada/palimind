@@ -428,6 +428,12 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
             break;
           }
 
+          case 'agent:message':
+            if (typeof event.text === 'string' && event.text.trim()) {
+              dispatch({ type: 'appendProgress', text: event.text });
+            }
+            break;
+
           case 'agent:token':
             if (event.reset) {
               rawRef.current = '';

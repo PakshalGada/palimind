@@ -406,10 +406,8 @@ async def run_deep_research_pipeline(
         }
     )
 
-    # ── Phase 2: Shared web briefing ─────────────────────────────────────
+    # ── Phase 2: Shared web briefing (decomposed, evidence-rich) ─────────
     briefing = ""
-    from palimind.core.web_search import perform_web_search
-
     await emit(
         {"type": "planning", "text": "Gathering shared web briefing for all research agents..."}
     )
@@ -422,16 +420,55 @@ async def run_deep_research_pipeline(
         }
     )
     t = time.monotonic()
-    briefing = await asyncio.to_thread(
-        perform_web_search, user_query, max_results=DR_MAX_SEARCH_RESULTS, fetch_content=True
-    )
-    timings["briefing"] = time.monotonic() - t
+    briefing_sources: list[dict] = []
+    research_tools = ["web_search", "fetch_url", "x_search"]
     try:
-        from palimind.generative.citation import parse_web_sources
+        from palimind import settings
+        from palimind.core.search_pipeline import run_search_pipeline
 
-        briefing_sources = [source.to_dict() for source in parse_web_sources(briefing)]
-    except Exception:
-        briefing_sources = []
+        if settings.SEARCH_PIPELINE:
+            bundle = await run_search_pipeline(
+                user_query,
+                ollama_url=ollama_url,
+                model=light_model or orchestrator_model,
+                depth=settings.SEARCH_DEPTH or "deep",
+                root=root,
+                history=short_term,
+                on_event=emit,
+                llm_fn=llm_chat_safe,
+            )
+            briefing = bundle.to_prompt()
+            briefing_sources = [source.to_dict() for source in bundle.sources]
+            research_tools.extend(_research_tools_for(bundle.intent, bundle.aspects))
+        else:
+            from palimind.core.web_search import perform_web_search
+
+            briefing = await asyncio.to_thread(
+                perform_web_search,
+                user_query,
+                max_results=DR_MAX_SEARCH_RESULTS,
+                fetch_content=True,
+            )
+            try:
+                from palimind.generative.citation import parse_web_sources
+
+                briefing_sources = [source.to_dict() for source in parse_web_sources(briefing)]
+            except Exception:
+                briefing_sources = []
+    except Exception as exc:  # noqa: BLE001 - briefing must never sink the run
+        print(f"[deep-research] search pipeline failed: {exc}")
+        try:
+            from palimind.core.web_search import perform_web_search
+
+            briefing = await asyncio.to_thread(
+                perform_web_search,
+                user_query,
+                max_results=DR_MAX_SEARCH_RESULTS,
+                fetch_content=True,
+            )
+        except Exception:
+            briefing = ""
+    timings["briefing"] = time.monotonic() - t
     await emit(
         {
             "type": "agent:tool_result",
@@ -491,7 +528,7 @@ async def run_deep_research_pipeline(
                         "agent_id": subtopic_id,
                         "label": title,
                         "task": f"Research question: {research_question}\nSearch queries: {', '.join(search_queries)}",
-                        "tools": ["web_search", "fetch_url", "x_search"],
+                        "tools": research_tools,
                         "context": user_query,
                     },
                     worker_model,
@@ -622,6 +659,30 @@ async def run_deep_research_pipeline(
         "citations": citation_payload,
         "sources": [s.to_dict() for s in citation_sources] if citation_payload else [],
     }
+
+
+def _research_tools_for(intent: str, aspects: list[dict[str, Any]]) -> list[str]:
+    """Pick specialist search tools for a research run's intent."""
+    tools: list[str] = []
+    types = {str(item).lower() for aspect in aspects for item in aspect.get("source_types", [])}
+    if intent in ("academic", "medical") or "academic" in types:
+        tools.extend(["arxiv_search", "semantic_scholar_search", "openalex_search"])
+    if intent == "medical" or "medical" in types:
+        tools.append("pubmed_search")
+    if intent == "code" or "code" in types:
+        tools.append("github_search")
+    if intent in ("news", "finance") or "news" in types:
+        tools.append("news_search")
+    if intent == "finance" or "finance" in types:
+        tools.append("sec_edgar_search")
+    # Preserve order, drop duplicates, and keep the common web tools first.
+    seen: set[str] = set()
+    out: list[str] = []
+    for name in tools:
+        if name not in seen:
+            seen.add(name)
+            out.append(name)
+    return out
 
 
 def _needs_refinement(critique: dict[str, Any]) -> bool:

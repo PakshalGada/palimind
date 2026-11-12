@@ -1,10 +1,11 @@
 """Chat pipeline for real Word and PowerPoint files.
 
 The composer asks the model for one fenced artifact, then posts the settled
-artifact here. Generation happens on the server with python-docx/python-pptx,
-so the result is a valid OOXML file even when the desktop webview has no
-client-side DOCX/PPTX library available. Files are also kept under
-``~/.palimind/artifacts/exports`` for later download.
+artifact here. Generation runs on the server through two staged pipelines:
+Markdown → styled DOCX (``docx_document``) and outline → planned → rendered →
+validated PPTX (``deck``). The result is a valid OOXML file even when the
+desktop webview has no client-side DOCX/PPTX library available. Files are also
+kept under ``~/.palimind/artifacts/exports`` for later download.
 """
 
 from __future__ import annotations

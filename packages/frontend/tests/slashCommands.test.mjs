@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import {
   filterSlashCommands,
   findSlashToken,
+  insertSlashCommand,
+  leadingCommand,
   parseArtifactCommand,
+  removeLeadingCommand,
   stripSlashToken,
 } from '../src/utils/slashCommands.ts';
 import { parseSlides } from '../src/utils/slides.ts';
@@ -75,6 +78,35 @@ test('stripping the slash token leaves the user text clean', () => {
   const token = findSlashToken('please /pptx', 'please /pptx'.length);
   assert.ok(token);
   assert.equal(stripSlashToken(text, token), 'please about Q3');
+});
+
+test('selecting a command inserts the full command into the query', () => {
+  const token = findSlashToken('/ppt');
+  assert.ok(token);
+  const inserted = insertSlashCommand('/ppt', token, { command: '/pptx' });
+  assert.equal(inserted.text, '/pptx ');
+  assert.equal(inserted.cursor, '/pptx '.length);
+  assert.equal(leadingCommand(inserted.text)?.id, 'pptx');
+});
+
+test('inserting keeps text typed before and after the command', () => {
+  const token = findSlashToken('please /ppt');
+  assert.ok(token);
+  const inserted = insertSlashCommand('please /ppt now', token, { command: '/pptx' });
+  assert.equal(inserted.text, 'please /pptx now');
+});
+
+test('a leading command can be removed without losing the request', () => {
+  assert.equal(removeLeadingCommand('/pptx Q3 review', '/pptx'), 'Q3 review');
+  assert.equal(removeLeadingCommand('/docx', '/docx'), '');
+});
+
+test('a leading backslash is accepted as a slash-command alias', () => {
+  const token = findSlashToken('\\ppt');
+  assert.equal(token?.query, 'ppt');
+  assert.equal(leadingCommand('\\pptx Q3 review')?.id, 'pptx');
+  assert.equal(parseArtifactCommand('\\pptx Q3 review')?.query, 'Q3 review');
+  assert.equal(removeLeadingCommand('\\pptx Q3 review', '/pptx'), 'Q3 review');
 });
 
 test('slide outlines parse into real slides with bullets', () => {

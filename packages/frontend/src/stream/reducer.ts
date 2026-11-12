@@ -31,6 +31,11 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
     case 'setAnswer':
       if (action.text === state.answer) return state;
       return next({ answer: action.text });
+    case 'appendProgress': {
+      const text = action.text.trim();
+      if (!text || state.progress[state.progress.length - 1] === text) return state;
+      return next({ progress: [...state.progress, text] });
+    }
     case 'appendThinking':
       if (!action.text) return state;
       return next({ thinking: state.thinking + action.text });

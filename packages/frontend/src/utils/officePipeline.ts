@@ -14,6 +14,43 @@ export interface OfficePayload {
 }
 
 /**
+ * Build an Office payload from an artifact the user is already looking at.
+ *
+ * The artifact panel and the chat composer share the server-side Office
+ * pipeline, so a deck exported from the preview looks identical to a deck
+ * downloaded when the turn finished.
+ */
+export function buildArtifactOfficePayload(
+  artifact: { type: string; title: string; content: string },
+  format: 'docx' | 'pptx',
+): OfficePayload {
+  const title = artifact.title || (format === 'pptx' ? 'Presentation' : 'Document');
+  if (format === 'docx') {
+    return { format, title, content: artifact.content };
+  }
+
+  const slides =
+    artifact.type === 'slide-outline' || artifact.type === 'document' || artifact.type === 'markdown'
+      ? parseSlides(artifact.content)
+      : [
+          {
+            title,
+            bullets: artifact.content
+              .split('\n')
+              .map((line) => line.replace(/^#{1,6}\s*/, '').replace(/^\s*[-*]\s+/, '').trim())
+              .filter(Boolean)
+              .slice(0, 12),
+          },
+        ];
+
+  return {
+    format,
+    title,
+    slides: slides.length > 0 ? slides : [{ title, bullets: [] }],
+  };
+}
+
+/**
  * Pick the document/deck the model just wrote out of a settled answer.
  *
  * The prompt builders ask for exactly one fenced artifact, but models

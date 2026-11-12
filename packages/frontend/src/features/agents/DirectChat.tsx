@@ -17,6 +17,7 @@ interface ThreadMessage {
   id?: number;
   role: string;
   content: string;
+  kind?: string;
   timestamp?: number;
   reply_to?: number;
   suggestions?: string[];
@@ -271,6 +272,18 @@ export default function DirectChat({
           <>
             {messages.map((message, index) => {
               const showAuthor = message.role !== 'user';
+              const previous = index > 0 ? messages[index - 1] : undefined;
+              const previousKey =
+                previous?.mode_params?.agent_id || previous?.mode_params?.agent_name || '';
+              const currentKey =
+                message.mode_params?.agent_id || message.mode_params?.agent_name || '';
+              const sameBurst =
+                Boolean(previous) &&
+                previous!.role !== 'user' &&
+                message.role !== 'user' &&
+                Boolean(previousKey) &&
+                previousKey === currentKey &&
+                Math.abs((message.timestamp || 0) - (previous!.timestamp || 0)) <= 120;
               const replied = message.reply_to ? byId.get(message.reply_to) : undefined;
               const isMatch = matches.includes(index);
               return (
@@ -289,6 +302,7 @@ export default function DirectChat({
                     agents={agents}
                     fallbackAgent={agent}
                     showAuthor={showAuthor}
+                    grouped={sameBurst}
                     replyContent={replied?.content}
                     onOpenArtifact={openArtifact}
                   />

@@ -24,12 +24,14 @@ export default function MessageContent({
   citations,
   messageIndex,
   streaming = false,
+  commandChip = false,
   onOpenArtifact,
 }: {
   content: string;
   citations?: CitationPayload;
   messageIndex?: number;
   streaming?: boolean;
+  commandChip?: boolean;
   onOpenArtifact?: (artifactId: string) => void;
 }) {
   const html = useMemo(
@@ -37,8 +39,9 @@ export default function MessageContent({
       formatMarkdown(annotateCitationMarkers(content, citations), {
         messageIndex,
         streaming,
+        commandChip,
       }),
-    [content, citations, messageIndex, streaming],
+    [content, citations, messageIndex, streaming, commandChip],
   );
   const sourceLookup = useMemo(() => sourceMap(citations), [citations]);
   const [hover, setHover] = useState<HoverState | null>(null);

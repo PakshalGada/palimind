@@ -1,5 +1,4 @@
-import MessageContent from '../components/MessageContent';
-import MessageBlocks from '../components/MessageBlocks';
+import CollapsibleMessage from '../components/CollapsibleMessage';
 import { SourcesPanel } from '@/components/sources/SourcesPanel';
 import type { StreamState, VideoTarget } from './types';
 
@@ -73,14 +72,11 @@ export default function StreamingMessage({
   messageIndex,
   onOpenArtifact,
   onOpenVideo,
-  bubbles = false,
 }: {
   state: StreamState;
   messageIndex: number;
   onOpenArtifact: (artifactId: string) => void;
   onOpenVideo?: (target: VideoTarget) => void;
-  /** Short message bubbles are an Agents-view treatment only. */
-  bubbles?: boolean;
 }) {
   const hasAnswer = Boolean(state.answer || state.error);
   const content = state.error
@@ -88,24 +84,24 @@ export default function StreamingMessage({
     : state.answer;
   return (
     <div className="live-answer">
-      {hasAnswer &&
-        (bubbles ? (
-          <MessageBlocks
-            content={content}
-            citations={state.citations ?? undefined}
-            messageIndex={messageIndex}
-            streaming={state.status === 'streaming'}
-            onOpenArtifact={onOpenArtifact}
-          />
-        ) : (
-          <MessageContent
-            content={content}
-            citations={state.citations ?? undefined}
-            messageIndex={messageIndex}
-            streaming={state.status === 'streaming'}
-            onOpenArtifact={onOpenArtifact}
-          />
-        ))}
+      {state.progress.length > 0 && (
+        <div className="live-notes" aria-label="Agent updates">
+          {state.progress.map((note, index) => (
+            <div className="live-notes__bubble" key={`${index}-${note.slice(0, 24)}`}>
+              <CollapsibleMessage content={note} messageIndex={messageIndex} fold={false} />
+            </div>
+          ))}
+        </div>
+      )}
+      {hasAnswer && (
+        <CollapsibleMessage
+          content={content}
+          citations={state.citations ?? undefined}
+          messageIndex={messageIndex}
+          streaming={state.status === 'streaming'}
+          onOpenArtifact={onOpenArtifact}
+        />
+      )}
       <SourcesPanel
         citations={state.citations}
         textCitations={state.textCitations}
