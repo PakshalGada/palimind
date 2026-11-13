@@ -62,6 +62,15 @@ _FRONTEND_INPUTS = (
 )
 
 
+def desktop_sidecar_missing(repo_root: Path) -> bool:
+    """True when the Tauri sidecar `binaries/palimind-desktop-<triple>` is
+    absent (it is git-ignored and must be built locally)."""
+    bin_dir = repo_root / "apps" / "desktop" / "src-tauri" / "binaries"
+    # The build script stages through ".palimind-desktop-*" temp files, which
+    # this non-dot pattern deliberately does not match.
+    return not any(p.is_file() for p in bin_dir.glob("palimind-desktop-*"))
+
+
 def frontend_build_stale(frontend_dir: Path) -> bool:
     """True when dist is missing or any frontend source is newer than it, so a
     pulled UI change is never served from an old build."""
@@ -793,6 +802,25 @@ def ui(
             print_success(f"API server running on :{port} ({SERVER_HOST})")
         else:
             print_success(f"API server already running on :{port}")
+
+        # tauri.conf.json bundles the computer-use helper as a sidecar
+        # (externalBin). It is git-ignored, so after a fresh clone or a pull
+        # `tauri dev` fails with "resource path `binaries/...` doesn't exist".
+        if desktop_sidecar_missing(repo_root):
+            build_script = repo_root / "scripts" / "build-desktop-native.sh"
+            if os.name == "nt" or shutil.which("cargo") is None or not build_script.exists():
+                print_error(
+                    "The desktop helper (palimind-desktop) is not built. Install Rust, "
+                    "then run: make desktop-bundle"
+                )
+                raise typer.Exit(1)
+            print_info("Building the desktop helper (palimind-desktop, first run only)...")
+            try:
+                subprocess.run(["bash", str(build_script)], cwd=str(repo_root), check=True)
+            except subprocess.CalledProcessError as e:
+                print_error(f"Building palimind-desktop failed (exit {e.returncode}).")
+                raise typer.Exit(1)
+            print_success("Desktop helper ready")
 
         npm = "npm.cmd" if os.name == "nt" else "npm"
         print_info(f"Starting Palimind via 'tauri dev' (backend port {port})...")
