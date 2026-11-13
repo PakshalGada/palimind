@@ -137,8 +137,12 @@
 .model-switcher-dropdown {
     position: absolute;
     bottom: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
+    /* Anchored to the pill's left edge and opening rightwards. Centring it
+       on the pill pushed it past the left edge of the main panel (clipped
+       under the sidebar at <=1100px, off-screen on narrow windows), and the
+       translateX(-50%) fought the scale() in modalFadeIn. */
+    left: 0;
+    transform-origin: bottom left;
     width: min(420px, calc(100vw - 32px));
     max-height: min(560px, calc(100vh - 160px));
     background: var(--panel-bg);
@@ -463,9 +467,16 @@
 
 /* 760px model-switcher-dropdown */
 @media (max-width: 760px) {
+    /* Position against the composer (.ai-command-center) instead of the
+       pill, so the full-width sheet spans the composer and stays on-screen. */
+    .model-switcher-area {
+        position: static;
+    }
     .model-switcher-dropdown {
         bottom: calc(100% + 10px);
-        width: calc(100vw - 24px);
+        left: 0;
+        right: 0;
+        width: auto;
         max-height: min(72dvh, 560px);
     }
 }
