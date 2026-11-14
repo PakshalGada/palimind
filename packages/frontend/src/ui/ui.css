@@ -70,19 +70,20 @@
   cursor: progress;
 }
 
-/* Primary: the only inverted surface in a view. One per surface. */
+/* Primary: the one signal-filled action in a view. */
 .ui-btn--primary {
-  background: var(--inverse-bg);
-  border-color: var(--inverse-bg);
-  color: var(--inverse-ink);
+  background: var(--color-accent);
+  border-color: transparent;
+  color: var(--color-accent-contrast);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--color-accent) 26%, transparent);
 }
 .ui-btn--primary:hover:not(:disabled) {
   background: var(--color-accent-hover);
-  border-color: var(--color-accent-hover);
+  border-color: transparent;
 }
 .ui-btn--primary:active:not(:disabled) {
-  background: var(--mono-13);
-  border-color: var(--mono-13);
+  background: var(--color-accent);
+  filter: brightness(0.92);
 }
 
 .ui-btn--ghost {
@@ -96,14 +97,14 @@
   color: var(--ink);
 }
 
-/* Destructive: identified by label + icon, never by hue. */
+/* Destructive: a danger-tinted surface with danger ink. */
 .ui-btn--danger {
-  background: var(--surface-2);
+  background: var(--color-error-soft);
   border-color: transparent;
-  color: var(--ink);
+  color: var(--color-error);
 }
 .ui-btn--danger:hover:not(:disabled) {
-  background: var(--surface-active);
+  background: color-mix(in srgb, var(--color-error) 22%, var(--surface));
   border-color: transparent;
 }
 
@@ -155,18 +156,23 @@
   border-color: transparent;
   color: var(--ink-muted);
 }
-/* Tones collapse onto the mono system: inversion or a heavier rule. */
+/* Chips carry their state in a low-alpha colour wash. */
 .ui-chip--accent {
-  background: var(--inverse-bg);
-  border-color: var(--inverse-bg);
-  color: var(--inverse-ink);
-}
-.ui-chip--success,
-.ui-chip--warn,
-.ui-chip--danger {
-  background: var(--surface-3);
+  background: var(--color-accent);
   border-color: transparent;
-  color: var(--ink);
+  color: var(--color-accent-contrast);
+}
+.ui-chip--success {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+.ui-chip--warn {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+.ui-chip--danger {
+  background: var(--color-error-soft);
+  color: var(--color-error);
 }
 
 .ui-badge {
@@ -185,15 +191,21 @@
   color: var(--ink-secondary);
 }
 .ui-badge--accent {
-  background: var(--inverse-bg);
-  border-color: var(--inverse-bg);
-  color: var(--inverse-ink);
+  background: var(--color-accent);
+  border-color: transparent;
+  color: var(--color-accent-contrast);
 }
-.ui-badge--success,
-.ui-badge--warn,
+.ui-badge--success {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+.ui-badge--warn {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
 .ui-badge--danger {
-  background: var(--surface-3);
-  color: var(--ink);
+  background: var(--color-error-soft);
+  color: var(--color-error);
 }
 
 /* ── form fields ─────────────────────────────────────────────────────── */
@@ -263,8 +275,8 @@
 .ui-textarea:focus,
 .ui-select:focus {
   border-color: transparent;
-  background: var(--surface-2);
-  box-shadow: 0 0 0 1px var(--ink);
+  background: var(--color-accent-soft);
+  box-shadow: none;
 }
 .ui-input::placeholder,
 .ui-textarea::placeholder {
@@ -350,16 +362,16 @@
   background: var(--surface-hover);
 }
 .ui-picker-option.is-selected {
-  background: var(--inverse-bg);
-  color: var(--inverse-ink);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
 }
 .ui-picker-option__desc {
   font-size: var(--type-xs);
   color: var(--ink-muted);
 }
 .ui-picker-option.is-selected .ui-picker-option__desc {
-  color: var(--inverse-ink);
-  opacity: 0.7;
+  color: var(--color-accent);
+  opacity: 0.75;
 }
 .ui-picker-empty {
   padding: 8px 9px;
@@ -408,43 +420,39 @@
   width: 0;
   height: 0;
 }
-/* Pill switch with a round knob — geometry is not pixel art. */
+/* Rectangular switch with a square key: no pill, no round knob. */
 .ui-toggle__switch {
   position: relative;
   flex: 0 0 auto;
   width: 38px;
   height: 22px;
-  border-radius: var(--radius-full);
+  border-radius: 5px;
   background: var(--surface-3);
-  border: 1px solid transparent;
-  transition:
-    background-color var(--dur-2) var(--ease-out),
-    border-color var(--dur-2) var(--ease-out);
+  border: none;
+  transition: background-color var(--dur-2) var(--ease-out);
 }
 .ui-toggle__switch::after {
   content: "";
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 16px;
-  height: 16px;
-  border-radius: var(--radius-full);
+  top: 4px;
+  left: 4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
   background: var(--ink-muted);
   transition:
     transform var(--dur-2) var(--ease-out),
     background-color var(--dur-2) var(--ease-out);
 }
 .ui-toggle input:checked + .ui-toggle__switch {
-  background: var(--inverse-bg);
-  border-color: transparent;
+  background: var(--color-accent-soft);
 }
 .ui-toggle input:checked + .ui-toggle__switch::after {
   transform: translateX(16px);
-  background: var(--inverse-ink);
+  background: var(--color-accent);
 }
 .ui-toggle input:focus-visible + .ui-toggle__switch {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  background: var(--color-accent);
 }
 
 /* ── segmented control ───────────────────────────────────────────────── */
@@ -476,10 +484,9 @@
   color: var(--ink);
 }
 .ui-segmented__btn.is-active {
-  background: var(--surface);
+  background: var(--color-accent);
   border-color: transparent;
-  color: var(--ink);
-  box-shadow: var(--shadow-xs);
+  color: var(--color-accent-contrast);
 }
 
 /* ── tabs ────────────────────────────────────────────────────────────── */
@@ -487,11 +494,10 @@
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
-  padding: 0;
+  padding: 3px;
   border: none;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
+  border-radius: var(--radius-md);
+  background: var(--surface);
   align-self: flex-start;
 }
 .ui-tab {
@@ -499,56 +505,59 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid transparent;
+  border: none;
   background: transparent;
   color: var(--ink-muted);
   font-family: var(--font-sans);
   font-size: var(--type-sm);
   font-weight: var(--font-weight-medium);
-  padding: 8px 10px;
-  border-radius: 0;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: color var(--dur-2) var(--ease-out);
+  transition:
+    color var(--dur-2) var(--ease-out),
+    background-color var(--dur-2) var(--ease-out);
 }
 .ui-tab:hover {
   color: var(--ink);
+  background: var(--surface-hover);
 }
 .ui-tab.is-active {
-  color: var(--ink);
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
 }
 .ui-tab.is-active::after {
-  content: "";
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 4px;
-  background: var(--ink);
+  display: none;
 }
 .ui-tab__count {
   font-family: var(--font-mono);
   font-size: var(--type-2xs);
   min-width: 16px;
   text-align: center;
-  padding: 0 3px;
-  border-radius: var(--radius-xs);
-  border: 1px solid currentColor;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: none;
+  background: color-mix(in srgb, currentColor 18%, transparent);
   color: inherit;
-  opacity: 0.8;
 }
 
 /* ── spinner ─────────────────────────────────────────────────────────── */
+/* A pulsing signal block, not a rotating ring. */
 .ui-spinner {
   display: inline-block;
-  border-radius: 50%;
-  border: 1.5px solid var(--line-strong);
-  border-top-color: var(--ink);
-  animation: ui-spin 800ms linear infinite;
+  border: none;
+  border-radius: 2px;
+  background: var(--color-accent);
+  animation: ui-spin 800ms steps(2, end) infinite;
 }
 @keyframes ui-spin {
-  to {
-    transform: rotate(360deg);
+  0%,
+  49.99% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.25;
   }
 }
 
@@ -570,17 +579,17 @@
 }
 .ui-progress__track {
   width: 100%;
-  height: 6px;
+  height: 8px;
   background: var(--surface-3);
   border: none;
-  border-radius: var(--radius-full);
+  border-radius: 2px;
   overflow: hidden;
   position: relative;
 }
 .ui-progress__fill {
   height: 100%;
-  background: var(--ink);
-  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  border-radius: 2px;
   transition: width var(--dur-3) var(--ease-out);
 }
 .ui-progress--indeterminate .ui-progress__fill {
@@ -769,9 +778,9 @@
   min-width: 18px;
   height: 18px;
   padding: 0 4px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
-  background: transparent;
+  border: none;
+  border-radius: 3px;
+  background: var(--surface-3);
   color: var(--ink-secondary);
   font-family: var(--font-mono);
   font-size: var(--type-2xs);
@@ -788,11 +797,12 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  border-radius: var(--radius-full);
+  /* Avatars are rounded tiles, not circles: no rings, no dots. */
+  border-radius: var(--radius-md);
   background: var(--surface-2);
   color: var(--ink-secondary);
-  border: 1px solid var(--line);
-  overflow: visible;
+  border: none;
+  overflow: hidden;
   user-select: none;
 }
 .ui-avatar--xs {
@@ -826,39 +836,30 @@
   letter-spacing: 0.02em;
 }
 .ui-avatar--accent {
-  background: var(--inverse-bg);
-  color: var(--inverse-ink);
-  border-color: var(--inverse-bg);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  border-color: transparent;
 }
-/* Tone variants stay neutral; the surrounding label carries meaning. */
-.ui-avatar--success,
-.ui-avatar--warning,
+.ui-avatar--success {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+.ui-avatar--warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
 .ui-avatar--danger {
-  background: var(--surface-2);
-  color: var(--ink);
-  border-color: var(--line-strong);
+  background: var(--color-error-soft);
+  color: var(--color-error);
 }
-/* Status is shape, not colour: filled / ringed / hollow. */
+/* Status dots are retired. Presence is a full-tile colour wash on the avatar
+   itself, so there is no badge, ring or dot to decode. */
 .ui-avatar__status {
-  position: absolute;
-  right: -1px;
-  bottom: -1px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  border: 2px solid var(--color-bg);
-  background: var(--ink-muted);
+  display: none;
 }
-.ui-avatar__status--online {
-  background: var(--ink);
-}
-.ui-avatar__status--busy {
-  background: var(--color-bg);
-  box-shadow: inset 0 0 0 2px var(--ink);
-}
-.ui-avatar__status--offline {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--ink-muted);
+.ui-avatar--accent .ui-avatar__status,
+.ui-avatar .ui-avatar__status--online {
+  display: none;
 }
 
 /* ── separator ───────────────────────────────────────────────────────── */
@@ -866,7 +867,7 @@
   flex: 1 1 auto;
   height: 1px;
   width: 100%;
-  background: var(--line);
+  background: transparent;
   border: none;
 }
 .ui-separator--vertical {
@@ -890,10 +891,7 @@
 }
 .ui-separator--labelled::before,
 .ui-separator--labelled::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--line);
+  content: none;
 }
 
 /* ── scrollbar ───────────────────────────────────────────────────────── */
@@ -971,15 +969,15 @@
   gap: 10px;
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid var(--line-strong);
-  background: var(--surface-2);
+  border: none;
+  background: var(--color-error-soft);
   border-radius: var(--radius-lg);
   color: var(--ink);
   font-size: var(--type-sm);
   line-height: var(--leading-normal);
 }
 .ui-error-banner__icon {
-  color: var(--ink);
+  color: var(--color-error);
   flex: 0 0 auto;
   margin-top: 1px;
 }
@@ -999,22 +997,19 @@
 }
 .ui-error-banner__retry {
   flex: 0 0 auto;
-  border: 1px solid var(--line-strong);
-  background: transparent;
-  color: var(--ink);
+  border: none;
+  background: var(--surface-2);
+  color: var(--color-error);
   border-radius: var(--radius-xs);
   height: 26px;
   padding: 0 9px;
   font-size: var(--type-xs);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition:
-    background-color var(--dur-2) var(--ease-out),
-    border-color var(--dur-2) var(--ease-out);
+  transition: background-color var(--dur-2) var(--ease-out);
 }
 .ui-error-banner__retry:hover {
   background: var(--surface-hover);
-  border-color: var(--ink);
 }
 .ui-error-banner__dismiss {
   flex: 0 0 auto;
@@ -1084,23 +1079,27 @@
   margin-top: 1px;
   color: var(--ink-secondary);
 }
-/* Tone is expressed by the icon glyph and the rule, not by hue. */
-.ui-toast--success .ui-toast__icon,
-.ui-toast--error .ui-toast__icon,
-.ui-toast--warning .ui-toast__icon,
-.ui-toast--info .ui-toast__icon {
-  color: var(--ink);
+/* Tone is a filled signal surface plus its glyph. No edge rules. */
+.ui-toast--success {
+  background: var(--color-success-soft);
+  box-shadow: var(--shadow-overlay);
 }
 .ui-toast--error {
-  box-shadow:
-    inset 3px 0 0 var(--ink),
-    var(--shadow-overlay);
+  background: var(--color-error-soft);
+  box-shadow: var(--shadow-overlay);
 }
-.ui-toast--success {
-  box-shadow:
-    inset 3px 0 0 var(--ink-secondary),
-    var(--shadow-overlay);
+.ui-toast--warning {
+  background: var(--color-warning-soft);
+  box-shadow: var(--shadow-overlay);
 }
+.ui-toast--info {
+  background: var(--color-info-soft);
+  box-shadow: var(--shadow-overlay);
+}
+.ui-toast--success .ui-toast__icon { color: var(--color-success); }
+.ui-toast--error .ui-toast__icon { color: var(--color-error); }
+.ui-toast--warning .ui-toast__icon { color: var(--color-warning); }
+.ui-toast--info .ui-toast__icon { color: var(--color-info); }
 .ui-toast__body {
   display: flex;
   flex-direction: column;
@@ -1164,14 +1163,7 @@
   color: var(--ink);
 }
 .ui-toast__progress {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  height: 2px;
-  width: 100%;
-  background: var(--ink-muted);
-  transform-origin: left;
-  animation: ui-toast-progress 5000ms linear forwards;
+  display: none;
 }
 @keyframes ui-toast-in {
   from {

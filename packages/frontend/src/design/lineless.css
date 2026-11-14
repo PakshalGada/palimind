@@ -1,0 +1,285 @@
+/* ==========================================================================
+   lineless.css — the no-rings / no-dots / no-lines layer.
+
+   This file is imported last and enforces the interface rule across the
+   legacy component surface:
+
+   - no decorative 1px rules, underlines or dividers;
+   - no circular status dots, rings or spinner rings;
+   - no round avatars or round toggle keys.
+
+   Structure comes from surface fills, spacing and elevation. State comes
+   from the signal colour layer. Focus is a filled accent state, not an
+   outline ring.
+   ========================================================================== */
+
+/* ── 1. hairlines are retired on chrome ────────────────────────────────── */
+:where(
+  .sidebar,
+  .command-bar,
+  .surface-header,
+  .app-sidebar-shell,
+  .ui-card,
+  .ui-modal,
+  .ui-modal__head,
+  .ui-modal__foot,
+  .ui-input,
+  .ui-textarea,
+  .ui-select,
+  .ui-picker,
+  .ui-picker-menu,
+  .ui-popover,
+  .ui-toggle,
+  .ui-segmented,
+  .ui-tabs,
+  .ui-tab,
+  .ui-chip,
+  .ui-badge,
+  .ui-kbd,
+  .ui-empty,
+  .ui-toast,
+  .ui-error-banner,
+  .ui-avatar,
+  .ui-separator,
+  .sb-nav-item,
+  .sb-row,
+  .sb-action,
+  .sb-search,
+  .sb-user,
+  .sb-workspace--button,
+  .home-paper,
+  .home-desktop,
+  .home-start,
+  .home-team__member,
+  .home-row,
+  .chat-hero__prompt,
+  .ai-command-center,
+  .send-btn,
+  .mic-btn,
+  .composer-command-chip,
+  .composer-reply-chip,
+  .agent-model-pill,
+  .slash-command-item,
+  .slash-command-icon,
+  .slash-command-badge,
+  .attachment-chip,
+  .chip-remove,
+  .projects-list,
+  .projects-detail,
+  .projects-row,
+  .projects-tab,
+  .artifact-library-card,
+  .artifact-library-toolbar,
+  .artifact-panel,
+  .settings-nav-item,
+  .settings-theme-card,
+  .ax-topbar,
+  .ax-tool,
+  .ax-skill,
+  .ax-option,
+  .ax-pickchip,
+  .ax-scope,
+  .ax-palette,
+  .ax-bot-type,
+  .ax-template,
+  .ax-composer,
+  .ax-send,
+  .view-frame,
+  .view-frame__body
+) {
+  border-color: transparent !important;
+}
+
+/* Rules and underlines. */
+:where(.ui-tab.is-active, .command-bar__tab.is-active)::after {
+  content: none !important;
+}
+:where(.ui-separator, .ui-separator--vertical, .ui-separator--labelled) {
+  background: transparent !important;
+}
+:where(.ui-separator--labelled)::before,
+:where(.ui-separator--labelled)::after {
+  content: none !important;
+}
+hr {
+  border: 0 !important;
+  height: 0 !important;
+}
+a,
+button,
+.ui-btn {
+  text-decoration: none !important;
+}
+
+/* ── 2. focus is a fill, never a ring ──────────────────────────────────── */
+:focus-visible {
+  outline: none !important;
+}
+input:focus,
+textarea:focus,
+select:focus,
+.ui-input:focus,
+.ui-textarea:focus,
+.ui-select:focus,
+.ag-browser__address:focus,
+.ag-browser__stage:focus,
+.ag-rail__search:focus-within,
+.cu-composer:focus-within,
+#settings-modal .settings-input:focus,
+#settings-modal .settings-textarea:focus {
+  box-shadow: none !important;
+  background-color: var(--color-accent-soft);
+}
+.artifact-library-search:focus-within {
+  border-color: transparent !important;
+  background: var(--color-accent-soft);
+}
+.ag-modal-agent.is-on,
+.kb-card.selected {
+  box-shadow: none !important;
+  background: var(--color-accent-soft) !important;
+}
+.ax-swatch.is-on {
+  box-shadow: none !important;
+  transform: scale(1.14);
+}
+
+/* ── 3. status dots are retired ────────────────────────────────────────── */
+:where(
+  .home-hero__dot,
+  .pulse-dot,
+  .ax-dot-status,
+  .ax-browser-preview__dot,
+  .ag-presence__dots,
+  .ag-browser__owner-dot,
+  .ag-rail__needs-dot,
+  .ag-takeover-banner__dot,
+  .act-dot,
+  .act-caption-dot,
+  .knowledge-tab__dot,
+  .model-active-dot,
+  .artp-live-dot,
+  .artp-status-dot,
+  .artp-tab-dot,
+  .artp-sub-sep,
+  .ui-avatar__status,
+  .cu-state__dot,
+  .ax-bot-type__dot,
+  .settings-nav-status
+) {
+  display: none !important;
+}
+
+/* ── 4. small markers become blocks ────────────────────────────────────── */
+:where(
+  .graph-legend-dot,
+  .graph-selection-dot,
+  .artifact-timeline-dot,
+  .settings-dot,
+  .kb-column-dot,
+  .kb-timeline-marker,
+  .ag-overview__dot,
+  .cu-ghost__dot,
+  .artp-skeleton-pulse
+) {
+  border-radius: 2px !important;
+}
+
+/* ── 5. round controls become rounded tiles ────────────────────────────── */
+:where(
+  .ui-avatar,
+  .ui-avatar__img,
+  .agent-avatar,
+  .agent-avatar__img,
+  .send-btn,
+  .mic-btn,
+  .ax-send,
+  .awp__close,
+  .inbox__close,
+  .inbox__icon,
+  .ax-swatch,
+  .ax-palette__swatch,
+  .ax-avatar__preset,
+  .settings-close,
+  .cu-ghost__ring
+) {
+  border-radius: 8px !important;
+}
+
+/* Radio/checkbox dots become filled keys. */
+.ax-option__radio {
+  border: none !important;
+  border-radius: 3px !important;
+  background: var(--surface-3) !important;
+}
+.ax-option.is-on .ax-option__radio {
+  background: var(--color-accent) !important;
+}
+.ax-option.is-on .ax-option__radio::after {
+  display: none !important;
+}
+
+/* ── 6. spinner rings become pulsing signal blocks ─────────────────────── */
+:where(
+  .ui-spinner,
+  .kb-spinner,
+  .graph-loader,
+  .artp-spinner
+) {
+  border: none !important;
+  border-radius: 2px !important;
+  background: var(--color-accent) !important;
+  animation: lineless-pulse 800ms steps(2, end) infinite !important;
+}
+@keyframes lineless-pulse {
+  0%,
+  49.99% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.25;
+  }
+}
+
+/* ── 7. desktop ghost pointer: a block, not a ring ─────────────────────── */
+.cu-ghost__ring {
+  width: 14px !important;
+  height: 14px !important;
+  margin-left: -7px !important;
+  margin-top: -7px !important;
+  border: none !important;
+  background: var(--color-accent) !important;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--color-accent) 55%, transparent) !important;
+}
+.cu-ghost__dot {
+  background: var(--color-accent) !important;
+}
+.cu-ghost__box {
+  border: none !important;
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent) !important;
+}
+
+/* ── 8. scrollbars are blocks, not hairlines ───────────────────────────── */
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border: 3px solid transparent;
+  border-radius: 6px;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-faint);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.ui-spinner, .kb-spinner, .graph-loader, .artp-spinner) {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}

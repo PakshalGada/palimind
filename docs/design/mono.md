@@ -1,35 +1,50 @@
-# PaliMind — MONO / OS design contract
+# PaliMind — MONO BASE / SIGNAL design contract
 
-**Status:** Phases 0–7 complete. This document is the source of truth for the
-redesign. If code and this document disagree, the document wins and the code is
-the bug.
+**Status:** v3. This document is the source of truth for the interface. If code
+and this document disagree, the document wins and the code is the bug.
 
 ---
 
 ## 1. Direction
 
-**A monochrome instrument panel with an editorial soul and a tiny pixel
-heartbeat.** Black canvas, sharp white type, visible hairlines, compact
-controls, one small pixel moment per surface.
+**A neutral instrument panel with a signal-colour heartbeat.** Neutral surfaces,
+sharp type, filled controls, compact spacing. Colour is a signal, never
+decoration. Geometry is made of filled blocks and rounded rectangles — never
+rings, dots or hairlines.
 
-The app has four rules that override taste:
+The app has five rules that override taste:
 
-1. **One ink, one paper.** Every colour is a step on a neutral ramp. Chrome has
-   no hue — not for success, not for danger, not for charts.
-2. **Structure is a line, not a shadow.** Resting surfaces have a 1px rule and
-   no shadow. Shadows belong to transient overlays only.
-3. **Emphasis is inversion.** White block on black (dark) or black block on
-   white (light) is the strongest signal available. There is exactly one
-   primary action per surface.
-4. **Pixel detail is a signature, not a theme.** Pixel art lives in motion and
-   iconography only. Geometry, surfaces and type stay rounded and editorial:
-   a square control is not "pixel", it is just boxy.
+1. **Neutral base, signal colour.** Surfaces, type and structure stay on the
+   neutral ramp. Hue is reserved for action, selection, state and identity.
+   Literal colour lives only in `design/tokens.css` and the bot palette.
+2. **Structure is a surface, not a line.** Separation comes from surface steps,
+   spacing and elevation. Resting chrome has no 1px rules, dividers or
+   underlines.
+3. **No rings, no dots.** No circular avatars, status dots, spinner rings,
+   focus outlines or halo shadows. Indicators are filled blocks, labels or
+   glyphs. Focus is a filled accent state.
+4. **Action is accent; inversion is authored content.** The primary action uses
+   the signal accent. Inversion stays for user turns and selected content.
+   There is exactly one primary action per surface.
+5. **Pixel detail is a signature, not a font.** Pixel art lives in motion,
+   iconography and status glyphs. Type and long-form content stay editorial.
 
 ### What content may keep
 
 User content — images, PDFs, generated artifacts, charts inside documents — keeps
-its own colours inside the mono frame. The rule applies to product chrome and
+its own colours inside the neutral frame. The rule applies to product chrome and
 system state only.
+
+### Colour roles
+
+| Role | Token family | Used for |
+|---|---|---|
+| Action | `--color-accent*` | primary buttons, links, focus fills |
+| Selection | `--color-accent-soft` | active nav, active tab, selected row |
+| State | `--color-success/warning/error/info*` | live state, alerts, toasts, progress |
+| Identity | `--color-cat-*` | agents, projects, artifact types, data surfaces |
+
+Colour never carries meaning alone: every state also has a glyph and a label.
 
 ---
 
@@ -44,7 +59,7 @@ system state only.
 | Projects / Artifacts | **Promote to full views** (Phase 2) | The modal/panel split is the biggest IA problem |
 | Home view | **Yes** (Phase 2) | A calm starting surface, not a marketing page |
 | Pixel placements | **Six recurring spots** — brand, working status, streaming caret, indexing meter, empty-state glyph, one-shot success stamp | Everything else is static |
-| No-colour rule | **Strict for chrome and system state** | Content is excepted, documented above |
+| Colour rule | **Signal palette only** | Action, selection, state and identity; content is excepted |
 
 ---
 
@@ -150,17 +165,19 @@ instead of a 1px outline.
 
 ---
 
-## 4. Selective hairlines (v2)
+## 4. No hairlines (v3)
 
-MONO v1 flipped every border visible, which produced a wireframe. v2 reverses
-that over-correction while keeping structure:
+Lines, dividers and underlines are retired from chrome:
 
-- **Structural edges keep a hairline:** top bar, sidebar, page-header rule,
-  table row rules.
-- **Resting surfaces do not:** buttons, inputs, cards, nav items and the composer
-  use a fill and `--shadow-xs` instead.
-- **Focus and selection** may draw a 1px ink edge or a ring.
+- **Separation** comes from surface tiers (`--bg`, `--surface`, `--surface-2`),
+  spacing and elevation shadows.
+- **Grouping** comes from inset fills, not rules. Lists are rows on a surface.
+- **Focus and selection** are filled accent states. No outline rings, no
+  underline tabs, no 1px ink edges.
+- **Content** may still use table structure, but row separation is a fill.
 
+`--line`, `--line-subtle` and `--line-strong` resolve to `transparent` so legacy
+components collapse without a layout rewrite. New code should not use them.
 When a surface looks too busy, remove the container before adding a border.
 
 ---
@@ -186,19 +203,21 @@ The **last** occurrence must be the Inter/Universal Sans stack.
 
 ---
 
-## 6. Status without colour
+## 6. Status with signal colour
 
 | Status | Glyph | Treatment |
 |---|---|---|
-| idle | hollow square | muted text |
-| working | 2×2 pixel checker (`PixelLoader`) | ink + animated pixel |
-| waiting | outlined diamond | dotted 1px rule + slow blink |
-| paused | two bars | 50% opacity |
-| scheduled | corner tick | static mono label |
-| error | pixel cross | strong 1px rule + explicit label |
-| success | pixel check | static / one-shot stamp |
+| idle | checker | muted text |
+| working | 2×2 pixel checker (`PixelLoader`) | accent glyph + label |
+| waiting | diamond | warning glyph + label |
+| paused | two bars | muted text |
+| scheduled | clock | static mono label |
+| error | pixel cross | danger glyph + label |
+| success | pixel check | success glyph + label |
 
-A status is always **glyph + label**. Colour alone never carries meaning.
+A status is always **glyph + label + colour**. Colour alone never carries
+meaning. There are no status dots: presence and state are text, glyph or a
+filled surface.
 
 ---
 
@@ -247,16 +266,22 @@ send buttons, 2px tags and any pixel-shaped control. The guard fails on
 ## 8. Guard
 
 ```bash
-npm run check:mono        # strict: any violation fails
-npm run audit:mono        # inventory: type, radii, shadows, motion, hue
+npm run check:design      # strict: any violation fails
+npm run audit:design      # inventory: type, radii, shadows, motion, colour
 ```
 
-The whole stylesheet tree is now in strict scope: hue, off-scale radii,
-`backdrop-filter` outside the two sanctioned overlays, and gradients all fail
-the build. `--strict` is the default; there is no warning tier left.
+The whole stylesheet tree is in strict scope. The guard fails on:
 
-The guard also rejects `backdrop-filter` outside `CommandPalette.css` and the
-mobile sidebar scrim, and gradients in strict files.
+- literal colour outside the palette files (`design/tokens.css`,
+  `bots/config.ts`, `features/agents/agents.css`);
+- off-scale radii;
+- `border-radius: 50%` — rings and dots are retired;
+- `outline: Npx` — focus is a filled state;
+- `box-shadow: 0 0 0 …` halos, except the full-viewport scrim mask;
+- `backdrop-filter` outside `CommandPalette.css` and the mobile sidebar scrim;
+- decorative gradients outside palette files.
+
+`npm run check:mono` and `npm run audit:mono` remain as aliases.
 
 ---
 

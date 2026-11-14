@@ -31,6 +31,13 @@ const styles = files.map((f) => ({
   file: relative(SRC, f),
   text: readFileSync(f, 'utf8'),
 }));
+const PALETTE_FILES = new Set([
+  'design/tokens.css',
+  'bots/config.ts',
+  'features/agents/agents.css',
+  'components/KnowledgeGraph.tsx',
+]);
+const chrome = styles.filter((s) => !PALETTE_FILES.has(s.file)).map((s) => s.text).join('\n');
 const all = styles.map((s) => s.text).join('\n');
 
 const count = (re) => (all.match(re) ?? []).length;
@@ -50,7 +57,7 @@ const shadows = tally(/box-shadow\s*:\s*([^;}]+)/g);
 const reducedMotionFiles = styles.filter((s) => s.text.includes('prefers-reduced-motion')).length;
 const backdropFiles = styles.filter((s) => s.text.includes('backdrop-filter')).length;
 
-const hueHex = all.match(/#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b/g) ?? [];
+const hueHex = chrome.match(/#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b/g) ?? [];
 const chromatic = new Set();
 for (const hex of hueHex) {
   let h = hex.slice(1);
@@ -59,9 +66,13 @@ for (const hex of hueHex) {
   if (Math.max(r, g, b) - Math.min(r, g, b) > 2) chromatic.add(hex);
 }
 
+const haloRings = (chrome.match(/box-shadow\s*:\s*([^;}]+)/g) ?? []).filter(
+  (value) => /\b0\s+0\s+0\b/.test(value) && !/9999px/.test(value),
+).length;
+
 const line = (label, value) => console.log(`${label.padEnd(38)} ${value}`);
 
-console.log('\nPALIMIND — MONO AUDIT\n');
+console.log('\nPALIMIND — DESIGN AUDIT\n');
 line('Stylesheets', files.length);
 line('CSS lines', all.split('\n').length.toLocaleString());
 line('Distinct literal font sizes', fontSize.length);
@@ -70,7 +81,10 @@ line('Distinct literal box-shadows', shadows.length);
 line('Animations declared', count(/animation\s*:/g));
 line('Files with reduced-motion guard', `${reducedMotionFiles} / ${files.length}`);
 line('Files using backdrop-filter', backdropFiles);
-line('Chromatic hex values remaining', chromatic.size);
+line('Raw hue values outside palette', chromatic.size);
+line('Circular 50% radii', count(/border-radius\s*:\s*50%/g));
+line('Hard outlines', count(/outline\s*:\s*[1-9][\d.]*px/g));
+line('Halo shadow rings', haloRings);
 
 console.log('\nFont sizes (literal, top 15)');
 for (const [v, n] of fontSize.slice(0, 15)) console.log(`  ${String(n).padStart(3)}  ${v}`);
@@ -78,7 +92,7 @@ for (const [v, n] of fontSize.slice(0, 15)) console.log(`  ${String(n).padStart(
 console.log('\nRadii (literal, top 15)');
 for (const [v, n] of radius.slice(0, 15)) console.log(`  ${String(n).padStart(3)}  ${v}`);
 
-console.log('\nMonochrome violations');
+console.log('\nRaw hue values outside the palette');
 if (chromatic.size === 0) console.log('  none');
 else for (const hex of chromatic) console.log(`  ${hex}`);
 console.log('');
