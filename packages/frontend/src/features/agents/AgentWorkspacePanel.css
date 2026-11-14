@@ -4,7 +4,7 @@
 .awp__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--border-subtle); background: var(--panel-bg); }
 .awp__head h2 { margin: 0; display: flex; align-items: center; gap: 7px; font-size: var(--text-ui); font-weight: var(--weight-medium); }
 .awp__head p { margin: 3px 0 0; font-size: var(--type-2xs); color: var(--text-muted); word-break: break-all; }
-.awp__close { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 2px; border: 1px solid var(--border-subtle); background: transparent; color: var(--text-secondary); cursor: pointer; flex-shrink: 0; }
+.awp__close { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-subtle); background: transparent; color: var(--text-secondary); cursor: pointer; flex-shrink: 0; }
 .awp__close:hover { color: var(--text-main); background: var(--accent-bg, rgba(127,127,127,0.1)); }
 .awp__body { flex: 1; overflow-y: auto; padding: 14px 18px 24px; display: flex; flex-direction: column; gap: 10px; }
 .awp__path { display: flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--text-muted); }

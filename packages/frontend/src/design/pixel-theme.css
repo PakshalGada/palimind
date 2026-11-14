@@ -17,9 +17,38 @@ html[data-ui-style="pixel"] canvas {
     image-rendering: pixelated;
 }
 
-/* ── background ──────────────────────────────────────────────────────────
-   The canvas is a flat fill. No dot grid, no scan band: texture is carried by
-   the pixel glyphs and the motion layer, never by a repeating field. */
+/* ── background: a dot grid on the canvas + a slow scan band ────────────── */
+html[data-ui-style="pixel"] .app-main-panel {
+    /* SVG pattern instead of a gradient: the strict mono guard allows no
+       decorative gradients, and an SVG stays crisp at every DPR. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect x='0' y='0' width='1' height='1' fill='%23808080' fill-opacity='0.16'/%3E%3C/svg%3E");
+    background-size: 16px 16px;
+    background-position: 8px 8px;
+}
+html[data-ui-style="pixel"] .app-container {
+    position: relative;
+}
+html[data-ui-style="pixel"] .app-container::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 96px;
+    pointer-events: none;
+    z-index: 1;
+    /* A 1×4 scanline tile, not a gradient. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='4'%3E%3Crect width='1' height='1' fill='%23808080' fill-opacity='0.22'/%3E%3C/svg%3E");
+    background-size: 100% 4px;
+    opacity: 0.16;
+    transform: translateY(-96px);
+    animation: pixel-scan 16s steps(80, end) infinite;
+    will-change: transform;
+}
+@keyframes pixel-scan {
+    0% { transform: translateY(-96px); }
+    100% { transform: translateY(100vh); }
+}
 
 /* ── entrances: overlays assemble in a few stepped frames ───────────────── */
 html[data-ui-style="pixel"] .modal-content,
@@ -47,4 +76,42 @@ html[data-ui-style="pixel"] .message-wrapper {
     100% { transform: none; opacity: 1; }
 }
 
-/* The active settings section is a filled block; no cursor line is needed. */
+/* The active settings section gets a blinking pixel cursor. */
+html[data-ui-style="pixel"] .settings-nav-item.active {
+    position: relative;
+}
+html[data-ui-style="pixel"] .settings-nav-item.active::before {
+    content: "";
+    position: absolute;
+    left: 3px;
+    top: 50%;
+    width: 3px;
+    height: 8px;
+    margin-top: -4px;
+    background: currentColor;
+    animation: pixel-cursor 1.2s steps(2, end) infinite;
+}
+@keyframes pixel-cursor {
+    0%, 49.99% { opacity: 1; }
+    50%, 100% { opacity: 0.25; }
+}
+
+/* ── rest states ────────────────────────────────────────────────────────── */
+html[data-ui-style="pixel"][data-pixel-paused="true"] .app-container::after,
+html[data-ui-style="pixel"][data-pixel-paused="true"] .settings-nav-item.active::before {
+    animation-play-state: paused;
+}
+html[data-ui-style="pixel"][data-pixel-accents="off"] .app-container::after {
+    display: none;
+}
+html[data-ui-style="pixel"][data-pixel-accents="off"] .settings-nav-item.active::before {
+    animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+    html[data-ui-style="pixel"]:not([data-motion="full"]) .app-container::after {
+        display: none;
+    }
+}
+html[data-ui-style="pixel"][data-motion="reduced"] .app-container::after {
+    display: none;
+}

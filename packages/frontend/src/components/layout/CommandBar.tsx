@@ -1,7 +1,14 @@
+import {
+  Bell,
+  Menu,
+  Moon,
+  Plus,
+  Search,
+  Sun,
+} from 'lucide-react';
 import { useApp } from '../../AppContext';
 import { runCommand } from '../../commands/registry';
 import { PixelGlyph } from '../pixel/PixelGlyph';
-import { PixelIcon } from '../pixel/PixelIcon';
 import { PixelLoader } from '../pixel/PixelLoader';
 import type { AgentsView } from '../../types';
 import './CommandBar.css';
@@ -59,10 +66,11 @@ export default function CommandBar() {
   const primary = (() => {
     switch (activeView) {
       case 'chat':
-        return { label: 'New chat', run: () => runCommand('chat.new') };
+        return { label: 'New chat', icon: Plus, run: () => runCommand('chat.new') };
       case 'agents':
         return {
           label: 'New agent',
+          icon: Plus,
           run: () => window.dispatchEvent(new CustomEvent('palimind:new-agent')),
         };
       default:
@@ -82,11 +90,10 @@ export default function CommandBar() {
         aria-label="Open navigation"
         title="Open navigation"
       >
-        <PixelIcon name="menu" size={16} />
+        <Menu size={16} />
       </button>
 
       <div className="command-bar__brand">
-        <PixelGlyph sprite="spark" cell={2} className="command-bar__mark" />
         <span className="command-bar__wordmark">PaliMind</span>
       </div>
 
@@ -147,7 +154,7 @@ export default function CommandBar() {
             onClick={() => setCommandPaletteOpen(true)}
             aria-label="Search or run a command"
           >
-            <PixelGlyph sprite="search" cell={1.75} />
+            <Search size={14} />
             <span className="command-bar__command-label">Search or run a command</span>
             <kbd className="command-bar__kbd">⌘K</kbd>
           </button>
@@ -169,7 +176,7 @@ export default function CommandBar() {
 
         {primary && (
           <button type="button" className="command-bar__primary" onClick={primary.run}>
-            <PixelGlyph sprite="plus" cell={1.75} />
+            <primary.icon size={14} />
             <span className="command-bar__primary-label">{primary.label}</span>
           </button>
         )}
@@ -181,7 +188,7 @@ export default function CommandBar() {
           aria-label="Approvals inbox"
           onClick={() => window.dispatchEvent(new CustomEvent('palimind:open-inbox'))}
         >
-          <PixelIcon name="bell" size={16} />
+          <Bell size={15} />
           {waiting > 0 && <span className="command-bar__badge">{waiting}</span>}
         </button>
 
@@ -192,11 +199,7 @@ export default function CommandBar() {
           aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
         >
-          {theme === 'dark' ? (
-            <PixelIcon name="sun" size={16} />
-          ) : (
-            <PixelIcon name="moon" size={16} />
-          )}
+          {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
         </button>
       </div>
     </header>

@@ -63,7 +63,7 @@
 
 .chat-hero__spark {
     display: inline-flex;
-    color: var(--color-accent);
+    color: var(--ink-secondary);
     margin-bottom: 14px;
 }
 
@@ -98,7 +98,7 @@
 .chat-hero__prompt {
     min-height: 40px;
     padding: 9px 14px;
-    border: none;
+    border: 1px solid transparent;
     border-radius: var(--radius-md);
     background: var(--surface-2);
     color: var(--ink-secondary);
@@ -108,11 +108,13 @@
     cursor: pointer;
     transition:
         background-color var(--dur-2) var(--ease-out),
+        border-color var(--dur-2) var(--ease-out),
         color var(--dur-2) var(--ease-out);
 }
 .chat-hero__prompt:hover {
-    background: var(--color-accent-soft);
-    color: var(--color-accent);
+    background: var(--surface-hover);
+    border-color: transparent;
+    color: var(--ink);
 }
 @media (max-width: 760px) {
     .chat-interface.empty-chat {

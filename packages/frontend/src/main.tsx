@@ -12,8 +12,6 @@ import './App.css'
 import './components/activity/activity.css'
 // Last: the pixel interface style overrides geometry/type/motion when active.
 import './design/pixel-theme.css'
-// Final layer: removes rings, dots and hairlines from the legacy chrome.
-import './design/lineless.css'
 
 const ActivityPlayground = lazy(() => import('./components/activity/playground/Playground'))
 const ComputerUsePanel = lazy(() => import('./features/desktop/ComputerUsePanel'))

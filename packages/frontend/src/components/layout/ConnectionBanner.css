@@ -3,17 +3,18 @@
   align-items: center;
   gap: 10px;
   flex: 0 0 auto;
-  margin: 8px 16px 0;
-  padding: 8px 14px;
-  border: none;
+  margin: 10px 16px 0;
+  padding: 9px 12px;
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--color-warning) 8%, var(--surface));
+  background: var(--surface-2);
   color: var(--ink);
   font-size: var(--type-sm);
+  box-shadow: var(--shadow-xs);
 }
 .connection-banner__icon {
   display: inline-flex;
-  color: var(--color-warning);
+  color: var(--ink);
   flex: 0 0 auto;
 }
 .connection-banner__text {
@@ -34,11 +35,11 @@
 }
 .connection-banner__btn {
   flex: 0 0 auto;
-  height: 28px;
-  padding: 0 10px;
-  border: none;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-xs);
-  background: var(--surface-2);
+  background: transparent;
   color: var(--ink);
   font-size: var(--type-xs);
   cursor: pointer;
@@ -47,8 +48,8 @@
   background: var(--surface-hover);
 }
 .connection-banner__btn--ghost {
-  background: transparent;
-  color: var(--ink-secondary);
+  border-color: transparent;
+  color: var(--ink-muted);
 }
 .connection-banner__close {
   display: inline-flex;
@@ -82,18 +83,8 @@
   .connection-banner {
     margin: 8px 12px 0;
     flex-wrap: wrap;
-    padding: 8px 10px;
-    gap: 8px;
   }
-  /* The global banner only needs the headline on a narrow screen; the
-     details stay behind the disclosure. */
   .connection-banner__text span {
-    display: none;
-  }
-  .connection-banner__text strong {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
   }
 }

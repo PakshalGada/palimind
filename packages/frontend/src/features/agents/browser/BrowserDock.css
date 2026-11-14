@@ -118,7 +118,7 @@
   font-size: var(--type-xs);
 }
 .ag-browser__address:read-only { color: var(--ink-muted); }
-.ag-browser__address:focus { box-shadow: none; background: var(--color-accent-soft); }
+.ag-browser__address:focus { box-shadow: 0 0 0 1px var(--focus); }
 
 .ag-browser__owner {
   display: inline-flex;
@@ -194,7 +194,7 @@
   height: 100%;
   object-fit: contain;
 }
-.ag-browser__stage:focus { box-shadow: none; background: var(--color-accent-soft); }
+.ag-browser__stage:focus { box-shadow: 0 0 0 1px var(--focus); }
 .ag-browser__stage.is-human { cursor: default; }
 
 .ag-browser__loading {

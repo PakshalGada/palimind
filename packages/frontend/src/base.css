@@ -87,31 +87,6 @@ h4 {
     color: var(--ink);
 }
 
-/* ── links and rules ────────────────────────────────────────────────────── */
-/* Links are identified by signal colour, not by an underline stroke. */
-a {
-    color: var(--color-accent);
-    text-decoration: none;
-}
-a:hover {
-    color: var(--color-accent-hover);
-}
-/* Horizontal rules are retired as lines; they become spacing only. */
-hr {
-    border: 0;
-    height: 0;
-    margin: var(--space-6) 0;
-}
-/* Bullets in authored content are square blocks, not disc dots. */
-.message-content ul,
-.ui-card ul:not([class]) {
-    list-style-type: square;
-}
-.message-content li::marker,
-.ui-card li::marker {
-    color: var(--color-accent);
-}
-
 /* ── controls baseline ─────────────────────────────────────────────────── */
 /* The bare <button> is a *secondary* control: bordered, quiet, never a white
    block. Primary actions opt in explicitly. */
@@ -173,13 +148,13 @@ select {
     border-color: var(--line-strong);
 }
 .action-btn.primary {
-    background: var(--color-accent);
-    border-color: transparent;
-    color: var(--color-accent-contrast);
+    background: var(--inverse-bg);
+    border-color: var(--inverse-bg);
+    color: var(--inverse-ink);
 }
 .action-btn.primary:hover:not(:disabled) {
     background: var(--color-accent-hover);
-    border-color: transparent;
+    border-color: var(--color-accent-hover);
 }
 .action-btn.ghost {
     background: transparent;
@@ -222,30 +197,13 @@ select {
 }
 
 /* ── focus ─────────────────────────────────────────────────────────────── */
-/* No outline rings. Keyboard focus is a filled accent state: the control
-   becomes the signal block itself, which is visible on every surface and
-   keeps the ring/dot/line vocabulary out of the chrome. */
+/* Focus is never removed. Every interactive element gets the same 2px ring,
+   whether or not it paints its own border. */
 :focus-visible {
-    outline: none;
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
 }
-button:focus-visible:not(:disabled),
-[role="button"]:focus-visible:not(:disabled) {
-    background-color: var(--color-accent) !important;
-    color: var(--color-accent-contrast) !important;
-}
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
-    outline: none;
-    background-color: var(--color-accent-soft);
-    color: var(--ink);
-}
-a:focus-visible {
-    outline: none;
-    background-color: var(--color-accent-soft);
-    color: var(--ink);
-}
-/* Mouse focus stays quiet; keyboard focus keeps the filled state. */
+/* Mouse focus stays quiet; keyboard focus keeps the ring. */
 button:focus:not(:focus-visible),
 input:focus:not(:focus-visible),
 textarea:focus:not(:focus-visible),
@@ -279,8 +237,23 @@ input:disabled {
     transform: translateY(0);
 }
 
-/* Recording is communicated by the filled mic button and its waveform,
-   not by a pulsing frame rule. */
+/* ── recording state (mic-driven hairline pulse on the app frame) ─────── */
+@keyframes border-pulse {
+    0% {
+        border-color: var(--line);
+    }
+    50% {
+        border-color: var(--ink);
+    }
+    100% {
+        border-color: var(--line);
+    }
+}
+.app-container.recording,
+.app-container.transcribing,
+.app-container.speaking {
+    animation: border-pulse 1.5s infinite steps(2, end);
+}
 
 /* ── shared modal shell (Settings / Directory picker / Graph) ──────────── */
 .modal {
@@ -438,7 +411,7 @@ html[data-motion="reduced"] .pixel-meter.is-indeterminate .pixel-meter__cell {
     .settings-theme-card,
     .settings-nav-item
 ):focus-visible {
-    outline: none;
+    outline: 2px solid var(--focus);
     outline-offset: 2px;
     position: relative;
     z-index: 1;

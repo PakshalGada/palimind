@@ -5,8 +5,14 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { PixelGlyph } from './pixel/PixelGlyph';
-import { PixelIcon } from './pixel/PixelIcon';
+import {
+  Download,
+  FolderOpen,
+  Package,
+  RefreshCw,
+  Search,
+  Trash2,
+} from 'lucide-react';
 import { api } from '../api';
 import { useConfirm } from './ConfirmDialog';
 import {
@@ -391,7 +397,7 @@ export default function ArtifactLibrary({
           <section className="artifact-library-browser" aria-label="Artifact list">
             <div className="artifact-library-toolbar">
               <label className="artifact-library-search">
-                <PixelIcon name="search" size={16} />
+                <Search size={14} />
                 <input
                   type="text"
                   value={query}
@@ -415,7 +421,7 @@ export default function ArtifactLibrary({
                 disabled={loading}
                 onClick={() => void load()}
               >
-                <PixelGlyph sprite="refresh" cell={1.75} className={loading ? 'is-spinning' : undefined} />
+                <RefreshCw size={14} className={loading ? 'is-spinning' : undefined} />
               </button>
             </div>
 
@@ -448,7 +454,7 @@ export default function ArtifactLibrary({
               <SkeletonList rows={6} />
             ) : visible.length === 0 ? (
               <EmptyState
-                icon={<PixelGlyph sprite="package" cell={3} />}
+                icon={<Package size={24} />}
                 title={query ? 'No matching artifacts' : 'No saved artifacts yet'}
                 description={
                   query
@@ -504,7 +510,7 @@ export default function ArtifactLibrary({
                             void openEntry(entry);
                           }}
                         >
-                          <PixelIcon name="folder" size={16} />
+                          <FolderOpen size={15} />
                         </button>
                         <button
                           type="button"
@@ -516,7 +522,7 @@ export default function ArtifactLibrary({
                             download(entry);
                           }}
                         >
-                          <PixelIcon name="download" size={16} />
+                          <Download size={15} />
                         </button>
                         <button
                           type="button"
@@ -528,7 +534,7 @@ export default function ArtifactLibrary({
                             void removeEntry(entry);
                           }}
                         >
-                          <PixelIcon name="trash" size={16} />
+                          <Trash2 size={15} />
                         </button>
                       </span>
                     </div>
@@ -558,7 +564,7 @@ export default function ArtifactLibrary({
                     disabled={opening === selectedEntry.key}
                     onClick={() => void openEntry(selectedEntry)}
                   >
-                    <PixelIcon name="folder" size={16} />
+                    <FolderOpen size={14} />
                     <span>Open</span>
                   </button>
                 </header>
@@ -572,7 +578,7 @@ export default function ArtifactLibrary({
                     />
                   ) : (
                     <div className="artifact-library-preview-empty">
-                      <PixelIcon name="package" size={24} />
+                      <Package size={22} />
                       <span>No preview content</span>
                     </div>
                   )}
@@ -588,7 +594,7 @@ export default function ArtifactLibrary({
               </>
             ) : (
               <div className="artifact-library-preview-empty">
-                <PixelIcon name="package" size={32} />
+                <Package size={26} />
                 <span>Select an artifact to preview it</span>
               </div>
             )}

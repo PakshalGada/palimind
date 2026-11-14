@@ -63,7 +63,7 @@
 .command-palette-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 8px 14px;
+  padding: 8px;
   min-height: 0;
 }
 
@@ -95,9 +95,7 @@
   cursor: pointer;
   font-family: var(--font-sans);
 }
-.command-palette-item.is-active { background: var(--color-accent-soft); }
-.command-palette-item.is-active .command-palette-item-title { color: var(--color-accent); }
-.command-palette-item.is-active .command-palette-item-icon { color: var(--color-accent); }
+.command-palette-item.is-active { background: var(--color-surface-hover); }
 .command-palette-item.is-disabled { opacity: 0.45; cursor: not-allowed; }
 .command-palette-item-icon {
   display: inline-flex;

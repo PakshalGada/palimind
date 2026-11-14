@@ -147,7 +147,7 @@
   cursor: pointer;
 }
 .ag-modal-agent:hover { background: var(--surface-hover); }
-.ag-modal-agent.is-on { box-shadow: none; background: var(--color-accent-soft); }
+.ag-modal-agent.is-on { box-shadow: 0 0 0 1px var(--focus); }
 .ag-modal-agent-name { color: var(--ink); font-size: var(--type-sm); font-weight: var(--weight-medium); }
 .ag-modal-agent-role { color: var(--ink-muted); font-size: var(--type-xs); line-height: 1.35; }
 .ag-modal-agent .ui-chip { position: absolute; top: 6px; right: 6px; }

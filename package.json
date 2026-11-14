@@ -11,9 +11,7 @@
     "backend:dev": "cd packages/backend && python -m palimind.api_server",
     "backend:test": "cd packages/backend && python -m pytest",
     "check:mono": "node scripts/check-mono.mjs --strict",
-    "audit:mono": "node scripts/mono-audit.mjs",
-    "check:design": "node scripts/check-mono.mjs --strict",
-    "audit:design": "node scripts/mono-audit.mjs"
+    "audit:mono": "node scripts/mono-audit.mjs"
   },
   "author": "Palimind",
   "license": "MIT",

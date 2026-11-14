@@ -278,13 +278,9 @@
     --surface-hover: var(--mono-5);
     --surface-active: var(--mono-6);
 
-    /* Lines are retired. Structure comes from surface fills, spacing and
-       elevation. These three stay defined as transparent so every legacy
-       `border: 1px solid var(--line)` resolves to a no-op without changing
-       component layout. */
-    --line: transparent;
-    --line-subtle: transparent;
-    --line-strong: transparent;
+    --line: var(--mono-6);
+    --line-subtle: var(--mono-5);
+    --line-strong: var(--mono-8);
 
     --ink: var(--mono-15);
     --ink-secondary: var(--mono-12);
@@ -294,40 +290,18 @@
     --inverse-bg: var(--mono-15);
     --inverse-ink: var(--mono-1);
 
-    /* ── signal colour ────────────────────────────────────────────────────
-       The base stays neutral; colour is a signal, never decoration. It is
-       used for action, selection, state and identity, and appears as text,
-       icon fills and low-alpha washes only. */
-    --signal-accent: #2dd4bf;
-    --signal-accent-hover: #5eead4;
-    --signal-accent-contrast: #04211e;
-    --signal-accent-soft: color-mix(in srgb, var(--signal-accent) 15%, var(--surface));
-    --signal-accent-faint: color-mix(in srgb, var(--signal-accent) 8%, var(--surface));
-
-    --signal-success: #22c55e;
-    --signal-warning: #fbbf24;
-    --signal-danger: #f87171;
-    --signal-info: #60a5fa;
-    --signal-violet: #a78bfa;
-    --signal-rose: #fb7185;
-    --signal-lime: #a3e635;
-
-    --signal-success-soft: color-mix(in srgb, var(--signal-success) 15%, var(--surface));
-    --signal-warning-soft: color-mix(in srgb, var(--signal-warning) 15%, var(--surface));
-    --signal-danger-soft: color-mix(in srgb, var(--signal-danger) 15%, var(--surface));
-    --signal-info-soft: color-mix(in srgb, var(--signal-info) 15%, var(--surface));
-
-    --signal: var(--signal-accent);
+    /* Status is never hue: inversion, line weight, shape and label carry it. */
+    --signal: var(--mono-16);
     --quiet: var(--mono-10);
-    --alert: var(--signal-danger);
+    --alert: var(--mono-16);
 
     /* Theme-only values that cannot come from the ramp. */
     --wash: rgba(255, 255, 255, 0.06);
     --wash-strong: rgba(255, 255, 255, 0.12);
     --scrim: rgba(0, 0, 0, 0.72);
-    --selection-bg: color-mix(in srgb, var(--signal-accent) 30%, transparent);
+    --selection-bg: rgba(242, 242, 242, 0.22);
     --selection-ink: var(--mono-15);
-    --focus: var(--signal-accent);
+    --focus: var(--mono-16);
 
     /* ── existing semantic API (--color-*) ─────────────────────────────── */
     --color-bg: var(--bg);
@@ -342,44 +316,34 @@
     --color-border: var(--line);
     --color-border-subtle: var(--line-subtle);
     --color-border-strong: var(--line-strong);
-    --color-hairline: transparent;
+    --color-hairline: var(--wash);
 
     --color-text-primary: var(--ink);
     --color-text-secondary: var(--ink-secondary);
     --color-text-muted: var(--ink-muted);
     --color-text-inverse: var(--inverse-ink);
 
-    /* Action is the signal accent; inversion stays for authored content
-       (user turns, selected tiles). */
-    --color-accent: var(--signal-accent);
-    --color-accent-hover: var(--signal-accent-hover);
-    --color-accent-soft: var(--signal-accent-soft);
-    --color-accent-faint: var(--signal-accent-faint);
-    --color-accent-contrast: var(--signal-accent-contrast);
+    /* Emphasis is inversion — white on black, black on white. */
+    --color-accent: var(--inverse-bg);
+    --color-accent-hover: var(--mono-13);
+    --color-accent-soft: var(--wash);
+    --color-accent-contrast: var(--inverse-ink);
 
-    --color-brand: var(--signal-accent);
-    --color-brand-hover: var(--signal-accent-hover);
-    --color-brand-soft: var(--signal-accent-soft);
-    --color-brand-border: color-mix(in srgb, var(--signal-accent) 45%, transparent);
-    --color-brand-contrast: var(--signal-accent-contrast);
+    --color-brand: var(--mono-16);
+    --color-brand-hover: var(--mono-15);
+    --color-brand-soft: var(--wash);
+    --color-brand-border: var(--line-strong);
+    --color-brand-contrast: var(--inverse-ink);
 
-    /* State is colour + glyph + label. Colour never carries it alone. */
-    --color-success: var(--signal-success);
-    --color-success-soft: var(--signal-success-soft);
-    --color-warning: var(--signal-warning);
-    --color-warning-soft: var(--signal-warning-soft);
-    --color-error: var(--signal-danger);
-    --color-error-soft: var(--signal-danger-soft);
-    --color-info: var(--signal-info);
-    --color-info-soft: var(--signal-info-soft);
-
-    /* Categorical identity: agents, projects, artifacts, data surfaces. */
-    --color-cat-teal: var(--signal-accent);
-    --color-cat-violet: var(--signal-violet);
-    --color-cat-amber: var(--signal-warning);
-    --color-cat-blue: var(--signal-info);
-    --color-cat-rose: var(--signal-rose);
-    --color-cat-lime: var(--signal-lime);
+    /* Status tones are greys; tone is a *shape* decision in the UI. */
+    --color-success: var(--mono-13);
+    --color-success-soft: var(--mono-4);
+    --color-warning: var(--mono-12);
+    --color-warning-soft: var(--mono-5);
+    --color-error: var(--mono-16);
+    --color-error-soft: var(--mono-5);
+    --color-info: var(--mono-11);
+    --color-info-soft: var(--mono-4);
 
     --color-focus-ring: var(--focus);
     --color-selection: var(--selection-bg);
@@ -446,9 +410,9 @@
     --surface-hover: #ececec;
     --surface-active: #e2e2e2;
 
-    --line: transparent;
-    --line-subtle: transparent;
-    --line-strong: transparent;
+    --line: #d7d7d7;
+    --line-subtle: #e4e4e4;
+    --line-strong: #bdbdbd;
 
     --ink: #0b0b0b;
     --ink-secondary: #454545;
@@ -458,36 +422,16 @@
     --inverse-bg: #0b0b0b;
     --inverse-ink: #ffffff;
 
-    /* Signal colour, tuned for paper. */
-    --signal-accent: #0f766e;
-    --signal-accent-hover: #115e59;
-    --signal-accent-contrast: #ffffff;
-    --signal-accent-soft: color-mix(in srgb, var(--signal-accent) 12%, var(--surface));
-    --signal-accent-faint: color-mix(in srgb, var(--signal-accent) 6%, var(--surface));
-
-    --signal-success: #15803d;
-    --signal-warning: #b45309;
-    --signal-danger: #b91c1c;
-    --signal-info: #1d4ed8;
-    --signal-violet: #6d28d9;
-    --signal-rose: #be123c;
-    --signal-lime: #4d7c0f;
-
-    --signal-success-soft: color-mix(in srgb, var(--signal-success) 12%, var(--surface));
-    --signal-warning-soft: color-mix(in srgb, var(--signal-warning) 12%, var(--surface));
-    --signal-danger-soft: color-mix(in srgb, var(--signal-danger) 10%, var(--surface));
-    --signal-info-soft: color-mix(in srgb, var(--signal-info) 10%, var(--surface));
-
-    --signal: var(--signal-accent);
+    --signal: #000000;
     --quiet: #6f6f6f;
-    --alert: var(--signal-danger);
+    --alert: #000000;
 
     --wash: rgba(9, 9, 9, 0.055);
     --wash-strong: rgba(9, 9, 9, 0.1);
     --scrim: rgba(0, 0, 0, 0.38);
-    --selection-bg: color-mix(in srgb, var(--signal-accent) 24%, transparent);
+    --selection-bg: rgba(11, 11, 11, 0.14);
     --selection-ink: #0b0b0b;
-    --focus: var(--signal-accent);
+    --focus: #000000;
 
     --color-input-bg: var(--mono-2);
     --color-input-bg-hover: var(--mono-3);
@@ -533,9 +477,9 @@
     --text-secondary: var(--color-text-secondary);
     --text-muted: var(--color-text-muted);
     --focus-ring: var(--focus);
-    --danger: var(--color-error);
-    --danger-strong: var(--color-error);
-    --danger-soft: var(--color-error-soft);
+    --danger: var(--ink-secondary);
+    --danger-strong: var(--ink);
+    --danger-soft: var(--wash-strong);
     --success: var(--color-success);
     --warning: var(--color-warning);
     --error: var(--color-error);

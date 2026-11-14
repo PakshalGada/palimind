@@ -14,8 +14,6 @@ import {
 import { applyUiStyle, readUiStyle, type UiStyle } from '../design/uiStyle';
 import { getUserName, setUserName } from '../utils/userName';
 import SettingsSelect from './SettingsSelect';
-import { PixelGlyph } from './pixel/PixelGlyph';
-import { PixelIcon } from './pixel/PixelIcon';
 
 type SectionKey = 'appearance' | 'opencode' | 'models' | 'desktop';
 
@@ -29,22 +27,43 @@ const SECTIONS: SectionDef[] = [
   {
     key: 'appearance',
     label: 'Appearance',
-    icon: <PixelIcon name="settings" size={16} />,
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 3a9 9 0 0 1 0 18V3z" fill="currentColor" stroke="none" opacity="0.55" />
+      </svg>
+    ),
   },
   {
     key: 'opencode',
     label: 'OpenCode',
-    icon: <PixelIcon name="key" size={16} />,
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="7.5" cy="15.5" r="3.5" />
+        <path d="M10.2 12.8 20 3M15 8l2.5 2.5" />
+      </svg>
+    ),
   },
   {
     key: 'models',
     label: 'Models',
-    icon: <PixelIcon name="package" size={16} />,
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+      </svg>
+    ),
   },
   {
     key: 'desktop',
     label: 'Computer use',
-    icon: <PixelIcon name="desktop" size={16} />,
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="4" width="20" height="13" rx="2" />
+        <path d="M8 21h8M12 17v4" />
+        <path d="m9 9 2 2-2 2M13 13h3" />
+      </svg>
+    ),
   },
 ];
 
@@ -352,7 +371,9 @@ export default function SettingsModal() {
         <div className="modal-header">
           <h2 id="settings-title">Settings</h2>
           <button className="icon-btn" title="Close Settings" aria-label="Close settings" onClick={close}>
-            <PixelGlyph sprite="close" cell={2.5} />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </div>
 
@@ -408,7 +429,9 @@ export default function SettingsModal() {
                       <span className="settings-theme-meta">
                         <span>{opt.label}</span>
                         {theme === opt.value ? (
-                          <PixelGlyph sprite="check" cell={1.875} />
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M20 6 9 17l-5-5" />
+                          </svg>
                         ) : (
                           <span className="settings-theme-hint">{opt.hint}</span>
                         )}
@@ -545,9 +568,15 @@ export default function SettingsModal() {
                       onClick={() => setShowKey((v) => !v)}
                     >
                       {showKey ? (
-                        <PixelGlyph sprite="close" cell={1.875} />
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                          <path d="M6.7 6.7C4.6 8.1 3 10.2 2 12c1.7 3 5.3 6 10 6 1.6 0 3-.3 4.3-.9M9.9 5.2A9.7 9.7 0 0 1 12 5c4.7 0 8.3 3 10 6-.6 1-1.4 2.1-2.5 3.1" />
+                        </svg>
                       ) : (
-                        <PixelGlyph sprite="search" cell={1.875} />
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M2 12c1.7-3 5.3-6 10-6s8.3 3 10 6c-1.7 3-5.3 6-10 6s-8.3-3-10-6z" />
+                          <circle cx="12" cy="12" r="2.5" />
+                        </svg>
                       )}
                     </button>
                   </div>

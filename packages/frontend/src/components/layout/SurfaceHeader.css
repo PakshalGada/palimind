@@ -11,7 +11,7 @@
   padding: 12px 24px;
   flex: 0 0 auto;
   min-width: 0;
-  border-bottom: none;
+  border-bottom: 1px solid var(--line-subtle);
 }
 
 .surface-header__text {

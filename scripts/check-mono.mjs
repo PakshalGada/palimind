@@ -47,17 +47,6 @@ const EXTENSIONS = new Set(['.css', '.tsx', '.ts']);
  */
 const CONTENT_FILES = new Set(['utils/artifactExport.ts']);
 
-/**
- * Palette files are the only places where literal colour is allowed. Every
- * other stylesheet must consume a semantic or categorical token.
- */
-const PALETTE_FILES = new Set([
-  'design/tokens.css',
-  'bots/config.ts',
-  'features/agents/agents.css',
-  'components/KnowledgeGraph.tsx',
-]);
-
 /** CSS named colours that carry hue. Greys, black and white are allowed. */
 const NAMED_HUE = [
   'red', 'green', 'blue', 'orange', 'purple', 'violet', 'yellow', 'amber',
@@ -72,10 +61,7 @@ const NAMED_HUE = [
  * MONO v2 radius scale: geometry is rounded, pixel art is not used as shape.
  * 4 is the floor (kbd / tiny tags); 8-20 for real surfaces.
  */
-const ALLOWED_RADII = new Set([
-  '0', '1', '2', '3', '4', '5', '6', '8', '10', '12', '13', '14', '16',
-  '20', '999', '9999', '50%',
-]);
+const ALLOWED_RADII = new Set(['0', '1', '4', '8', '10', '12', '16', '20', '999', '9999', '50%']);
 
 const RADIUS_SCALE = /^var\(--radius-(?:xs|sm|md|lg|xl|2xl|card|bubble|full|panel|control)\)$/;
 
@@ -127,47 +113,46 @@ for (const file of files) {
   const strict = isStrict(rel);
   const text = stripComments(readFileSync(file, 'utf8'));
   const isCss = file.endsWith('.css');
-  const paletteFile = PALETTE_FILES.has(rel);
 
-  // 1-4. Literal colour is only legal in the palette files. Everything else
-  // must consume a semantic or categorical token.
-  if (!paletteFile) {
-    for (const m of text.matchAll(/#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/g)) {
-      let h = m[1];
-      if (h.length === 4) h = h.slice(0, 3);
-      if (h.length === 8) h = h.slice(0, 6);
-      if (h.length === 3) h = h.split('').map((c) => c + c).join('');
-      if (h.length !== 6) continue;
-      const r = parseInt(h.slice(0, 2), 16);
-      const g = parseInt(h.slice(2, 4), 16);
-      const b = parseInt(h.slice(4, 6), 16);
-      if (greyDelta(r, g, b) > 2) {
-        report(file, text, m.index, `raw colour ${m[0]} — use a palette token`, strict);
-      }
-    }
-
-    for (const m of text.matchAll(/rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/g)) {
-      const [r, g, b] = [Number(m[1]), Number(m[2]), Number(m[3])];
-      if (greyDelta(r, g, b) > 3) {
-        report(file, text, m.index, `raw colour ${m[0]}…) — use a palette token`, strict);
-      }
-    }
-
-    for (const m of text.matchAll(/hsla?\(\s*[\d.]+(?:deg)?[\s,]+([\d.]+)%?/g)) {
-      if (Number(m[1]) > 0) {
-        report(file, text, m.index, `raw hsl(${m[1]}%) — use a palette token`, strict);
-      }
-    }
-
-    if (isCss) {
-      const named = NAMED_HUE.join('|');
-      for (const m of text.matchAll(new RegExp(`(?:^|[\\s:(,])(${named})(?=[\\s;,)]|$)`, 'gi'))) {
-        report(file, text, m.index, `raw named colour "${m[1]}" — use a palette token`, strict);
-      }
+  // 1. Hex colours that are not grey.
+  for (const m of text.matchAll(/#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/g)) {
+    let h = m[1];
+    if (h.length === 4) h = h.slice(0, 3);
+    if (h.length === 8) h = h.slice(0, 6);
+    if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+    if (h.length !== 6) continue;
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    if (greyDelta(r, g, b) > 2) {
+      report(file, text, m.index, `hue hex ${m[0]} — chrome must stay monochrome`, strict);
     }
   }
 
-  // 5. Radii stay on the geometry scale.
+  // 2. rgb()/rgba() with chroma.
+  for (const m of text.matchAll(/rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/g)) {
+    const [r, g, b] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    if (greyDelta(r, g, b) > 3) {
+      report(file, text, m.index, `hue ${m[0]}…) — chrome must stay monochrome`, strict);
+    }
+  }
+
+  // 3. hsl()/hsla() with saturation.
+  for (const m of text.matchAll(/hsla?\(\s*[\d.]+(?:deg)?[\s,]+([\d.]+)%?/g)) {
+    if (Number(m[1]) > 0) {
+      report(file, text, m.index, `saturated hsl(${m[1]}%) — chrome must stay monochrome`, strict);
+    }
+  }
+
+  // 4. Colour keywords used as values (stylesheets only; prose is not a rule).
+  if (isCss) {
+    const named = NAMED_HUE.join('|');
+    for (const m of text.matchAll(new RegExp(`(?:^|[\\s:(,])(${named})(?=[\\s;,)]|$)`, 'gi'))) {
+      report(file, text, m.index, `named hue colour "${m[1]}"`, strict);
+    }
+  }
+
+  // 5. Radii outside 2 / 4 / 6 / 8 (plus circles and the full token).
   if (isCss) {
     for (const m of text.matchAll(/border-radius\s*:\s*([^;}\n]+)/g)) {
       const value = m[1].trim();
@@ -179,13 +164,7 @@ for (const file of files) {
         const raw = px[2] === 'rem' ? Number(px[1]) * 16 : Number(px[1]);
         const key = String(raw);
         if (!ALLOWED_RADII.has(key)) {
-          report(
-            file,
-            text,
-            m.index,
-            `off-scale radius ${part} (allowed: 0/1/2/3/4/5/6/8/10/12/13/14/16/20/999/50%)`,
-            strict,
-          );
+          report(file, text, m.index, `off-scale radius ${part} (allowed: 0/1/4/8/10/12/16/20/999/50%)`, strict);
         }
       }
     }
@@ -205,29 +184,9 @@ for (const file of files) {
         report(file, text, m.index, `backdrop-filter ${m[1].trim()} — solid surfaces only`, strict);
       }
     }
-    if (strict && !paletteFile) {
+    if (strict) {
       for (const m of text.matchAll(/(?:linear|radial|conic)-gradient\(/g)) {
-        report(file, text, m.index, 'decorative gradient — use a flat signal fill', strict);
-      }
-    }
-  }
-
-  // 8. No circular dots, rings or round controls.
-  if (isCss) {
-    for (const m of text.matchAll(/border-radius\s*:\s*50%/g)) {
-      report(file, text, m.index, 'circular radius 50% — dots and rings are retired', true);
-    }
-
-    // 9. No outline rings.
-    for (const m of text.matchAll(/outline\s*:\s*[1-9][\d.]*px/g)) {
-      report(file, text, m.index, 'outline ring — use a filled focus state', true);
-    }
-
-    // 10. No halo rings. The one exception is the full-viewport scrim mask
-    // used by the screen-region selector.
-    for (const m of text.matchAll(/box-shadow\s*:\s*([^;}]+)/g)) {
-      if (/\b0\s+0\s+0\b/.test(m[1]) && !/9999px/.test(m[1])) {
-        report(file, text, m.index, 'box-shadow ring — use elevation or a filled state', true);
+        report(file, text, m.index, 'decorative gradient — the mono layer allows no gradients', strict);
       }
     }
   }
@@ -252,10 +211,10 @@ if (VERBOSE && warnings.length > 0) {
   }
 }
 
-print(problems, 'DESIGN CHECK FAILED');
+print(problems, 'MONO CHECK FAILED');
 
 if (STRICT && warnings.length > 0) {
-  print(warnings, 'DESIGN CHECK (strict) — legacy literals promoted to errors');
+  print(warnings, 'MONO CHECK (strict) — legacy literals promoted to errors');
 }
 
 if (problems.length > 0 || (STRICT && warnings.length > 0)) {
@@ -266,6 +225,6 @@ if (problems.length > 0 || (STRICT && warnings.length > 0)) {
 const tracked = warnings.length;
 console.log(
   tracked === 0
-    ? 'design check: clean'
-    : `design check: core clean — ${tracked} legacy literal(s) tracked across ${new Set(warnings.map((w) => w.file)).size} file(s)`,
+    ? 'mono check: clean'
+    : `mono check: core clean — ${tracked} legacy literal(s) tracked across ${new Set(warnings.map((w) => w.file)).size} file(s)`,
 );

@@ -114,11 +114,10 @@
   background: var(--surface);
 }
 .project-row.is-active {
-  background: var(--color-accent-soft);
+  background: var(--surface-2);
   border-color: transparent;
   border-left-color: transparent;
-  color: var(--color-accent);
-  box-shadow: none;
+  box-shadow: var(--shadow-xs);
 }
 .project-row__icon {
   color: var(--ink-muted);
@@ -221,18 +220,17 @@
   color: var(--ink);
 }
 .projects-tab.is-active {
-  background: var(--color-accent-soft);
+  background: var(--surface);
   border-color: transparent;
-  color: var(--color-accent);
-  box-shadow: none;
+  color: var(--ink);
+  box-shadow: var(--shadow-xs);
 }
 .projects-tab__count {
   font-family: var(--font-mono);
   font-size: var(--type-2xs);
-  border: none;
-  border-radius: 3px;
-  background: color-mix(in srgb, currentColor 14%, transparent);
-  padding: 1px 4px;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-xs);
+  padding: 0 3px;
   min-width: 16px;
   text-align: center;
   opacity: 0.8;

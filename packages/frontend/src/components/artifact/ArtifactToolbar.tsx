@@ -1,5 +1,19 @@
 import type { ReactNode } from 'react';
-import { PixelIcon } from '../pixel/PixelIcon';
+import {
+  BookOpen,
+  Code2,
+  Copy,
+  Download,
+  ExternalLink,
+  Eye,
+  FileDown,
+  FolderPlus,
+  History,
+  MoreHorizontal,
+  Pencil,
+  Save,
+  Share2,
+} from 'lucide-react';
 import { Popover } from '../../ui/primitives';
 import {
   ARTIFACT_TYPE_LABEL,
@@ -134,7 +148,7 @@ export default function ArtifactToolbar({
                 aria-pressed={viewMode === 'preview'}
                 onClick={() => onToggleView('preview')}
               >
-                <PixelIcon name="desktop" size={16} />
+                <Eye size={14} />
                 <span className="artp-seg-label">Preview</span>
               </button>
               <button
@@ -145,7 +159,7 @@ export default function ArtifactToolbar({
                 aria-pressed={viewMode === 'code'}
                 onClick={() => onToggleView('code')}
               >
-                <PixelIcon name="terminal" size={16} />
+                <Code2 size={14} />
                 <span className="artp-seg-label">Code</span>
               </button>
             </div>
@@ -158,7 +172,7 @@ export default function ArtifactToolbar({
             aria-pressed={editing}
             onClick={onToggleEdit}
           >
-            <PixelIcon name="pencil" size={16} />
+            <Pencil size={14} />
             <span className="artp-btn-label">Edit</span>
           </button>
         </div>
@@ -171,7 +185,7 @@ export default function ArtifactToolbar({
             aria-label="Save artifact version to vault"
             onClick={onSave}
           >
-            <PixelIcon name="save" size={16} />
+            <Save size={14} />
             <span className="artp-btn-label">Save</span>
           </button>
 
@@ -186,7 +200,7 @@ export default function ArtifactToolbar({
                 aria-label="Export artifact"
                 disabled={exporting !== null}
               >
-                <PixelIcon name="download" size={16} />
+                <FileDown size={14} />
               </button>
             }
           >
@@ -221,14 +235,14 @@ export default function ArtifactToolbar({
                 title="More actions"
                 aria-label="More actions"
               >
-                <PixelIcon name="grid" size={16} />
+                <MoreHorizontal size={16} />
               </button>
             }
           >
             {close => (
               <div className="artp-menu" role="menu">
                 <MenuItem
-                  icon={<PixelIcon name="copy" size={16} />}
+                  icon={<Copy size={14} />}
                   label="Copy content"
                   hint="Ctrl/⌘ ⇧ C"
                   onClick={() => {
@@ -237,7 +251,7 @@ export default function ArtifactToolbar({
                   }}
                 />
                 <MenuItem
-                  icon={<PixelIcon name="download" size={16} />}
+                  icon={<Download size={14} />}
                   label="Download source"
                   onClick={() => {
                     close();
@@ -245,7 +259,7 @@ export default function ArtifactToolbar({
                   }}
                 />
                 <MenuItem
-                  icon={<PixelIcon name="graph" size={16} />}
+                  icon={<Share2 size={14} />}
                   label="Share"
                   onClick={() => {
                     close();
@@ -254,7 +268,7 @@ export default function ArtifactToolbar({
                 />
                 <span className="artp-menu-sep" role="separator" />
                 <MenuItem
-                  icon={<PixelIcon name="clock" size={16} />}
+                  icon={<History size={14} />}
                   label="Version history"
                   onClick={() => {
                     close();
@@ -262,7 +276,7 @@ export default function ArtifactToolbar({
                   }}
                 />
                 <MenuItem
-                  icon={<PixelIcon name="folder" size={16} />}
+                  icon={<FolderPlus size={14} />}
                   label="Pin to project"
                   disabled={pinBusy}
                   onClick={() => {
@@ -272,7 +286,7 @@ export default function ArtifactToolbar({
                 />
                 <span className="artp-menu-sep" role="separator" />
                 <MenuItem
-                  icon={<PixelIcon name="book" size={16} />}
+                  icon={<BookOpen size={14} />}
                   label="Save to knowledge"
                   onClick={() => {
                     close();
@@ -280,7 +294,7 @@ export default function ArtifactToolbar({
                   }}
                 />
                 <MenuItem
-                  icon={<PixelIcon name="arrow-right" size={16} />}
+                  icon={<ExternalLink size={14} />}
                   label="Open in new tab"
                   onClick={() => {
                     close();

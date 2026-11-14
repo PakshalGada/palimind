@@ -127,17 +127,14 @@
 }
 .graph-overlay-btn:hover { background: var(--color-surface-hover); }
 .graph-loader {
-    width: 12px;
-    height: 12px;
-    border-radius: 2px;
-    border: none;
-    background: var(--color-accent);
-    animation: graph-pulse 800ms steps(2, end) infinite;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-text-primary);
+    animation: graph-spin 0.7s linear infinite;
 }
-@keyframes graph-pulse {
-    0%, 49.99% { opacity: 1; }
-    50%, 100% { opacity: 0.25; }
-}
+@keyframes graph-spin { to { transform: rotate(360deg); } }
 
 /* ── floating chrome ──────────────────────────────────────────────────── */
 .graph-hint {
@@ -180,17 +177,17 @@
 .graph-legend-dot {
     width: 9px;
     height: 9px;
-    border-radius: 2px;
+    border-radius: 50%;
     box-shadow: none;
 }
 .graph-legend-dot--file {
-    background: var(--color-cat-teal);
+    background: radial-gradient(circle at 32% 30%, #f4f4f4, #a2a2a2 46%, #535353);
 }
 .graph-legend-dot--entity {
-    background: var(--color-cat-violet);
+    background: radial-gradient(circle at 32% 30%, #e4e4e4, #8c8c8c 46%, #404040);
 }
 .graph-legend-dot--section {
-    background: var(--color-cat-amber);
+    background: radial-gradient(circle at 32% 30%, #d4d4d4, #a2a2a2 46%, #535353);
 }
 
 /* ── selection card ───────────────────────────────────────────────────── */
@@ -224,16 +221,16 @@
     flex: 0 0 auto;
     width: 11px;
     height: 11px;
-    border-radius: 2px;
+    border-radius: 50%;
 }
 .graph-selection-dot--file {
-    background: var(--color-cat-teal);
+    background: radial-gradient(circle at 32% 30%, #f4f4f4, #a2a2a2 46%, #535353);
 }
 .graph-selection-dot--entity {
-    background: var(--color-cat-violet);
+    background: radial-gradient(circle at 32% 30%, #e4e4e4, #8c8c8c 46%, #404040);
 }
 .graph-selection-dot--section {
-    background: var(--color-cat-amber);
+    background: radial-gradient(circle at 32% 30%, #d4d4d4, #a2a2a2 46%, #535353);
 }
 .graph-selection-title {
     min-width: 0;

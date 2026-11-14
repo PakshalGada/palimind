@@ -1,4 +1,13 @@
 import { useMemo } from 'react';
+import {
+  ArrowRight,
+  Bot,
+  FolderOpen,
+  MessageSquare,
+  Monitor,
+  Plus,
+  Search,
+} from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import { runCommand } from '../../commands/registry';
@@ -97,7 +106,7 @@ export default function HomeView() {
           {!isFresh && (
             <div className="home-actions">
               <button type="button" className="home-action home-action--primary" onClick={newChat}>
-                <PixelGlyph sprite="plus" cell={1.75} />
+                <Plus size={15} />
                 New chat
               </button>
               <button
@@ -105,7 +114,7 @@ export default function HomeView() {
                 className="home-action"
                 onClick={() => setActiveView('agents')}
               >
-                <PixelGlyph sprite="bot" cell={1.75} />
+                <Bot size={15} />
                 Ask an agent
               </button>
               <button
@@ -113,7 +122,7 @@ export default function HomeView() {
                 className="home-action"
                 onClick={() => setActiveView('projects')}
               >
-                <PixelGlyph sprite="folder" cell={1.75} />
+                <FolderOpen size={15} />
                 Projects
               </button>
               <button
@@ -121,7 +130,7 @@ export default function HomeView() {
                 className="home-action"
                 onClick={() => setCommandPaletteOpen(true)}
               >
-                <PixelGlyph sprite="search" cell={1.75} />
+                <Search size={15} />
                 Search
               </button>
             </div>
@@ -150,13 +159,13 @@ export default function HomeView() {
             onClick={() => setActiveView(activeProjectId ? 'projects' : 'knowledge')}
           >
             {activeProjectId ? 'Manage project' : activeField ? 'Manage knowledge' : 'Add a folder'}
-            <PixelGlyph sprite="arrow-right" cell={1.75} />
+            <ArrowRight size={14} />
           </button>
         </section>
 
         <section className="home-desktop" aria-label="Computer use">
           <span className="home-desktop__icon" aria-hidden="true">
-            <PixelGlyph sprite="desktop" cell={2.25} />
+            <Monitor size={19} />
           </span>
           <div className="home-desktop__body">
             <span className="home-desktop__eyebrow">Computer use · on by default</span>
@@ -183,7 +192,7 @@ export default function HomeView() {
             }}
           >
             Open
-            <PixelGlyph sprite="arrow-right" cell={1.75} />
+            <ArrowRight size={14} />
           </button>
         </section>
 
@@ -203,14 +212,14 @@ export default function HomeView() {
             </div>
             <div className="home-start__actions">
               <button type="button" className="home-action home-action--primary" onClick={newChat}>
-                <PixelGlyph sprite="plus" cell={1.75} /> New chat
+                <Plus size={15} /> New chat
               </button>
               <button
                 type="button"
                 className="home-action"
                 onClick={() => setActiveView('projects')}
               >
-                <PixelGlyph sprite="folder" cell={1.75} /> Create a project
+                <FolderOpen size={15} /> Create a project
               </button>
               <button
                 type="button"
@@ -220,7 +229,7 @@ export default function HomeView() {
                   window.dispatchEvent(new CustomEvent('palimind:new-agent'));
                 }}
               >
-                <PixelGlyph sprite="bot" cell={1.75} /> Create an agent
+                <Bot size={15} /> Create an agent
               </button>
             </div>
             <div className="home-start__hint">
@@ -255,7 +264,7 @@ export default function HomeView() {
                         className="home-row"
                         onClick={() => void openChat(session.id)}
                       >
-                        <PixelGlyph sprite="chat" cell={1.75} className="home-row__icon" />
+                        <MessageSquare size={14} className="home-row__icon" />
                         <span className="home-row__body">
                           <span className="home-row__title">{session.name}</span>
                           <span className="home-row__meta">
@@ -263,7 +272,7 @@ export default function HomeView() {
                             {relativeTime(last?.timestamp ?? session.created_at)}
                           </span>
                         </span>
-                        <PixelGlyph sprite="arrow-right" cell={1.625} className="home-row__chevron" />
+                        <ArrowRight size={13} className="home-row__chevron" />
                       </button>
                     </li>
                   );
@@ -346,7 +355,7 @@ export default function HomeView() {
                     window.dispatchEvent(new CustomEvent('palimind:new-agent'));
                   }}
                 >
-                  <PixelGlyph sprite="plus" cell={1.625} /> Create teammate
+                  <Plus size={13} /> Create teammate
                 </button>
               }
             />

@@ -161,7 +161,7 @@
 .settings-nav-status {
     width: 7px;
     height: 7px;
-    border-radius: 2px;
+    border-radius: 50%;
     margin-left: auto;
     flex: 0 0 auto;
     background: var(--text-muted);
@@ -249,8 +249,7 @@
 #settings-modal .settings-input:focus,
 #settings-modal .settings-textarea:focus {
     outline: none;
-    background: var(--color-accent-soft);
-    box-shadow: none;
+    box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 /* Custom themed select dropdown */
@@ -375,7 +374,7 @@
 .settings-dot {
     width: 8px;
     height: 8px;
-    border-radius: 2px;
+    border-radius: 50%;
     flex: 0 0 auto;
     background: var(--text-muted);
 }
@@ -420,8 +419,8 @@
     color: var(--text-main);
 }
 .settings-theme-card.active {
-    background: var(--color-accent-soft);
-    color: var(--color-accent);
+    background: var(--input-bg-hover);
+    color: var(--text-main);
 }
 .settings-theme-swatch {
     height: 46px;

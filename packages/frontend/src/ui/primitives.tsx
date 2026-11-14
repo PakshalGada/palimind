@@ -12,7 +12,7 @@ import {
   type TextareaHTMLAttributes,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { PixelGlyph } from '../components/pixel/PixelGlyph';
+import { AlertTriangle, Info, X, XCircle } from 'lucide-react';
 import { PixelMeter } from '../components/pixel/PixelMeter';
 import { PixelStamp } from '../components/pixel/PixelStamp';
 
@@ -317,7 +317,7 @@ export function InlineError({
 }) {
   return (
     <div className={`ui-error-banner ${className}`.trim()} role="alert">
-      <PixelGlyph sprite="warning" cell={1.875} className="ui-error-banner__icon" />
+      <AlertTriangle size={15} className="ui-error-banner__icon" />
       <div className="ui-error-banner__text">
         <span className="ui-error-banner__title">{title}</span>
         {message != null && <span className="ui-error-banner__message">{message}</span>}
@@ -334,7 +334,7 @@ export function InlineError({
           onClick={onDismiss}
           aria-label="Dismiss error"
         >
-          <PixelGlyph sprite="close" cell={1.625} />
+          <X size={13} />
         </button>
       )}
     </div>
@@ -699,11 +699,11 @@ export function EmptyState({
 
 export type ToastTone = 'default' | 'success' | 'warning' | 'error' | 'info';
 
-const TOAST_GLYPHS = {
-  warning: 'diamond',
-  error: 'cross',
-  info: 'info',
-  default: 'info',
+const TOAST_ICONS = {
+  warning: AlertTriangle,
+  error: XCircle,
+  info: Info,
+  default: Info,
 } as const;
 
 export function Toast({
@@ -724,11 +724,11 @@ export function Toast({
   duration?: number;
   className?: string;
 }) {
-  const glyph = TOAST_GLYPHS[tone === 'success' ? 'default' : tone];
+  const Icon = TOAST_ICONS[tone === 'success' ? 'default' : tone];
   return (
     <div className={`ui-toast ui-toast--${tone} ${className}`.trim()} role={tone === 'error' ? 'alert' : 'status'}>
       <span className="ui-toast__icon" aria-hidden="true">
-        {tone === 'success' ? <PixelStamp tone="done" size={16} /> : <PixelGlyph sprite={glyph} cell={2} />}
+        {tone === 'success' ? <PixelStamp tone="done" size={16} /> : <Icon size={16} />}
       </span>
       <div className="ui-toast__body">
         {title != null && <div className="ui-toast__title">{title}</div>}
@@ -748,7 +748,7 @@ export function Toast({
       )}
       {onDismiss && (
         <button type="button" className="ui-toast__close" onClick={onDismiss} aria-label="Dismiss notification">
-          <PixelGlyph sprite="close" cell={1.75} />
+          <X size={14} />
         </button>
       )}
       {duration != null && duration > 0 && (

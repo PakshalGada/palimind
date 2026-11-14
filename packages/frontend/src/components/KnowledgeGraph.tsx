@@ -11,9 +11,11 @@ const MAX_ENTITIES = 40;
 type GraphKind = 'file' | 'entity' | 'section';
 
 interface Palette {
-  fill: string;
-  inner: string;
-  halo: string;
+  light: string;
+  mid: string;
+  dark: string;
+  rim: string;
+  glow: string;
   label: string;
 }
 
@@ -51,48 +53,60 @@ function paletteFor(kind: GraphKind, isDark: boolean): Palette {
   if (isDark) {
     if (kind === 'file') {
       return {
-        fill: '#2dd4bf',
-        inner: '#04211e',
-        halo: 'rgba(45, 212, 191, 0.22)',
+        light: '#f4f4f4',
+        mid: '#a2a2a2',
+        dark: '#535353',
+        rim: '#d4d4d4',
+        glow: 'rgba(255, 255, 255, 0.22)',
         label: '#f4f4f4',
       };
     }
     if (kind === 'section') {
       return {
-        fill: '#fbbf24',
-        inner: '#2a1c03',
-        halo: 'rgba(251, 191, 36, 0.20)',
-        label: '#f4f4f4',
+        light: '#d4d4d4',
+        mid: '#8c8c8c',
+        dark: '#404040',
+        rim: '#b5b5b5',
+        glow: 'rgba(255, 255, 255, 0.16)',
+        label: '#e4e4e4',
       };
     }
     return {
-      fill: '#a78bfa',
-      inner: '#1b1030',
-      halo: 'rgba(167, 139, 250, 0.20)',
-      label: '#f4f4f4',
+      light: '#e4e4e4',
+      mid: '#727272',
+      dark: '#272727',
+      rim: '#a2a2a2',
+      glow: 'rgba(255, 255, 255, 0.14)',
+      label: '#e4e4e4',
     };
   }
   if (kind === 'file') {
     return {
-      fill: '#0f766e',
-      inner: '#ffffff',
-      halo: 'rgba(15, 118, 110, 0.16)',
+      light: '#f4f4f4',
+      mid: '#727272',
+      dark: '#181818',
+      rim: '#404040',
+      glow: 'rgba(0, 0, 0, 0.14)',
       label: '#181818',
     };
   }
   if (kind === 'section') {
     return {
-      fill: '#b45309',
-      inner: '#ffffff',
-      halo: 'rgba(180, 83, 9, 0.14)',
-      label: '#181818',
+      light: '#e4e4e4',
+      mid: '#535353',
+      dark: '#272727',
+      rim: '#404040',
+      glow: 'rgba(0, 0, 0, 0.12)',
+      label: '#272727',
     };
   }
   return {
-    fill: '#6d28d9',
-    inner: '#ffffff',
-    halo: 'rgba(109, 40, 217, 0.14)',
-    label: '#181818',
+    light: '#efefef',
+    mid: '#8c8c8c',
+    dark: '#404040',
+    rim: '#727272',
+    glow: 'rgba(0, 0, 0, 0.1)',
+    label: '#404040',
   };
 }
 
@@ -123,8 +137,8 @@ function roundRect(
   ctx.closePath();
 }
 
-/** Draw a filled pixel block plus a compact label pill below it. */
-function blockRenderer(kind: GraphKind, isDark: boolean) {
+/** Draw a shaded sphere plus a compact label pill below it. */
+function sphereRenderer(kind: GraphKind, isDark: boolean) {
   const palette = paletteFor(kind, isDark);
   return ({ ctx, x, y, state, style, label }: RendererArgs) => {
     const size = Math.max(7, Number(style.size) || 16);
@@ -134,21 +148,73 @@ function blockRenderer(kind: GraphKind, isDark: boolean) {
     ctx.save();
     ctx.globalAlpha = opacity;
 
-    // Selection is a larger filled block, never a ring.
-    if (state.selected || state.hover) {
-      const pad = state.selected ? 6 : 4;
-      roundRect(ctx, x - size - pad, y - size - pad, (size + pad) * 2, (size + pad) * 2, 4);
-      ctx.fillStyle = palette.halo;
+    if (state.selected) {
+      const halo = ctx.createRadialGradient(x, y, size * 0.7, x, y, size + 17);
+      halo.addColorStop(0, palette.glow);
+      halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(x, y, size + 17, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // Node body: a flat pixel block with a contrasting inner cell.
-    roundRect(ctx, x - size, y - size, size * 2, size * 2, Math.min(4, size / 3));
-    ctx.fillStyle = palette.fill;
+    if (state.selected || state.hover) {
+      ctx.beginPath();
+      ctx.arc(x, y, size + (state.selected ? 5 : 3), 0, Math.PI * 2);
+      ctx.lineWidth = state.selected ? 2 : 1.25;
+      ctx.strokeStyle = palette.rim;
+      ctx.globalAlpha = opacity * (state.selected ? 0.95 : 0.55);
+      ctx.stroke();
+      ctx.globalAlpha = opacity;
+    }
+
+    // Sphere body: a radial gradient gives it a three-dimensional read.
+    const body = ctx.createRadialGradient(
+      x - size * 0.38,
+      y - size * 0.42,
+      size * 0.08,
+      x,
+      y,
+      size * 1.06,
+    );
+    body.addColorStop(0, palette.light);
+    body.addColorStop(0.42, palette.mid);
+    body.addColorStop(1, palette.dark);
+    ctx.shadowColor = palette.glow;
+    ctx.shadowBlur = state.selected ? 20 : 9;
+    ctx.shadowOffsetY = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fillStyle = body;
     ctx.fill();
-    const inner = Math.max(3, Math.round(size * 0.55));
-    ctx.fillStyle = palette.inner;
-    ctx.fillRect(x - inner / 2, y - inner / 2, inner, inner);
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    ctx.lineWidth = state.selected ? 2 : 1;
+    ctx.strokeStyle = palette.rim;
+    ctx.stroke();
+
+    // Specular highlight (clipped to the sphere).
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.clip();
+    const spec = ctx.createRadialGradient(
+      x - size * 0.42,
+      y - size * 0.48,
+      0,
+      x - size * 0.4,
+      y - size * 0.45,
+      size * 0.62,
+    );
+    spec.addColorStop(0, 'rgba(255, 255, 255, 0.78)');
+    spec.addColorStop(0.45, 'rgba(255, 255, 255, 0.16)');
+    spec.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.beginPath();
+    ctx.arc(x - size * 0.4, y - size * 0.45, size * 0.62, 0, Math.PI * 2);
+    ctx.fillStyle = spec;
+    ctx.fill();
+    ctx.restore();
 
     const text = truncate(label || '', 30);
     let boxWidth = size * 2;
@@ -162,6 +228,13 @@ function blockRenderer(kind: GraphKind, isDark: boolean) {
       roundRect(ctx, boxX, boxY, boxWidth, boxHeight, 5);
       ctx.fillStyle = isDark ? 'rgba(9, 9, 9, 0.82)' : 'rgba(255, 255, 255, 0.9)';
       ctx.fill();
+      ctx.strokeStyle = state.selected
+        ? palette.rim
+        : isDark
+          ? 'rgba(255, 255, 255, 0.1)'
+          : 'rgba(9, 9, 9, 0.08)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
       ctx.fillStyle = palette.label;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -442,7 +515,7 @@ export default function KnowledgeGraph() {
         shape: 'custom',
         size,
         opacity: 1,
-        ctxRenderer: blockRenderer(kind, isDark),
+        ctxRenderer: sphereRenderer(kind, isDark),
       };
     });
 

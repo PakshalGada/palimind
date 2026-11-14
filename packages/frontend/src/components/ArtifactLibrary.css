@@ -125,9 +125,9 @@
 .artifact-library-type-filter:hover { color: var(--color-text-primary); background: var(--color-surface-hover); }
 .artifact-library-type-filter.is-active {
   border-color: transparent;
-  background: var(--color-accent-soft);
-  color: var(--color-accent);
-  box-shadow: none;
+  background: var(--surface-2);
+  color: var(--ink);
+  box-shadow: var(--shadow-xs);
 }
 
 /* ── list cards ──────────────────────────────────────────────────────── */
@@ -159,15 +159,17 @@
   box-shadow: var(--shadow-xs);
 }
 .artifact-library-card:focus-visible {
-  outline: none;
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
   box-shadow: var(--shadow-xs);
   position: relative;
   z-index: 1;
 }
 .artifact-library-card.is-selected {
-  background: var(--color-accent-soft);
-  box-shadow: none;
+  background: var(--surface);
+  box-shadow:
+    0 0 0 1px var(--line-strong),
+    var(--shadow-xs);
 }
 .artifact-library-card-icon {
   --artifact-accent: var(--color-text-secondary);
@@ -279,7 +281,7 @@
   gap: 5px;
   height: 28px;
   padding: 0 9px;
-  border: none;
+  border: 1px solid var(--color-accent);
   border-radius: var(--radius-sm);
   background: var(--color-accent);
   color: var(--color-accent-contrast);

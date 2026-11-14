@@ -20,7 +20,6 @@ export default function ConnectionBanner() {
     const onConnection = (event: Event) => {
       const detail = (event as CustomEvent<ConnectionDetail>).detail;
       if (!detail) return;
-      document.documentElement.dataset.connection = detail.ok ? 'online' : 'offline';
       if (detail.ok) {
         setMessage(null);
         setDismissed(false);

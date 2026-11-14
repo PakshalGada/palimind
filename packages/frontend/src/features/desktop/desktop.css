@@ -98,7 +98,7 @@
 .cu-state__dot {
   width: 6px;
   height: 6px;
-  border-radius: 2px;
+  border-radius: 50%;
   background: var(--ink-faint);
 }
 
@@ -109,7 +109,7 @@
 }
 .cu-state--ready .cu-state__dot {
   background: var(--ink);
-  box-shadow: none;
+  box-shadow: 0 0 0 3px var(--wash);
 }
 .cu-state--paused {
   color: var(--ink-secondary);
@@ -376,9 +376,8 @@
 }
 
 .cu-composer:focus-within {
-  border-color: transparent;
-  background: var(--color-accent-faint);
-  box-shadow: none;
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
 }
 
 .cu-composer__input {
@@ -645,7 +644,7 @@
   width: 5px;
   height: 5px;
   flex: 0 0 auto;
-  border-radius: 2px;
+  border-radius: 50%;
   background: var(--ink-faint);
 }
 
@@ -891,10 +890,9 @@
 
 .cu-overlay__rect {
   position: fixed;
-  border: none;
-  border-radius: 6px;
+  border: 1.5px solid var(--inverse-bg);
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
-  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  background: rgba(255, 255, 255, 0.05);
   pointer-events: none;
 }
 
@@ -956,9 +954,11 @@
   height: 30px;
   margin-left: -15px;
   margin-top: -15px;
-  border: none;
-  border-radius: 2px;
-  box-shadow: 0 0 18px var(--wash-strong);
+  border: 2px solid var(--inverse-bg);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 4px var(--wash),
+    0 0 18px var(--wash-strong);
   animation: cu-ghost-pulse 1.4s ease-in-out infinite;
 }
 
@@ -968,7 +968,7 @@
   height: 4px;
   margin-left: -2px;
   margin-top: -2px;
-  border-radius: 2px;
+  border-radius: 50%;
   background: var(--inverse-bg);
   box-shadow: 0 0 6px var(--wash-strong);
 }

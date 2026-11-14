@@ -74,7 +74,7 @@
 .knowledge-tab__dot {
   width: 6px;
   height: 6px;
-  border-radius: 2px;
+  border-radius: 50%;
   background: var(--ink);
   animation: knowledge-pulse 1.4s ease-in-out infinite;
 }

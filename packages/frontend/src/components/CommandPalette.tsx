@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { PixelGlyph } from './pixel/PixelGlyph';
+import { ArrowRight, Clock, CornerDownLeft, FileText, Search } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { api } from '../api';
 import { VISIBLE_COMMANDS } from '../commands/catalog';
@@ -184,7 +184,7 @@ export default function CommandPalette() {
         kind: 'file',
         title: file.name,
         subtitle: file.path,
-        icon: <PixelGlyph sprite="book" cell={2} />,
+        icon: <FileText size={16} />,
         run: () => window.dispatchEvent(new CustomEvent('palimind:open-file-tree')),
       });
     }
@@ -296,7 +296,7 @@ export default function CommandPalette() {
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="command-palette-input-row">
-          <PixelGlyph sprite="search" cell={2.125} className="command-palette-search-icon" />
+          <Search size={17} strokeWidth={2} className="command-palette-search-icon" />
           <input
             ref={inputRef}
             className="command-palette-input"
@@ -318,7 +318,7 @@ export default function CommandPalette() {
           {groups.map((group) => (
             <div key={group.label} className="command-palette-group">
               <div className="command-palette-group-label">
-                {group.label === 'Recent' ? <PixelGlyph sprite="clock" cell={1.5} /> : null}
+                {group.label === 'Recent' ? <Clock size={12} /> : null}
                 {group.label}
               </div>
               {group.items.map((item) => {
@@ -351,7 +351,7 @@ export default function CommandPalette() {
                     )}
                     {item.shortcut && <kbd className="command-palette-item-kbd">{item.shortcut}</kbd>}
                     {active && !item.shortcut && (
-                      <PixelGlyph sprite="arrow-right" cell={1.75} className="command-palette-item-enter" />
+                      <ArrowRight size={14} className="command-palette-item-enter" />
                     )}
                   </button>
                 );
@@ -366,7 +366,7 @@ export default function CommandPalette() {
             <kbd>↓</kbd> navigate
           </span>
           <span>
-            <PixelGlyph sprite="enter" cell={1.375} /> select
+            <CornerDownLeft size={11} /> select
           </span>
           <span>
             <kbd>Ctrl</kbd>+<kbd>K</kbd> close

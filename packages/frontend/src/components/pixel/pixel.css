@@ -91,12 +91,12 @@
 .pixel-meter__cell {
   width: 10px;
   height: 8px;
-  border: none;
-  border-radius: 1px;
-  background: var(--surface-3);
+  border: 1px solid var(--line-strong);
+  background: transparent;
 }
 .pixel-meter__cell.is-on {
-  background: var(--color-accent);
+  background: var(--ink);
+  border-color: var(--ink);
 }
 .pixel-meter__cell.is-latest {
   animation: pixel-cell-in 320ms steps(2, end) 1;

@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowRight,
+  FolderKanban,
+  FolderOpen,
+  MessageSquare,
+  Package,
+  Plus,
+  RefreshCw,
+  Trash2,
+} from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import { useConfirm } from '../../components/ConfirmDialog';
 import SurfaceHeader from '../../components/layout/SurfaceHeader';
 import { PixelGlyph } from '../../components/pixel/PixelGlyph';
-import { PixelIcon } from '../../components/pixel/PixelIcon';
 import { PixelMeter } from '../../components/pixel/PixelMeter';
 import { Dialog, EmptyState, InlineError, SkeletonList } from '../../ui/primitives';
 import type { Project, ProjectArtifact } from '../../types';
@@ -252,10 +261,10 @@ export default function ProjectsView() {
           className="ui-btn ui-btn--primary ui-btn--sm"
           onClick={() => setCreateOpen(true)}
         >
-          <PixelGlyph sprite="plus" cell={1.625} /> New project
+          <Plus size={13} /> New project
         </button>
         <button type="button" className="ui-btn ui-btn--sm" onClick={() => void load()}>
-          <PixelGlyph sprite="refresh" cell={1.625} /> Refresh
+          <RefreshCw size={13} /> Refresh
         </button>
       </>
     ),
@@ -281,7 +290,7 @@ export default function ProjectsView() {
           {loading ? (
             <SkeletonList rows={5} avatar={false} />
           ) : error ? (
-            <InlineError title="Projects unavailable" message={error} onRetry={() => void load()} />
+            <InlineError title="Couldn't load projects" message={error} onRetry={() => void load()} />
           ) : projects.length === 0 ? (
             <EmptyState
               compact
@@ -306,7 +315,7 @@ export default function ProjectsView() {
                   aria-label={sort === 'recent' ? 'Sort by name' : 'Sort by recent'}
                   onClick={() => setSort(sort === 'recent' ? 'name' : 'recent')}
                 >
-                  <PixelGlyph sprite="arrow-right" cell={1.625} style={{ transform: sort === 'name' ? 'rotate(90deg)' : undefined }} />
+                  <RefreshCw size={13} style={{ transform: sort === 'name' ? 'rotate(90deg)' : undefined }} />
                 </button>
               </div>
               <ul className="projects-list__items">
@@ -317,7 +326,7 @@ export default function ProjectsView() {
                       className={`project-row${item.id === selectedId ? ' is-active' : ''}`}
                       onClick={() => void select(item.id)}
                     >
-                      <PixelIcon name="projects" size={16} className="project-row__icon" />
+                      <FolderKanban size={15} className="project-row__icon" />
                       <span className="project-row__body">
                         <span className="project-row__name">{item.name}</span>
                         {item.description && (
@@ -341,22 +350,7 @@ export default function ProjectsView() {
 
         <section className="projects-detail">
           {!project ? (
-            error ? (
-              <EmptyState
-                glyph={<PixelGlyph sprite="cross" cell={4} />}
-                title="Projects unavailable"
-                description="Start PaliMind, then retry. Project folders and sessions stay on this device."
-                action={
-                  <button
-                    type="button"
-                    className="ui-btn ui-btn--primary"
-                    onClick={() => void load()}
-                  >
-                    <PixelIcon name="refresh" size={16} /> Retry
-                  </button>
-                }
-              />
-            ) : projects.length === 0 && !loading ? (
+            projects.length === 0 && !loading && !error ? (
               <div className="projects-zero">
                 <div className="projects-zero__head">
                   <span className="projects-zero__glyph">
@@ -386,7 +380,7 @@ export default function ProjectsView() {
                         setCreateOpen(true);
                       }}
                     >
-                      <PixelIcon name="projects" size={16} />
+                      <FolderKanban size={16} />
                       <span className="projects-zero__template-name">{template.name}</span>
                       <span className="projects-zero__template-desc">{template.desc}</span>
                     </button>
@@ -409,13 +403,13 @@ export default function ProjectsView() {
                 </div>
                 <div className="projects-detail__actions">
                   <button type="button" className="ui-btn ui-btn--sm" onClick={openEdit}>
-                    <PixelIcon name="folder" size={16} /> Edit
+                    <FolderOpen size={13} /> Edit
                   </button>
                   <button type="button" className="ui-btn ui-btn--sm" onClick={() => void sync()} disabled={syncing}>
-                    <PixelGlyph sprite="refresh" cell={1.625} /> {syncing ? 'Syncing…' : 'Sync knowledge'}
+                    <RefreshCw size={13} /> {syncing ? 'Syncing…' : 'Sync knowledge'}
                   </button>
                   <button type="button" className="ui-btn ui-btn--primary ui-btn--sm" onClick={() => void openInChat()}>
-                    <PixelIcon name="chat" size={16} /> Open in chat
+                    <MessageSquare size={13} /> Open in chat
                   </button>
                   <button
                     type="button"
@@ -424,7 +418,7 @@ export default function ProjectsView() {
                     aria-label={`Delete ${project.name}`}
                     onClick={() => void remove(project)}
                   >
-                    <PixelIcon name="trash" size={16} />
+                    <Trash2 size={14} />
                   </button>
                 </div>
               </header>
@@ -503,12 +497,12 @@ export default function ProjectsView() {
                   </dl>
                   <div className="projects-overview__links">
                     <button type="button" className="projects-link" onClick={() => setActiveView('knowledge')}>
-                      <PixelIcon name="folder" size={16} /> Knowledge
-                      <PixelGlyph sprite="arrow-right" cell={1.625} />
+                      <FolderOpen size={14} /> Knowledge
+                      <ArrowRight size={13} />
                     </button>
                     <button type="button" className="projects-link" onClick={() => setActiveView('artifacts')}>
-                      <PixelIcon name="package" size={16} /> Artifacts
-                      <PixelGlyph sprite="arrow-right" cell={1.625} />
+                      <Package size={14} /> Artifacts
+                      <ArrowRight size={13} />
                     </button>
                   </div>
                 </div>
@@ -526,7 +520,7 @@ export default function ProjectsView() {
                         className="projects-row__open"
                         onClick={() => openProjectSession(session.id)}
                       >
-                        <PixelIcon name="chat" size={16} />
+                        <MessageSquare size={14} />
                         <span className="projects-row__title">{session.name}</span>
                         <span className="projects-row__meta">{session.messages.length} messages</span>
                       </button>
@@ -542,7 +536,7 @@ export default function ProjectsView() {
                   )}
                   {artifacts.map((artifact) => (
                     <li key={artifact.id} className="projects-row">
-                      <PixelIcon name="package" size={16} />
+                      <Package size={14} />
                       <span className="projects-row__title">{artifact.title}</span>
                       <span className="projects-row__mono">{artifact.type}</span>
                       <span className="projects-row__meta">v{artifact.current_version}</span>

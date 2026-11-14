@@ -282,7 +282,7 @@
 .model-active-dot {
     width: 6px;
     height: 6px;
-    border-radius: 2px;
+    border-radius: 50%;
     background: var(--primary-color);
     flex-shrink: 0;
     box-shadow: none;
