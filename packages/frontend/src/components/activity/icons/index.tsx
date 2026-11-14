@@ -70,6 +70,8 @@ import {
   Wrench,
   X,
 } from 'lucide-react';
+import { PixelGlyph } from '../../pixel/PixelGlyph';
+import type { PixelSprite } from '../../pixel/sprites';
 import {
   ArxivBrand,
   GitHubBrand,
@@ -164,6 +166,55 @@ const iconRegistry = {
 
 export type IconName = keyof typeof iconRegistry;
 
+/**
+ * Pixel overrides for the icons that appear in product chrome and run state.
+ * Tool-specific line art that has no 8×8 equivalent stays on Lucide; anything
+ * that would render a circle, dot or a hairline status mark is replaced here.
+ */
+const PIXEL_ICONS: Partial<Record<IconName, PixelSprite>> = {
+  'align-left': 'menu',
+  'arrow-left': 'arrow-left',
+  'arrow-right': 'arrow-right',
+  'arrow-up-right': 'arrow-right',
+  'book-open': 'book',
+  'book-open-text': 'book',
+  check: 'check',
+  'chevron-down': 'chevron-down',
+  'chevron-right': 'arrow-right',
+  circle: 'grid',
+  copy: 'copy',
+  'corner-down-left': 'enter',
+  download: 'download',
+  'external-link': 'arrow-right',
+  file: 'book',
+  'file-text': 'book',
+  files: 'book',
+  'folder-open': 'folder',
+  'folder-search': 'search',
+  globe: 'desktop',
+  key: 'key',
+  layers: 'grid',
+  library: 'book',
+  'list-tree': 'grid',
+  'loader-2': 'refresh',
+  'message-circle': 'chat',
+  minus: 'stop',
+  moon: 'moon',
+  'more-horizontal': 'grid',
+  pause: 'pause',
+  play: 'play',
+  refresh: 'refresh',
+  replace: 'refresh',
+  search: 'search',
+  square: 'stop',
+  sun: 'sun',
+  terminal: 'terminal',
+  'terminal-square': 'terminal',
+  'text-search': 'search',
+  'triangle-alert': 'warning',
+  x: 'close',
+};
+
 const fallback: IconComponent = Wrench;
 
 export function Icon({
@@ -180,6 +231,17 @@ export function Icon({
   /** Set only when the icon is the sole label for a control. */
   label?: string;
 }) {
+  const pixel = PIXEL_ICONS[name];
+  if (pixel) {
+    return (
+      <PixelGlyph
+        sprite={pixel}
+        cell={size / 8}
+        className={className}
+        label={label}
+      />
+    );
+  }
   const Component = iconRegistry[name] ?? fallback;
   return (
     <Component

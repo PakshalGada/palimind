@@ -260,7 +260,41 @@ select:focus,
   background: color-mix(in srgb, var(--color-accent) 18%, transparent) !important;
 }
 
-/* ── 8. scrollbars are blocks, not hairlines ───────────────────────────── */
+/* ── 8. range controls are block tracks and keys ───────────────────────── */
+input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 18px;
+  background: transparent;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 2px;
+  background: var(--surface-3);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -3px;
+  border: none;
+  border-radius: 2px;
+  background: var(--color-accent);
+}
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 2px;
+  background: var(--surface-3);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 2px;
+  background: var(--color-accent);
+}
+
+/* ── 9. scrollbars are blocks, not hairlines ───────────────────────────── */
 *::-webkit-scrollbar {
   width: 12px;
   height: 12px;
