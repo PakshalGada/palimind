@@ -61,7 +61,7 @@
 .ax-dot-status {
   width: 7px;
   height: 7px;
-  border-radius: 50%;
+  border-radius: 2px;
   background: var(--text-secondary);
   flex-shrink: 0;
 }
@@ -253,8 +253,8 @@
   flex-direction: column;
   gap: 9px;
   padding: 12px;
-  border: 1px solid var(--text-secondary);
-  background: var(--accent-bg);
+  border: none;
+  background: var(--color-warning-soft);
   border-radius: var(--radius-md);
   max-width: 620px;
 }
@@ -298,7 +298,7 @@
 .ax-browser-preview__dot {
   width: 7px;
   height: 7px;
-  border-radius: 50%;
+  border-radius: 2px;
   background: var(--text-secondary);
 }
 .ax-browser-preview__img {
@@ -344,7 +344,7 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border-radius: 2px;
   border: none;
   background: var(--primary-color);
   color: var(--primary-text);
@@ -657,7 +657,7 @@
   width: 14px;
   height: 14px;
   margin-top: 2px;
-  border-radius: 50%;
+  border-radius: 2px;
   border: 1.5px solid var(--text-muted);
   position: relative;
 }
@@ -666,7 +666,7 @@
   content: '';
   position: absolute;
   inset: 2.5px;
-  border-radius: 50%;
+  border-radius: 2px;
   background: var(--text-main);
 }
 .ax-option__icon { flex: 0 0 auto; margin-top: 1px; color: var(--text-muted); }
@@ -723,7 +723,7 @@
 .ax-palette:hover { border-color: var(--border-color); }
 .ax-palette.is-on { border-color: var(--focus-ring); }
 .ax-palette__swatches { display: flex; gap: 3px; }
-.ax-palette__swatch { width: 16px; height: 16px; border-radius: 50%; }
+.ax-palette__swatch { width: 16px; height: 16px; border-radius: 2px; }
 .ax-palette__name { font-size: 11px; color: var(--text-secondary); }
 .ax-avatar__presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
 .ax-avatar-preset {
@@ -781,7 +781,7 @@
 .ax-bot-type__dot {
   width: 10px;
   height: 10px;
-  border-radius: 50%;
+  border-radius: 2px;
   flex-shrink: 0;
   box-shadow: none;
 }
@@ -790,14 +790,15 @@
 .ax-swatch {
   width: 22px;
   height: 22px;
-  border-radius: 50%;
+  border-radius: 2px;
   border: 1px solid var(--border-color);
   padding: 0;
   cursor: pointer;
   background-clip: padding-box;
 }
 .ax-swatch.is-on {
-  box-shadow: 0 0 0 2px var(--panel-bg), 0 0 0 3px var(--text-main);
+  box-shadow: none;
+  transform: scale(1.14);
 }
 .ax-swatch--custom {
   position: relative;

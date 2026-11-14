@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Sparkles, Plus, Users, Inbox, Globe2, HardDrive, Cloud, KeyRound } from 'lucide-react';
+import { PixelGlyph } from '../../components/pixel/PixelGlyph';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import { Button } from '../../ui/primitives';
@@ -122,7 +122,7 @@ export default function ChatSurface({
   return (
     <div className="ag-welcome">
       <span className="ag-welcome__mark">
-        <Sparkles size={26} />
+        <PixelGlyph sprite="spark" cell={3.25} />
       </span>
       <h1>{agents.length === 0 ? 'Build your first teammate' : 'Talk to your team'}</h1>
       <p>
@@ -132,10 +132,10 @@ export default function ChatSurface({
       </p>
       <div className="ag-welcome__status" aria-label="Model readiness">
         <span className={readiness?.local ? 'is-ready' : ''}>
-          <HardDrive size={13} /> {readiness?.local ? 'Local model ready' : 'No local model found'}
+          <PixelGlyph sprite="drive" cell={1.625} /> {readiness?.local ? 'Local model ready' : 'No local model found'}
         </span>
         <span className={readiness?.opencode ? 'is-ready' : ''}>
-          {readiness?.opencode ? <Cloud size={13} /> : <KeyRound size={13} />}
+          {readiness?.opencode ? <PixelGlyph sprite="cloud" cell={1.625} /> : <PixelGlyph sprite="key" cell={1.625} />}
           {readiness?.opencode ? 'OpenCode key ready' : 'OpenCode key not added'}
         </span>
       </div>
@@ -145,7 +145,7 @@ export default function ChatSurface({
           size="sm"
           onClick={() => window.dispatchEvent(new CustomEvent('palimind:new-agent'))}
         >
-          <Plus size={14} /> {agents.length === 0 ? 'Create your first agent' : 'New agent'}
+          <PixelGlyph sprite="plus" cell={1.75} /> {agents.length === 0 ? 'Create your first agent' : 'New agent'}
         </Button>
         {agents.length > 0 && (
           <Button
@@ -153,7 +153,7 @@ export default function ChatSurface({
             size="sm"
             onClick={() => window.dispatchEvent(new CustomEvent('palimind:new-team'))}
           >
-            <Users size={14} /> New team
+            <PixelGlyph sprite="grid" cell={1.75} /> New team
           </Button>
         )}
         <Button
@@ -161,14 +161,14 @@ export default function ChatSurface({
           size="sm"
           onClick={() => window.dispatchEvent(new CustomEvent('palimind:open-inbox'))}
         >
-          <Inbox size={14} /> Inbox
+          <PixelGlyph sprite="inbox" cell={1.75} /> Inbox
         </Button>
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setBrowserOpen(true)}
         >
-          <Globe2 size={14} /> Browser
+          <PixelGlyph sprite="desktop" cell={1.75} /> Browser
         </Button>
       </div>
       {agents.length === 0 && (

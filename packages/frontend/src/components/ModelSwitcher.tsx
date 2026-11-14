@@ -4,6 +4,8 @@ import { api } from '../api';
 import { useCommandHandler } from '../commands/useCommand';
 import type { ModelItem, Recommendation, HardwareData } from '../types';
 import LoadingSpinner from './LoadingSpinner';
+import { PixelGlyph } from './pixel/PixelGlyph';
+import { PixelIcon } from './pixel/PixelIcon';
 import { resolveScope } from '../lib/scope';
 
 export default function ModelSwitcher() {
@@ -257,14 +259,13 @@ export default function ModelSwitcher() {
         aria-expanded={isOpen}
         onClick={(e) => { e.stopPropagation(); if (isOpen) close(); else open(); }}
       >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-        </svg>
+        <PixelIcon name="settings" size={16} />
         <span id="model-switcher-name">{currentModel}</span>
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
+        <PixelGlyph
+          sprite="arrow-right"
+          cell={1.25}
+          style={{ transform: 'rotate(90deg)' }}
+        />
       </button>
 
       {isOpen && (

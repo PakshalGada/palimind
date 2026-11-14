@@ -1,6 +1,7 @@
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { ArrowUp, Code2, FileText, Globe2, Loader2, Mic, Presentation, Search, Sparkles, Square, Users } from "lucide-react";
+import { PixelGlyph } from "./pixel/PixelGlyph";
+import { PixelLoader } from "./pixel/PixelLoader";
 import ModelSwitcher from "./ModelSwitcher";
 import ModelPicker from "../features/agents/ModelPicker";
 import OfficeExportWatcher, { type OfficeJob } from "./OfficeExportWatcher";
@@ -66,24 +67,24 @@ const TEXT_ATTACHMENT_RE =
 
 function SlashCommandIcon({ command, size = 15 }: { command: SlashCommand; size?: number }) {
   if (command.artifact === 'word' || command.artifact === 'document') {
-    return <FileText size={size} strokeWidth={1.9} />;
+    return <PixelGlyph sprite="book" cell={size / 8} />;
   }
   if (command.artifact === 'pptx') {
-    return <Presentation size={size} strokeWidth={1.9} />;
+    return <PixelGlyph sprite="desktop" cell={size / 8} />;
   }
   if (command.artifact === 'webpage') {
-    return <Globe2 size={size} strokeWidth={1.9} />;
+    return <PixelGlyph sprite="graph" cell={size / 8} />;
   }
   if (command.artifact === 'code') {
-    return <Code2 size={size} strokeWidth={1.9} />;
+    return <PixelGlyph sprite="terminal" cell={size / 8} />;
   }
   if (command.mode === 'moe') {
-    return <Users size={size} strokeWidth={1.9} />;
+    return <PixelGlyph sprite="grid" cell={size / 8} />;
   }
   if (command.mode === 'deep_research' || command.mode === 'default') {
-    return command.mode === 'default' ? <Sparkles size={size} strokeWidth={1.9} /> : <Search size={size} strokeWidth={1.9} />;
+    return command.mode === 'default' ? <PixelGlyph sprite="spark" cell={size / 8} /> : <PixelGlyph sprite="search" cell={size / 8} />;
   }
-  return <Sparkles size={size} strokeWidth={1.9} />;
+  return <PixelGlyph sprite="spark" cell={size / 8} />;
 }
 
 /**
@@ -1507,9 +1508,9 @@ function InputArea({
                 onClick={() => (isRecording ? stopRecording() : startRecording())}
               >
                 {isTranscribing ? (
-                  <Loader2 size={16} className="spin" aria-hidden="true" />
+                  <PixelLoader cell={2} label="Transcribing" />
                 ) : (
-                  <Mic size={16} aria-hidden="true" />
+                  <PixelGlyph sprite="mic" cell={2} />
                 )}
               </button>
             </PromptInputAction>
@@ -1534,9 +1535,9 @@ function InputArea({
                 }}
               >
                 {showStop ? (
-                  <Square className="stop-icon" aria-hidden="true" />
+                  <PixelGlyph sprite="stop" cell={1.5} />
                 ) : (
-                  <ArrowUp className="send-icon" aria-hidden="true" />
+                  <PixelGlyph sprite="send" cell={2} />
                 )}
               </Button>
             </PromptInputAction>

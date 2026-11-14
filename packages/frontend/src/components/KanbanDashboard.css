@@ -139,7 +139,7 @@
   font-weight: 550;
   color: var(--text-secondary);
 }
-.kb-column-dot { width: 7px; height: 7px; border-radius: 50%; }
+.kb-column-dot { width: 7px; height: 7px; border-radius: 2px; }
 
 .kb-column-body {
   flex: 1;
@@ -161,7 +161,7 @@
   transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
 .kb-card:hover { background: var(--surface-hover); box-shadow: var(--shadow-xs); }
-.kb-card.selected { background: var(--surface); box-shadow: 0 0 0 1px var(--ink); }
+.kb-card.selected { background: var(--color-accent-soft); box-shadow: none; }
 
 .kb-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 
@@ -285,9 +285,9 @@
   top: 12px;
   width: 9px;
   height: 9px;
-  border-radius: 50%;
+  border-radius: 2px;
   background: var(--text-secondary);
-  border: 2px solid var(--bg-color);
+  border: none;
 }
 .kb-timeline-title { font-size: var(--type-sm); font-weight: 550; color: var(--text-main); }
 .kb-timeline-meta { font-size: var(--type-xs); color: var(--text-muted); margin-top: 2px; }
@@ -421,13 +421,16 @@
   display: inline-block;
   width: 11px;
   height: 11px;
-  border: 2px solid var(--text-muted);
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: kb-spin 0.9s linear infinite;
+  border: none;
+  border-radius: 2px;
+  background: var(--color-accent);
+  animation: kb-pulse 800ms steps(2, end) infinite;
   flex-shrink: 0;
 }
-@keyframes kb-spin { to { transform: rotate(360deg); } }
+@keyframes kb-pulse {
+  0%, 49.99% { opacity: 1; }
+  50%, 100% { opacity: 0.25; }
+}
 
 /* ── prompt / output blocks ──────────────────────────────────────────── */
 .kb-detail-prompt,

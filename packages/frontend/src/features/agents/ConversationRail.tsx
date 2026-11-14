@@ -1,22 +1,12 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react';
-import {
-  Bot,
-  Hash,
-  MoreHorizontal,
-  Pin,
-  Play,
-  Plus,
-  Search,
-  Settings2,
-  Square,
-  Users,
-} from 'lucide-react';
+import { Hash, Pin, Users } from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import AgentAvatar from '../../components/AgentAvatar';
 import ContextMenu from '../../components/ContextMenu';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { PixelGlyph } from '../../components/pixel/PixelGlyph';
+import { PixelIcon } from '../../components/pixel/PixelIcon';
 import { pixelForStatus } from '../../components/pixel/pixelStatus';
 import { botStateFor } from '../../bots/config';
 import type { AgentListItem, BrowserTakeover, Channel, Team } from '../../types';
@@ -298,12 +288,12 @@ export default function ConversationRail({
             setNewMenu({ x: Math.max(8, rect.right - 170), y: rect.bottom + 4 });
           }}
         >
-          <Plus size={15} />
+          <PixelIcon name="plus" size={16} />
         </button>
       </div>
 
       <label className="ag-rail__search">
-        <Search size={13} />
+        <PixelIcon name="search" size={16} />
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -401,7 +391,7 @@ export default function ConversationRail({
                           void quickStop(agent);
                         }}
                       >
-                        <Square size={12} />
+                        <PixelGlyph sprite="stop" cell={1.5} />
                       </span>
                     ) : (
                       <span
@@ -414,7 +404,7 @@ export default function ConversationRail({
                           void quickRun(agent);
                         }}
                       >
-                        <Play size={12} />
+                        <PixelGlyph sprite="play" cell={1.5} />
                       </span>
                     )}
                   </span>
@@ -425,7 +415,7 @@ export default function ConversationRail({
                     aria-label={`Options for ${agent.name}`}
                     onClick={(event) => showMenu(event, agent)}
                   >
-                    <MoreHorizontal size={14} />
+                    <PixelIcon name="grid" size={16} />
                   </span>
                 </button>
               );
@@ -440,7 +430,7 @@ export default function ConversationRail({
             <div className="ag-rail__section-head">
               <span>Teams</span>
               <button type="button" title="New team" aria-label="New team" onClick={newTeam}>
-                <Plus size={12} />
+                <PixelGlyph sprite="plus" cell={1.5} />
               </button>
             </div>
             {filteredTeams.map((team) => (
@@ -482,7 +472,7 @@ export default function ConversationRail({
             <div className="ag-rail__section-head">
               <span>Channels</span>
               <button type="button" title="New channel" aria-label="New channel" onClick={onNewChannel}>
-                <Plus size={12} />
+                <PixelGlyph sprite="plus" cell={1.5} />
               </button>
             </div>
             {filteredChannels.map((channel) => (
@@ -508,7 +498,7 @@ export default function ConversationRail({
 
         {!q && filteredAgents.length === 0 && filteredTeams.length === 0 && filteredChannels.length === 0 && (
           <div className="ag-rail__empty">
-            <Bot size={20} />
+            <PixelGlyph sprite="bot" cell={2.5} />
             <p>No agents yet.</p>
             <button type="button" onClick={newAgent}>
               Create your first agent
@@ -522,7 +512,7 @@ export default function ConversationRail({
 
       <div className="ag-rail__foot">
         <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('palimind:open-inbox'))}>
-          <Users size={14} />
+          <PixelIcon name="inbox" size={16} />
           Inbox
           {needsYou > 0 && <span className="ag-rail__count">{needsYou}</span>}
         </button>
@@ -530,7 +520,7 @@ export default function ConversationRail({
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent('palimind:open-agents-settings'))}
         >
-          <Settings2 size={14} />
+          <PixelIcon name="settings" size={16} />
           Settings
         </button>
       </div>

@@ -298,8 +298,10 @@
 .ag-msg__user-reply-quote,
 .ag-msg__reply-quote {
     max-width: 100%;
-    padding: 4px 8px;
-    border-left: 2px solid var(--ink-muted);
+    padding: 5px 9px;
+    border: none;
+    border-radius: var(--radius-xs);
+    background: var(--color-accent-faint);
     color: var(--ink-muted);
     font-size: var(--type-2xs);
 }

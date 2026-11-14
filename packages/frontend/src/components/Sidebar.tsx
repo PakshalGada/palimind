@@ -2,19 +2,11 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   BookOpen,
   Bot,
-  Folder,
   FolderKanban,
-  FolderPlus,
   Home,
   MessageSquare,
   Crosshair,
-  Network,
   Package,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Plus,
-  RefreshCw,
-  Settings,
   type LucideIcon,
 } from "lucide-react";
 import { useApp } from "../AppContext";
@@ -27,6 +19,7 @@ import { runCommand } from "../commands/registry";
 import { formatShortcut } from "../utils/shortcuts";
 import { resolveScope } from "../lib/scope";
 import { PixelIcon } from "./pixel/PixelIcon";
+import { PixelGlyph } from "./pixel/PixelGlyph";
 import type { PixelSprite } from "./pixel/sprites";
 import {
   Avatar,
@@ -475,13 +468,13 @@ export default function Sidebar() {
           aria-label="Create new chat"
           onClick={handleNewSession}
         >
-          <Plus size={14} />
+          <PixelIcon name="plus" size={16} />
         </button>
       </div>
       {sessions.length === 0 ? (
         <EmptyState
           compact
-          icon={<MessageSquare size={18} />}
+          glyph={<PixelGlyph sprite="chat" cell={3} />}
           title="No chats yet"
           description="Start a conversation and it will appear here."
         />
@@ -515,7 +508,7 @@ export default function Sidebar() {
           aria-label="Add knowledge base"
           onClick={openDirPicker}
         >
-          <FolderPlus size={14} />
+          <PixelIcon name="folder" size={16} />
         </button>
       </div>
 
@@ -523,14 +516,14 @@ export default function Sidebar() {
         <SkeletonList rows={3} avatar={false} />
       ) : fieldsError ? (
         <InlineError
-          title="Couldn't load knowledge bases"
+          title="Knowledge unavailable"
           message={fieldsError}
           onRetry={() => void fetchFields()}
         />
       ) : fields.length === 0 ? (
         <EmptyState
           compact
-          icon={<FolderPlus size={18} />}
+          glyph={<PixelGlyph sprite="folder" cell={3} />}
           title="No knowledge bases"
           description="Add a folder to index documents locally."
           action={
@@ -550,7 +543,7 @@ export default function Sidebar() {
               onClick={() => handleSetActive(path)}
               onContextMenu={(e) => showFieldMenu(e, path)}
             >
-              <Folder size={14} className="sb-row__icon" />
+              <PixelIcon name="folder" size={16} className="sb-row__icon" />
               <span className="sb-row__label">{getFieldDisplayTitle(path)}</span>
             </button>
           ))}
@@ -563,7 +556,7 @@ export default function Sidebar() {
         style={{ display: activeField ? "flex" : "none" }}
         onClick={handleSync}
       >
-        <RefreshCw size={13} />
+        <PixelIcon name="refresh" size={16} />
         <span>{syncText}</span>
       </button>
       <button
@@ -572,7 +565,7 @@ export default function Sidebar() {
         style={{ display: activeField ? "flex" : "none" }}
         onClick={handleOpenGraph}
       >
-        <Network size={13} />
+        <PixelIcon name="graph" size={16} />
         <span>Knowledge graph</span>
       </button>
     </div>
@@ -614,7 +607,7 @@ export default function Sidebar() {
           aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           onClick={toggleSidebar}
         >
-          {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+          {sidebarCollapsed ? <PixelGlyph sprite="arrow-right" cell={1.875} /> : <PixelGlyph sprite="arrow-left" cell={1.875} />}
         </button>
       </div>
 
@@ -675,7 +668,7 @@ export default function Sidebar() {
             aria-label="Open settings"
             onClick={openSettings}
           >
-            <Settings size={15} />
+            <PixelIcon name="settings" size={16} />
           </button>
         </div>
       </div>

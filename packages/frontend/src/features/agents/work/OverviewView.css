@@ -238,7 +238,7 @@
 .ag-overview__dot {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
+  border-radius: 2px;
   background: var(--ink-muted);
   flex-shrink: 0;
 }

@@ -206,7 +206,7 @@
 .ag-presence__dots i {
     width: 3px;
     height: 3px;
-    border-radius: 50%;
+    border-radius: 2px;
     background: currentColor;
     animation: ag-presence-dot 1.2s infinite ease-in-out;
 }
@@ -353,7 +353,7 @@
 .ag-search button:hover:not(:disabled) { background: var(--surface-2); color: var(--ink); }
 .ag-search button:disabled { opacity: 0.4; cursor: default; }
 .ag-search-hit > .ag-msg {
-    outline: 1px solid var(--line);
+    outline: none;
     border-radius: var(--radius-sm);
     background: var(--surface-1);
 }

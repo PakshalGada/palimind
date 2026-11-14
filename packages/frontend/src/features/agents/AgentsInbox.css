@@ -14,10 +14,10 @@
 @keyframes inbox-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 .inbox__head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--border-subtle); background: var(--panel-bg); }
 .inbox__title { display: flex; align-items: center; gap: 10px; }
-.inbox__icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--accent-bg, rgba(127,127,127,0.1)); }
+.inbox__icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 2px; background: var(--accent-bg, rgba(127,127,127,0.1)); }
 .inbox__title h2 { margin: 0; font-size: var(--text-ui); font-weight: var(--weight-medium); }
 .inbox__title p { margin: 2px 0 0; font-size: var(--text-xs); color: var(--text-muted); }
-.inbox__close { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-subtle); background: transparent; color: var(--text-secondary); cursor: pointer; }
+.inbox__close { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 2px; border: 1px solid var(--border-subtle); background: transparent; color: var(--text-secondary); cursor: pointer; }
 .inbox__close:hover { color: var(--text-main); background: var(--accent-bg, rgba(127,127,127,0.1)); }
 .inbox__body { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .inbox__group {

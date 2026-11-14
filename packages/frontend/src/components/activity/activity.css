@@ -19,14 +19,15 @@
     --act-muted: var(--color-text-muted);
     --act-accent: var(--color-brand);
     --act-accent-soft: var(--color-brand-soft);
-    --act-hairline: color-mix(in oklab, var(--color-text-primary) 11%, transparent);
-    --act-recessed: color-mix(in oklab, var(--color-text-primary) 4%, transparent);
-    --act-recessed-strong: color-mix(in oklab, var(--color-text-primary) 7%, transparent);
+    /* Hairlines are retired; grouping is a recessed fill. */
+    --act-hairline: transparent;
+    --act-recessed: color-mix(in oklab, var(--color-text-primary) 5%, transparent);
+    --act-recessed-strong: color-mix(in oklab, var(--color-text-primary) 8%, transparent);
     --act-focus: var(--color-focus-ring);
-    /* Status is mono: shape, icon and label carry meaning, never hue. */
-    --act-success: var(--color-text-primary);
-    --act-error: var(--color-text-primary);
-    --act-warning: var(--color-text-secondary);
+    /* Status carries hue plus its glyph and label. */
+    --act-success: var(--color-success);
+    --act-error: var(--color-error);
+    --act-warning: var(--color-warning);
 
     --act-micro: 120ms;
     --act-base: 200ms;
@@ -61,7 +62,7 @@
 }
 
 .act :focus-visible {
-    outline: 2px solid var(--act-focus);
+    outline: none;
     outline-offset: 2px;
     border-radius: var(--act-radius-sm);
 }
@@ -595,10 +596,12 @@ button.act-chip--action:hover {
 
 @keyframes act-node-breathe {
     0%, 100% {
-        box-shadow: 0 0 0 0 color-mix(in oklab, var(--act-accent) 40%, transparent);
+        opacity: 0.7;
+        transform: scale(1.1);
     }
     50% {
-        box-shadow: 0 0 0 3px color-mix(in oklab, var(--act-accent) 28%, transparent);
+        opacity: 1;
+        transform: scale(1.24);
     }
 }
 
@@ -877,7 +880,7 @@ button.act-chip--action:hover {
 
 .act-source-stack__item {
     margin-inline-start: -4px;
-    border: 2px solid var(--color-bg);
+    border: none;
     border-radius: 8px;
 }
 
@@ -890,8 +893,8 @@ button.act-chip--action:hover {
     min-width: 18px;
     height: 18px;
     padding: 0 4px;
-    border-radius: 999px;
-    border: 2px solid var(--color-bg);
+    border-radius: 4px;
+    border: none;
     background: var(--act-recessed-strong);
     color: var(--act-muted);
     font-size: var(--type-2xs);
@@ -1008,10 +1011,9 @@ button.act-chip--action:hover {
     flex-direction: column;
     gap: 8px;
     position: relative;
-    border: 1px dashed color-mix(in oklab, var(--act-warning) 30%, transparent);
-    border-left: 2px solid var(--act-warning);
+    border: none;
     border-radius: var(--act-radius);
-    background: var(--color-bg);
+    background: var(--color-warning-soft);
     padding: 10px 12px 10px 12px;
     max-width: 520px;
 }
@@ -2039,7 +2041,7 @@ button.act-chip--action:hover {
     padding: 4px 8px;
 }
 .act-select:focus-visible {
-    outline: 2px solid var(--act-focus);
+    outline: none;
 }
 
 /* ── reduced motion ──────────────────────────────────────────────────────── */
@@ -2375,10 +2377,9 @@ html[data-motion="reduced"] .act-reason__wave i { opacity: 0.6; }
     gap: 8px;
     margin-bottom: 10px;
     padding: 10px 12px;
-    border: 1px solid var(--act-hairline);
-    border-left: 2px solid var(--accent, var(--act-text));
+    border: none;
     border-radius: var(--radius-sm);
-    background: var(--act-surface, transparent);
+    background: var(--color-accent-faint);
 }
 
 .act-question__head {

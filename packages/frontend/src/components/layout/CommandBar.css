@@ -13,7 +13,7 @@
   height: 48px;
   padding: 0 12px 0 14px;
   background: var(--bg);
-  border-bottom: 1px solid var(--line);
+  border-bottom: none;
   min-width: 0;
   z-index: calc(var(--z-sidebar) + 1);
 }
@@ -24,6 +24,10 @@
   align-items: center;
   gap: 8px;
   flex: 0 0 auto;
+}
+
+.command-bar__mark {
+  color: var(--color-accent);
 }
 
 .command-bar__wordmark {
@@ -143,7 +147,7 @@
   height: 32px;
   padding: 0 10px 0 12px;
   border: 1px solid transparent;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
   color: var(--ink-muted);
   font-family: var(--font-sans);
@@ -171,8 +175,9 @@
   font-family: var(--font-mono);
   font-size: var(--type-2xs);
   color: var(--ink-muted);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
+  border: none;
+  border-radius: 3px;
+  background: var(--surface-3);
   padding: 0 4px;
   line-height: 16px;
 }
@@ -195,24 +200,20 @@
   font-size: var(--type-sm);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: color var(--dur-2) var(--ease-out);
+  transition:
+    color var(--dur-2) var(--ease-out),
+    background-color var(--dur-2) var(--ease-out);
 }
 .command-bar__tab:hover {
   color: var(--ink);
-  background: transparent;
+  background: var(--surface-hover);
 }
 .command-bar__tab.is-active {
-  color: var(--ink);
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
 }
 .command-bar__tab.is-active::after {
-  content: "";
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 4px;
-  background: var(--ink);
+  display: none;
 }
 
 /* ── right cluster ────────────────────────────────────────────────────── */
@@ -239,8 +240,8 @@
   overflow: hidden;
 }
 .command-bar__status.is-busy {
-  color: var(--ink);
-  background: var(--surface-3);
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
 }
 .command-bar__status-label {
   overflow: hidden;
@@ -259,8 +260,8 @@
   padding: 0 12px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background: var(--inverse-bg);
-  color: var(--inverse-ink);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
   font-family: var(--font-sans);
   font-size: var(--type-sm);
   font-weight: var(--font-weight-medium);
@@ -309,9 +310,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--inverse-bg);
-  color: var(--inverse-ink);
-  border-radius: var(--radius-full);
+  background: var(--color-error);
+  color: var(--color-accent-contrast);
+  border-radius: 3px;
   font-family: var(--font-mono);
   font-size: 9px;
   line-height: 1;

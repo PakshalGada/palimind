@@ -12,14 +12,13 @@
     height: 100%;
     padding: 0;
     gap: 0;
-    background: var(--sidebar-bg);
-    border-right: 1px solid var(--line);
+    /* Separation is a surface step, not a hairline. */
+    background: var(--surface-2);
+    border-right: none;
     overflow: hidden;
     font-size: var(--text-base);
     color: var(--color-text-secondary);
-    transition:
-        background-color var(--transition-base),
-        border-color var(--transition-base);
+    transition: background-color var(--transition-base);
 }
 
 /* ── header / brand ──────────────────────────────────────────────────── */
@@ -115,7 +114,7 @@
     color: var(--color-text-primary);
 }
 .sb-search:focus-visible {
-    outline: 2px solid var(--focus);
+    outline: none;
     outline-offset: 2px;
 }
 .sb-search__label {
@@ -170,10 +169,10 @@
     transform: scale(0.992);
 }
 .sb-nav-item.is-active {
-    background: var(--surface-2);
+    background: var(--color-accent-soft);
     border-color: transparent;
-    color: var(--color-text-primary);
-    box-shadow: var(--shadow-xs);
+    color: var(--color-accent);
+    box-shadow: none;
 }
 .sb-nav-item__icon {
     display: inline-flex;
@@ -187,7 +186,7 @@
 }
 .sb-nav-item:hover .sb-nav-item__icon,
 .sb-nav-item.is-active .sb-nav-item__icon {
-    color: var(--color-text-primary);
+    color: currentColor;
 }
 .sb-nav-item__label {
     flex: 1;
@@ -277,11 +276,11 @@
     color: var(--color-text-primary);
 }
 .sb-row.is-active {
-    background: var(--surface-2);
+    background: var(--color-accent-soft);
     border-color: transparent;
-    color: var(--color-text-primary);
+    color: var(--color-accent);
     font-weight: var(--font-weight-medium);
-    box-shadow: var(--shadow-xs);
+    box-shadow: none;
 }
 .sb-row__icon {
     flex: 0 0 auto;
@@ -332,13 +331,34 @@
     transform: translateY(1px);
 }
 .sb-action:focus-visible {
-    outline: 2px solid var(--focus);
+    outline: none;
     outline-offset: 2px;
 }
 .sb-action span {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+/* Rail errors are a single compact line: the global banner carries the
+   detail, the rail only offers the retry. */
+.sb-section .ui-error-banner {
+    align-items: center;
+    gap: 8px;
+    padding: 8px 9px;
+}
+.sb-section .ui-error-banner__text {
+    gap: 0;
+}
+.sb-section .ui-error-banner__title {
+    font-size: var(--type-xs);
+    line-height: 1.25;
+}
+.sb-section .ui-error-banner__message {
+    display: none;
+}
+.sb-section .ui-error-banner__retry {
+    height: 24px;
+    padding: 0 7px;
 }
 .sb-section .ui-empty--compact {
     padding: 12px 8px;

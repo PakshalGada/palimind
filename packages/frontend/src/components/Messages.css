@@ -99,14 +99,14 @@
     /* The user turn is the one inverted block in the transcript. */
     background: var(--inverse-bg);
     color: var(--inverse-ink);
-    border: 1px solid var(--inverse-bg);
+    border: none;
     padding: 10px 14px;
     border-radius: var(--radius-bubble);
     width: auto;
     max-width: min(620px, 78%);
     font-size: var(--type-md);
     line-height: 1.6;
-    box-shadow: none;
+    box-shadow: var(--shadow-sm);
 }
 .user-message .message-content a {
     color: var(--inverse-ink);
@@ -167,8 +167,10 @@
 }
 .message-content blockquote {
     margin: 14px 0;
-    padding: 2px 0 2px 12px;
-    border-left: 1px solid var(--line-strong);
+    padding: 10px 14px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--color-accent-faint);
     color: var(--text-secondary);
 }
 .message-content table {
@@ -272,13 +274,13 @@
 }
 .code-box-copy {
     background: var(--surface-raised);
-    border: 1px solid var(--border-color);
+    border: none;
     color: var(--text-main);
     padding: 5px 10px;
     border-radius: var(--radius-xs);
     font-size: var(--type-xs);
     cursor: pointer;
-    transition: background-color var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out);
+    transition: background-color var(--dur-2) var(--ease-out);
     min-height: 26px;
 }
 .code-box-copy:hover {
@@ -294,28 +296,17 @@
     --artifact-accent: var(--text-secondary);
     box-shadow: none;
 }
-.artifact-block--html { --artifact-accent: #a2a2a2; }
+.artifact-block--html { --artifact-accent: var(--color-cat-teal); }
 .artifact-block--svg,
-.artifact-block--mermaid { --artifact-accent: #8c8c8c; }
+.artifact-block--mermaid { --artifact-accent: var(--color-cat-violet); }
 .artifact-block--react,
 .artifact-block--code,
 .artifact-block--code-file,
-.artifact-block--multi-file { --artifact-accent: #c5c5c5; }
+.artifact-block--multi-file { --artifact-accent: var(--color-cat-blue); }
 .artifact-block--document,
 .artifact-block--markdown,
-.artifact-block--slide-outline { --artifact-accent: #d4d4d4; }
-.artifact-block--table { --artifact-accent: #b5b5b5; }
-.light-mode .artifact-block--html { --artifact-accent: #535353; }
-.light-mode .artifact-block--svg,
-.light-mode .artifact-block--mermaid { --artifact-accent: #404040; }
-.light-mode .artifact-block--react,
-.light-mode .artifact-block--code,
-.light-mode .artifact-block--code-file,
-.light-mode .artifact-block--multi-file { --artifact-accent: #404040; }
-.light-mode .artifact-block--document,
-.light-mode .artifact-block--markdown,
-.light-mode .artifact-block--slide-outline { --artifact-accent: #535353; }
-.light-mode .artifact-block--table { --artifact-accent: #404040; }
+.artifact-block--slide-outline { --artifact-accent: var(--color-cat-amber); }
+.artifact-block--table { --artifact-accent: var(--color-cat-lime); }
 .artifact-block-head { gap: 12px; }
 .artifact-block .code-box-lang { color: var(--artifact-accent); }
 .artifact-block-meta {
@@ -379,19 +370,18 @@
 .artifact-block-open {
     min-height: 28px;
     padding: 5px 10px;
-    border: 1px solid var(--primary-color);
+    border: none;
     border-radius: var(--radius-sm);
-    background: var(--primary-color);
-    color: var(--primary-text);
+    background: var(--color-accent);
+    color: var(--color-accent-contrast);
     font-family: var(--font-sans);
     font-size: var(--type-sm);
     font-weight: 550;
     cursor: pointer;
-    transition: background 0.16s ease, border-color 0.16s ease;
+    transition: background 0.16s ease;
 }
 .artifact-block-open:hover {
-    background: var(--primary-hover);
-    border-color: var(--primary-hover);
+    background: var(--color-accent-hover);
 }
 .artifact-block-body {
     display: grid;
