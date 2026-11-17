@@ -99,6 +99,14 @@ export const COMMANDS: CommandDef[] = [
     defaultShortcut: 'Mod+Shift+L',
   },
   {
+    id: 'chat.compare-models',
+    title: 'Compare Models Side by Side',
+    category: 'Chat',
+    icon: 'blocks',
+    description: 'Run one prompt on two models in parallel and pick the winner',
+    keywords: ['arena', 'duel', 'ab', 'test', 'two', 'columns'],
+  },
+  {
     id: 'chat.attach',
     title: 'Attach Files',
     category: 'Chat',

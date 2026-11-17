@@ -1,0 +1,166 @@
+/* Full-page settings view (replaces the centered modal). */
+
+.settings-page {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+}
+
+.settings-page-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--line, rgba(128, 128, 128, 0.2));
+    background: var(--color-surface);
+}
+.settings-page-header h2 {
+    margin: 0;
+    font-family: var(--font-heading);
+    font-size: var(--type-md);
+    font-weight: 700;
+}
+.settings-page-search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin-left: 12px;
+    flex: 1;
+    max-width: 420px;
+}
+.settings-page-search svg {
+    position: absolute;
+    left: 10px;
+    color: var(--text-muted);
+    pointer-events: none;
+}
+.settings-page-search input {
+    width: 100%;
+    padding: 8px 12px 8px 32px;
+    border: 1px solid var(--line, rgba(128, 128, 128, 0.25));
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    font-size: var(--type-sm);
+}
+.settings-page-search input:focus {
+    outline: none;
+    border-color: var(--color-brand);
+}
+.settings-page-close {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border: 1px solid var(--line, rgba(128, 128, 128, 0.25));
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--type-sm);
+    cursor: pointer;
+}
+.settings-page-close:hover { background: var(--bg-hover); color: var(--text-main); }
+.settings-page-close kbd {
+    font-family: var(--font-mono, monospace);
+    font-size: var(--type-xs);
+    color: var(--text-muted);
+}
+
+.settings-page-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 224px minmax(0, 1fr);
+}
+
+/* Nav section captions when searching */
+.settings-nav-empty {
+    padding: 12px;
+    color: var(--text-muted);
+    font-size: var(--type-xs);
+}
+
+/* Prompt library rows */
+.settings-prompt-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--line, rgba(128, 128, 128, 0.2));
+    border-radius: var(--radius-md);
+    background: var(--surface);
+}
+.settings-prompt-row-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.settings-prompt-row-head code {
+    font-family: var(--font-mono, monospace);
+    font-size: var(--type-sm);
+    color: var(--color-brand);
+}
+.settings-prompt-row-head strong {
+    font-size: var(--type-sm);
+    color: var(--text-main);
+}
+.settings-prompt-row-head .settings-prompt-row-desc {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+    font-size: var(--type-xs);
+}
+.settings-prompt-row .settings-prompt-row-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.settings-prompt-row textarea {
+    width: 100%;
+    min-height: 72px;
+    resize: vertical;
+    padding: 8px 10px;
+    border: 1px solid var(--line, rgba(128, 128, 128, 0.25));
+    border-radius: var(--radius-sm);
+    background: var(--surface-2, var(--bg));
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    font-size: var(--type-sm);
+    line-height: 1.5;
+}
+.settings-prompt-row textarea:focus { outline: none; }
+.settings-prompt-row-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.settings-prompt-new {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border: 1px dashed var(--line, rgba(128, 128, 128, 0.35));
+    border-radius: var(--radius-md);
+}
+.settings-voice-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+@media (max-width: 760px) {
+    .settings-page-body { grid-template-columns: 1fr; }
+    .settings-page-body .settings-nav {
+        flex-direction: row;
+        overflow-x: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--line, rgba(128, 128, 128, 0.2));
+    }
+}

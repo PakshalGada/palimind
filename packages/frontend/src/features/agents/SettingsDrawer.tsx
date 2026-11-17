@@ -6,17 +6,19 @@ import {
   Plug,
   Server,
   Trash2,
+  Volume2,
   Wrench,
   X,
 } from 'lucide-react';
 import { api } from '../../api';
 import { useApp } from '../../AppContext';
 import { useConfirm } from '../../components/ConfirmDialog';
-import { Button, Chip, TextInput } from '../../ui/primitives';
+import { Button, Chip, Select, TextInput, Toggle } from '../../ui/primitives';
+import { getVoice, isAutoSpeakOn, autoSpeakOverride, clearAutoSpeak, setAutoSpeak, setVoice, TTS_VOICES } from '../../utils/voicePrefs';
 import type { AgentListItem, MarketplaceSkill, SkillMeta } from '../../types';
 import './SettingsDrawer.css';
 
-type Section = 'providers' | 'usage' | 'browser' | 'skills' | 'mcp' | 'plugins' | 'data';
+type Section = 'providers' | 'usage' | 'browser' | 'skills' | 'mcp' | 'plugins' | 'data' | 'voice';
 
 interface Aggregate {
   total?: { prompt_tokens?: number; completion_tokens?: number; cost_estimate?: number; calls?: number };
@@ -51,6 +53,7 @@ const SECTIONS: { id: Section; label: string; icon: typeof Server }[] = [
   { id: 'skills', label: 'Skills', icon: Wrench },
   { id: 'mcp', label: 'MCP', icon: Plug },
   { id: 'plugins', label: 'Plugins', icon: Plug },
+  { id: 'voice', label: 'Voice', icon: Volume2 },
   { id: 'data', label: 'Data', icon: Database },
 ];
 
@@ -95,6 +98,8 @@ export default function SettingsDrawer({
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [sections, setSections] = useState<{ id: string; name: string }[]>([]);
   const [newSection, setNewSection] = useState('');
+  // Bumped whenever a voice pref changes so the section re-reads localStorage.
+  const [voiceTick, setVoiceTick] = useState(0);
 
   const loadSections = useCallback(async () => {
     try {
@@ -519,6 +524,90 @@ export default function SettingsDrawer({
             </section>
           )}
 
+          {section === 'voice' && (
+            <section className="ag-settings__section">
+              <h3>Voice output</h3>
+              <p className="ag-settings__note">
+                Speak assistant replies with the local voice model. Any reply can also be played
+                with the speaker button under the message.
+              </p>
+              <Toggle
+                checked={isAutoSpeakOn(null)}
+                onChange={(value) => {
+                  setAutoSpeak(value);
+                  setVoiceTick((tick) => tick + 1);
+                }}
+                title="Speak replies automatically"
+                description="Default for plain chat. Agents can override below."
+              />
+              <Select
+                aria-label="Default voice"
+                value={getVoice(null)}
+                onChange={(event) => {
+                  setVoice(event.target.value);
+                  setVoiceTick((tick) => tick + 1);
+                }}
+              >
+                {TTS_VOICES.map((voice) => (
+                  <option key={voice.id} value={voice.id}>
+                    {voice.label}
+                  </option>
+                ))}
+              </Select>
+              <h3>Per-agent voices</h3>
+              <p className="ag-settings__note">
+                Each agent can speak with its own voice or stay silent.
+              </p>
+              <div className="ag-settings__list" key={voiceTick}>
+                {agents.map((agent) => (
+                  <div key={agent.id} className="ag-settings__row ag-settings__voice-row">
+                    <div>
+                      <strong>{agent.name}</strong>
+                      <span>
+                        {autoSpeakOverride(agent.id) === 'inherit'
+                          ? 'uses default'
+                          : autoSpeakOverride(agent.id) === 'on'
+                            ? 'speaks replies'
+                            : 'silent'}
+                      </span>
+                    </div>
+                    <Select
+                      aria-label={`${agent.name} speech`}
+                      value={autoSpeakOverride(agent.id)}
+                      onChange={(event) => {
+                        const mode = event.target.value as 'inherit' | 'on' | 'off';
+                        if (mode === 'inherit') clearAutoSpeak(agent.id);
+                        else setAutoSpeak(mode === 'on', agent.id);
+                        setVoiceTick((tick) => tick + 1);
+                      }}
+                    >
+                      <option value="inherit">Use default</option>
+                      <option value="on">Always speak</option>
+                      <option value="off">Never speak</option>
+                    </Select>
+                    <Select
+                      aria-label={`${agent.name} voice`}
+                      value={getVoice(`agent:${agent.id}`)}
+                      onChange={(event) => {
+                        setVoice(event.target.value, agent.id);
+                        setVoiceTick((tick) => tick + 1);
+                      }}
+                    >
+                      {TTS_VOICES.map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.label.replace(/\s*\(.*\)$/, '')}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                ))}
+                {agents.length === 0 && (
+                  <p className="ag-settings__empty">No agents yet.</p>
+                )}
+              </div>
+            </section>
+          )}
+
           {section === 'data' && (
             <section className="ag-settings__section">
               <h3>Sections</h3>
@@ -562,27 +651,19 @@ export default function SettingsDrawer({
               </Button>
               <h3>Notifications</h3>
               <p className="ag-settings__note">
-                Get a desktop notification when an agent stops to ask a question or waits for approval.
+                Desktop notifications live in the main settings, under{' '}
+                <strong>Notifications</strong>.
               </p>
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={() => {
-                  if (typeof Notification === 'undefined') {
-                    addToast('Notifications are not available here.', { tone: 'warning' });
-                    return;
-                  }
-                  void Notification.requestPermission().then((permission) => {
-                    addToast(
-                      permission === 'granted'
-                        ? 'Notifications enabled'
-                        : 'Notifications were not enabled',
-                      { tone: permission === 'granted' ? 'success' : 'warning' },
-                    );
-                  });
+                  window.dispatchEvent(
+                    new CustomEvent('palimind:open-settings', { detail: { section: 'notifications' } }),
+                  );
                 }}
               >
-                Enable notifications
+                Open notification settings
               </Button>
             </section>
           )}

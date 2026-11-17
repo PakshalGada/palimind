@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import { CloudOff, FileText, FolderPlus, Sparkles, Waypoints } from 'lucide-react';
+import { FolderPlus, Sparkles } from 'lucide-react';
 import { Button, EmptyState } from '../ui/primitives';
 import { useUserName } from '../hooks/useUserName';
 import { getGreeting } from '../utils/greeting';
+import OnboardingChecklist from './onboarding/OnboardingChecklist';
 
 export default function WelcomeScreen() {
   const name = useUserName();
@@ -32,36 +33,10 @@ export default function WelcomeScreen() {
             </Button>
           }
         >
-          <div className="welcome-features">
-            <button type="button" className="welcome-feature-card" onClick={openPicker}>
-              <span className="welcome-feature-icon">
-                <FileText size={19} />
-              </span>
-              <span className="welcome-feature-title">Multimodal RAG</span>
-              <span className="welcome-feature-desc">
-                Query PDFs, code, images and notes locally
-              </span>
-            </button>
-
-            <button type="button" className="welcome-feature-card" onClick={openPicker}>
-              <span className="welcome-feature-icon">
-                <Waypoints size={19} />
-              </span>
-              <span className="welcome-feature-title">Mixture of Experts</span>
-              <span className="welcome-feature-desc">
-                Parallel local models for deeper answers
-              </span>
-            </button>
-
-            <button type="button" className="welcome-feature-card" onClick={openPicker}>
-              <span className="welcome-feature-icon">
-                <CloudOff size={19} />
-              </span>
-              <span className="welcome-feature-title">Zero Cloud Leaks</span>
-              <span className="welcome-feature-desc">
-                Vectors and inference stay on your machine
-              </span>
-            </button>
+          {/* Guided first-run flow replaces the static feature cards: every
+              card below used to trigger the same directory picker anyway. */}
+          <div className="onboarding-wrap">
+            <OnboardingChecklist />
           </div>
         </EmptyState>
       </div>

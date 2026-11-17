@@ -40,6 +40,12 @@ import { useCommandHandlers } from "../commands/useCommand";
 import { useChatStreamActions } from "../stream/context";
 import { exportWAV } from "../utils/audio";
 import { api } from "../api";
+import {
+  promptToSlashCommand,
+  renderPromptTemplate,
+  templateVariables,
+  type PromptTemplate,
+} from "../utils/prompts";
 import { resolveScope } from "../lib/scope";
 import type { AgentListItem, ModelItem } from "../types";
 import {
@@ -181,6 +187,12 @@ function InputArea({
   // When set, the next handleSend() uses this text instead of the composer
   // value. Used by the "regenerate" command to replay a previous message.
   const sendOverrideRef = useRef<string | null>(null);
+  // Armed fork: the next send starts a new conversation branch at this
+  // message. Set by the message row's fork action.
+  const [forkTarget, setForkTarget] = useState<{
+    sessionId: string;
+    messageId: number;
+  } | null>(null);
   // Guards the async attachment upload window, before isGenerating flips.
   const sendingRef = useRef(false);
 
@@ -203,6 +215,14 @@ function InputArea({
   // Selecting /docx or /pptx arms a skill; the next message is the query.
   const pendingSkillRef = useRef<SlashCommand | null>(null);
   const [pendingSkill, setPendingSkill] = useState<SlashCommand | null>(null);
+  // Saved prompts (prompt library): commands from /api/prompts plus the
+  // in-progress variable fill-in form.
+  const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
+  const [promptForm, setPromptForm] = useState<{
+    command: SlashCommand;
+    fields: string[];
+    values: Record<string, string>;
+  } | null>(null);
   const [localBusy, setLocalBusy] = useState(false);
   const [officeJob, setOfficeJob] = useState<OfficeJob | null>(null);
   const officeJobId = useRef(0);
@@ -244,6 +264,35 @@ function InputArea({
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const loadPrompts = () =>
+      api.prompts
+        .list()
+        .then((data) => setPrompts(data.prompts || []))
+        .catch(() => {});
+    void loadPrompts();
+    window.addEventListener("palimind:prompts-changed", loadPrompts);
+    return () => window.removeEventListener("palimind:prompts-changed", loadPrompts);
+  }, []);
+
+  // Fork mode is armed from the message row; it only applies to that session.
+  useEffect(() => {
+    const onForkArmed = (event: Event) => {
+      const detail = (event as CustomEvent<{ sessionId?: string; messageId?: number }>).detail;
+      if (!detail?.sessionId || !detail.messageId) return;
+      setForkTarget({ sessionId: detail.sessionId, messageId: detail.messageId });
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    };
+    window.addEventListener("palimind:fork-armed", onForkArmed);
+    return () => window.removeEventListener("palimind:fork-armed", onForkArmed);
+  }, []);
+
+  // Leaving the session drops any armed fork (the server marker expires on
+  // its own and was only ever armed at send time).
+  useEffect(() => {
+    if (forkTarget && forkTarget.sessionId !== activeSessionId) setForkTarget(null);
+  }, [activeSessionId, forkTarget]);
 
   // ── voice input (speech-to-text) ──────────────────────────────────
   // Captures raw PCM via Web Audio (portable across Chromium and WebKitGTK,
@@ -398,9 +447,13 @@ function InputArea({
     if (token) setMentionIndex(0);
   }, []);
 
+  const promptCommands = useMemo(
+    () => prompts.map((prompt) => promptToSlashCommand(prompt)),
+    [prompts],
+  );
   const slashCommands = useMemo(
-    () => [...SLASH_COMMANDS, ...extraSkills],
-    [extraSkills],
+    () => [...SLASH_COMMANDS, ...extraSkills, ...promptCommands],
+    [extraSkills, promptCommands],
   );
   const slashMatches = slash ? filterSlashCommands(slash.query, slashCommands) : [];
   const activeCommand = useMemo(
@@ -422,9 +475,54 @@ function InputArea({
     if (token) setSlashIndex(0);
   }, []);
 
+  /** Turn a leading `/prompt [args]` into its expanded template text. */
+  const expandPromptCommand = useCallback(
+    (command: SlashCommand, text: string) => {
+      const template = command.template || "";
+      if (!template) return;
+      const args = text.replace(/^\s*[/\\][\w-]+\s*/, "").trim();
+      const values: Record<string, string> = {};
+      let trailing = "";
+      if (args) {
+        if (templateVariables(template).includes("input")) values.input = args;
+        else trailing = args;
+      }
+      const rendered = renderPromptTemplate(template, values);
+      const missing = templateVariables(rendered);
+      const finalText = trailing ? `${rendered}\n\n${trailing}` : rendered;
+      setSlash(null);
+      setValue(finalText);
+      if (missing.length) {
+        setPromptForm({ command, fields: missing, values });
+      }
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    },
+    // setValue/textareaRef are stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   const applySlash = useCallback(
     (command: SlashCommand) => {
       if (!slash) return;
+      if (command.promptId && command.template) {
+        // A saved prompt: the template (with its {variables}) becomes the
+        // composer text; variables without values open the fill-in form.
+        const cleaned = stripSlashToken(value, slash);
+        const template = command.template;
+        const missing = templateVariables(template);
+        pendingSkillRef.current = null;
+        setPendingSkill(null);
+        setSlash(null);
+        if (!missing.length) {
+          setValue(cleaned ? `${cleaned}\n\n${template}` : template);
+        } else {
+          setValue(cleaned);
+          setPromptForm({ command, fields: missing, values: {} });
+        }
+        requestAnimationFrame(() => textareaRef.current?.focus());
+        return;
+      }
       if (command.artifact || command.skillId) {
         // Keep the command in the composer so the user can see and edit what
         // will run. The transcript keeps the same text; the detailed skill
@@ -458,11 +556,22 @@ function InputArea({
     [slash, value],
   );
   const isEmpty = !value.trim() && attachedFiles.length === 0;
+
+  /** Fill-in form confirmed: splice the completed prompt into the composer. */
+  const confirmPromptForm = useCallback(() => {
+    if (!promptForm) return;
+    const rendered = renderPromptTemplate(promptForm.command.template || "", promptForm.values);
+    setValue((prev) => (prev.trim() ? `${prev.trim()}\n\n${rendered}` : rendered));
+    setPromptForm(null);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [promptForm]);
   const showStop = !onLocalSend && isGenerating;
   const sendDisabled = disabled || (onLocalSend ? localBusy : false) || isEmpty;
   const composerPlaceholder = pendingSkill
     ? "Describe what you need..."
-    : activeCommand && !commandQuery
+    : forkTarget
+      ? "Describe the new direction for this branch..."
+      : activeCommand && !commandQuery
       ? `Describe the ${activeCommand.label.toLowerCase()} you need...`
       : placeholder;
 
@@ -652,6 +761,16 @@ function InputArea({
       return;
     }
 
+    // A leading saved prompt (`/weekly-plan`) is expanded into its template
+    // text instead of being sent literally; unfilled variables open the form.
+    if (fromComposer) {
+      const leadingPrompt = leadingCommand(text, slashCommands);
+      if (leadingPrompt?.promptId && leadingPrompt.template) {
+        expandPromptCommand(leadingPrompt, text);
+        return;
+      }
+    }
+
     // A skill selected in the composer is visible in the transcript, but the
     // model receives the detailed skill prompt instead of the raw command.
     const pending = fromComposer ? pendingSkillRef.current : null;
@@ -662,6 +781,26 @@ function InputArea({
     const skillQuery = pending ? text : (direct?.query ?? "");
     let visibleText = text;
     let modelText = text;
+
+    // A forked branch: arm it server-side so this turn is re-parented at the
+    // fork point instead of continuing the previous path.
+    if (fromComposer && forkTarget && forkTarget.sessionId === activeSessionId) {
+      try {
+        const forkData = await api.sessions.forkMessage(
+          activeSessionId,
+          forkTarget.messageId,
+          scope,
+        );
+        if (forkData.error) {
+          addToast(forkData.error);
+          return;
+        }
+      } catch {
+        addToast("Could not start the branch.");
+        return;
+      }
+      setForkTarget(null);
+    }
 
     sendingRef.current = true;
     try {
@@ -836,9 +975,11 @@ function InputArea({
     localBusy,
     disabled,
     slashCommands,
+    expandPromptCommand,
     sendMessage,
     addToast,
     replyTarget?.messageId,
+    forkTarget,
   ]);
 
   const findLastMessage = useCallback(
@@ -951,6 +1092,11 @@ function InputArea({
       pendingSkillRef.current = null;
       setPendingSkill(null);
       setValue("");
+      return;
+    }
+    if (e.key === "Escape" && promptForm) {
+      e.preventDefault();
+      setPromptForm(null);
       return;
     }
     if (slash && slashMatches.length > 0) {
@@ -1068,6 +1214,71 @@ function InputArea({
             type="button"
             aria-label="Cancel reply"
             onClick={() => setReplyTarget(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {promptForm && (
+        <div className="prompt-form" role="form" aria-label={`Fill in ${promptForm.command.label}`}>
+          <div className="prompt-form__head">
+            <span className="prompt-form__icon">
+              <Sparkles size={13} />
+            </span>
+            <code className="prompt-form__command">{promptForm.command.command}</code>
+            <span className="prompt-form__label">{promptForm.command.label}</span>
+            <button
+              type="button"
+              className="prompt-form__close"
+              aria-label="Close prompt form"
+              onClick={() => setPromptForm(null)}
+            >
+              ×
+            </button>
+          </div>
+          {promptForm.fields.map((field, index) => (
+            <label key={field} className="prompt-form__field">
+              <span className="prompt-form__field-name">{`{${field}}`}</span>
+              <input
+                autoFocus={index === 0}
+                value={promptForm.values[field] ?? ""}
+                placeholder={`Value for ${field}`}
+                onChange={(event) =>
+                  setPromptForm((form) =>
+                    form ? { ...form, values: { ...form.values, [field]: event.target.value } } : form,
+                  )
+                }
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    confirmPromptForm();
+                  }
+                }}
+              />
+            </label>
+          ))}
+          <div className="prompt-form__actions">
+            <Button size="sm" variant="secondary" onClick={() => setPromptForm(null)}>
+              Cancel
+            </Button>
+            <Button size="sm" variant="primary" onClick={confirmPromptForm}>
+              Insert prompt
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {forkTarget && (
+        <div className="composer-reply-chip composer-fork-chip" role="status">
+          <span className="composer-reply-chip__label">Forking from message #{forkTarget.messageId}</span>
+          <span className="composer-reply-chip__text">
+            Your next message starts a new branch — the current path stays switchable.
+          </span>
+          <button
+            type="button"
+            aria-label="Cancel fork"
+            onClick={() => setForkTarget(null)}
           >
             ×
           </button>

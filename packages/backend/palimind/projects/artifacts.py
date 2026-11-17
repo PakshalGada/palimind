@@ -42,6 +42,15 @@ _EXTENSIONS = {
     "css": ".css",
     "code": ".txt",
     "text": ".txt",
+    # Types produced by the chat artifact pipeline that were previously
+    # unknown here and silently exported as ".txt".
+    "document": ".md",
+    "slide-outline": ".md",
+    "slide": ".md",
+    "table": ".md",
+    "csv": ".csv",
+    "code-file": ".txt",
+    "multi-file": ".txt",
 }
 _MIME_TYPES = {
     ".html": "text/html",
@@ -55,6 +64,7 @@ _MIME_TYPES = {
     ".json": "application/json",
     ".css": "text/css",
     ".txt": "text/plain",
+    ".csv": "text/csv",
 }
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 # index.json is rewritten in full on every change; serialise read-modify-write

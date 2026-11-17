@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from './AppContext';
 import { api } from './api';
 import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
-import SettingsModal from './components/SettingsModal';
+import CompareModal from './components/CompareModal';
+import SettingsPage from './features/settings/SettingsPage';
 import DirectoryPicker from './components/DirectoryPicker';
 import KnowledgeGraph from './components/KnowledgeGraph';
 import ToastContainer from './components/ToastContainer';
@@ -25,6 +26,8 @@ import { useCommandHandlers } from './commands/useCommand';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { usePixelMotion } from './design/usePixelMotion';
 import { resolveScope } from './lib/scope';
+import { speech } from './utils/speech';
+import { getVoice, isAutoSpeakOn } from './utils/voicePrefs';
 import { ChatStreamProvider } from './stream/ChatStream';
 import HomeView from './features/home/HomeView';
 import ProjectsView from './features/projects/ProjectsView';
@@ -38,7 +41,7 @@ export default function App() {
     activeProjectId,
     activeField, setActiveField, setSessions, setActiveSessionId,
     setCurrentModel, setLlmSubMode, setOrchestratorModel, setWorkerModel,
-    setIsIndexing, setIndexingStatus,
+    setIsIndexing, setIndexingStatus, setIsSpeaking,
     isRecording, isTranscribing, isSpeaking,
     setActiveView, setAgentsView, setAgentsWorkTab, setChatMode, theme, setTheme,
     chatMode,
@@ -74,6 +77,31 @@ export default function App() {
       window.history.replaceState(null, '', `#${activeView}`);
     }
   }, [activeView]);
+
+  // Voice output. The speech singleton is mirrored into `isSpeaking` so the
+  // app shell can style itself while talking, and finished replies are
+  // spoken automatically for scopes where the per-agent toggle is on.
+  useEffect(
+    () => speech.subscribe((next) => setIsSpeaking(next.status !== 'idle')),
+    [setIsSpeaking],
+  );
+
+  useEffect(() => {
+    const onReply = (event: Event) => {
+      const detail = (event as CustomEvent<{ text?: string; scope?: string }>).detail;
+      const text = String(detail?.text ?? '');
+      if (!text.trim() || !isAutoSpeakOn(detail?.scope)) return;
+      speech.play(`auto:${Date.now()}`, text, getVoice(detail?.scope));
+    };
+    // A new user message stops any ongoing playback (barge-in).
+    const onSent = () => speech.stop();
+    window.addEventListener('palimind:assistant-reply', onReply);
+    window.addEventListener('palimind:message-sent', onSent);
+    return () => {
+      window.removeEventListener('palimind:assistant-reply', onReply);
+      window.removeEventListener('palimind:message-sent', onSent);
+    };
+  }, []);
 
   // App-level commands: navigation, view toggles and global modals.
   useCommandHandlers({
@@ -125,6 +153,7 @@ export default function App() {
       setAgentsView('work');
       setAgentsWorkTab('board');
     },
+    'chat.compare-models': () => setCompareOpen(true),
   });
 
   // The Agents area reuses the global chat surface but is backed by the
@@ -208,6 +237,7 @@ export default function App() {
     };
   }, [scope, activeField, setSessions, setActiveSessionId]);
 
+  const [compareOpen, setCompareOpen] = useState(false);
   const containerClass = [
     isRecording ? 'recording' : '',
     isTranscribing ? 'transcribing' : '',
@@ -236,7 +266,8 @@ export default function App() {
           {activeView === 'artifacts' && <ArtifactsView />}
         </div>
         <AgentManager />
-        <SettingsModal />
+        <CompareModal open={compareOpen} onClose={() => setCompareOpen(false)} />
+        <SettingsPage />
         <DirectoryPicker />
         <KnowledgeGraph />
         <ShortcutsModal />

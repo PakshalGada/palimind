@@ -41,6 +41,61 @@ async def save_artifact(req: Request):
     return artifact
 
 
+@router.get("/library")
+async def library(q: str = "", include_content: bool = True):
+    """Everything the artifact library shows in one round-trip.
+
+    The frontend used to fetch the global registry and then one request per
+    project; with dozens of projects that made opening the library feel
+    serial. Returns both collections in a single response.
+    """
+    from palimind.projects import artifacts as project_artifacts
+    from palimind.projects import store as project_store
+
+    def _collect_projects() -> list[dict[str, Any]]:
+        groups: list[dict[str, Any]] = []
+        for project in project_store.list_projects():
+            project_id = str(project.get("id", ""))
+            if not project_id:
+                continue
+            try:
+                items = project_artifacts.list_artifacts(project_id, include_content)
+            except Exception:
+                items = []
+            groups.append(
+                {
+                    "project_id": project_id,
+                    "project_name": str(project.get("name") or ""),
+                    "artifacts": items,
+                }
+            )
+        return groups
+
+    project_groups = await asyncio.to_thread(_collect_projects)
+    global_items = await asyncio.to_thread(registry.list_artifacts, q or None, None, include_content)
+    return {"artifacts": global_items, "projects": project_groups}
+
+
+@router.get("/{artifact_id}/versions")
+async def list_artifact_versions(artifact_id: str):
+    """Version history for a registry artifact (summaries, no bodies)."""
+    versions = await asyncio.to_thread(registry.list_versions, artifact_id)
+    if not versions:
+        artifact = await asyncio.to_thread(registry.get_artifact, artifact_id)
+        if artifact is None:
+            raise HTTPException(status_code=404, detail="Artifact not found")
+    return {"versions": versions}
+
+
+@router.get("/{artifact_id}/versions/{version}")
+async def get_artifact_version(artifact_id: str, version: int):
+    """Read one historical version body of a registry artifact."""
+    record = await asyncio.to_thread(registry.get_artifact_version, artifact_id, version)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Version not found")
+    return record
+
+
 @router.post("/save-to-knowledge")
 async def save_to_knowledge(req: Request):
     """Write an artifact as a Markdown document and re-index its knowledge base."""

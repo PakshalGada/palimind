@@ -18,6 +18,8 @@ from palimind.storage import state_store
 
 NAMESPACE = "artifacts"
 _MAX_RESULTS = 500
+# Bounded history per artifact: the oldest snapshots fall off first.
+_MAX_VERSIONS = 40
 
 
 def _now() -> float:
@@ -53,6 +55,7 @@ def _detect_title(content: str, fallback: str = "Artifact") -> str:
 
 
 def _summary(artifact: dict[str, Any]) -> dict[str, Any]:
+    versions = artifact.get("versions") or []
     return {
         "id": str(artifact.get("id", "")),
         "title": str(artifact.get("title", "Artifact")),
@@ -62,6 +65,8 @@ def _summary(artifact: dict[str, Any]) -> dict[str, Any]:
         "project_id": str(artifact.get("project_id", "")),
         "source": str(artifact.get("source", "")),
         "size": len(str(artifact.get("content", ""))),
+        "version_count": len(versions),
+        "current_version": int(artifact.get("current_version", 0) or 0),
         "created_at": float(artifact.get("created_at", 0) or 0),
         "updated_at": float(artifact.get("updated_at", 0) or 0),
     }
@@ -110,6 +115,27 @@ def save_artifact(data: dict[str, Any], artifact_id: str | None = None) -> dict[
     content = data.get("content")
     if content is None:
         content = existing.get("content", "") if existing else ""
+    new_content = str(content or "")
+
+    # Version history: saving over an existing artifact snapshots the content
+    # it replaces instead of silently discarding it ("the first draft was
+    # better" must stay recoverable). Mirrors the project artifact store.
+    versions = [v for v in (existing or {}).get("versions") or [] if isinstance(v, dict)]
+    if existing is not None:
+        old_content = str(existing.get("content", ""))
+        if old_content and old_content != new_content:
+            next_number = max((int(v.get("version", 0) or 0) for v in versions), default=0) + 1
+            versions.append(
+                {
+                    "version": next_number,
+                    "saved_at": float(existing.get("updated_at") or now),
+                    "size": len(old_content),
+                    "note": "Replaced by a newer save",
+                    "content": old_content,
+                }
+            )
+            versions = versions[-_MAX_VERSIONS:]
+
     artifact = {
         "id": artifact_id or str(uuid.uuid4().hex),
         "title": str(
@@ -124,12 +150,47 @@ def save_artifact(data: dict[str, Any], artifact_id: str | None = None) -> dict[
         "source": str(data.get("source") or (existing or {}).get("source", "")),
         "session_id": str(data.get("session_id") or (existing or {}).get("session_id", "")),
         "message_id": str(data.get("message_id") or (existing or {}).get("message_id", "")),
-        "content": str(content or ""),
+        "content": new_content,
+        "versions": versions,
+        "current_version": max((int(v.get("version", 0) or 0) for v in versions), default=0),
         "created_at": float((existing or {}).get("created_at") or now),
         "updated_at": now,
     }
     state_store.set_json(NAMESPACE, artifact["id"], artifact)
     return artifact
+
+
+def list_versions(artifact_id: str) -> list[dict[str, Any]]:
+    """Version summaries (no bodies) for a registry artifact, oldest first."""
+    artifact = get_artifact(artifact_id)
+    if artifact is None:
+        return []
+    return [
+        {
+            "version": int(v.get("version", 0) or 0),
+            "saved_at": float(v.get("saved_at", 0) or 0),
+            "size": int(v.get("size", 0) or 0),
+            "note": str(v.get("note", "")),
+        }
+        for v in artifact.get("versions") or []
+        if isinstance(v, dict)
+    ]
+
+
+def get_artifact_version(artifact_id: str, version: int) -> dict[str, Any] | None:
+    """Read one historical version body, or None when it does not exist."""
+    artifact = get_artifact(artifact_id)
+    if artifact is None:
+        return None
+    for v in artifact.get("versions") or []:
+        if isinstance(v, dict) and int(v.get("version", 0) or 0) == int(version):
+            return {
+                "version": int(v.get("version", 0) or 0),
+                "saved_at": float(v.get("saved_at", 0) or 0),
+                "note": str(v.get("note", "")),
+                "content": str(v.get("content", "")),
+            }
+    return None
 
 
 def delete_artifact(artifact_id: str) -> bool:

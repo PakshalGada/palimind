@@ -3,12 +3,16 @@ import {
   Check,
   ChevronDown,
   Copy,
+  GitFork,
+  Loader2,
   Pencil,
   RefreshCw,
   Share2,
+  Square,
   Star,
   StarOff,
   Trash2,
+  Volume2,
 } from 'lucide-react';
 import { useConfirm } from './ConfirmDialog';
 import './MessageActions.css';
@@ -21,8 +25,17 @@ export interface MessageActionsProps {
   onRegenerate?: () => void;
   /** Enter inline edit mode (user messages only). */
   onEdit?: () => void;
+  /** Speak / stop the message (assistant messages only). */
+  onSpeak?: () => void;
+  /** True while this message is being synthesized or played back. */
+  speaking?: boolean;
+  /** True while the WAV chunks are still being synthesized. */
+  speakLoading?: boolean;
+  /** Start a new conversation branch from this message. */
+  onFork?: () => void;
   onDelete: () => void;
-  onShare: () => void;
+  /** Share the conversation: 'copy' (transcript) or a file export format. */
+  onShare: (format?: 'copy' | 'md' | 'pdf' | 'docx') => void;
   onToggleBookmark: () => void;
 }
 
@@ -50,6 +63,10 @@ export default function MessageActions({
   bookmarked,
   onRegenerate,
   onEdit,
+  onSpeak,
+  speaking,
+  speakLoading,
+  onFork,
   onDelete,
   onShare,
   onToggleBookmark,
@@ -57,7 +74,9 @@ export default function MessageActions({
   const confirm = useConfirm();
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [shareMenuOpen, setShareMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const shareRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!copyMenuOpen) return;
@@ -67,6 +86,15 @@ export default function MessageActions({
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
   }, [copyMenuOpen]);
+
+  useEffect(() => {
+    if (!shareMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (shareRef.current && !shareRef.current.contains(e.target as Node)) setShareMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [shareMenuOpen]);
 
   const flash = () => {
     setCopied(true);
@@ -118,6 +146,24 @@ export default function MessageActions({
         )}
       </div>
 
+      {!isUser && onSpeak && (
+        <button
+          type="button"
+          className={`msg-action-btn${speaking ? ' is-active' : ''}`}
+          title={speaking ? 'Stop playback' : 'Read aloud'}
+          aria-label={speaking ? 'Stop playback' : 'Read aloud'}
+          onClick={onSpeak}
+        >
+          {speakLoading ? (
+            <Loader2 size={14} className="msg-action-spin" />
+          ) : speaking ? (
+            <Square size={14} />
+          ) : (
+            <Volume2 size={14} />
+          )}
+        </button>
+      )}
+
       {!isUser && onRegenerate && (
         <button
           type="button"
@@ -142,6 +188,18 @@ export default function MessageActions({
         </button>
       )}
 
+      {onFork && (
+        <button
+          type="button"
+          className="msg-action-btn"
+          title="Fork from here — try a different direction"
+          aria-label="Fork conversation from this message"
+          onClick={onFork}
+        >
+          <GitFork size={14} />
+        </button>
+      )}
+
       <button
         type="button"
         className={`msg-action-btn${bookmarked ? ' is-active' : ''}`}
@@ -152,15 +210,36 @@ export default function MessageActions({
         {bookmarked ? <Star size={14} fill="currentColor" /> : <StarOff size={14} />}
       </button>
 
-      <button
-        type="button"
-        className="msg-action-btn"
-        title="Share conversation"
-        aria-label="Share conversation"
-        onClick={onShare}
-      >
-        <Share2 size={14} />
-      </button>
+      <div className="msg-actions-copy" ref={shareRef}>
+        <button
+          type="button"
+          className="msg-action-btn"
+          title="Share / export conversation"
+          aria-label="Share or export conversation"
+          aria-haspopup="menu"
+          aria-expanded={shareMenuOpen}
+          onClick={() => setShareMenuOpen((v) => !v)}
+        >
+          <Share2 size={14} />
+          <ChevronDown size={11} className="msg-action-caret" />
+        </button>
+        {shareMenuOpen && (
+          <div className="msg-actions-menu" role="menu">
+            <button type="button" role="menuitem" onClick={() => { setShareMenuOpen(false); onShare('copy'); }}>
+              Copy transcript
+            </button>
+            <button type="button" role="menuitem" onClick={() => { setShareMenuOpen(false); onShare('md'); }}>
+              Export as Markdown
+            </button>
+            <button type="button" role="menuitem" onClick={() => { setShareMenuOpen(false); onShare('pdf'); }}>
+              Export as PDF
+            </button>
+            <button type="button" role="menuitem" onClick={() => { setShareMenuOpen(false); onShare('docx'); }}>
+              Export as Word
+            </button>
+          </div>
+        )}
+      </div>
 
       <button
         type="button"

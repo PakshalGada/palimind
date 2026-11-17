@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowRight, Clock, CornerDownLeft, FileText, Search } from 'lucide-react';
+import { ArrowRight, Clock, CornerDownLeft, FileText, MessageSquareQuote, Search, Sparkles } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { api } from '../api';
 import { VISIBLE_COMMANDS } from '../commands/catalog';
@@ -8,14 +8,26 @@ import { runCommand } from '../commands/registry';
 import { useAvailableCommands, useCommandRegistryVersion } from '../commands/useCommand';
 import { formatShortcut } from '../utils/shortcuts';
 import { fuzzyRank } from '../utils/fuzzy';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { resolveScope } from '../lib/scope';
+import type { PromptTemplate } from '../utils/prompts';
 import type { AgentListItem, TreeNode } from '../types';
 import './CommandPalette.css';
 
 const RECENT_KEY = 'palimind:command-recent';
 const MAX_RECENT = 6;
 
-type PaletteKind = 'command' | 'agent' | 'session' | 'file';
+type PaletteKind = 'command' | 'agent' | 'session' | 'file' | 'message' | 'prompt';
+
+/** A hit from the backend full-text search over session content. */
+interface SessionHit {
+  session_id: string;
+  session_name: string;
+  message_id: number;
+  role: string;
+  snippet: string;
+  timestamp: number;
+}
 
 interface PaletteItem {
   key: string;
@@ -81,6 +93,8 @@ export default function CommandPalette() {
   const [agents, setAgents] = useState<AgentListItem[]>([]);
   const [files, setFiles] = useState<TreeNode[]>([]);
   const [recent, setRecent] = useState<string[]>(() => loadRecent());
+  const [historyHits, setHistoryHits] = useState<SessionHit[]>([]);
+  const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -104,10 +118,15 @@ export default function CommandPalette() {
     setQuery('');
     setActiveIndex(0);
     setRecent(loadRecent());
+    setHistoryHits([]);
     api.agents
       .list()
       .then((d) => setAgents(d.agents || []))
       .catch(() => setAgents([]));
+    api.prompts
+      .list()
+      .then((d) => setPrompts(d.prompts || []))
+      .catch(() => setPrompts([]));
     if (activeField) {
       api.files
         .tree()
@@ -118,6 +137,56 @@ export default function CommandPalette() {
     }
     requestAnimationFrame(() => inputRef.current?.focus());
   }, [commandPaletteOpen, activeField]);
+
+  // Full-text history search over session content. Only kicks in after a
+  // couple of characters so simple command lookups stay local and instant.
+  const debouncedQuery = useDebouncedValue(query.trim(), 180);
+  useEffect(() => {
+    if (!commandPaletteOpen) return;
+    const q = debouncedQuery;
+    if (q.length < 3) {
+      setHistoryHits([]);
+      return;
+    }
+    let cancelled = false;
+    api.search
+      .sessions(q, 'chat', 12)
+      .then((d) => {
+        if (!cancelled) setHistoryHits(d.results ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setHistoryHits([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery, commandPaletteOpen]);
+
+  /** Jump straight to a message: open its session, then scroll to it. */
+  const gotoMessage = useCallback(
+    (hit: SessionHit) => {
+      setActiveView('chat');
+      api.sessions
+        .setActive(hit.session_id, 'chat')
+        .then((data) => {
+          if (data.error) {
+            addToast(data.error);
+            return;
+          }
+          setSessions(data.sessions as typeof sessions);
+          setActiveSessionId(data.active_session_id);
+          window.setTimeout(() => {
+            window.dispatchEvent(
+              new CustomEvent('palimind:goto-message', {
+                detail: { sessionId: hit.session_id, messageId: hit.message_id },
+              }),
+            );
+          }, 160);
+        })
+        .catch(() => addToast('Could not open that conversation'));
+    },
+    [addToast, setActiveView, setSessions, setActiveSessionId],
+  );
 
   const items = useMemo<PaletteItem[]>(() => {
     // Referenced so the list recomputes when handlers register/unregister.
@@ -178,6 +247,22 @@ export default function CommandPalette() {
       });
     }
 
+    for (const prompt of prompts) {
+      list.push({
+        key: `prompt:${prompt.command}`,
+        kind: 'prompt',
+        title: `/${prompt.command}`,
+        subtitle: prompt.description?.trim() || prompt.name,
+        icon: <Sparkles size={16} />,
+        run: () =>
+          window.dispatchEvent(
+            new CustomEvent('palimind:prefill-composer', {
+              detail: { text: `/${prompt.command} ` },
+            }),
+          ),
+      });
+    }
+
     for (const file of files) {
       list.push({
         key: `file:${file.path}`,
@@ -194,6 +279,7 @@ export default function CommandPalette() {
     agents,
     sessions,
     files,
+    prompts,
     activeSessionId,
     scope,
     isAvailable,
@@ -222,9 +308,24 @@ export default function CommandPalette() {
       return result;
     }
 
+    // Backend full-text hits lead the list: they know the exact message,
+    // which fuzzy matching over titles cannot find.
+    const hitItems: PaletteItem[] = historyHits.slice(0, 8).map((hit) => ({
+      key: `message:${hit.session_id}:${hit.message_id}`,
+      kind: 'message',
+      title: hit.session_name,
+      subtitle: hit.snippet.replace(/\s+/g, ' ').trim(),
+      icon: <MessageSquareQuote size={16} />,
+      run: () => gotoMessage(hit),
+    }));
+
     const ranked = fuzzyRank(items, trimmed, (i) => [i.title, i.subtitle ?? '', i.kind]);
-    return [{ label: 'Results', items: ranked.map((r) => r.item) }];
-  }, [query, items, recent]);
+    const result = ranked.map((r) => r.item);
+    return [
+      ...(hitItems.length ? [{ label: 'In message history', items: hitItems }] : []),
+      { label: 'Results', items: result },
+    ];
+  }, [query, items, recent, historyHits, gotoMessage]);
 
   const flat = useMemo(() => groups.flatMap((g) => g.items), [groups]);
 

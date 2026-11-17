@@ -297,6 +297,56 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+.sb-row .sb-row__icon[aria-label="Pinned"] {
+    color: var(--color-accent, var(--color-text-primary));
+}
+
+/* Session rename dialog */
+.sb-rename-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.sb-rename-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border, var(--surface-3, #333));
+    border-radius: var(--radius-sm);
+    background: var(--surface-1, transparent);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+}
+.sb-rename-input:focus {
+    outline: none;
+    border-color: var(--color-accent, currentColor);
+}
+.sb-rename-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+.sb-rename-cancel,
+.sb-rename-save {
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border, var(--surface-3, #333));
+    background: transparent;
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    cursor: pointer;
+}
+.sb-rename-save {
+    background: var(--color-accent, var(--color-text-primary));
+    border-color: transparent;
+    color: var(--color-accent-contrast, #fff);
+}
+.sb-rename-cancel:disabled,
+.sb-rename-save:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
 .sb-action {
     display: flex;
     align-items: center;

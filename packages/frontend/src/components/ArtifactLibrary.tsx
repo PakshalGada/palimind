@@ -183,28 +183,23 @@ export default function ArtifactLibrary({
         });
       }
 
-      const projectResult = await api.projects.list().catch(() => ({ projects: [] }));
-      const projectList = (projectResult.projects || []).map(project => ({
-        id: project.id,
-        name: project.name,
-      }));
-      setProjects(projectList);
-      const projectArtifacts = await Promise.allSettled(
-        projectList.map(async project => ({
-          project,
-          result: await api.projects.artifacts.library(project.id, true),
+      // One round-trip for the global registry and every project's artifacts;
+      // the previous per-project requests made opening the library O(projects).
+      const result = await api.artifacts.libraryAll();
+      setProjects(
+        (result.projects || []).map(group => ({
+          id: group.project_id,
+          name: group.project_name,
         })),
       );
-      for (const settled of projectArtifacts) {
-        if (settled.status !== 'fulfilled') continue;
-        const { project, result } = settled.value;
-        for (const artifact of result.artifacts || []) {
+      for (const group of result.projects || []) {
+        for (const artifact of group.artifacts || []) {
           collected.push({
-            key: `project:${project.id}:${artifact.id}`,
+            key: `project:${group.project_id}:${artifact.id}`,
             source: 'project',
             id: artifact.id,
-            projectId: project.id,
-            projectName: project.name,
+            projectId: group.project_id,
+            projectName: group.project_name,
             title: artifact.title,
             type: asType(artifact.type),
             language: artifact.language,
@@ -216,26 +211,21 @@ export default function ArtifactLibrary({
         }
       }
 
-      try {
-        const globalResult = await api.artifacts.list('', '', true);
-        for (const artifact of globalResult.artifacts || []) {
-          if (seenIds.has(artifact.id)) continue;
-          collected.push({
-            key: `global:${artifact.id}`,
-            source: 'global',
-            id: artifact.id,
-            projectId: artifact.project_id || undefined,
-            title: artifact.title,
-            type: asType(artifact.type),
-            language: artifact.language,
-            content: artifact.content || '',
-            size: artifact.size,
-            updatedAt: artifact.updated_at,
-            versions: 0,
-          });
-        }
-      } catch {
-        // The global registry is optional; local/project entries still work.
+      for (const artifact of result.artifacts || []) {
+        if (seenIds.has(artifact.id)) continue;
+        collected.push({
+          key: `global:${artifact.id}`,
+          source: 'global',
+          id: artifact.id,
+          projectId: artifact.project_id || undefined,
+          title: artifact.title,
+          type: asType(artifact.type),
+          language: artifact.language,
+          content: artifact.content || '',
+          size: artifact.size,
+          updatedAt: artifact.updated_at,
+          versions: artifact.version_count || 0,
+        });
       }
 
       collected.sort((a, b) => b.updatedAt - a.updatedAt);

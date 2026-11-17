@@ -10,6 +10,7 @@ import {
   Crosshair,
   Network,
   Package,
+  Pin,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
@@ -92,6 +93,14 @@ interface CtxMenu {
   items: { label: string; action: () => void; isDanger?: boolean }[];
 }
 
+type SessionSummary = {
+  id: string;
+  name: string;
+  created_at?: number;
+  pinned?: boolean;
+  messages: unknown[];
+};
+
 interface NavItem {
   id: string;
   label: string;
@@ -148,6 +157,9 @@ export default function Sidebar() {
   const [syncText, setSyncText] = useState("Sync Active Knowledge Base");
   const [treeField, setTreeField] = useState<string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
+  const [renameTarget, setRenameTarget] = useState<SessionSummary | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [renameBusy, setRenameBusy] = useState(false);
 
   const fetchFields = useCallback(async () => {
     setFieldsLoading(true);
@@ -277,6 +289,50 @@ export default function Sidebar() {
     } catch (e) {
       console.error(e);
       addToast("Could not delete the session.", { tone: "error" });
+    }
+  };
+
+  const handleRenameSession = async () => {
+    if (!renameTarget || renameBusy) return;
+    const name = renameDraft.trim();
+    if (!name) return;
+    const req = beginSessionRequest();
+    const sessionId = renameTarget.id;
+    setRenameBusy(true);
+    try {
+      const data = await api.sessions.rename(sessionId, name, req.scope);
+      if (!req.isCurrent()) return;
+      if (!data.error) {
+        setSessions(data.sessions as typeof sessions);
+        setActiveSessionId(data.active_session_id);
+        addToast("Chat renamed", { tone: "success" });
+        setRenameTarget(null);
+      } else {
+        addToast(data.error, { tone: "error" });
+      }
+    } catch (e) {
+      console.error(e);
+      addToast("Could not rename the chat.", { tone: "error" });
+    } finally {
+      setRenameBusy(false);
+    }
+  };
+
+  const handleTogglePin = async (sess: SessionSummary) => {
+    const req = beginSessionRequest();
+    try {
+      const data = await api.sessions.pin(sess.id, !sess.pinned, req.scope);
+      if (!req.isCurrent()) return;
+      if (!data.error) {
+        setSessions(data.sessions as typeof sessions);
+        setActiveSessionId(data.active_session_id);
+        addToast(sess.pinned ? "Unpinned" : "Pinned to top", { tone: "success" });
+      } else {
+        addToast(data.error, { tone: "error" });
+      }
+    } catch (e) {
+      console.error(e);
+      addToast("Could not pin the chat.", { tone: "error" });
     }
   };
 
@@ -434,7 +490,7 @@ export default function Sidebar() {
     });
   };
 
-  const showSessionMenu = (e: React.MouseEvent, id: string) => {
+  const showSessionMenu = (e: React.MouseEvent, sess: SessionSummary) => {
     e.preventDefault();
     e.stopPropagation();
     setCtxMenu({
@@ -442,8 +498,19 @@ export default function Sidebar() {
       y: e.clientY,
       items: [
         {
+          label: "Rename Session",
+          action: () => {
+            setRenameTarget(sess);
+            setRenameDraft(sess.name);
+          },
+        },
+        {
+          label: sess.pinned ? "Unpin Session" : "Pin to Top",
+          action: () => void handleTogglePin(sess),
+        },
+        {
           label: "Delete Session",
-          action: () => handleDeleteSession(id),
+          action: () => handleDeleteSession(sess.id),
           isDanger: true,
         },
       ],
@@ -453,6 +520,9 @@ export default function Sidebar() {
   const orderedSessions = useMemo(
     () =>
       [...sessions].sort((a, b) => {
+        // Pinned chats stay at the top; recency decides within each group.
+        const pinOrder = (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
+        if (pinOrder !== 0) return pinOrder;
         const aLast = a.messages[a.messages.length - 1]?.timestamp;
         const bLast = b.messages[b.messages.length - 1]?.timestamp;
         const aTime = aLast ?? a.created_at ?? 0;
@@ -493,9 +563,12 @@ export default function Sidebar() {
               type="button"
               className={`sb-row${sess.id === activeSessionId ? " is-active" : ""}`}
               onClick={() => handleSwitchSession(sess.id)}
-              onContextMenu={(e) => showSessionMenu(e, sess.id)}
+              onContextMenu={(e) => showSessionMenu(e, sess)}
               title={sess.name}
             >
+              {sess.pinned && (
+                <Pin size={11} className="sb-row__icon" aria-label="Pinned" />
+              )}
               <span className="sb-row__label">{sess.name}</span>
             </button>
           ))}
@@ -693,6 +766,53 @@ export default function Sidebar() {
           </div>
         </Dialog>
       )}
+
+      <Dialog
+        open={Boolean(renameTarget)}
+        onClose={() => (renameBusy ? undefined : setRenameTarget(null))}
+        title="Rename chat"
+        width={440}
+      >
+        <form
+          className="sb-rename-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleRenameSession();
+          }}
+        >
+          <input
+            className="sb-rename-input"
+            value={renameDraft}
+            autoFocus
+            maxLength={120}
+            aria-label="Chat name"
+            onChange={(e) => setRenameDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setRenameTarget(null);
+              }
+            }}
+          />
+          <div className="sb-rename-actions">
+            <button
+              type="button"
+              className="sb-rename-cancel"
+              onClick={() => setRenameTarget(null)}
+              disabled={renameBusy}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="sb-rename-save"
+              disabled={renameBusy || !renameDraft.trim()}
+            >
+              {renameBusy ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </form>
+      </Dialog>
 
       {ctxMenu && (
         <ContextMenu

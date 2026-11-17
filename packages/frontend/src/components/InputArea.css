@@ -864,6 +864,80 @@ input:checked + .toggle-slider .llm-mode {
 }
 .composer-reply-chip button:hover { color: var(--ink); }
 
+/* ── prompt library fill-in form above the composer ─────────────── */
+.prompt-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: var(--measure-reading);
+    margin: 0 auto;
+    padding: 10px 12px;
+    border: 1px solid var(--line, var(--surface-3, rgba(128, 128, 128, 0.25)));
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+}
+.prompt-form__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink-secondary);
+    font-size: var(--type-xs);
+}
+.prompt-form__icon {
+    display: inline-flex;
+    color: var(--accent, var(--ink-muted));
+}
+.prompt-form__command {
+    font-family: var(--font-mono, monospace);
+    color: var(--ink);
+}
+.prompt-form__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink-muted);
+}
+.prompt-form__close {
+    margin-left: auto;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--ink-muted);
+    cursor: pointer;
+}
+.prompt-form__close:hover { color: var(--ink); }
+.prompt-form__field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--type-xs);
+}
+.prompt-form__field-name {
+    flex-shrink: 0;
+    min-width: 72px;
+    font-family: var(--font-mono, monospace);
+    color: var(--accent, var(--ink));
+}
+.prompt-form__field input {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 9px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--surface-1, var(--surface-2));
+    color: var(--ink);
+    font-size: var(--type-sm);
+}
+.prompt-form__field input:focus { outline: none; box-shadow: none; }
+.prompt-form__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
 /* Agent composer: model/provider pill (the global ModelSwitcher is hidden) */
 .agent-model-pill {
     display: inline-flex;

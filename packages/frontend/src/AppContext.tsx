@@ -81,7 +81,7 @@ interface AppState {
   activeProjectId: string | null;
   activeProjectName: string | null;
   activeSessionId: string | null;
-  sessions: { id: string; name: string; created_at?: number; last_read_message_id?: number; messages: { id?: number; role: string; content: string; timestamp?: number; sources?: string[]; citations?: CitationPayload; reply_to?: number; edited_at?: number; deleted_at?: number; reactions?: { id?: string; emoji: string; actor_kind?: string; actor_id?: string }[]; suggestions?: string[]; mode_params?: { agent_name?: string; agent_id?: string; [key: string]: unknown } }[] }[];
+  sessions: { id: string; name: string; created_at?: number; pinned?: boolean; last_read_message_id?: number; active_leaf?: number; branches?: Record<string, { message_id: number; leaf_id: number; timestamp?: number; label?: string; active?: boolean }[]>; messages: { id?: number; role: string; content: string; timestamp?: number; sources?: string[]; citations?: CitationPayload; reply_to?: number; edited_at?: number; deleted_at?: number; reactions?: { id?: string; emoji: string; actor_kind?: string; actor_id?: string }[]; suggestions?: string[]; mode_params?: { agent_name?: string; agent_id?: string; [key: string]: unknown } }[] }[];
   selectedFiles: Set<string>;
   chatMode: ChatMode;
   isGenerating: boolean;

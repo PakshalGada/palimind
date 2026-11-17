@@ -128,12 +128,15 @@ def _split_agent_mention(text: str) -> tuple[str | None, str]:
     return name or None, stripped
 
 
+from palimind.api_routers.routers.prompts import router as prompts_router
 from palimind.memory.session_store import (
     add_new_session,
     delete_session,
     delete_session_message,
     load_sessions,
+    rename_session,
     set_active_session_id,
+    set_session_pinned,
     truncate_session_messages,
 )
 from palimind.metrics import MetricsMiddleware
@@ -193,6 +196,7 @@ app.include_router(uploads_router)
 app.include_router(tasks_router)
 app.include_router(research_router)
 app.include_router(search_router)
+app.include_router(prompts_router)
 app.include_router(mcp_router)
 app.include_router(index_runs_router)
 app.include_router(images_router)
@@ -1215,6 +1219,36 @@ async def remove_session(req: Request, scope: str = "field"):
     return sessions_data
 
 
+@app.post("/api/sessions/rename")
+async def rename_session_endpoint(req: Request, scope: str = "field"):
+    """Rename a chat session (sidebar context menu → "Rename")."""
+    root = _chat_root(scope)
+    if root is None:
+        return {"error": "No active knowledge base"}
+    data = await req.json()
+    session_id = data.get("session_id")
+    if not session_id:
+        return {"error": "session_id is required"}
+    name = str(data.get("name") or "").strip()
+    if not name:
+        return {"error": "name is required"}
+    return await asyncio.to_thread(rename_session, root, session_id, name)
+
+
+@app.post("/api/sessions/pin")
+async def pin_session_endpoint(req: Request, scope: str = "field"):
+    """Pin or unpin a chat session (pinned chats stay at the top)."""
+    root = _chat_root(scope)
+    if root is None:
+        return {"error": "No active knowledge base"}
+    data = await req.json()
+    session_id = data.get("session_id")
+    if not session_id:
+        return {"error": "session_id is required"}
+    pinned = bool(data.get("pinned"))
+    return await asyncio.to_thread(set_session_pinned, root, session_id, pinned)
+
+
 @app.post("/api/sessions/truncate")
 async def truncate_session(req: Request, scope: str = "field"):
     """Keep only the first ``keep_count`` messages (for regenerate/edit)."""
@@ -1249,6 +1283,85 @@ async def delete_message(req: Request, scope: str = "field"):
         return {"error": "index must be an integer"}
     sessions_data = await asyncio.to_thread(delete_session_message, root, session_id, index)
     return sessions_data
+
+
+@app.post("/api/sessions/message/fork")
+async def fork_message_endpoint(req: Request, scope: str = "field"):
+    """Arm a branch at ``message_id``; the next user turn starts the branch.
+
+    ``cancel: true`` disarms a pending fork instead.
+    """
+    from palimind.memory import session_store
+
+    root = _chat_root(scope)
+    if root is None:
+        return {"error": "No active knowledge base"}
+    data = await req.json()
+    session_id = str(data.get("session_id") or "")
+    if not session_id:
+        return {"error": "session_id is required"}
+    if data.get("cancel"):
+        await asyncio.to_thread(session_store.clear_fork, root, session_id)
+        return load_sessions(root)
+    message_id = data.get("message_id")
+    if message_id is None:
+        return {"error": "message_id is required"}
+    try:
+        mid = int(message_id)
+    except (TypeError, ValueError):
+        return {"error": "message_id must be an integer"}
+    result = await asyncio.to_thread(
+        session_store.fork_session_message, root, session_id, mid
+    )
+    if isinstance(result, dict) and result.get("error"):
+        return result
+    return result
+
+
+@app.post("/api/sessions/message/branch")
+async def switch_branch_endpoint(req: Request, scope: str = "field"):
+    """Show the branch ending at ``message_id`` as the active transcript."""
+    from palimind.memory import session_store
+
+    root = _chat_root(scope)
+    if root is None:
+        return {"error": "No active knowledge base"}
+    data = await req.json()
+    session_id = str(data.get("session_id") or "")
+    message_id = data.get("message_id")
+    if not session_id or message_id is None:
+        return {"error": "session_id and message_id are required"}
+    try:
+        mid = int(message_id)
+    except (TypeError, ValueError):
+        return {"error": "message_id must be an integer"}
+    result = await asyncio.to_thread(
+        session_store.set_session_active_leaf, root, session_id, mid
+    )
+    if isinstance(result, dict) and result.get("error"):
+        return result
+    return result
+
+
+@app.get("/api/search/sessions")
+async def search_sessions(q: str = "", scope: str = "chat", limit: int = 30):
+    """Full-text search over session message content (⌘P history search).
+
+    ``scope`` picks the store: the global chat history (default), an agent's
+    conversations or a project's. Results point at the exact message so the
+    palette can jump straight to it.
+    """
+    from palimind.memory import session_store
+
+    query = str(q or "").strip()
+    if not query:
+        return {"query": query, "results": []}
+    root = _chat_root(scope)
+    if root is None:
+        return {"query": query, "results": []}
+    limit = max(1, min(int(limit), 100))
+    results = await asyncio.to_thread(session_store.search_messages, root, query, limit)
+    return {"query": query, "results": results}
 
 
 @app.post("/api/sessions/message/edit")
@@ -1882,6 +1995,74 @@ async def chat_stop(stream_id: str):
         return entry.stop_result
 
 
+@app.get("/api/compare/stream")
+async def compare_stream(q: str, model: str, model2: str):
+    """Side-by-side model comparison.
+
+    Streams one prompt to two models at once as ``left`` / ``right`` token
+    events (plain LLM chat, no RAG and no history, nothing persisted). The
+    frontend shows both columns and lets the user promote the winner.
+    """
+    config = _global_chat_config()
+    ollama_url = str(config.get("ollama_base_url") or "http://localhost:11434")
+
+    def _sse(payload: dict) -> str:
+        return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+    async def gen():
+        import asyncio
+
+        from palimind.generative.responder import aiter_stream, generate_response_stream
+
+        async def pump(side: str, model_id: str, sink: asyncio.Queue):
+            try:
+                stream = generate_response_stream(
+                    query=q,
+                    context="",
+                    image_paths=[],
+                    ollama_url=ollama_url,
+                    chat_model=model_id,
+                    system_prompt="You are a helpful local assistant.",
+                    history=[],
+                    is_chat_only=True,
+                    num_ctx=config.get("num_ctx"),
+                )
+                async for token in aiter_stream(stream):
+                    if token:
+                        await sink.put({"side": side, "text": token})
+                await sink.put({"side": side, "done": True})
+            except Exception as exc:  # noqa: BLE001
+                await sink.put(
+                    {"side": side, "error": f"{model_id}: {exc}", "done": True}
+                )
+
+        sink: asyncio.Queue = asyncio.Queue()
+        tasks = [
+            asyncio.create_task(pump("left", str(model).strip(), sink)),
+            asyncio.create_task(pump("right", str(model2).strip(), sink)),
+        ]
+        finished = 0
+        try:
+            while finished < 2:
+                event = await sink.get()
+                if event.get("done"):
+                    finished += 1
+                    if event.get("error"):
+                        yield _sse({"type": event["side"], "error": event["error"]})
+                    else:
+                        yield _sse({"type": event["side"], "done": True})
+                elif event.get("error"):
+                    yield _sse({"type": event["side"], "error": event["error"]})
+                else:
+                    yield _sse({"type": event["side"], "text": event["text"]})
+            yield _sse({"type": "done"})
+        finally:
+            for task in tasks:
+                task.cancel()
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
 @app.get("/api/chat")
 async def chat_stream(
     q: str,
@@ -1897,6 +2078,7 @@ async def chat_stream(
     display_query: str | None = None,
     rag_mode: str | None = None,
     reply_to: int | None = None,
+    model: str | None = None,
 ):
     """Chat SSE stream.
 
@@ -1922,6 +2104,7 @@ async def chat_stream(
             display_query,
             rag_mode,
             reply_to,
+            model,
         )
     except BaseException:
         _unregister_chat_stream(entry)
@@ -1944,6 +2127,7 @@ async def _chat_stream_response(
     display_query: str | None = None,
     rag_mode: str | None = None,
     reply_to: int | None = None,
+    model: str | None = None,
 ) -> StreamingResponse:
     display_text = (display_query or "").strip() or None
     if scope.startswith("agent:"):
@@ -1978,6 +2162,11 @@ async def _chat_stream_response(
 
     ollama_url = config.get("ollama_base_url", "http://localhost:11434")
     chat_model = config.get("chat_model", "llama3")
+    # Per-request override: the side-by-side comparison promotes its winner
+    # by re-sending the prompt with this parameter.
+    model_override = (model or "").strip()
+    if model_override:
+        chat_model = model_override
     embed_model = config.get("embed_model", "bge-m3")
     persona = persona_block(root) if not is_global_chat else ""
 

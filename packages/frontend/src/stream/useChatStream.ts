@@ -199,6 +199,11 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
       rawRef.current = '';
       lastFlushAt.current = 0;
       tokensSinceFlush.current = 0;
+      // Global "a turn was sent" signal — consumed by the onboarding checklist
+      // ("ask your first question") and any other first-run analytics.
+      window.dispatchEvent(
+        new CustomEvent('palimind:message-sent', { detail: { scope: request.scope } }),
+      );
       dispatch({
         type: 'start',
         userText: request.userText ?? request.text,
@@ -275,6 +280,15 @@ export function useChatStream(activityStore: ActivityStore): ChatStream {
         setIsGenerating(false);
         recorder.end(status);
         dispatch({ type: 'finish', status });
+        // Announce the completed answer once per turn: the voice-output
+        // listener decides whether to speak it based on per-agent prefs.
+        if (status === 'done' && rawRef.current.trim()) {
+          window.dispatchEvent(
+            new CustomEvent('palimind:assistant-reply', {
+              detail: { text: rawRef.current, scope: request.scope },
+            }),
+          );
+        }
         void refreshSessions().then(resetIfCurrent);
       };
 

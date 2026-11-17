@@ -61,6 +61,24 @@
 .msg-action-danger:hover { color: var(--color-error); }
 .msg-action-caret { opacity: 0.7; }
 
+/* Speaking indicator: keep the row visible while a message is spoken. */
+.message:has(.msg-action-spin) .msg-actions,
+.message:has(.msg-actions .is-active) .msg-actions {
+  max-height: 34px;
+  margin-top: 4px;
+  opacity: 1;
+  overflow: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.msg-action-spin { animation: msg-action-rotate 1s linear infinite; }
+@keyframes msg-action-rotate {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .msg-action-spin { animation: none; }
+}
+
 .msg-actions-menu {
   position: absolute;
   top: calc(100% + 6px);

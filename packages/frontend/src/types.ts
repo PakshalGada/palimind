@@ -9,7 +9,20 @@ export interface Session {
   name: string;
   created_at?: number;
   last_read_message_id?: number;
+  /** Tip of the visible transcript (branching). */
+  active_leaf?: number;
+  /** Alternative children per fork point, keyed by parent message id. */
+  branches?: Record<string, BranchChild[]>;
   messages: Message[];
+}
+
+/** One alternative continuation hanging off a fork point. */
+export interface BranchChild {
+  message_id: number;
+  leaf_id: number;
+  timestamp?: number;
+  label?: string;
+  active?: boolean;
 }
 
 export interface Message {
@@ -113,9 +126,21 @@ export interface LibraryArtifact {
   project_id: string;
   source: string;
   size: number;
+  /** Number of stored snapshots (content that was replaced by newer saves). */
+  version_count?: number;
+  /** Highest stored version number; 0 when the artifact has no history. */
+  current_version?: number;
   created_at: number;
   updated_at: number;
   content?: string;
+}
+
+/** Version summary returned by `GET /api/artifacts/{id}/versions`. */
+export interface RegistryArtifactVersion {
+  version: number;
+  saved_at: number;
+  size: number;
+  note?: string;
 }
 
 export interface ProjectKbMeta {

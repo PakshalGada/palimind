@@ -66,6 +66,20 @@
     content-visibility: auto;
     contain-intrinsic-size: auto 120px;
 }
+
+/* Jumped to from global search: a short glow around the target bubble. */
+@keyframes message-flash-pulse {
+    0% { box-shadow: 0 0 0 0 var(--color-brand-glow, rgba(120, 160, 255, 0.55)); }
+    70% { box-shadow: 0 0 0 14px rgba(120, 160, 255, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(120, 160, 255, 0); }
+}
+.message.message-flash {
+    border-radius: var(--radius-lg);
+    animation: message-flash-pulse 1.2s ease-out 2;
+}
+@media (prefers-reduced-motion: reduce) {
+    .message.message-flash { animation: none; }
+}
 .message.user-message {
     justify-content: flex-end;
     margin-top: 6px;
@@ -81,6 +95,39 @@
     font-size: var(--type-base);
     flex-shrink: 0;
 }
+
+/* Branch switcher under a fork point. */
+.branch-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 4px 0 0;
+    padding: 2px 8px;
+    border: 1px solid var(--line, rgba(128, 128, 128, 0.25));
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--ink-secondary);
+    font-size: var(--type-xs);
+}
+.branch-switcher__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--ink-secondary);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+}
+.branch-switcher__btn:hover:not(:disabled) { background: var(--color-surface-hover); color: var(--ink); }
+.branch-switcher__btn:disabled { opacity: 0.4; cursor: default; }
+.branch-switcher__label { min-width: 28px; text-align: center; font-variant-numeric: tabular-nums; }
+.branch-switcher__hint { color: var(--ink-muted); }
 
 /* ── message-content, code-box ── */
 .message-content {

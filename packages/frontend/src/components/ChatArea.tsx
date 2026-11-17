@@ -11,7 +11,12 @@ import InputArea from './InputArea';
 import ArtifactAnswerBlock from './ArtifactAnswerBlock';
 import MessageActions from './MessageActions';
 import MessageContent from './MessageContent';
+import { speech, useSpeech } from '../utils/speech';
+import { getVoice } from '../utils/voicePrefs';
+import type { BranchChild } from '../types';
 import { parseArtifacts, shouldAutoOpenArtifact } from '../utils/artifacts';
+import { saveToVault } from '../utils/artifactVault';
+import { exportConversation, type ConversationExportFormat } from '../utils/conversationExport';
 import { useChatStreamContext } from '../stream/context';
 import StreamingTurn from '../stream/StreamingTurn';
 import { streamBelongsTo } from '../stream/reducer';
@@ -24,6 +29,7 @@ import type { CitationPayload } from '../types';
 import { resolveScope } from '../lib/scope';
 
 interface ChatMessage {
+  id?: number;
   role: string;
   content: string;
   sources?: string[];
@@ -97,10 +103,43 @@ export default function ChatArea() {
 
   const { isBookmarked, toggle: toggleBookmark } = useBookmarks(activeSessionId);
 
+  // Onboarding step 4: persist that at least one question has been asked, so
+  // the welcome checklist stays complete across restarts.
+  useEffect(() => {
+    if (!currentSess?.messages?.some(m => m.role === 'user')) return;
+    try {
+      localStorage.setItem('palimind:onboarding-asked', '1');
+    } catch {
+      // storage unavailable; the checklist falls back to probing sessions
+    }
+  }, [currentSess?.messages]);
+
   const scope = resolveScope(activeView, {
     agentId: selectedAgentId,
     projectId: activeProjectId,
   });
+
+  // Global search jumps to a specific message: scroll it into view and
+  // flash the bubble so it is easy to spot in a long thread.
+  useEffect(() => {
+    const onGoto = (event: Event) => {
+      const detail = (event as CustomEvent<{ sessionId?: string; messageId?: number }>).detail;
+      const messageId = detail?.messageId;
+      if (!messageId) return;
+      if (detail.sessionId && detail.sessionId !== activeSessionId) return;
+      const timer = window.setTimeout(() => {
+        const el = messagesRef.current?.querySelector<HTMLElement>(
+          `[data-message-id="${messageId}"]`,
+        );
+        el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el?.classList.add('message-flash');
+        window.setTimeout(() => el?.classList.remove('message-flash'), 2400);
+      }, 60);
+      return () => window.clearTimeout(timer);
+    };
+    window.addEventListener('palimind:goto-message', onGoto);
+    return () => window.removeEventListener('palimind:goto-message', onGoto);
+  }, [activeSessionId]);
 
   const activityMode: ActivityMode =
     activeView === 'agents'
@@ -134,6 +173,36 @@ export default function ChatArea() {
     [],
   );
 
+  /**
+   * Fence artifacts are addressed by position (`fence-<msgIndex>-<n>`), so a
+   * regenerate or edit-and-resend replaces them in place and the previous
+   * content would be unrecoverable. Snapshot every artifact of the messages
+   * about to be truncated into the local vault (keyed by session, the same
+   * scheme the artifact panel uses) before the overwrite happens.
+   */
+  const snapshotArtifactsBeforeTruncate = useCallback(
+    (messages: ChatMessage[] | undefined, dropFromIndex: number, sessionId: string | null) => {
+      if (!messages || !sessionId) return;
+      for (let i = Math.max(0, dropFromIndex); i < messages.length; i++) {
+        const msg = messages[i];
+        if (msg.role === 'user') continue;
+        for (const artifact of parseArtifacts(msg.content, i)) {
+          void saveToVault(
+            {
+              id: `${sessionId}:${artifact.id}`,
+              type: artifact.type,
+              language: artifact.language,
+              title: artifact.title,
+              content: artifact.content,
+            },
+            'Snapshot before regeneration',
+          ).catch(() => undefined);
+        }
+      }
+    },
+    [],
+  );
+
   const handleRegenerate = useCallback(
     async (index: number) => {
       if (!currentSess || !activeSessionId) return;
@@ -155,6 +224,7 @@ export default function ChatArea() {
         addToast('No prompt found to regenerate from.');
         return;
       }
+      snapshotArtifactsBeforeTruncate(messages, userIndex, activeSessionId);
       try {
         const data = await api.sessions.truncate(activeSessionId, userIndex, scope);
         applySessions(data);
@@ -164,7 +234,7 @@ export default function ChatArea() {
         addToast('Could not regenerate response.');
       }
     },
-    [currentSess, activeSessionId, isGenerating, scope, addToast, applySessions, refreshSessions, triggerRegenerate],
+    [currentSess, activeSessionId, isGenerating, scope, addToast, applySessions, refreshSessions, triggerRegenerate, snapshotArtifactsBeforeTruncate],
   );
 
   const handleSaveEdit = useCallback(
@@ -179,6 +249,7 @@ export default function ChatArea() {
         addToast('Message cannot be empty.');
         return;
       }
+      snapshotArtifactsBeforeTruncate(currentSess?.messages, index, activeSessionId);
       try {
         const data = await api.sessions.truncate(activeSessionId, index, scope);
         applySessions(data);
@@ -188,7 +259,7 @@ export default function ChatArea() {
         addToast('Could not edit message.');
       }
     },
-    [activeSessionId, isGenerating, scope, addToast, applySessions, refreshSessions, triggerRegenerate],
+    [activeSessionId, isGenerating, scope, addToast, applySessions, refreshSessions, triggerRegenerate, snapshotArtifactsBeforeTruncate, currentSess?.messages],
   );
 
   const handleDelete = useCallback(
@@ -206,19 +277,77 @@ export default function ChatArea() {
     [activeSessionId, scope, addToast, applySessions, refreshSessions],
   );
 
-  const handleShare = useCallback(() => {
-    if (!currentSess?.messages?.length) {
-      addToast('Nothing to share yet.');
-      return;
-    }
-    const transcript = currentSess.messages
-      .map((m) => `${m.role === 'user' ? 'You' : 'Assistant'}:\n${m.content}`)
-      .join('\n\n---\n\n');
-    navigator.clipboard
-      .writeText(transcript)
-      .then(() => addToast('Conversation transcript copied to clipboard'))
-      .catch(() => addToast('Could not access the clipboard'));
-  }, [currentSess, addToast]);
+  /**
+   * Fork from a message: the composer arms for a new direction and the next
+   * send becomes the first message of a new branch (the old path stays
+   * switchable at the fork point).
+   */
+  const handleFork = useCallback(
+    (index: number) => {
+      if (!activeSessionId) return;
+      if (isGenerating) {
+        addToast('Wait for the current response to finish.');
+        return;
+      }
+      const msg = currentSess?.messages?.[index];
+      if (!msg?.id) return;
+      window.dispatchEvent(
+        new CustomEvent('palimind:fork-armed', {
+          detail: { sessionId: activeSessionId, messageId: msg.id },
+        }),
+      );
+      addToast('Type the new direction — your next message starts a branch.');
+    },
+    [activeSessionId, currentSess?.messages, isGenerating, addToast],
+  );
+
+  const handleSwitchBranch = useCallback(
+    async (leafId: number) => {
+      if (!activeSessionId) return;
+      try {
+        const data = await api.sessions.switchBranch(activeSessionId, leafId, scope);
+        applySessions(data);
+        await refreshSessions();
+      } catch {
+        addToast('Could not switch branch.');
+      }
+    },
+    [activeSessionId, scope, addToast, applySessions, refreshSessions],
+  );
+
+  const handleShare = useCallback(
+    (format: ConversationExportFormat | 'copy' = 'copy') => {
+      if (!currentSess?.messages?.length) {
+        addToast('Nothing to share yet.');
+        return;
+      }
+      const conversation = {
+        title: currentSess.name || 'Conversation',
+        createdAt: currentSess.created_at,
+        messages: currentSess.messages,
+      };
+      if (format === 'copy') {
+        const transcript = currentSess.messages
+          .map((m) => `${m.role === 'user' ? 'You' : 'Assistant'}:\n${m.content}`)
+          .join('\n\n---\n\n');
+        navigator.clipboard
+          .writeText(transcript)
+          .then(() => addToast('Conversation transcript copied to clipboard'))
+          .catch(() => addToast('Could not access the clipboard'));
+        return;
+      }
+      const label = format === 'md' ? 'Markdown' : format === 'pdf' ? 'PDF' : 'Word';
+      exportConversation(conversation, format)
+        .then((filename) => addToast(`Exported as ${label}: ${filename}`, { tone: 'success' }))
+        .catch((error: unknown) =>
+          addToast(
+            `Export failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+            { tone: 'error' },
+          ),
+        );
+    },
+    [currentSess, addToast],
+  );
 
   // Track whether the user is pinned to the bottom of the conversation.
   // We only auto-scroll when they're already near the bottom so that
@@ -282,6 +411,9 @@ export default function ChatArea() {
               msg={msg}
               index={i}
               bookmarked={isBookmarked(msg)}
+              branchOptions={currentSess?.branches?.[String(msg.id ?? '')]}
+              onSwitchBranch={handleSwitchBranch}
+              onFork={handleFork}
               onRegenerate={handleRegenerate}
               onSaveEdit={handleSaveEdit}
               onDelete={handleDelete}
@@ -350,10 +482,14 @@ interface MessageComponentProps {
   msg: ChatMessage;
   index: number;
   bookmarked: boolean;
+  /** Alternative continuations hanging off this message (branch switcher). */
+  branchOptions?: BranchChild[];
+  onSwitchBranch: (leafId: number) => void;
+  onFork: (index: number) => void;
   onRegenerate: (index: number) => void;
   onSaveEdit: (index: number, content: string) => void;
   onDelete: (index: number) => void;
-  onShare: () => void;
+  onShare: (format?: ConversationExportFormat | 'copy') => void;
   onOpenArtifact: (artifactId: string) => void;
   onToggleBookmark: (msg: ChatMessage) => void;
   activityMode: ActivityMode;
@@ -364,6 +500,9 @@ const MessageComponent = memo(function MessageComponent({
   msg,
   index,
   bookmarked,
+  branchOptions,
+  onSwitchBranch,
+  onFork,
   onRegenerate,
   onSaveEdit,
   onDelete,
@@ -382,6 +521,14 @@ const MessageComponent = memo(function MessageComponent({
   }, [msg.content]);
 
   const historySources = !isUser ? msg.sources ?? [] : [];
+  const speechState = useSpeech();
+  const messageKey = `msg:${sessionId ?? ''}:${msg.id ?? `i${index}`}`;
+  const speaking = speechState.messageId === messageKey && speechState.status !== 'idle';
+  const speakLoading = speechState.messageId === messageKey && speechState.status === 'loading';
+  const onSpeak =
+    !isUser && msg.content.trim()
+      ? () => speech.toggle(messageKey, msg.content, getVoice())
+      : undefined;
   const artifacts = useMemo(
     () =>
       isUser
@@ -438,7 +585,10 @@ const MessageComponent = memo(function MessageComponent({
   }
 
   return (
-    <div className={`message ${isUser ? 'user-message' : 'system-message'} history-message`}>
+    <div
+      className={`message ${isUser ? 'user-message' : 'system-message'} history-message`}
+      data-message-id={msg.id}
+    >
       <div className="message-wrapper">
         {!isUser && (
           <HistoryActivity
@@ -470,11 +620,69 @@ const MessageComponent = memo(function MessageComponent({
           bookmarked={bookmarked}
           onRegenerate={!isUser ? () => onRegenerate(index) : undefined}
           onEdit={isUser ? () => setEditing(true) : undefined}
+          onSpeak={onSpeak}
+          speaking={speaking}
+          speakLoading={speakLoading}
+          onFork={msg.id ? () => onFork(index) : undefined}
           onDelete={() => onDelete(index)}
           onShare={onShare}
           onToggleBookmark={() => onToggleBookmark(msg)}
         />
+        {branchOptions && branchOptions.length > 0 && (
+          <BranchSwitcher options={branchOptions} onSwitch={onSwitchBranch} />
+        )}
       </div>
     </div>
   );
 });
+
+/**
+ * Branch switcher under a fork point: cycles between the continuations that
+ * hang off this message (the active one is the visible transcript).
+ */
+function BranchSwitcher({
+  options,
+  onSwitch,
+}: {
+  options: BranchChild[];
+  onSwitch: (leafId: number) => void;
+}) {
+  const [busy, setBusy] = useState<number | null>(null);
+  const activeIndex = Math.max(
+    0,
+    options.findIndex((option) => option.active),
+  );
+  const go = (delta: number) => {
+    const next = (activeIndex + delta + options.length) % options.length;
+    const option = options[next];
+    if (!option || option.active) return;
+    setBusy(option.leaf_id);
+    Promise.resolve(onSwitch(option.leaf_id)).finally(() => setBusy(null));
+  };
+  return (
+    <div className="branch-switcher" role="group" aria-label="Conversation branches">
+      <button
+        type="button"
+        className="branch-switcher__btn"
+        aria-label="Previous branch"
+        disabled={options.length < 2 || busy !== null}
+        onClick={() => go(-1)}
+      >
+        ‹
+      </button>
+      <span className="branch-switcher__label">
+        {activeIndex + 1} / {options.length}
+      </span>
+      <button
+        type="button"
+        className="branch-switcher__btn"
+        aria-label="Next branch"
+        disabled={options.length < 2 || busy !== null}
+        onClick={() => go(1)}
+      >
+        ›
+      </button>
+      <span className="branch-switcher__hint">branch</span>
+    </div>
+  );
+}

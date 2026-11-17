@@ -1,4 +1,4 @@
-import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, AgentQuestion, Approval, BackgroundTask, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, LibraryArtifact, MarketplaceSkill, MemoryEntry, ModelItem, Overview, PlanTemplate, Project, ProjectArtifact, ProjectKbStatus, ProjectScope, QueueItem, RecentRun, Recommendation, Routine, RunRecord, SetupTask, SkillCommand, SkillMeta, Team, TeamMessage, TeamNote, TeamRun, ToolMeta, TreeNode, VerificationReport, WorkspaceFile } from './types';
+import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, AgentQuestion, Approval, BackgroundTask, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, LibraryArtifact, MarketplaceSkill, MemoryEntry, ModelItem, Overview, PlanTemplate, Project, ProjectArtifact, ProjectKbStatus, ProjectScope, QueueItem, RecentRun, Recommendation, RegistryArtifactVersion, Routine, RunRecord, SetupTask, SkillCommand, SkillMeta, Team, TeamMessage, TeamNote, TeamRun, ToolMeta, TreeNode, VerificationReport, WorkspaceFile } from './types';
 
 const BASE = '/api';
 
@@ -80,6 +80,16 @@ export const api = {
     new: (name: string, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/new?scope=${scope}`, { name }),
     setActive: (sessionId: string, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/set_active?scope=${scope}`, { session_id: sessionId }),
     remove: (sessionId: string, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/remove?scope=${scope}`, { session_id: sessionId }),
+    rename: (sessionId: string, name: string, scope = 'field') =>
+      post<{ error?: string; sessions: unknown[]; active_session_id: string }>(
+        `/sessions/rename?scope=${scope}`,
+        { session_id: sessionId, name },
+      ),
+    pin: (sessionId: string, pinned: boolean, scope = 'field') =>
+      post<{ error?: string; sessions: unknown[]; active_session_id: string }>(
+        `/sessions/pin?scope=${scope}`,
+        { session_id: sessionId, pinned },
+      ),
     truncate: (sessionId: string, keepCount: number, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/truncate?scope=${scope}`, { session_id: sessionId, keep_count: keepCount }),
     deleteMessage: (sessionId: string, index: number, scope = 'field') => post<{ error?: string; sessions: unknown[]; active_session_id: string }>(`/sessions/delete_message?scope=${scope}`, { session_id: sessionId, index }),
     editMessage: (sessionId: string, messageId: number, content: string, scope = 'field', resend = false) =>
@@ -97,6 +107,18 @@ export const api = {
         `/sessions/message/prepare_regenerate?scope=${scope}`,
         { session_id: sessionId, message_id: messageId },
       ),
+    /** Arm a branch at a message; the next send starts the new branch. */
+    forkMessage: (sessionId: string, messageId: number, scope = 'field', cancel = false) =>
+      post<{ error?: string; sessions: unknown[]; active_session_id: string }>(
+        `/sessions/message/fork?scope=${scope}`,
+        { session_id: sessionId, message_id: messageId, cancel },
+      ),
+    /** Show the branch ending at `leafId` as the active transcript. */
+    switchBranch: (sessionId: string, leafId: number, scope = 'field') =>
+      post<{ error?: string; sessions: unknown[]; active_session_id: string }>(
+        `/sessions/message/branch?scope=${scope}`,
+        { session_id: sessionId, message_id: leafId },
+      ),
     reactions: (sessionId: string, messageId: number) =>
       get<{ reactions: { id: string; emoji: string; actor_kind: string; actor_id: string }[] }>(
         `/sessions/message/reactions?session_id=${encodeURIComponent(sessionId)}&message_id=${messageId}`,
@@ -112,7 +134,47 @@ export const api = {
         { session_id: sessionId, message_id: messageId },
       ),
   },
+  search: {
+    /**
+     * Full-text search over session message content. Scope defaults to the
+     * global chat history; `field` searches the active knowledge base chats,
+     * `agent:<id>` / `project:<id>` their own stores.
+     */
+    sessions: (q: string, scope = 'chat', limit = 30) =>
+      get<{
+        query?: string;
+        results?: {
+          session_id: string;
+          session_name: string;
+          message_id: number;
+          role: string;
+          snippet: string;
+          timestamp: number;
+        }[];
+        error?: string;
+      }>(
+        `/search/sessions?q=${encodeURIComponent(q)}&scope=${encodeURIComponent(scope)}&limit=${limit}`,
+      ),
+  },
   sync: () => post<{ status: string; indexed_files?: number; deleted_files?: number; error?: string }>('/update'),
+  prompts: {
+    list: () =>
+      get<{ prompts?: import('./utils/prompts').PromptTemplate[]; error?: string }>('/prompts'),
+    create: (data: { name: string; command: string; template: string; description?: string }) =>
+      post<{ prompt?: import('./utils/prompts').PromptTemplate; prompts?: import('./utils/prompts').PromptTemplate[]; error?: string }>('/prompts', data),
+    update: (
+      promptId: string,
+      data: { name?: string; command?: string; template?: string; description?: string },
+    ) =>
+      patch<{ prompt?: import('./utils/prompts').PromptTemplate; prompts?: import('./utils/prompts').PromptTemplate[]; error?: string }>(
+        `/prompts/${encodeURIComponent(promptId)}`,
+        data,
+      ),
+    remove: (promptId: string) =>
+      del<{ status?: string; prompts?: import('./utils/prompts').PromptTemplate[]; error?: string }>(
+        `/prompts/${encodeURIComponent(promptId)}`,
+      ),
+  },
   files: {
     tree: () => get<{ tree?: TreeNode[]; error?: string }>('/files/tree'),
     treeSub: (path: string) => get<{ children?: TreeNode[]; error?: string }>(`/files/tree/sub?path=${encodeURIComponent(path)}`),
@@ -825,6 +887,26 @@ export const api = {
       const suffix = params.toString();
       return get<{ artifacts: LibraryArtifact[] }>(`/artifacts${suffix ? `?${suffix}` : ''}`);
     },
+    /** Global registry + every project's artifacts in one round-trip. */
+    libraryAll: () =>
+      get<{
+        artifacts: LibraryArtifact[];
+        projects: {
+          project_id: string;
+          project_name: string;
+          artifacts: ProjectArtifact[];
+        }[];
+      }>('/artifacts/library'),
+    /** Version history (summaries) for a registry artifact. */
+    versions: (artifactId: string) =>
+      get<{ versions: RegistryArtifactVersion[] }>(
+        `/artifacts/${encodeURIComponent(artifactId)}/versions`,
+      ),
+    /** Read one historical registry version body. */
+    version: (artifactId: string, version: number) =>
+      get<{ version: number; content: string }>(
+        `/artifacts/${encodeURIComponent(artifactId)}/versions/${version}`,
+      ),
     get: (artifactId: string) =>
       get<LibraryArtifact & { error?: string }>(
         `/artifacts/${encodeURIComponent(artifactId)}`,
@@ -874,11 +956,16 @@ export const api = {
       `${BASE}/artifacts/${encodeURIComponent(artifactId)}/export`,
   },
   voice: {
-    synthesize: (text: string, voice = 'af_bella') =>
+    synthesize: (
+      text: string,
+      voice = 'af_bella',
+      options?: { signal?: AbortSignal },
+    ) =>
       fetch(`${BASE}/voice/synthesize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, voice }),
+        signal: options?.signal,
       }).then(res => {
         if (!res.ok) throw new Error('TTS HTTP ' + res.status);
         return res.blob();

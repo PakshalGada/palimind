@@ -6,6 +6,8 @@ import ArtifactAnswerBlock from '../../components/ArtifactAnswerBlock';
 import AgentAvatar from '../../components/AgentAvatar';
 import MessageActions from '../../components/MessageActions';
 import { parseArtifacts, shouldAutoOpenArtifact } from '../../utils/artifacts';
+import { speech, useSpeech } from '../../utils/speech';
+import { getVoice } from '../../utils/voicePrefs';
 import { HistoryActivity } from '../../components/activity/shell/HistoryActivity';
 import { useBookmarks } from '../../hooks/useBookmarks';
 import { api } from '../../api';
@@ -89,6 +91,15 @@ export default function AgentMessage({
   const isProgress = !isUser && message.kind === 'progress';
   const timestamp = timeLabel(message.timestamp);
   const deleted = Boolean(message.deleted_at);
+  const speechState = useSpeech();
+  const messageKey = `agent-msg:${sessionId ?? ''}:${message.id ?? `i${index}`}`;
+  const speaking = speechState.messageId === messageKey && speechState.status !== 'idle';
+  const speakLoading = speechState.messageId === messageKey && speechState.status === 'loading';
+  const agentId = message.mode_params?.agent_id || fallbackAgent?.id || null;
+  const onSpeak =
+    !isUser && !deleted && !isProgress && message.content.trim()
+      ? () => speech.toggle(messageKey, message.content, getVoice(agentId ? `agent:${agentId}` : null))
+      : undefined;
   const artifacts = useMemo(
     () =>
       isUser || deleted || isProgress
@@ -306,6 +317,9 @@ export default function AgentMessage({
           !isUser && !isProgress && message.id ? () => void regenerate() : undefined
         }
         onEdit={isUser && message.id ? () => setEditing(true) : undefined}
+        onSpeak={onSpeak}
+        speaking={speaking}
+        speakLoading={speakLoading}
         onDelete={() => void remove()}
         onShare={() => {
           navigator.clipboard

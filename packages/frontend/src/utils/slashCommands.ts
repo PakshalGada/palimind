@@ -32,6 +32,9 @@ export interface SlashCommand {
   skillId?: string;
   /** LLM mode to switch to. */
   mode?: 'default' | 'moe' | 'deep_research';
+  /** Saved prompt template (prompt library); template text powers the send. */
+  promptId?: string;
+  template?: string;
 }
 
 export const SLASH_COMMANDS: readonly SlashCommand[] = [
@@ -188,6 +191,7 @@ export function leadingCommand(
 
 /** Short badge used by the command palette and the composer chip. */
 export function commandBadge(command: SlashCommand): string {
+  if (command.promptId) return 'Prompt';
   if (command.artifact === 'word') return 'Word';
   if (command.artifact === 'pptx') return 'Deck';
   if (command.artifact === 'webpage') return 'Page';
