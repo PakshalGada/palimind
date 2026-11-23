@@ -406,6 +406,14 @@ class VectorStore:
                     "entity_name": d.get("entity_name", ""),
                     "media_start_ts": d.get("media_start_ts"),
                     "media_end_ts": d.get("media_end_ts"),
+                    "source_id": d.get("source_id", ""),
+                    "source_kind": d.get("source_kind", ""),
+                    "source_url": d.get("source_url", ""),
+                    "source_title": d.get("source_title", ""),
+                    "source_site": d.get("source_site", ""),
+                    "source_author": d.get("source_author", ""),
+                    "source_published_at": d.get("source_published_at", ""),
+                    "source_fetched_at": d.get("source_fetched_at"),
                     "vectors": vectors,  # Store all vectors for multi-vector retrieval
                 }
                 self._removed.discard(cid)
@@ -435,6 +443,14 @@ class VectorStore:
                     "entity_name": d.get("entity_name", ""),
                     "media_start_ts": d.get("media_start_ts"),
                     "media_end_ts": d.get("media_end_ts"),
+                    "source_id": d.get("source_id", ""),
+                    "source_kind": d.get("source_kind", ""),
+                    "source_url": d.get("source_url", ""),
+                    "source_title": d.get("source_title", ""),
+                    "source_site": d.get("source_site", ""),
+                    "source_author": d.get("source_author", ""),
+                    "source_published_at": d.get("source_published_at", ""),
+                    "source_fetched_at": d.get("source_fetched_at"),
                 }
                 self._removed.discard(cid)
 

@@ -12,12 +12,18 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 router = APIRouter(prefix="/api/files", tags=["files"])
 
 
-def _resolve_file_path(path_str: str) -> Path:
+def _resolve_file_path(path_str: str, scope: str = "field") -> Path:
     from palimind import api_server as server
+    from palimind import knowledge
 
-    if not server.state.active_field:
+    root = (
+        knowledge.resolve_content_root(scope)
+        or knowledge.resolve_root(scope)
+        or server.state.active_field
+    )
+    if not root:
         raise StarletteHTTPException(status_code=404, detail="No active field")
-    root = server.state.active_field.resolve()
+    root = root.resolve()
     candidate = Path(path_str)
     if not candidate.is_absolute():
         candidate = root / candidate
@@ -28,7 +34,7 @@ def _resolve_file_path(path_str: str) -> Path:
 
 
 @router.get("/open")
-async def open_file(path: str, section: str | None = None):
+async def open_file(path: str, section: str | None = None, scope: str = "field"):
     """Serve a workspace file inline so citations can link to their source.
 
     ``section`` is accepted for forward compatibility with section-aware
@@ -36,7 +42,7 @@ async def open_file(path: str, section: str | None = None):
     to present it.
     """
     try:
-        resolved = _resolve_file_path(path)
+        resolved = _resolve_file_path(path, scope)
     except StarletteHTTPException as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
     if not resolved.is_file():

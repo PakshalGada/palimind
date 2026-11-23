@@ -1,0 +1,9 @@
+{
+  "name": "knowledge_space",
+  "version": "1.0.0",
+  "entrypoint": "tool.py",
+  "description": "Search or add URLs/notes to the active knowledge space",
+  "permissions": ["network", "fs-read", "fs-write"],
+  "timeout_s": 60,
+  "function": "knowledge_space"
+}

@@ -47,6 +47,7 @@ JOB_KINDS = (
     "background_task",
     "routine_run",
     "index",
+    "web_ingest",
     "research",
     "workflow",
     "trigger",
@@ -549,6 +550,15 @@ class JobRunner:
 
 
 _runner: JobRunner | None = None
+
+
+def runner_running() -> bool:
+    """True when the durable job worker has live tasks in this process."""
+    return bool(
+        _runner is not None
+        and _runner._tasks
+        and any(not task.done() for task in _runner._tasks)
+    )
 
 
 async def start_runner(

@@ -145,6 +145,14 @@ def init_db(root: Path) -> None:
             ("entity_name", "TEXT DEFAULT ''"),
             ("total_pages", "INTEGER"),
             ("language", "TEXT DEFAULT 'en'"),
+            ("source_id", "TEXT DEFAULT ''"),
+            ("source_kind", "TEXT DEFAULT ''"),
+            ("source_url", "TEXT DEFAULT ''"),
+            ("source_title", "TEXT DEFAULT ''"),
+            ("source_site", "TEXT DEFAULT ''"),
+            ("source_author", "TEXT DEFAULT ''"),
+            ("source_published_at", "TEXT DEFAULT ''"),
+            ("source_fetched_at", "REAL"),
         ]:
             col_name, col_type = col_def
             if col_name not in file_cols:
@@ -183,6 +191,74 @@ def init_db(root: Path) -> None:
             CREATE INDEX IF NOT EXISTS idx_entity_mentions
             ON entity_mentions(entity_text, entity_type)
         """)
+
+        # ── knowledge sources ─────────────────────────────────────────────────
+        # One row per saved web page / note / file. ``file_path`` points at the
+        # Markdown file in the index, so retrieval and graph stay source-agnostic.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sources (
+                id                TEXT PRIMARY KEY,
+                kind              TEXT NOT NULL DEFAULT 'web',
+                url               TEXT DEFAULT '',
+                canonical_url     TEXT DEFAULT '',
+                title             TEXT DEFAULT '',
+                author            TEXT DEFAULT '',
+                site              TEXT DEFAULT '',
+                published_at      TEXT DEFAULT '',
+                fetched_at        REAL,
+                etag              TEXT DEFAULT '',
+                last_modified     TEXT DEFAULT '',
+                content_hash      TEXT DEFAULT '',
+                file_path         TEXT DEFAULT '',
+                snapshot_path     TEXT DEFAULT '',
+                status            TEXT NOT NULL DEFAULT 'queued',
+                error             TEXT DEFAULT '',
+                note              TEXT DEFAULT '',
+                tags              TEXT DEFAULT '[]',
+                reading_state     TEXT DEFAULT 'unread',
+                favorite          INTEGER DEFAULT 0,
+                refresh_interval  INTEGER DEFAULT 0,
+                last_checked      REAL,
+                parent_id         TEXT DEFAULT '',
+                change_summary    TEXT DEFAULT '',
+                created_at        REAL,
+                updated_at        REAL
+            )
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sources_file ON sources(file_path)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sources_canonical ON sources(canonical_url)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sources_status ON sources(status)"
+        )
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS collections (
+                id          TEXT PRIMARY KEY,
+                name        TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                created_at  REAL,
+                updated_at  REAL
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS source_collections (
+                source_id     TEXT NOT NULL,
+                collection_id TEXT NOT NULL,
+                PRIMARY KEY (source_id, collection_id)
+            )
+        """)
+        cur.execute("PRAGMA table_info(sources)")
+        source_cols = {col[1] for col in cur.fetchall()}
+        for col_def in [
+            ("parent_id", "TEXT DEFAULT ''"),
+            ("change_summary", "TEXT DEFAULT ''"),
+        ]:
+            col_name, col_type = col_def
+            if col_name not in source_cols:
+                cur.execute(f"ALTER TABLE sources ADD COLUMN {col_name} {col_type}")
 
         # ── incremental index runs ───────────────────────────────────────────
         cur.execute("""
@@ -242,13 +318,32 @@ def _ensure_schema(root: Path, conn: sqlite3.Connection) -> sqlite3.Connection:
             return conn
         try:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(chunks)")}
+            file_cols = {row[1] for row in conn.execute("PRAGMA table_info(files)")}
             has_summary_fts = (
                 conn.execute(
                     "SELECT 1 FROM sqlite_master WHERE type='table' AND name='summaries_fts'"
                 ).fetchone()
                 is not None
             )
-            if "main_section" not in cols or "embed_text" not in cols or not has_summary_fts:
+            has_sources = (
+                conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sources'"
+                ).fetchone()
+                is not None
+            )
+            source_cols = (
+                {row[1] for row in conn.execute("PRAGMA table_info(sources)")}
+                if has_sources
+                else set()
+            )
+            if (
+                "main_section" not in cols
+                or "embed_text" not in cols
+                or not has_summary_fts
+                or not has_sources
+                or "source_id" not in file_cols
+                or "change_summary" not in source_cols
+            ):
                 conn.close()
                 init_db(root)
                 conn = sqlite3.connect(db_path(root), timeout=30.0)
@@ -288,19 +383,74 @@ def upsert_file(
     doc_year: int | None = None,
     doc_type: str = "other",
     entity_name: str = "",
+    source: dict | None = None,
 ) -> int:
+    provenance = dict(source or {})
+    if not provenance:
+        # Web/notes sources are written into the index by the normal crawler;
+        # pick up their provenance without threading it through every caller.
+        try:
+            row = conn.execute(
+                """
+                SELECT id, kind, url, title, site, author, published_at, fetched_at
+                FROM sources WHERE file_path = ?
+                """,
+                (path,),
+            ).fetchone()
+        except sqlite3.Error:
+            row = None
+        if row is not None:
+            provenance = {
+                "id": row[0],
+                "kind": row[1],
+                "url": row[2],
+                "title": row[3],
+                "site": row[4],
+                "author": row[5],
+                "published_at": row[6],
+                "fetched_at": row[7],
+            }
+    if provenance.get("kind") == "web" and (not doc_type or doc_type == "other"):
+        doc_type = "web"
     conn.execute(
         """
-        INSERT INTO files (path, md5_hash, last_indexed, doc_year, doc_type, entity_name)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO files (
+            path, md5_hash, last_indexed, doc_year, doc_type, entity_name,
+            source_id, source_kind, source_url, source_title, source_site,
+            source_author, source_published_at, source_fetched_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(path) DO UPDATE SET
             md5_hash=excluded.md5_hash,
             last_indexed=excluded.last_indexed,
             doc_year=excluded.doc_year,
             doc_type=excluded.doc_type,
-            entity_name=excluded.entity_name
+            entity_name=excluded.entity_name,
+            source_id=excluded.source_id,
+            source_kind=excluded.source_kind,
+            source_url=excluded.source_url,
+            source_title=excluded.source_title,
+            source_site=excluded.source_site,
+            source_author=excluded.source_author,
+            source_published_at=excluded.source_published_at,
+            source_fetched_at=excluded.source_fetched_at
         """,
-        (path, md5_hash, timestamp, doc_year, doc_type, entity_name),
+        (
+            path,
+            md5_hash,
+            timestamp,
+            doc_year,
+            doc_type,
+            entity_name,
+            str(provenance.get("id") or ""),
+            str(provenance.get("kind") or ""),
+            str(provenance.get("url") or ""),
+            str(provenance.get("title") or ""),
+            str(provenance.get("site") or ""),
+            str(provenance.get("author") or ""),
+            str(provenance.get("published_at") or ""),
+            provenance.get("fetched_at"),
+        ),
     )
     cur = conn.execute("SELECT id FROM files WHERE path = ?", (path,))
     return cur.fetchone()[0]
@@ -390,7 +540,9 @@ def get_file_summary(conn: sqlite3.Connection, path: str) -> str | None:
 def get_all_files(conn: sqlite3.Connection) -> list[dict]:
     """Return a list of dicts with ``path``, ``summary``, ``doc_year``, ``doc_type`` for every indexed file."""
     cur = conn.execute(
-        "SELECT path, summary, doc_year, doc_type, entity_name FROM files ORDER BY path"
+        "SELECT path, summary, doc_year, doc_type, entity_name, "
+        "source_url, source_title, source_site, source_fetched_at "
+        "FROM files ORDER BY path"
     )
     return [
         {
@@ -399,6 +551,10 @@ def get_all_files(conn: sqlite3.Connection) -> list[dict]:
             "doc_year": row[2],
             "doc_type": row[3] or "other",
             "entity_name": row[4] or "",
+            "source_url": row[5] or "",
+            "source_title": row[6] or "",
+            "source_site": row[7] or "",
+            "source_fetched_at": row[8],
         }
         for row in cur.fetchall()
     ]
@@ -407,7 +563,9 @@ def get_all_files(conn: sqlite3.Connection) -> list[dict]:
 def get_files_with_hash(conn: sqlite3.Connection) -> list[dict]:
     """Return every indexed file with its md5 hash (used for incremental graphs)."""
     cur = conn.execute(
-        "SELECT path, md5_hash, summary, doc_year, doc_type, entity_name FROM files ORDER BY path"
+        "SELECT path, md5_hash, summary, doc_year, doc_type, entity_name, "
+        "source_url, source_title, source_site, source_fetched_at "
+        "FROM files ORDER BY path"
     )
     return [
         {
@@ -417,6 +575,10 @@ def get_files_with_hash(conn: sqlite3.Connection) -> list[dict]:
             "doc_year": row[3],
             "doc_type": row[4] or "other",
             "entity_name": row[5] or "",
+            "source_url": row[6] or "",
+            "source_title": row[7] or "",
+            "source_site": row[8] or "",
+            "source_fetched_at": row[9],
         }
         for row in cur.fetchall()
     ]
@@ -908,3 +1070,220 @@ def get_candidate_chunk_ids(
         params,
     )
     return {row[0] for row in cur.fetchall()}
+
+
+# ── knowledge sources ────────────────────────────────────────────────────────
+
+SOURCE_COLUMNS = (
+    "id",
+    "kind",
+    "url",
+    "canonical_url",
+    "title",
+    "author",
+    "site",
+    "published_at",
+    "fetched_at",
+    "etag",
+    "last_modified",
+    "content_hash",
+    "file_path",
+    "snapshot_path",
+    "status",
+    "error",
+    "note",
+    "tags",
+    "reading_state",
+    "favorite",
+    "refresh_interval",
+    "last_checked",
+    "parent_id",
+    "change_summary",
+    "created_at",
+    "updated_at",
+)
+
+
+def _source_dict(row) -> dict:
+    return {name: row[index] for index, name in enumerate(SOURCE_COLUMNS)}
+
+
+def upsert_source(conn: sqlite3.Connection, source: dict) -> dict:
+    """Insert or update one source row and return the persisted record."""
+    values = {name: source.get(name) for name in SOURCE_COLUMNS}
+    values["tags"] = values.get("tags") or "[]"
+    values["status"] = values.get("status") or "queued"
+    values["reading_state"] = values.get("reading_state") or "unread"
+    values["favorite"] = int(values.get("favorite") or 0)
+    conn.execute(
+        f"""
+        INSERT INTO sources ({", ".join(SOURCE_COLUMNS)})
+        VALUES ({", ".join("?" * len(SOURCE_COLUMNS))})
+        ON CONFLICT(id) DO UPDATE SET
+            kind=excluded.kind,
+            url=excluded.url,
+            canonical_url=excluded.canonical_url,
+            title=excluded.title,
+            author=excluded.author,
+            site=excluded.site,
+            published_at=excluded.published_at,
+            fetched_at=excluded.fetched_at,
+            etag=excluded.etag,
+            last_modified=excluded.last_modified,
+            content_hash=excluded.content_hash,
+            file_path=excluded.file_path,
+            snapshot_path=excluded.snapshot_path,
+            status=excluded.status,
+            error=excluded.error,
+            note=excluded.note,
+            tags=excluded.tags,
+            reading_state=excluded.reading_state,
+            favorite=excluded.favorite,
+            refresh_interval=excluded.refresh_interval,
+            last_checked=excluded.last_checked,
+            updated_at=excluded.updated_at
+        """,
+        tuple(values[name] for name in SOURCE_COLUMNS),
+    )
+    conn.commit()
+    return get_source(conn, str(values["id"])) or values
+
+
+def get_source(conn: sqlite3.Connection, source_id: str) -> dict | None:
+    row = conn.execute(
+        f"SELECT {', '.join(SOURCE_COLUMNS)} FROM sources WHERE id = ?",
+        (str(source_id or ""),),
+    ).fetchone()
+    return _source_dict(row) if row is not None else None
+
+
+def find_source(
+    conn: sqlite3.Connection,
+    *,
+    canonical_url: str = "",
+    file_path: str = "",
+) -> dict | None:
+    if canonical_url:
+        row = conn.execute(
+            f"SELECT {', '.join(SOURCE_COLUMNS)} FROM sources WHERE canonical_url = ?",
+            (canonical_url,),
+        ).fetchone()
+        if row is not None:
+            return _source_dict(row)
+    if file_path:
+        row = conn.execute(
+            f"SELECT {', '.join(SOURCE_COLUMNS)} FROM sources WHERE file_path = ?",
+            (file_path,),
+        ).fetchone()
+        if row is not None:
+            return _source_dict(row)
+    return None
+
+
+def list_sources(
+    conn: sqlite3.Connection,
+    *,
+    q: str = "",
+    kind: str = "",
+    status: str = "",
+    reading_state: str = "",
+    collection_id: str = "",
+    favorite: int | None = None,
+    limit: int = 200,
+    offset: int = 0,
+) -> tuple[list[dict], int]:
+    where: list[str] = []
+    params: list = []
+    if q:
+        where.append("(title LIKE ? OR url LIKE ? OR site LIKE ? OR note LIKE ?)")
+        like = f"%{q}%"
+        params.extend([like, like, like, like])
+    if kind:
+        where.append("kind = ?")
+        params.append(kind)
+    if status:
+        where.append("status = ?")
+        params.append(status)
+    if reading_state:
+        where.append("reading_state = ?")
+        params.append(reading_state)
+    if favorite is not None:
+        where.append("favorite = ?")
+        params.append(int(favorite))
+    if collection_id:
+        where.append(
+            "id IN (SELECT source_id FROM source_collections WHERE collection_id = ?)"
+        )
+        params.append(collection_id)
+    clause = f"WHERE {' AND '.join(where)}" if where else ""
+    total = int(
+        conn.execute(f"SELECT COUNT(*) FROM sources {clause}", tuple(params)).fetchone()[0]
+        or 0
+    )
+    rows = conn.execute(
+        f"""
+        SELECT {", ".join(SOURCE_COLUMNS)} FROM sources {clause}
+        ORDER BY COALESCE(fetched_at, created_at, 0) DESC, id
+        LIMIT ? OFFSET ?
+        """,
+        (*params, max(1, min(int(limit or 200), 1000)), max(0, int(offset or 0))),
+    ).fetchall()
+    return [_source_dict(row) for row in rows], total
+
+
+def delete_source(conn: sqlite3.Connection, source_id: str) -> bool:
+    cur = conn.execute("DELETE FROM sources WHERE id = ?", (str(source_id or ""),))
+    conn.execute(
+        "DELETE FROM source_collections WHERE source_id = ?", (str(source_id or ""),)
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def set_source_status(
+    conn: sqlite3.Connection, source_id: str, status: str, error: str = ""
+) -> None:
+    conn.execute(
+        "UPDATE sources SET status = ?, error = ?, updated_at = ? WHERE id = ?",
+        (status, error, __import__("time").time(), str(source_id)),
+    )
+    conn.commit()
+
+
+def attach_collection(conn: sqlite3.Connection, source_id: str, collection_id: str) -> None:
+    conn.execute(
+        "INSERT OR IGNORE INTO source_collections(source_id, collection_id) VALUES (?, ?)",
+        (str(source_id), str(collection_id)),
+    )
+    conn.commit()
+
+
+def detach_collection(conn: sqlite3.Connection, source_id: str, collection_id: str) -> None:
+    conn.execute(
+        "DELETE FROM source_collections WHERE source_id = ? AND collection_id = ?",
+        (str(source_id), str(collection_id)),
+    )
+    conn.commit()
+
+
+def list_collections(conn: sqlite3.Connection) -> list[dict]:
+    rows = conn.execute(
+        """
+        SELECT c.id, c.name, c.description, c.created_at, c.updated_at,
+               COUNT(sc.source_id) AS source_count
+        FROM collections c
+        LEFT JOIN source_collections sc ON sc.collection_id = c.id
+        GROUP BY c.id ORDER BY c.name COLLATE NOCASE
+        """
+    ).fetchall()
+    return [
+        {
+            "id": row[0],
+            "name": row[1],
+            "description": row[2] or "",
+            "created_at": row[3],
+            "updated_at": row[4],
+            "source_count": int(row[5] or 0),
+        }
+        for row in rows
+    ]

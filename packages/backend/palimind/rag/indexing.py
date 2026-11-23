@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import threading
 import time
 from collections.abc import Callable
@@ -101,12 +102,45 @@ def _build_doc_meta(file_path: Path, root: Path, text_sample: str) -> DocumentMe
     doc_year = extract_doc_year(filename, text_sample)
     doc_type = extract_doc_type(filename, text_sample)
     entity_name = extract_entity_name(text_sample)
+    # Saved web sources carry provenance in the sources table. Prefer their
+    # published year and give them a first-class doc_type so filters work.
+    try:
+        from palimind.storage.db import get_connection
+
+        conn = get_connection(root)
+        try:
+            row = conn.execute(
+                "SELECT kind, published_at FROM sources WHERE file_path = ?",
+                (rel_path,),
+            ).fetchone()
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001 - provenance is optional
+        row = None
+    if row is not None:
+        if str(row[0] or "") == "web":
+            doc_type = "web"
+        if row[1] and not doc_year:
+            match = re.search(r"(19|20)\d{2}", str(row[1]))
+            if match:
+                doc_year = int(match.group(0))
     return DocumentMeta(
         path=rel_path,
         doc_year=doc_year,
         doc_type=doc_type,
         entity_name=entity_name,
     )
+
+
+_FRONT_MATTER = re.compile(r"^---\s*\n.*?\n---\s*\n?", re.DOTALL)
+
+
+def _strip_front_matter(text: str) -> str:
+    """Keep YAML front-matter out of chunks while leaving it on disk."""
+    if not text.startswith("---"):
+        return text
+    match = _FRONT_MATTER.match(text)
+    return text[match.end() :] if match else text
 
 
 def extract_chunks(file_path: Path, root: Path, config: dict) -> list[RichChunk]:
@@ -148,6 +182,8 @@ def extract_chunks(file_path: Path, root: Path, config: dict) -> list[RichChunk]
             text = raw.decode("utf-8")
         except UnicodeDecodeError:
             text = raw.decode("utf-8", errors="replace")
+        if ext in (".md", ".markdown", ".txt"):
+            text = _strip_front_matter(text)
 
     if not text:
         return []
@@ -522,6 +558,25 @@ def _update_index_locked(
                         doc_type=first.doc_type,
                         entity_name=first.entity_name,
                     )
+                    prov_row = conn.execute(
+                        """
+                        SELECT source_id, source_kind, source_url, source_title,
+                               source_site, source_author, source_published_at,
+                               source_fetched_at
+                        FROM files WHERE id = ?
+                        """,
+                        (file_id,),
+                    ).fetchone()
+                    provenance = {
+                        "source_id": prov_row[0] or "",
+                        "source_kind": prov_row[1] or "",
+                        "source_url": prov_row[2] or "",
+                        "source_title": prov_row[3] or "",
+                        "source_site": prov_row[4] or "",
+                        "source_author": prov_row[5] or "",
+                        "source_published_at": prov_row[6] or "",
+                        "source_fetched_at": prov_row[7],
+                    } if prov_row else {}
 
                     if valid_infos:
                         chunk_db_ids = insert_chunks(conn, file_id, db_chunks)
@@ -545,6 +600,7 @@ def _update_index_locked(
                                 "entity_name": chunk.entity_name,
                                 "media_start_ts": chunk.media_start_ts,
                                 "media_end_ts": chunk.media_end_ts,
+                                **provenance,
                             }
                             for j, (_, chunk, emb) in enumerate(valid_infos)
                         ]

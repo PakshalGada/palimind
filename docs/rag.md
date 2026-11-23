@@ -86,7 +86,71 @@ knowledge bases.
 | `GET/PATCH /api/document/config` | Read/update validated retrieval and indexing settings |
 | `POST /api/document/sync` | Plan and enqueue a durable incremental run |
 | `GET /api/document/runs` | Run history for the scoped knowledge base |
-| `GET /api/document/graph` | Graph payload with type/year/relation filters and node/edge caps |
+| `GET /api/document/graph` | Graph payload with type/year/relation filters, source provenance and node/edge caps |
+
+`GET/POST /api/document/search` also accepts `collection=<id>` to restrict
+retrieval to one collection inside the space.
+
+## Knowledge spaces and sources
+
+A **space** is a registry entry (`palimind/spaces/store.py`) backed by a real
+folder anywhere on disk. `POST /api/spaces` creates the folder
+(`mode=create`, with `parent_dir` + `folder_name`) or links an existing one
+(`mode=link`, with `root`). Existing folders saved by older builds are adopted
+as linked spaces on startup, so `/api/fields/*` keeps working.
+
+Saved content is written as one Markdown file per source, which means the
+normal crawler → chunker → embedder → graph pipeline needs no special cases:
+
+```text
+<space root>/
+  .palimind/                  # index, config, graph, raw HTML snapshots
+  sources/web/<slug>-<id>.md  # YAML front-matter: URL, title, author, dates
+  sources/text/<slug>-<id>.md # notes
+  sources/files/<slug>-<id>.pdf
+```
+
+Web ingestion (`palimind/spaces/web_source.py`):
+
+1. normalise the URL and enforce the same SSRF guard as web search on every
+   redirect hop;
+2. honour `robots.txt` and cap the response at 5 MB;
+3. extract the main article (`trafilatura` when installed, BeautifulSoup
+   fallback), plus title, author, site, publish date and canonical URL;
+4. write the Markdown and an HTML snapshot under `.palimind/raw/web/`;
+5. enqueue a durable `web_ingest` job that saves the file and starts an index
+   run; `etag`/`last_modified` make refreshes conditional and the previous
+   snapshot is diffed into a short "what changed" summary.
+
+PDF links are saved as binary file sources and parsed by the existing PDF
+pipeline. YouTube links become timestamped transcript sources, and RSS/Atom
+feeds (`palimind/spaces/feeds.py`) create a feed row and one web source per
+item. Sources with a non-zero `refresh_interval` are refreshed by a background
+maintenance loop; everything else is manual.
+
+Provenance flows without a second lookup: source metadata is stored in the
+`sources` table, copied onto `files` (`source_url`, `source_title`, `source_site`,
+`source_fetched_at`), carried in vector metadata, added to retrieval context
+headers, rendered as `[title](url)` citations, and attached to graph file nodes.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET/POST /api/spaces` | List spaces, create/link one |
+| `GET/PATCH/DELETE /api/spaces/{id}` | Read, rename, remove (files kept by default) |
+| `POST /api/spaces/{id}/activate` | Make the space active for chat/retrieval |
+| `POST /api/spaces/{id}/sources` | Save `url`, `urls[]` or `text` |
+| `GET /api/spaces/{id}/sources` | Filter by query/kind/status/reading state/collection |
+| `GET/PATCH/DELETE /api/spaces/{id}/sources/{source_id}` | Reader, metadata, remove |
+| `POST /api/spaces/{id}/sources/{source_id}/refresh` | Conditional re-crawl (or feed refresh) |
+| `POST /api/spaces/{id}/sources/{source_id}/reindex` | Force re-embed one source |
+| `POST /api/spaces/{id}/feeds` | Subscribe to RSS/Atom |
+| `POST /api/spaces/{id}/crawl` | Crawl same-host links from a starting page |
+| `GET/POST /api/spaces/{id}/collections` | Collections (retrieval scopes) |
+| `GET /api/spaces/{id}/export` | Markdown vault ZIP |
+| `GET /api/spaces/{id}/graph/export` | Graph JSON or GraphML |
+
+Agents reach the same surface through the `knowledge_space` tool
+(`search`, `add_url`, `add_note`).
 
 `hybrid_search` still returns its `diagnostics` dict (lanes, fused count,
 rerank/MMR flags, budget usage, cache hit) next to `timings` and `errors`; the

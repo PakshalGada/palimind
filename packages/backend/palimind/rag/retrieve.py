@@ -44,6 +44,18 @@ _rewrite_cache: dict[str, list[str]] = {}
 _query_emb_cache: dict[str, list[float]] = {}
 _query_emb_cache_max = 512
 _semantic_result_cache: dict[str, dict] = {}
+
+
+def clear_search_cache(root: "Path | None" = None) -> None:
+    """Drop cached query rewrites/results after the index changes.
+
+    ``root`` is accepted for symmetry with callers that invalidate a single
+    workspace; the caches are small and keyed by content, so clearing them all
+    is both correct and cheap.
+    """
+    _rewrite_cache.clear()
+    _query_emb_cache.clear()
+    _semantic_result_cache.clear()
 _SEMANTIC_CACHE_MAX = 256
 _SEMANTIC_CACHE_TTL = 300  # 5 minutes
 
@@ -581,6 +593,55 @@ def _build_candidate_ids(
         return None
 
 
+def _enrich_provenance(root: Path, results: list[dict]) -> None:
+    """Attach saved-source metadata (URL/title/site/fetched date) to hits.
+
+    Expanded parent/window chunks are rebuilt from SQLite and may not carry the
+    vector metadata, so enrich by file path once per selected result.
+    """
+    paths = {str(r.get("file_path") or "") for r in results}
+    paths.discard("")
+    if not paths:
+        return
+    try:
+        conn = get_connection(root)
+        try:
+            placeholders = ",".join("?" * len(paths))
+            rows = conn.execute(
+                f"""
+                SELECT path, source_id, source_kind, source_url, source_title,
+                       source_site, source_author, source_published_at,
+                       source_fetched_at
+                FROM files WHERE path IN ({placeholders})
+                """,
+                tuple(sorted(paths)),
+            ).fetchall()
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001 - provenance is an enhancement, never fatal
+        return
+    by_path = {
+        str(row[0]): {
+            "source_id": row[1] or "",
+            "source_kind": row[2] or "",
+            "source_url": row[3] or "",
+            "source_title": row[4] or "",
+            "source_site": row[5] or "",
+            "source_author": row[6] or "",
+            "source_published_at": row[7] or "",
+            "source_fetched_at": row[8],
+        }
+        for row in rows
+    }
+    for result in results:
+        meta = by_path.get(str(result.get("file_path") or ""))
+        if not meta:
+            continue
+        for key, value in meta.items():
+            if value not in (None, ""):
+                result[key] = value
+
+
 def _assemble_context(
     selected_results: list[dict],
     token_budget: int | None,
@@ -619,7 +680,28 @@ def _assemble_context(
         if doc_type and doc_type != "other":
             meta_parts.append(f"Type: {doc_type}")
         meta_str = f" ({'; '.join(meta_parts)})" if meta_parts else ""
-        header = f"--- Document: {fp}{sec_str}{page_str}{ts_str}{meta_str} ---"
+        source_url = str(r.get("source_url") or "")
+        if source_url:
+            source_title = str(r.get("source_title") or fp)
+            source_site = str(r.get("source_site") or "")
+            fetched = r.get("source_fetched_at")
+            fetched_str = ""
+            if fetched:
+                try:
+                    fetched_str = time.strftime("%Y-%m-%d", time.localtime(float(fetched)))
+                except (TypeError, ValueError, OSError):
+                    fetched_str = ""
+            origin = f"{source_title}"
+            if source_site:
+                origin += f" ({source_site})"
+            origin += f" — {source_url}"
+            if fetched_str:
+                origin += f", fetched {fetched_str}"
+            header = f"--- Source: {origin}{sec_str}{page_str}{ts_str}{meta_str} ---"
+        elif r.get("source_kind"):
+            header = f"--- Saved: {fp}{sec_str}{page_str}{ts_str}{meta_str} ---"
+        else:
+            header = f"--- Document: {fp}{sec_str}{page_str}{ts_str}{meta_str} ---"
         block = f"{header}\n{r.get('content', '')}"
 
         if budget is not None:
@@ -1204,6 +1286,7 @@ def hybrid_search(
 
         # ── Budgeted context assembly ────────────────────────────────────
         timings["select_ms"] = round((time.perf_counter() - t_start) * 1000, 1)
+        _enrich_provenance(root, selected_results)
         context_parts, kept_results = _assemble_context(selected_results, context_token_budget)
         for r in kept_results:
             fp = r.get("file_path", "unknown")

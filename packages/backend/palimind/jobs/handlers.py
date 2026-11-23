@@ -157,6 +157,33 @@ async def run_index_job(job: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+async def run_web_ingest_job(job: dict[str, Any]) -> dict[str, Any]:
+    """Fetch one saved URL, write its Markdown source and index it."""
+    from pathlib import Path
+
+    from palimind import knowledge
+    from palimind.spaces import sources as sources_mod
+
+    payload = job.get("payload") or {}
+    root = Path(str(payload.get("root") or job.get("target") or ""))
+    source_id = str(payload.get("source_id") or "")
+    if not root.is_dir() or not source_id:
+        return {"status": "error", "output": "web_ingest requires root and source_id"}
+
+    record = await asyncio.to_thread(sources_mod.ingest_web_source, root, source_id)
+    if record.get("status") in ("ready", "not_modified"):
+        try:
+            await asyncio.to_thread(knowledge.run_index, root, wait=False)
+        except Exception as exc:  # noqa: BLE001 - saved content is still usable
+            return {"status": "success", "output": f"saved; index failed: {exc}"}
+        return {"status": "success", "output": "source saved and queued for indexing"}
+    return {
+        "status": "error",
+        "output": str(record.get("error") or "source ingestion failed"),
+        "source_id": source_id,
+    }
+
+
 def default_handlers() -> dict[str, Any]:
     return {
         "agent_run": run_agent_job,
@@ -165,5 +192,6 @@ def default_handlers() -> dict[str, Any]:
         "background_task": run_background_task,
         "routine_run": run_routine_job,
         "index": run_index_job,
+        "web_ingest": run_web_ingest_job,
         "workflow": run_workflow_job,
     }

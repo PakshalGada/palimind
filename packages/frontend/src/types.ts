@@ -4,6 +4,54 @@ export interface Field {
   path: string;
 }
 
+export interface KnowledgeSpace {
+  id: string;
+  name: string;
+  slug: string;
+  root: string;
+  kind: 'managed' | 'linked' | 'project';
+  source_dir: string;
+  icon: string;
+  created_at?: number;
+  updated_at?: number;
+}
+
+export interface KnowledgeSource {
+  id: string;
+  kind: 'web' | 'text' | 'file' | 'feed' | string;
+  url: string;
+  canonical_url: string;
+  title: string;
+  author: string;
+  site: string;
+  published_at: string;
+  fetched_at: number | null;
+  etag: string;
+  last_modified: string;
+  content_hash: string;
+  file_path: string;
+  snapshot_path: string;
+  status: 'queued' | 'fetching' | 'extracting' | 'writing' | 'ready' | 'failed' | 'blocked' | 'not_modified' | string;
+  error: string;
+  note: string;
+  tags: string[];
+  reading_state: 'unread' | 'reading' | 'read' | 'archived' | string;
+  favorite: boolean;
+  refresh_interval: number;
+  last_checked: number | null;
+  parent_id: string;
+  change_summary: string;
+  created_at?: number;
+  updated_at?: number;
+}
+
+export interface SourceCollection {
+  id: string;
+  name: string;
+  description: string;
+  source_count: number;
+}
+
 export interface Session {
   id: string;
   name: string;
@@ -248,6 +296,13 @@ export interface GraphNode {
   label: string;
   type: string;
   file_path?: string;
+  source_url?: string;
+  source_title?: string;
+  source_site?: string;
+  source_fetched_at?: number | null;
+  doc_type?: string;
+  doc_year?: number | null;
+  degree?: number;
 }
 
 export interface GraphEdge {

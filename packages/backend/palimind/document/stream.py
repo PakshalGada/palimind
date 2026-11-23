@@ -64,6 +64,11 @@ def _text_refs(results: list[dict]) -> list[dict]:
                 "page": r.get("page_number"),
                 "snippet": (r.get("content", "") or "")[:160],
                 "chunk_id": cid,
+                "source_id": r.get("source_id") or "",
+                "url": r.get("source_url") or "",
+                "title": r.get("source_title") or "",
+                "site": r.get("source_site") or "",
+                "fetched_at": r.get("source_fetched_at"),
             }
         )
     return refs

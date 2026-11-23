@@ -102,6 +102,7 @@ from palimind.api_routers.routers.metrics import router as metrics_router
 from palimind.api_routers.routers.models import router as models_router
 from palimind.api_routers.routers.research import router as research_router
 from palimind.api_routers.routers.search import router as search_router
+from palimind.api_routers.routers.spaces import router as spaces_router
 from palimind.api_routers.routers.tasks import router as tasks_router
 from palimind.api_routers.routers.uploads import router as uploads_router
 from palimind.api_routers.routers.voice import router as voice_router
@@ -202,6 +203,7 @@ app.include_router(index_runs_router)
 app.include_router(images_router)
 app.include_router(jobs_router)
 app.include_router(document_router)
+app.include_router(spaces_router)
 app.include_router(files_router)
 app.include_router(cookbook_router)
 app.include_router(desktop_router)
@@ -284,9 +286,11 @@ def _write_global_config(data: dict) -> None:
 
 class AppState:
     active_field: Path | None = None
+    active_space_id: str | None = None
     fields: list[str] = []
     loop: asyncio.AbstractEventLoop | None = None
     watcher: Any = None
+    maintenance_task: Any = None
     is_indexing: bool = False
     indexing_status: str = ""
 
@@ -295,6 +299,7 @@ class AppState:
             try:
                 data = json.loads(GLOBAL_CONFIG_PATH.read_text("utf-8"))
                 self.fields = data.get("fields", [])
+                self.active_space_id = data.get("active_space_id") or None
                 active = data.get("active_field")
                 if active and Path(active).exists():
                     self.active_field = Path(active)
@@ -306,6 +311,7 @@ class AppState:
             {
                 "fields": self.fields,
                 "active_field": str(self.active_field) if self.active_field else None,
+                "active_space_id": self.active_space_id,
             }
         )
 
@@ -722,6 +728,21 @@ async def startup_event():
     roots = list(state.fields)
     if state.active_field and state.active_field not in roots:
         roots.append(state.active_field)
+    try:
+        from palimind import spaces as spaces_mod
+
+        adopted = await asyncio.to_thread(spaces_mod.migrate_legacy_fields, roots)
+        if adopted:
+            print(f"[spaces] adopted {adopted} existing folder(s)")
+        active_space = spaces_mod.get_space(state.active_space_id or "")
+        if active_space is None:
+            active_space = spaces_mod.ensure_active_space()
+        elif state.active_field is None:
+            spaces_mod.set_active_space(str(active_space["id"]))
+        if active_space and state.active_field is None:
+            state.active_field = Path(str(active_space["root"]))
+    except Exception as exc:  # noqa: BLE001
+        print(f"[startup] space migration failed: {exc}")
     migrate_field_agents([Path(r) for r in roots])
     migrate_field_chats([Path(r) for r in roots])
 
@@ -757,6 +778,12 @@ async def startup_event():
         await start_job_runner()
     except Exception as exc:  # noqa: BLE001
         print(f"[startup] durable job runner failed: {exc}")
+    try:
+        from palimind.spaces import maintenance
+
+        state.maintenance_task = maintenance.start_maintenance(state.loop)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[startup] source maintenance failed: {exc}")
     try:
         from palimind.agents.queue import start_queue_runner
 
@@ -834,6 +861,13 @@ async def shutdown_event():
     from palimind.agents.queue import stop_queue_runner
     from palimind.agents.scheduler import stop_scheduler
 
+    task = getattr(state, "maintenance_task", None)
+    if task is not None:
+        stop_event = getattr(task, "_palimind_stop", None)
+        if stop_event is not None:
+            stop_event.set()
+        task.cancel()
+        state.maintenance_task = None
     stop_scheduler()
     stop_runner()
     try:
@@ -1078,6 +1112,13 @@ async def add_field(req: Request):
     if is_new:
         state.fields.append(path_key)
 
+    try:
+        from palimind import spaces
+
+        spaces.create_space(path.name or "Knowledge", root=path_key, mode="link")
+    except Exception:  # noqa: BLE001 - legacy endpoint must keep working
+        pass
+
     state.active_field = path
     state.save()
 
@@ -1102,6 +1143,15 @@ async def remove_field(req: Request):
     if path_key in state.fields:
         state.fields.remove(path_key)
 
+    try:
+        from palimind import spaces
+
+        match = spaces.find_by_root(path_key)
+        if match:
+            spaces.delete_space(str(match["id"]), delete_files=False)
+    except Exception:  # noqa: BLE001
+        pass
+
     if state.active_field and str(state.active_field) == path_key:
         state.active_field = None
         update_watcher(None)
@@ -1125,6 +1175,12 @@ async def set_active_field(req: Request):
     state.active_field = path
     if str(path) not in state.fields:
         state.fields.append(str(path))
+    try:
+        from palimind import spaces
+
+        spaces.create_space(path.name or "Knowledge", root=str(path), mode="link")
+    except Exception:  # noqa: BLE001
+        pass
     state.save()
     _on_field_changed(path)
 

@@ -29,6 +29,8 @@ import { formatShortcut } from "../utils/shortcuts";
 import { resolveScope } from "../lib/scope";
 import { PixelIcon } from "./pixel/PixelIcon";
 import type { PixelSprite } from "./pixel/sprites";
+import type { KnowledgeSpace } from "../types";
+import CreateSpaceDialog from "../features/knowledge/CreateSpaceDialog";
 import {
   Avatar,
   Dialog,
@@ -152,6 +154,8 @@ export default function Sidebar() {
   };
 
   const [fields, setFields] = useState<string[]>([]);
+  const [spaces, setSpaces] = useState<KnowledgeSpace[]>([]);
+  const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
   const [fieldsLoading, setFieldsLoading] = useState(true);
   const [fieldsError, setFieldsError] = useState<string | null>(null);
   const [syncText, setSyncText] = useState("Sync Active Knowledge Base");
@@ -165,13 +169,17 @@ export default function Sidebar() {
     setFieldsLoading(true);
     setFieldsError(null);
     try {
-      const data = await api.fields.list();
+      const [data, spaceData] = await Promise.all([
+        api.fields.list(),
+        api.spaces.list().catch(() => null),
+      ]);
       setFields(data.fields);
       setActiveField(data.active_field);
       setIsIndexing(data.is_indexing);
       if (data.is_indexing) {
         setIndexingStatus(data.indexing_status || "Indexing knowledge base...");
       }
+      if (spaceData?.spaces) setSpaces(spaceData.spaces);
     } catch {
       setFieldsError('Could not load knowledge bases. Check that the local engine is running.');
     } finally {
@@ -188,7 +196,11 @@ export default function Sidebar() {
   useEffect(() => {
     const handler = () => void fetchFields();
     window.addEventListener("palimind:field-added", handler);
-    return () => window.removeEventListener("palimind:field-added", handler);
+    window.addEventListener("palimind:spaces-changed", handler);
+    return () => {
+      window.removeEventListener("palimind:field-added", handler);
+      window.removeEventListener("palimind:spaces-changed", handler);
+    };
   }, [fetchFields]);
 
   // The command palette can request the workspace file tree for the active
@@ -208,6 +220,35 @@ export default function Sidebar() {
     } catch (e) {
       console.error(e);
       addToast("Could not switch knowledge base.", { tone: "error" });
+    }
+  };
+
+  const handleSetActiveSpace = async (space: KnowledgeSpace) => {
+    try {
+      const data = await api.spaces.activate(space.id);
+      if (data.error) {
+        addToast(data.error, { tone: "error" });
+        return;
+      }
+      await fetchFields();
+      window.dispatchEvent(new CustomEvent("palimind:spaces-changed"));
+    } catch (e) {
+      console.error(e);
+      addToast("Could not switch knowledge space.", { tone: "error" });
+    }
+  };
+
+  const handleRemoveSpace = async (space: KnowledgeSpace) => {
+    try {
+      const data = await api.spaces.remove(space.id);
+      if (data.error) {
+        addToast(data.error, { tone: "error" });
+        return;
+      }
+      await fetchFields();
+      window.dispatchEvent(new CustomEvent("palimind:spaces-changed"));
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -466,10 +507,6 @@ export default function Sidebar() {
     },
   ];
 
-  const openDirPicker = () => {
-    window.dispatchEvent(new CustomEvent("palimind:open-dir-picker"));
-  };
-
   const showFieldMenu = (e: React.MouseEvent, path: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -484,6 +521,26 @@ export default function Sidebar() {
         {
           label: "Delete Workspace Folder",
           action: () => handleRemove(path),
+          isDanger: true,
+        },
+      ],
+    });
+  };
+
+  const showSpaceMenu = (e: React.MouseEvent, space: KnowledgeSpace) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCtxMenu({
+      x: e.clientX,
+      y: e.clientY,
+      items: [
+        {
+          label: "View Folder Structure",
+          action: () => setTreeField(space.root),
+        },
+        {
+          label: "Remove Space",
+          action: () => void handleRemoveSpace(space),
           isDanger: true,
         },
       ],
@@ -580,13 +637,13 @@ export default function Sidebar() {
   const knowledgeSection = (
     <div className="sb-section">
       <div className="sb-section-head">
-        <span className="sb-section-title sb-collapsible">Knowledge bases</span>
+        <span className="sb-section-title sb-collapsible">Knowledge spaces</span>
         <button
           type="button"
           className="sb-icon-btn"
-          title="Add knowledge base"
-          aria-label="Add knowledge base"
-          onClick={openDirPicker}
+          title="Create knowledge space"
+          aria-label="Create knowledge space"
+          onClick={() => setCreateSpaceOpen(true)}
         >
           <FolderPlus size={14} />
         </button>
@@ -600,18 +657,34 @@ export default function Sidebar() {
           message={fieldsError}
           onRetry={() => void fetchFields()}
         />
-      ) : fields.length === 0 ? (
+      ) : spaces.length === 0 && fields.length === 0 ? (
         <EmptyState
           compact
           icon={<FolderPlus size={18} />}
-          title="No knowledge bases"
-          description="Add a folder to index documents locally."
+          title="No knowledge spaces"
+          description="Create a space anywhere — no folder required."
           action={
-            <button type="button" className="sb-action" onClick={openDirPicker}>
-              Add folder
+            <button type="button" className="sb-action" onClick={() => setCreateSpaceOpen(true)}>
+              Create space
             </button>
           }
         />
+      ) : spaces.length ? (
+        <div className="sb-list">
+          {spaces.map((space) => (
+            <button
+              key={space.id}
+              type="button"
+              className={`sb-row${space.root === activeField ? " is-active" : ""}`}
+              title={space.root}
+              onClick={() => void handleSetActiveSpace(space)}
+              onContextMenu={(e) => showSpaceMenu(e, space)}
+            >
+              <Folder size={14} className="sb-row__icon" />
+              <span className="sb-row__label">{space.name}</span>
+            </button>
+          ))}
+        </div>
       ) : (
         <div className="sb-list">
           {fields.map((path) => (
@@ -813,6 +886,14 @@ export default function Sidebar() {
           </div>
         </form>
       </Dialog>
+
+      <CreateSpaceDialog
+        open={createSpaceOpen}
+        onClose={() => setCreateSpaceOpen(false)}
+        onCreated={() => {
+          void fetchFields();
+        }}
+      />
 
       {ctxMenu && (
         <ContextMenu

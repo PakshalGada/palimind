@@ -126,6 +126,10 @@ class DocGraph:
         doc_year: int | None = None,
         summary: str = "",
         md5: str = "",
+        source_url: str = "",
+        source_title: str = "",
+        source_site: str = "",
+        source_fetched_at: float | None = None,
     ) -> str:
         node_id = f"file:{file_path}"
         self.nodes[node_id] = {
@@ -135,6 +139,10 @@ class DocGraph:
             "doc_type": doc_type,
             "doc_year": doc_year,
             "summary": summary,
+            "source_url": source_url,
+            "source_title": source_title,
+            "source_site": source_site,
+            "source_fetched_at": source_fetched_at,
         }
         self.file_nodes[file_path] = node_id
         if md5:
@@ -416,6 +424,10 @@ def _add_file_nodes_and_sections(g: DocGraph, conn, f: dict) -> str:
         doc_year=f.get("doc_year"),
         summary=f.get("summary", ""),
         md5=f.get("md5", ""),
+        source_url=f.get("source_url", ""),
+        source_title=f.get("source_title", ""),
+        source_site=f.get("source_site", ""),
+        source_fetched_at=f.get("source_fetched_at"),
     )
 
     seen_sections: set[str] = set()

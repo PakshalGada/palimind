@@ -49,6 +49,7 @@ TOOL_PACKS: dict[str, list[str]] = {
         "summarize",
         "x_search",
         "fetch_rss",
+        "knowledge_space",
         "read_file",
         "list_files",
         "glob_files",
@@ -97,6 +98,7 @@ TOOL_PACKS: dict[str, list[str]] = {
         "browser_list_profiles",
         "x_search",
         "fetch_rss",
+        "knowledge_space",
         "summarize",
     ],
     "office": [

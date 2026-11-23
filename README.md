@@ -183,30 +183,48 @@ Depth is configurable with `PALIMIND_SEARCH_DEPTH` (`quick`, `standard`, `deep`)
 
 ### Knowledge
 
-**Knowledge** is the PaliSpace RAG workspace. It turns a folder into a private, searchable knowledge base.
+**Knowledge** is the PaliSpace RAG workspace. A **space** is a container for
+everything you want to search: a folder on disk, saved web pages, notes, PDFs
+and feeds. You don't need an existing folder — PaliMind can create one anywhere
+you choose.
 
+1. Open **Knowledge** and choose **Create a space**. Name it and pick any parent
+   folder on disk, or choose **Connect a folder** to index one you already have.
+2. In **Sources**, paste one or more links (one per line) or write a note.
+   PaliMind fetches the page, extracts the readable article, saves a Markdown
+   copy, indexes it and links it into the knowledge graph.
+3. Add an RSS/Atom feed, or paste a link to a PDF — the latest items become
+   individual sources and PDFs are parsed by the normal document pipeline.
+4. Ask questions in natural language. Answers cite the source title, URL and
+   the date the page was fetched.
+5. Choose **Sync** after local files change. Only new, modified, and deleted
+   files are processed. **Refresh** re-crawls a saved page (ETag /
+   Last-Modified aware) and reports what changed.
 
-
-1. Open **Knowledge** and choose **Add folder**.
-2. PaliMind parses and embeds supported files, then reports progress in the sidebar and header.
-3. Ask questions in natural language. Answers cite the source files and show the passages used.
-4. Choose **Sync** after files change. Only new, modified, and deleted files are processed.
-5. Choose **Graph** to explore entities and relationships extracted from the documents.
-
-**Supported content:** PDF, DOCX, PPTX, XLSX, Markdown, plain text, source code, CSV, images with optional OCR, and video with local Whisper transcription.
+**Supported content:** PDF, DOCX, PPTX, XLSX, Markdown, plain text, source code, CSV, images with optional OCR, video with local Whisper transcription, plus saved web pages, notes, RSS/Atom feeds and PDFs linked from the web.
 
 **What you get:**
 
+- Spaces stored anywhere on disk; PaliMind can create the folder for you.
+- A **Sources** library with status, title, site, author, publish/fetch dates,
+  tags, reading state, favourites, collections and a reader view.
+- Web capture with `robots.txt` and SSRF protection, readable-text extraction,
+  canonical-URL deduplication, HTML snapshots and offline reading.
 - Local vector search with SQLite/FTS5 metadata and FAISS HNSW vectors. No external database.
 - Child chunks with context headers and page/slide numbers, reassembled into parent sections for the answer.
 - Document-summary index, metadata filters (year, type, entity, section) and embedding-MMR diversity.
 - Agentic RAG for complex, multi-hop questions: plan sub-queries, search in parallel, look up exact figures, verify sufficiency, then answer with citations.
-- Per-file summaries and optional knowledge-graph extraction.
+- Per-file summaries and knowledge-graph extraction with source provenance on
+  file nodes (URL, site, fetched date).
 - Persistent sessions and hierarchical chat memory, so follow-up questions keep context.
 - Source citations and a source ledger for agent answers.
-- Optional cross-encoder reranking for higher-precision retrieval.
+- Export a space as an Obsidian-friendly Markdown vault, or export the graph as
+  JSON/GraphML.
 
-The index and workspace config live in a `.palimind` folder inside the indexed workspace. Shared app state — agent definitions, uploads, tokens, and global sessions — lives under `~/.palimind`.
+The index and workspace config live in a `.palimind` folder inside the space's
+folder. Saved sources live in `sources/web`, `sources/text` and `sources/files`,
+so the vault stays readable and portable. Shared app state — agent definitions,
+uploads, tokens, and global sessions — lives under `~/.palimind`.
 
 ### Agents
 

@@ -166,15 +166,18 @@ def sources_from_text_refs(text_refs: list[dict]) -> list[Source]:
     for ref in text_refs:
         file = (ref.get("file") or "").strip()
         section = (ref.get("section") or "").strip()
-        key = f"{file}:{section}"
+        url = (ref.get("url") or "").strip()
+        key = f"{file}:{section}:{url}"
         if key in seen:
             continue
         seen.add(key)
+        title = (ref.get("title") or "").strip() or section or file.split("/")[-1] or file
         sources.append(
             Source(
                 marker=len(sources) + 1,
-                title=section or file.split("/")[-1] or file or "Document",
-                kind="document",
+                title=title or "Document",
+                kind="web" if url else "document",
+                url=url,
                 file=file,
                 section=section,
                 snippet=(ref.get("snippet") or "").strip()[:600],

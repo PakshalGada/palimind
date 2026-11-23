@@ -1,4 +1,4 @@
-import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, AgentQuestion, Approval, BackgroundTask, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, LibraryArtifact, MarketplaceSkill, MemoryEntry, ModelItem, Overview, PlanTemplate, Project, ProjectArtifact, ProjectKbStatus, ProjectScope, QueueItem, RecentRun, Recommendation, RegistryArtifactVersion, Routine, RunRecord, SetupTask, SkillCommand, SkillMeta, Team, TeamMessage, TeamNote, TeamRun, ToolMeta, TreeNode, VerificationReport, WorkspaceFile } from './types';
+import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, AgentQuestion, Approval, BackgroundTask, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, KnowledgeSource, KnowledgeSpace, LibraryArtifact, MarketplaceSkill, MemoryEntry, ModelItem, Overview, PlanTemplate, Project, ProjectArtifact, ProjectKbStatus, ProjectScope, QueueItem, RecentRun, Recommendation, RegistryArtifactVersion, Routine, RunRecord, SetupTask, SkillCommand, SkillMeta, SourceCollection, Team, TeamMessage, TeamNote, TeamRun, ToolMeta, TreeNode, VerificationReport, WorkspaceFile } from './types';
 
 const BASE = '/api';
 
@@ -718,6 +718,128 @@ export const api = {
   },
   fs: {
     list: (path?: string) => get<{ current_path: string; parent_path?: string; items: DirItem[]; error?: string }>(`/fs/list${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+  },
+  spaces: {
+    list: () =>
+      get<{ spaces: KnowledgeSpace[]; active_space_id: string | null; default_parent?: string }>('/spaces'),
+    create: (data: {
+      name: string;
+      parent_dir?: string;
+      root?: string;
+      mode?: 'create' | 'link';
+      folder_name?: string;
+      icon?: string;
+      index?: boolean;
+    }) => post<{ status?: string; space?: KnowledgeSpace; active_space_id?: string; error?: string }>('/spaces', data),
+    get: (spaceId: string) =>
+      get<{ space?: KnowledgeSpace; error?: string }>(`/spaces/${encodeURIComponent(spaceId)}`),
+    update: (spaceId: string, changes: { name?: string; icon?: string; source_dir?: string; note?: string }) =>
+      patch<{ status?: string; space?: KnowledgeSpace; error?: string }>(`/spaces/${encodeURIComponent(spaceId)}`, changes),
+    remove: (spaceId: string, deleteFiles = false) =>
+      del<{ status?: string; removed?: boolean; error?: string }>(
+        `/spaces/${encodeURIComponent(spaceId)}?delete_files=${deleteFiles ? 'true' : 'false'}`,
+      ),
+    activate: (spaceId: string) =>
+      post<{ status?: string; space?: KnowledgeSpace; active_space_id?: string; error?: string }>(
+        `/spaces/${encodeURIComponent(spaceId)}/activate`,
+      ),
+    sources: {
+      list: (
+        spaceId: string,
+        params: {
+          q?: string;
+          status?: string;
+          kind?: string;
+          reading_state?: string;
+          collection?: string;
+          favorite?: boolean;
+          limit?: number;
+          offset?: number;
+        } = {},
+      ) => {
+        const query = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== '' && value !== null) query.set(key, String(value));
+        });
+        const suffix = query.toString() ? `?${query}` : '';
+        return get<{ sources: KnowledgeSource[]; total: number; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/sources${suffix}`,
+        );
+      },
+      add: (
+        spaceId: string,
+        data: { url?: string; urls?: string[]; text?: string; title?: string; tags?: string[]; note?: string },
+      ) =>
+        post<{ status?: string; sources?: KnowledgeSource[]; errors?: { url: string; error: string }[]; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/sources`,
+          data,
+        ),
+      get: (spaceId: string, sourceId: string) =>
+        get<{ source?: KnowledgeSource; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/sources/${encodeURIComponent(sourceId)}`,
+        ),
+      content: (spaceId: string, sourceId: string) =>
+        get<{ source?: KnowledgeSource; content?: string; related?: KnowledgeSource[]; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/sources/${encodeURIComponent(sourceId)}/content`,
+        ),
+      update: (
+        spaceId: string,
+        sourceId: string,
+        changes: { title?: string; note?: string; tags?: string[]; reading_state?: string; favorite?: boolean; refresh_interval?: number; collection_id?: string },
+      ) =>
+        patch<{ status?: string; source?: KnowledgeSource; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/sources/${encodeURIComponent(sourceId)}`,
+          changes,
+        ),
+      remove: (spaceId: string, sourceId: string, deleteFile = false) =>
+        del<{ status?: string; removed?: boolean; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/sources/${encodeURIComponent(sourceId)}?delete_file=${deleteFile ? 'true' : 'false'}`,
+        ),
+      refresh: (spaceId: string, sourceId: string) =>
+        post<{ status?: string; source?: KnowledgeSource; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/sources/${encodeURIComponent(sourceId)}/refresh`,
+        ),
+      reindex: (spaceId: string, sourceId: string) =>
+        post<{ status?: string; result?: unknown; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/sources/${encodeURIComponent(sourceId)}/reindex`,
+        ),
+    },
+    feeds: {
+      add: (spaceId: string, url: string, limit = 30) =>
+        post<{ status?: string; feed?: KnowledgeSource; items?: KnowledgeSource[]; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/feeds`,
+          { url, limit },
+        ),
+    },
+    crawl: (spaceId: string, url: string, maxPages = 10) =>
+      post<{ status?: string; start?: string; sources?: KnowledgeSource[]; error?: string }>(
+        `/spaces/${encodeURIComponent(spaceId)}/crawl`,
+        { url, max_pages: maxPages },
+      ),
+    collections: {
+      list: (spaceId: string) =>
+        get<{ collections: SourceCollection[]; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/collections`,
+        ),
+      create: (spaceId: string, name: string, description = '') =>
+        post<{ status?: string; collection?: SourceCollection; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/collections`,
+          { name, description },
+        ),
+      remove: (spaceId: string, collectionId: string) =>
+        del<{ status?: string; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/collections/${encodeURIComponent(collectionId)}`,
+        ),
+      addSource: (spaceId: string, sourceId: string, collectionId: string) =>
+        post<{ status?: string; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/sources/${encodeURIComponent(sourceId)}/collections`,
+          { collection_id: collectionId },
+        ),
+      removeSource: (spaceId: string, sourceId: string, collectionId: string) =>
+        del<{ status?: string; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/sources/${encodeURIComponent(sourceId)}/collections/${encodeURIComponent(collectionId)}`,
+        ),
+    },
   },
   projects: {
     scope: (projectId: string): ProjectScope => `project:${projectId}`,

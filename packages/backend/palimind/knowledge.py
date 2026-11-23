@@ -432,7 +432,9 @@ def get_file_detail(
         row = conn.execute(
             """
             SELECT path, md5_hash, last_indexed, doc_year, doc_type, entity_name,
-                   COALESCE(summary, ''), total_pages
+                   COALESCE(summary, ''), total_pages,
+                   source_id, source_kind, source_url, source_title, source_site,
+                   source_author, source_published_at, source_fetched_at
             FROM files WHERE path = ?
             """,
             (file_path,),
@@ -506,6 +508,14 @@ def get_file_detail(
         "entity": row[5] or "",
         "summary": row[6] or "",
         "total_pages": row[7],
+        "source_id": row[8] or "",
+        "source_kind": row[9] or "",
+        "source_url": row[10] or "",
+        "source_title": row[11] or "",
+        "source_site": row[12] or "",
+        "source_author": row[13] or "",
+        "source_published_at": row[14] or "",
+        "source_fetched_at": row[15],
         "exists_on_disk": (content_root / row[0]).is_file(),
         "chunks": len(chunks),
         "sections": sorted(
@@ -598,16 +608,45 @@ def search(
     doc_year: int | None = None,
     entity: str = "",
     section: str = "",
+    collection: str = "",
 ) -> dict[str, Any]:
     """Run the real hybrid retrieval pipeline and return a compact preview."""
     from palimind.rag.retrieve import hybrid_search
 
     root = Path(root)
     config = load_config(root)
+    file_paths: list[str] | None = None
+    if collection:
+        conn = get_connection(root)
+        try:
+            file_paths = [
+                str(row[0])
+                for row in conn.execute(
+                    """
+                    SELECT s.file_path FROM sources s
+                    JOIN source_collections sc ON sc.source_id = s.id
+                    WHERE sc.collection_id = ? AND COALESCE(s.file_path, '') <> ''
+                    """,
+                    (collection,),
+                ).fetchall()
+            ]
+        finally:
+            conn.close()
+        if not file_paths:
+            return {
+                "query": query,
+                "results": [],
+                "total": 0,
+                "sources": [],
+                "errors": [],
+                "timings": {},
+                "diagnostics": {"collection": collection, "empty_collection": True},
+            }
     result = hybrid_search(
         root,
         query,
         limit=max(1, min(int(limit or 8), 50)),
+        files_filter=file_paths,
         ollama_url=str(config.get("ollama_base_url") or ""),
         embed_model=str(config.get("embed_model") or ""),
         query_rewrite_enabled=False,
@@ -989,6 +1028,10 @@ def graph_payload(
             "doc_type": meta.get("doc_type"),
             "entity_type": meta.get("entity_type"),
             "degree": degree.get(nid, 0),
+            "source_url": meta.get("source_url", ""),
+            "source_title": meta.get("source_title", ""),
+            "source_site": meta.get("source_site", ""),
+            "source_fetched_at": meta.get("source_fetched_at"),
         }
         for nid, meta in ordered
     ]
