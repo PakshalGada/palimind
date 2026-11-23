@@ -196,7 +196,7 @@ you choose.
 3. Add an RSS/Atom feed, or paste a link to a PDF — the latest items become
    individual sources and PDFs are parsed by the normal document pipeline.
 4. Ask questions in natural language. Answers cite the source title, URL and
-   the date the page was fetched.
+   the date the page was fetched. Use collections to scope search and the graph.
 5. Choose **Sync** after local files change. Only new, modified, and deleted
    files are processed. **Refresh** re-crawls a saved page (ETag /
    Last-Modified aware) and reports what changed.

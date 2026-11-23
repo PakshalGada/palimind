@@ -348,6 +348,7 @@ async def get_document_graph(
     min_degree: int = 0,
     max_nodes: int = 400,
     max_edges: int = 1200,
+    collection: str = "",
 ):
     from palimind import knowledge
 
@@ -368,6 +369,7 @@ async def get_document_graph(
             min_degree=min_degree,
             max_nodes=max_nodes,
             max_edges=max_edges,
+            collection=collection,
         )
     except Exception:  # noqa: BLE001
         return {"error": "Failed to get document graph", "nodes": [], "edges": []}

@@ -915,6 +915,7 @@ def graph_payload(
     min_degree: int = 0,
     max_nodes: int = 400,
     max_edges: int = 1200,
+    collection: str = "",
 ) -> dict[str, Any]:
     """Load and filter the document graph without sending every node to the UI."""
     from palimind.document.graph import load_doc_graph
@@ -928,6 +929,48 @@ def graph_payload(
     graph = load_doc_graph(root)
     all_nodes = dict(getattr(graph, "nodes", {}) or {})
     all_edges = list(getattr(graph, "edges", []) or [])
+
+    collection_nodes: set[str] | None = None
+    if collection and _has_db(root):
+        conn = get_connection(root)
+        try:
+            file_paths = {
+                str(row[0])
+                for row in conn.execute(
+                    """
+                    SELECT s.file_path FROM sources s
+                    JOIN source_collections sc ON sc.source_id = s.id
+                    WHERE sc.collection_id = ? AND COALESCE(s.file_path, '') <> ''
+                    """,
+                    (collection,),
+                ).fetchall()
+            }
+        finally:
+            conn.close()
+        allowed = {f"file:{path}" for path in file_paths}
+        expanded: set[str] = set(allowed)
+        for edge in all_edges:
+            source, target = edge.get("source", ""), edge.get("target", "")
+            if source in allowed:
+                expanded.add(target)
+            if target in allowed:
+                expanded.add(source)
+        collection_nodes = expanded
+        if not collection_nodes:
+            return {
+                "nodes": [],
+                "edges": [],
+                "node_count": 0,
+                "edge_count": 0,
+                "total_nodes": 0,
+                "total_edges": 0,
+                "indexed_files": len(getattr(graph, "file_nodes", {}) or {}),
+                "needs_rebuild": False,
+                "truncated": False,
+                "relations": [],
+                "types": [],
+                "collection": collection,
+            }
 
     needs_rebuild = False
     db_files = 0
@@ -952,6 +995,8 @@ def graph_payload(
     query = (q or "").strip().lower()
 
     def node_matches(node_id: str, meta: dict[str, Any]) -> bool:
+        if collection_nodes is not None and node_id not in collection_nodes:
+            return False
         node_type = str(meta.get("type") or "unknown")
         if node_type not in requested:
             return False
@@ -1059,4 +1104,5 @@ def graph_payload(
             {str(e.get("relation") or "") for e in all_edges if e.get("relation")}
         ),
         "types": sorted({str(m.get("type") or "unknown") for m in all_nodes.values()}),
+        "collection": collection or None,
     }

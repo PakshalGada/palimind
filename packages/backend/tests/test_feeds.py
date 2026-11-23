@@ -216,3 +216,43 @@ def test_related_sources_use_shared_title_terms(tmp_path: Path) -> None:
     related_ids = {item["id"] for item in payload["related"]}
     assert second["id"] in related_ids
     assert len(related_ids) == 1
+
+
+def test_graph_and_search_can_scope_to_a_collection(tmp_path: Path) -> None:
+    from palimind import knowledge
+    from palimind.document.graph import DocGraph
+    from palimind.storage.db import get_connection, upsert_file
+
+    root = _space(tmp_path)
+    first = sources.create_text_source(root, "graph body", title="Graph One")
+    second = sources.create_text_source(root, "other body", title="Other Two")
+    conn = get_connection(root)
+    try:
+        upsert_file(conn, first["file_path"], "h1", 1.0, doc_type="note")
+        upsert_file(conn, second["file_path"], "h2", 1.0, doc_type="note")
+        conn.commit()
+    finally:
+        conn.close()
+
+    collection = sources.create_collection(root, "Scoped")
+    sources.add_to_collection(root, first["id"], collection["id"])
+
+    graph = DocGraph(root)
+    graph.add_file_node(first["file_path"], label="Graph One")
+    graph.add_file_node(second["file_path"], label="Other Two")
+    graph.save()
+
+    payload = knowledge.graph_payload(root, collection=collection["id"])
+    assert [node["label"] for node in payload["nodes"] if node["type"] == "file"] == [
+        "Graph One"
+    ]
+    paths = [node["file_path"] for node in payload["nodes"] if node["type"] == "file"]
+    assert paths == [first["file_path"]]
+
+
+def test_clipboard_url_detection() -> None:
+    from palimind.api_server import _is_single_url
+
+    assert _is_single_url("https://example.com/post")
+    assert not _is_single_url("read this https://example.com/post")
+    assert not _is_single_url("just a note")

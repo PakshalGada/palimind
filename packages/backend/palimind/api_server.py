@@ -588,6 +588,29 @@ def update_watcher(path: Path | None):
         print(f"Watcher: failed to start for {path}: {e}")
 
 
+def _is_single_url(text: str) -> bool:
+    import re as _re
+
+    return bool(_re.fullmatch(r"https?://[^\s]+", (text or "").strip()))
+
+
+def _add_url_capture(root: Path, url: str) -> dict:
+    """Clipboard quick capture: a single link becomes a crawled source."""
+    from palimind.spaces import sources as sources_mod
+
+    record = sources_mod.create_web_source(root, url)
+    if record.get("error"):
+        return record
+    result = sources_mod.ingest_web_source(root, str(record["id"]))
+    try:
+        from palimind import knowledge
+
+        knowledge.run_index(root, wait=False)
+    except Exception:  # noqa: BLE001 - the source is saved; sync can retry
+        pass
+    return result
+
+
 def _add_capture_to_field(root: Path, text: str) -> dict:
     """Index a captured text snippet into a field's vector DB and rebuild the knowledge graph."""
     from palimind.config import load_config
@@ -963,6 +986,15 @@ async def select_field(req: Request):
         return {"error": "No text to capture — copy text first, then retry"}
 
     try:
+        if _is_single_url(text):
+            asyncio.create_task(
+                asyncio.to_thread(_add_url_capture, field_path, text.strip())
+            )
+            captured_text = ""
+            return {
+                "status": "success",
+                "message": "Link saved — crawling it in the background",
+            }
         result = await asyncio.to_thread(_add_capture_to_field, field_path, text)
         if "error" in result:
             return result

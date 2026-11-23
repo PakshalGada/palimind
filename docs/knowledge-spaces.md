@@ -76,6 +76,10 @@ the user has not supplied tags.
 
 - `reading_state`: `unread → reading → read → archived`.
 - `favorite`, `tags`, `note`, `collections`.
+- Collections double as retrieval scopes: `GET /api/document/search?collection=…`
+  and `GET /api/document/graph?collection=…` restrict both search and the graph.
+- A clipboard capture that is a single URL is routed through the web-source
+  pipeline (`/api/select`), so the global hotkey can save links too.
 - `refresh_interval` (seconds) opts a source into the background maintenance
   loop (`spaces/maintenance.py`); sources without it are never crawled
   automatically.
