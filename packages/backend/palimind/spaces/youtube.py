@@ -163,7 +163,11 @@ def ingest_youtube(root: Path, source_id: str) -> dict:
         return {"error": "Source not found"}
     if not is_youtube(str(row.get("url") or "")):
         return {"error": "Not a YouTube URL"}
+    from palimind.spaces import policy
 
+    allowed, reason = policy.domain_allowed(root, str(row["url"]))
+    if not allowed:
+        return _fail(root, source_id, reason)
     try:
         data = fetch_transcript(str(row["url"]))
     except YouTubeError as exc:
@@ -171,6 +175,11 @@ def ingest_youtube(root: Path, source_id: str) -> dict:
     except Exception as exc:  # noqa: BLE001
         logger.exception("YouTube transcript failed")
         return _fail(root, source_id, f"Could not load the transcript: {exc}")
+
+    try:
+        policy.check_quota(root, len(data["transcript"].encode("utf-8")))
+    except policy.PolicyError as exc:
+        return _fail(root, source_id, str(exc))
 
     page = web_source.FetchedPage(
         url=data["url"],

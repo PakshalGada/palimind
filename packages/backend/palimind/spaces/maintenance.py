@@ -44,7 +44,7 @@ def due_sources(root: Path) -> list[dict]:
 
 
 def refresh_due_sources() -> dict:
-    """Refresh opted-in sources across every registered space."""
+    """Refresh opted-in sources and build due daily digests."""
     from palimind import knowledge, spaces
     from palimind.spaces import sources as sources_mod
 
@@ -53,22 +53,39 @@ def refresh_due_sources() -> dict:
         root = Path(str(space.get("root") or ""))
         if not root.is_dir():
             continue
+        space_refreshed = 0
         for record in due_sources(root):
             try:
                 result = sources_mod.ingest_web_source(root, str(record["id"]))
                 if result.get("status") in ("ready", "not_modified"):
                     refreshed += 1
+                    space_refreshed += 1
                 else:
                     failed += 1
             except Exception:  # noqa: BLE001 - one bad page must not stop the loop
                 failed += 1
                 logger.exception("Scheduled refresh failed for %s", record.get("url"))
-        if refreshed:
+        if space_refreshed:
             try:
                 knowledge.run_index(root, wait=False)
             except Exception:  # noqa: BLE001
                 logger.debug("Index enqueue after refresh failed", exc_info=True)
-    return {"refreshed": refreshed, "failed": failed}
+
+    digest_created = digest_failed = 0
+    try:
+        from palimind.spaces import digest as digest_mod
+
+        digest_result = digest_mod.run_due_digests()
+        digest_created = int(digest_result.get("created") or 0)
+        digest_failed = int(digest_result.get("failed") or 0)
+    except Exception:  # noqa: BLE001
+        logger.exception("Digest generation failed")
+    return {
+        "refreshed": refreshed,
+        "failed": failed,
+        "digests_created": digest_created,
+        "digests_failed": digest_failed,
+    }
 
 
 async def maintenance_loop(stop_event: asyncio.Event, interval: int = CHECK_EVERY_SECONDS) -> None:

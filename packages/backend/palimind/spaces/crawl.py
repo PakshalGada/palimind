@@ -73,6 +73,11 @@ def crawl_site(
 ) -> dict:
     root = Path(root)
     start = web_source.normalise_url(url)
+    from palimind.spaces import policy
+
+    allowed, reason = policy.domain_allowed(root, start)
+    if not allowed:
+        return {"error": reason}
     page = web_source.fetch_page(start, allow_private=allow_private)
     if page.content_type and page.content_type != "text/html":
         return {"error": "The start page is not HTML."}

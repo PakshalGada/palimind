@@ -66,6 +66,26 @@ async def create_space(req: Request):
     return {"status": "success", "space": record, "active_space_id": record["id"]}
 
 
+@router.get("/search")
+async def search_all_spaces(
+    q: str,
+    limit_per_space: int = 5,
+    max_results: int = 30,
+    space_ids: str = "",
+):
+    from palimind.spaces import search as search_mod
+
+    ids = [item.strip() for item in space_ids.split(",") if item.strip()]
+    payload = await asyncio.to_thread(
+        search_mod.search_all,
+        q,
+        limit_per_space=limit_per_space,
+        max_results=max_results,
+        space_ids=ids,
+    )
+    return payload
+
+
 @router.get("/{space_id}")
 async def get_space(space_id: str):
     from palimind import spaces
@@ -150,31 +170,10 @@ def _space_root(space_id: str) -> Path | None:
 
 
 def _schedule_ingest(root: Path, source_id: str) -> None:
-    """Run ingestion in the durable worker, or inline in CLI/test processes."""
-    try:
-        from palimind.jobs import enqueue, runner_running
+    """Queue source ingestion without blocking the request."""
+    from palimind.spaces import ingest as ingest_mod
 
-        if runner_running():
-            enqueue(
-                "web_ingest",
-                str(root),
-                {"source_id": source_id, "root": str(root)},
-                idempotency_key=f"web_ingest:{source_id}",
-            )
-            return
-    except Exception:  # noqa: BLE001 - fall back to the local thread
-        pass
-    from palimind import knowledge
-    from palimind.spaces import sources as sources_mod
-
-    def _work() -> None:
-        sources_mod.ingest_web_source(root, source_id)
-        try:
-            knowledge.run_index(root, wait=False)
-        except Exception:  # noqa: BLE001 - the next sync will retry
-            pass
-
-    asyncio.create_task(asyncio.to_thread(_work))
+    ingest_mod.schedule_ingest(root, source_id)
 
 
 @router.post("/{space_id}/crawl")
@@ -236,6 +235,30 @@ async def add_space_feed(space_id: str, req: Request):
         "feed": result.get("feed"),
         "items": result.get("items") or [],
     }
+
+
+@router.post("/{space_id}/sources/from-research")
+async def save_research_sources(space_id: str, req: Request):
+    from palimind.spaces import research as research_mod
+
+    root = _space_root(space_id)
+    if root is None:
+        return {"error": "Space not found"}
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    items = body.get("sources")
+    if not isinstance(items, list):
+        return {"error": "sources must be a list"}
+    result = await asyncio.to_thread(
+        research_mod.save_and_schedule,
+        root,
+        items,
+        tags=body.get("tags"),
+        note=str(body.get("note") or ""),
+    )
+    return {"status": "success", **result}
 
 
 @router.post("/{space_id}/sources")
@@ -432,6 +455,143 @@ async def refresh_space_source(space_id: str, source_id: str):
         window = {"status": "success", "source": updated.get("feed"), "items": updated["items"]}
         return window
     return {"status": "success", "source": updated}
+
+
+# ── digest / signals / usage ─────────────────────────────────────────────────
+
+
+@router.get("/{space_id}/digest")
+async def preview_space_digest(space_id: str, days: int = 1):
+    from palimind.spaces import digest as digest_mod
+
+    root = _space_root(space_id)
+    if root is None:
+        return {"error": "Space not found"}
+    return await asyncio.to_thread(digest_mod.build_digest, root, days=days)
+
+
+@router.post("/{space_id}/digest")
+async def create_space_digest(space_id: str, req: Request):
+    from palimind.spaces import digest as digest_mod
+
+    root = _space_root(space_id)
+    if root is None:
+        return {"error": "Space not found"}
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    result = await asyncio.to_thread(
+        digest_mod.create_digest,
+        root,
+        days=int(body.get("days") or 1),
+        force=bool(body.get("force")),
+    )
+    return result
+
+
+@router.get("/{space_id}/digests")
+async def list_space_digests(space_id: str, limit: int = 30):
+    from palimind.spaces import digest as digest_mod
+
+    root = _space_root(space_id)
+    if root is None:
+        return {"error": "Space not found"}
+    return {"digests": await asyncio.to_thread(digest_mod.list_digests, root, limit)}
+
+
+@router.get("/{space_id}/signals")
+async def space_signals(space_id: str, limit: int = 10):
+    from palimind.spaces import analysis
+
+    root = _space_root(space_id)
+    if root is None:
+        return {"error": "Space not found"}
+    return await asyncio.to_thread(analysis.signals, root, limit=limit)
+
+
+# ── capture profiles / policy / usage ────────────────────────────────────────
+
+
+@router.get("/{space_id}/profiles")
+async def list_capture_profiles(space_id: str):
+    from palimind.spaces import profiles
+
+    root = _space_root(space_id)
+    if root is None:
+        return {"error": "Space not found"}
+    return {"profiles": await asyncio.to_thread(profiles.list_profiles, root)}
+
+
+@router.post("/{space_id}/profiles")
+async def save_capture_profile(space_id: str, req: Request):
+    from palimind.spaces import profiles
+
+    root = _space_root(space_id)
+    if root is None:
+        return {"error": "Space not found"}
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    try:
+        profile = await asyncio.to_thread(profiles.upsert_profile, root, body)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    return {"status": "success", "profile": profile}
+
+
+@router.delete("/{space_id}/profiles/{profile_id}")
+async def remove_capture_profile(space_id: str, profile_id: str):
+    from palimind.spaces import profiles
+
+    root = _space_root(space_id)
+    if root is None:
+        return {"error": "Space not found"}
+    removed = await asyncio.to_thread(profiles.delete_profile, root, profile_id)
+    return {"status": "success" if removed else "not_found", "removed": removed}
+
+
+@router.get("/{space_id}/usage")
+async def space_usage(space_id: str):
+    from palimind.spaces import policy
+
+    root = _space_root(space_id)
+    if root is None:
+        return {"error": "Space not found"}
+    return await asyncio.to_thread(policy.space_usage, root)
+
+
+@router.get("/{space_id}/policy")
+async def get_space_policy(space_id: str):
+    from palimind import spaces
+
+    space = spaces.get_space(space_id)
+    if space is None:
+        return {"error": "Space not found"}
+    return {
+        "domain_mode": space.get("domain_mode") or "off",
+        "domains": space.get("domains") or [],
+        "quota_bytes": space.get("quota_bytes") or 0,
+        "digest_enabled": bool(space.get("digest_enabled")),
+    }
+
+
+@router.patch("/{space_id}/policy")
+async def patch_space_policy(space_id: str, req: Request):
+    from palimind import spaces
+
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    try:
+        record = await asyncio.to_thread(spaces.update_space, space_id, body)
+    except spaces.SpaceError as exc:
+        return {"error": str(exc)}
+    if record is None:
+        return {"error": "Space not found"}
+    return {"status": "success", "space": record}
 
 
 @router.post("/{space_id}/sources/{source_id}/reindex")

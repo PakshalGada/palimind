@@ -112,6 +112,11 @@ def public(record: dict[str, Any]) -> dict[str, Any]:
         "kind": record.get("kind") or "linked",
         "source_dir": record.get("source_dir") or "sources",
         "icon": record.get("icon") or "book",
+        "note": record.get("note") or "",
+        "digest_enabled": bool(record.get("digest_enabled")),
+        "domain_mode": record.get("domain_mode") or "off",
+        "domains": list(record.get("domains") or []),
+        "quota_bytes": int(record.get("quota_bytes") or 0),
         "created_at": record.get("created_at"),
         "updated_at": record.get("updated_at"),
     }
@@ -238,6 +243,10 @@ def create_space(
         "source_dir": "sources",
         "icon": icon or "book",
         "note": usernote or "",
+        "digest_enabled": False,
+        "domain_mode": "off",
+        "domains": [],
+        "quota_bytes": 0,
         "created_at": _now(),
         "updated_at": _now(),
     }
@@ -276,6 +285,29 @@ def update_space(space_id: str, changes: dict[str, Any]) -> dict[str, Any] | Non
         record["source_dir"] = value
     if "note" in changes:
         record["note"] = str(changes.get("note") or "")[:2000]
+    if "digest_enabled" in changes:
+        record["digest_enabled"] = bool(changes.get("digest_enabled"))
+    if "domain_mode" in changes:
+        mode = str(changes.get("domain_mode") or "off").lower()
+        if mode not in ("off", "allow", "deny"):
+            raise SpaceError("domain_mode must be off, allow or deny.")
+        record["domain_mode"] = mode
+    if "domains" in changes:
+        raw = changes.get("domains") or []
+        if isinstance(raw, str):
+            raw = [item.strip() for item in raw.split(",")]
+        domains = []
+        for item in raw:
+            value = str(item or "").strip().lower()
+            if value:
+                domains.append(value.removeprefix("."))
+        record["domains"] = sorted(set(domains))[:200]
+    if "quota_bytes" in changes:
+        try:
+            quota = int(changes.get("quota_bytes") or 0)
+        except (TypeError, ValueError) as exc:
+            raise SpaceError("quota_bytes must be an integer.") from exc
+        record["quota_bytes"] = max(0, quota)
     _save(record)
     return public(record)
 

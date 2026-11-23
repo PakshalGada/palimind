@@ -250,6 +250,22 @@ def init_db(root: Path) -> None:
                 PRIMARY KEY (source_id, collection_id)
             )
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS capture_profiles (
+                id          TEXT PRIMARY KEY,
+                name        TEXT NOT NULL,
+                domain      TEXT NOT NULL,
+                headers     TEXT DEFAULT '{}',
+                cookies     TEXT DEFAULT '',
+                user_agent  TEXT DEFAULT '',
+                created_at  REAL,
+                updated_at  REAL
+            )
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_capture_profiles_domain "
+            "ON capture_profiles(domain)"
+        )
         cur.execute("PRAGMA table_info(sources)")
         source_cols = {col[1] for col in cur.fetchall()}
         for col_def in [
@@ -331,6 +347,12 @@ def _ensure_schema(root: Path, conn: sqlite3.Connection) -> sqlite3.Connection:
                 ).fetchone()
                 is not None
             )
+            has_profiles = (
+                conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='capture_profiles'"
+                ).fetchone()
+                is not None
+            )
             source_cols = (
                 {row[1] for row in conn.execute("PRAGMA table_info(sources)")}
                 if has_sources
@@ -341,6 +363,7 @@ def _ensure_schema(root: Path, conn: sqlite3.Connection) -> sqlite3.Connection:
                 or "embed_text" not in cols
                 or not has_summary_fts
                 or not has_sources
+                or not has_profiles
                 or "source_id" not in file_cols
                 or "change_summary" not in source_cols
             ):

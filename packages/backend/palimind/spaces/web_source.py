@@ -239,6 +239,7 @@ def fetch_page(
     etag: str = "",
     last_modified: str = "",
     allow_private: bool = False,
+    extra_headers: dict[str, str] | None = None,
 ) -> FetchedPage:
     import httpx
 
@@ -249,6 +250,10 @@ def fetch_page(
         raise FetchError("robots.txt does not allow saving this page.")
 
     headers = {"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"}
+    if extra_headers:
+        headers.update(
+            {str(key): str(value) for key, value in extra_headers.items() if str(key)}
+        )
     if etag:
         headers["If-None-Match"] = etag
     if last_modified:

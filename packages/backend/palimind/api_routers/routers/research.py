@@ -121,7 +121,26 @@ async def add_research_sources(project_id: str, req: Request):
     if not isinstance(sources, list):
         return {"error": "sources must be a list"}
     project = await asyncio.to_thread(add_sources, project_id, sources)
-    return project if project is not None else {"error": "Project not found"}
+    if project is None:
+        return {"error": "Project not found"}
+
+    space_id = str(data.get("space_id") or "").strip()
+    if space_id:
+        from palimind import spaces
+        from palimind.spaces import research as research_mod
+
+        root = spaces.resolve_space(space_id)
+        if root is None:
+            project["knowledge_space_error"] = "Space not found"
+        else:
+            project["knowledge_space"] = await asyncio.to_thread(
+                research_mod.save_and_schedule,
+                root,
+                sources,
+                tags=data.get("tags"),
+                note=str(data.get("note") or "Saved from a research project"),
+            )
+    return project
 
 
 @router.post("/projects/{project_id}/reports")

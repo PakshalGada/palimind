@@ -9,6 +9,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Settings,
   Star,
   Trash2,
 } from 'lucide-react';
@@ -16,6 +17,7 @@ import { api } from '../../api';
 import type { KnowledgeSource, SourceCollection } from '../../types';
 import { useApp } from '../../AppContext';
 import { Dialog, EmptyState, SkeletonList } from '../../ui/primitives';
+import SpaceSettingsDialog from './SpaceSettingsDialog';
 
 const PENDING = new Set(['queued', 'fetching', 'extracting', 'writing']);
 const STATUS_LABEL: Record<string, string> = {
@@ -79,6 +81,7 @@ export default function SourcesPanel({ spaceId, onCountChange }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [addMode, setAddMode] = useState<'link' | 'text' | 'feed' | 'site'>('link');
   const [urls, setUrls] = useState('');
   const [feedUrl, setFeedUrl] = useState('');
@@ -346,6 +349,9 @@ export default function SourcesPanel({ spaceId, onCountChange }: Props) {
         </select>
         <button type="button" className="ui-btn ui-btn--sm" onClick={() => void createCollection()}>
           <Plus size={13} /> Collection
+        </button>
+        <button type="button" className="ui-btn ui-btn--sm" onClick={() => setSettingsOpen(true)}>
+          <Settings size={13} /> Settings
         </button>
         <button
           type="button"
@@ -642,8 +648,7 @@ export default function SourcesPanel({ spaceId, onCountChange }: Props) {
 
       <Dialog
         open={Boolean(reader)}
-        onClose={() => setReader(null)}
-        title={reader?.source.title || reader?.source.url || 'Source'}
+        onClose={() => setReader(null)}        title={reader?.source.title || reader?.source.url || 'Source'}
         subtitle={
           reader?.source.site
             ? `${reader.source.site}${reader.source.published_at ? ` · ${reader.source.published_at.slice(0, 10)}` : ''}`
@@ -718,6 +723,15 @@ export default function SourcesPanel({ spaceId, onCountChange }: Props) {
           </div>
         ) : null}
       </Dialog>
+
+      <SpaceSettingsDialog
+        open={settingsOpen}
+        spaceId={spaceId}
+        onClose={() => setSettingsOpen(false)}
+        onChanged={() => {
+          void fetchSources();
+        }}
+      />
     </div>
   );
 }

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from palimind.spaces import web_source
+from palimind.spaces import policy
 from palimind.storage.db import (
     attach_collection,
     delete_source,
@@ -102,6 +103,9 @@ def create_web_source(
     """Create (or reuse) a queued web source row."""
     root = Path(root)
     raw = web_source.normalise_url(url)
+    allowed, reason = policy.domain_allowed(root, raw)
+    if not allowed:
+        return {"error": reason}
     try:
         canonical = web_source.canonicalise(raw)
     except web_source.FetchError:
@@ -163,12 +167,25 @@ def ingest_web_source(
 
         if youtube.is_youtube(str(row.get("url") or "")):
             return youtube.ingest_youtube(root, source_id)
+        allowed, reason = policy.domain_allowed(root, str(row.get("url") or ""))
+        if not allowed:
+            return _fail(root, source_id, reason)
+        from palimind.spaces import profiles
+
+        profile = profiles.profile_for(root, str(row.get("url") or ""))
         page = web_source.fetch_page(
             row["url"],
             etag=str(row.get("etag") or ""),
             last_modified=str(row.get("last_modified") or ""),
             allow_private=allow_private,
+            extra_headers=profiles.headers_for(profile),
         )
+        allowed, reason = policy.domain_allowed(root, page.url)
+        if not allowed:
+            return _fail(root, source_id, reason)
+        policy.check_quota(root, len(page.text) + len(page.html) + len(page.raw))
+    except policy.PolicyError as exc:
+        return _fail(root, source_id, str(exc))
     except web_source.FetchError as exc:
         page = None
         if web_source.fallback_eligible(str(exc)):
@@ -193,6 +210,10 @@ def ingest_web_source(
         return _public(row)
 
     if page.content_type == "application/pdf" and page.raw:
+        try:
+            policy.check_quota(root, len(page.raw))
+        except policy.PolicyError as exc:
+            return _fail(root, source_id, str(exc))
         rel = str(row.get("file_path") or "")
         if not rel:
             rel = str(
@@ -315,7 +336,14 @@ def _fail(root: Path, source_id: str, message: str) -> dict:
         row = get_source(conn, source_id)
         if row is None:
             return {"error": message}
-        row["status"] = "blocked" if "robots" in message.lower() else "failed"
+        row["status"] = (
+            "blocked"
+            if any(
+                token in message.lower()
+                for token in ("robots", "quota", "allow list", "deny list", "policy")
+            )
+            else "failed"
+        )
         row["error"] = message
         row["updated_at"] = _now()
         return _public(upsert_source(conn, row))
@@ -361,6 +389,10 @@ def create_text_source(
     body = (text or "").strip()
     if not body:
         return {"error": "Nothing to save."}
+    try:
+        policy.check_quota(root, len(body.encode("utf-8")))
+    except policy.PolicyError as exc:
+        return {"error": str(exc)}
     source_id = uuid.uuid4().hex[:12]
     heading = (title or body.splitlines()[0][:80] or "Note").strip()
     rel = (

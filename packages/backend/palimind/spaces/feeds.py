@@ -134,6 +134,11 @@ def add_feed(
 ) -> dict:
     """Create a feed row and its current items as saved web sources."""
     root = Path(root)
+    from palimind.spaces import policy
+
+    allowed, reason = policy.domain_allowed(root, url)
+    if not allowed:
+        return {"error": reason}
     title, items, final_url = fetch_feed(url, allow_private=allow_private)
     canonical = web_source.canonicalise(final_url)
     conn = get_connection(root)

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BookOpen, FolderPlus, Globe, Network, Plus, RefreshCw } from 'lucide-react';
+import { BookOpen, FolderPlus, Globe, Network, Plus, RefreshCw, Search } from 'lucide-react';
 import ChatArea from '../../components/ChatArea';
 import SurfaceHeader from '../../components/layout/SurfaceHeader';
 import { useApp } from '../../AppContext';
@@ -9,6 +9,7 @@ import { EmptyState } from '../../ui/primitives';
 import { PixelGlyph } from '../../components/pixel/PixelGlyph';
 import type { KnowledgeSpace } from '../../types';
 import CreateSpaceDialog from './CreateSpaceDialog';
+import CrossSpaceSearchDialog from './CrossSpaceSearchDialog';
 import SourcesPanel from './SourcesPanel';
 import '../view.css';
 import './KnowledgeView.css';
@@ -26,9 +27,19 @@ export default function KnowledgeView() {
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('chat');
   const [createOpen, setCreateOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [createMode, setCreateMode] = useState<'create' | 'link'>('create');
   const [sourceCount, setSourceCount] = useState(0);
   const [graphStats, setGraphStats] = useState<{ nodes: number; edges: number } | null>(null);
+  const [signals, setSignals] = useState<{
+    aliases: { canonical: string; labels: string[]; mentions: number }[];
+    contradictions: {
+      entity: string;
+      reason: string;
+      a: { title: string; file_path: string; url: string; quote: string };
+      b: { title: string; file_path: string; url: string; quote: string };
+    }[];
+  } | null>(null);
 
   const fetchSpaces = useCallback(async () => {
     try {
@@ -64,9 +75,13 @@ export default function KnowledgeView() {
     let cancelled = false;
     void (async () => {
       try {
-        const data = await api.graph.get();
+        const [data, signalData] = await Promise.all([
+          api.graph.get(),
+          api.spaces.signals(activeSpace.id),
+        ]);
         if (!cancelled) {
           setGraphStats({ nodes: data.nodes?.length ?? 0, edges: data.edges?.length ?? 0 });
+          if (!signalData.error) setSignals(signalData);
         }
       } catch {
         if (!cancelled) setGraphStats(null);
@@ -136,6 +151,13 @@ export default function KnowledgeView() {
                 }}
               >
                 <Globe size={13} /> Save link
+              </button>
+              <button
+                type="button"
+                className="ui-btn ui-btn--sm"
+                onClick={() => setSearchOpen(true)}
+              >
+                <Search size={13} /> Search all
               </button>
               <button
                 type="button"
@@ -238,6 +260,25 @@ export default function KnowledgeView() {
                     ? `${graphStats.nodes} nodes and ${graphStats.edges} relationships across this space.`
                     : 'Build the graph from your indexed sources to explore entities and relationships.'}
                 </p>
+                {signals ? (
+                  <div className="knowledge-graph-signals">
+                    <p>
+                      {signals.aliases.length} alias group(s) ·{' '}
+                      {signals.contradictions.length} possible contradiction(s)
+                    </p>
+                    {signals.aliases.slice(0, 4).map((item) => (
+                      <p key={item.canonical} className="knowledge-muted">
+                        Alias: {item.labels.join(' / ')}
+                      </p>
+                    ))}
+                    {signals.contradictions.slice(0, 3).map((item, index) => (
+                      <p key={`${item.entity}-${index}`} className="knowledge-muted">
+                        {item.entity}: {item.a.file_path.split('/').pop()} vs{' '}
+                        {item.b.file_path.split('/').pop()} — {item.reason}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="knowledge-graph-tab__actions">
                   <button
                     type="button"
@@ -325,6 +366,7 @@ export default function KnowledgeView() {
           void fetchSpaces();
         }}
       />
+      <CrossSpaceSearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }

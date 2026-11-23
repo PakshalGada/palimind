@@ -145,6 +145,12 @@ headers, rendered as `[title](url)` citations, and attached to graph file nodes.
 | `POST /api/spaces/{id}/sources/{source_id}/reindex` | Force re-embed one source |
 | `POST /api/spaces/{id}/feeds` | Subscribe to RSS/Atom |
 | `POST /api/spaces/{id}/crawl` | Crawl same-host links from a starting page |
+| `GET /api/spaces/search` | Cross-space search |
+| `GET/POST /api/spaces/{id}/digest` | Preview/create a daily digest |
+| `GET /api/spaces/{id}/signals` | Alias groups and possible contradictions |
+| `GET/POST /api/spaces/{id}/profiles` | Authenticated capture profiles |
+| `GET/PATCH /api/spaces/{id}/policy` | Domain allow/deny, quota, digest toggle |
+| `GET /api/spaces/{id}/usage` | Storage usage vs quota |
 | `GET/POST /api/spaces/{id}/collections` | Collections (retrieval scopes) |
 | `GET /api/spaces/{id}/export` | Markdown vault ZIP |
 | `GET /api/spaces/{id}/graph/export` | Graph JSON or GraphML |

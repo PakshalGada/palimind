@@ -668,6 +668,11 @@ def search(
                 "lane": item.get("search_type") or "",
                 "doc_year": item.get("doc_year"),
                 "doc_type": item.get("doc_type"),
+                "source_id": item.get("source_id") or "",
+                "url": item.get("source_url") or "",
+                "title": item.get("source_title") or "",
+                "site": item.get("source_site") or "",
+                "fetched_at": item.get("source_fetched_at"),
                 "content": content[:900],
                 "truncated": len(content) > 900,
             }

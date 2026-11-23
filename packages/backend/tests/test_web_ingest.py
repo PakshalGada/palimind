@@ -45,6 +45,13 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/plain":
             self._send(200, "just text", "text/plain")
             return
+        if self.path == "/header":
+            header = self.headers.get("X-Test", "missing")
+            self._send(
+                200,
+                f"<html><head><title>Header {header}</title></head><body><article>auth body</article></body></html>",
+            )
+            return
         if self.path == "/docs":
             self._send(
                 200,
@@ -242,3 +249,22 @@ def test_derive_tags_is_deterministic() -> None:
     )
     assert tags[0] == "Example"
     assert any(tag.lower() == "graphs" for tag in tags)
+
+
+def test_capture_profile_headers_reach_the_request(tmp_path: Path, server_url: str) -> None:
+    from palimind.spaces import profiles
+
+    root = _space(tmp_path)
+    profiles.upsert_profile(
+        root,
+        {
+            "name": "Local auth",
+            "domain": "127.0.0.1",
+            "headers": {"X-Test": "hello"},
+            "cookies": "session=abc",
+        },
+    )
+    row = sources.create_web_source(root, server_url + "/header")
+    saved = sources.ingest_web_source(root, row["id"])
+    assert saved["status"] == "ready", saved
+    assert saved["title"] == "Header hello"

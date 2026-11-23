@@ -86,6 +86,59 @@ the user has not supplied tags.
 - Failed/blocked sources keep their error and a retry action; the reader can
   still show the last snapshot.
 
+## Cross-space search
+
+`GET /api/spaces/search?q=…` queries every registered space's own index,
+annotates each hit with `space_id`, `space_name` and `space_root`, deduplicates
+by space/file/section/URL, and returns a merged ranking plus `by_space` counts.
+The Knowledge view exposes it as **Search all**.
+
+## Daily digest
+
+Each space can opt into a daily digest (`digest_enabled`). The maintenance loop
+builds a Markdown digest from the last day of activity — saved sources, changed
+pages, failures, top entities and possible contradictions — and stores it as a
+normal `kind=digest` source. `POST /api/spaces/{id}/digest` creates one on
+demand; generation is idempotent per day unless `force` is set.
+
+## Graph signals
+
+`GET /api/spaces/{id}/signals` returns deterministic, provenance-preserving
+hints rather than verdicts:
+
+- **Aliases** — entity surface forms that normalise to the same canonical name
+  (`Acme Inc.`, `ACME Corporation`).
+- **Possible contradictions** — sentence pairs from different files that share
+  an entity and most tokens but differ in negation, an opposing term
+  (increase/decrease, higher/lower) or a figure.
+
+Every pair includes both file paths, titles, URLs, sections and quotes so the
+UI can link to the evidence. The graph tab summarises the counts.
+
+## Capture profiles
+
+A profile attaches headers, cookies and a user agent to a domain in a space.
+Matching is suffix-based, so a profile for `example.com` also covers
+`app.example.com`; the longest matching domain wins. Profiles live in the
+space's local SQLite database and are only sent to that host. This enables
+authenticated/paywalled pages without sending the session anywhere else.
+
+## Domain policy and quota
+
+Each space can set `domain_mode` to `off`, `allow` or `deny` with a domain
+list. The policy is enforced when a source is created, when a redirect lands on
+a different host, and for feeds/crawls. A `quota_bytes` limit covers the
+space's saved `sources/` and raw snapshots; going over it fails the save with a
+clear error. `GET /api/spaces/{id}/usage` reports bytes, remaining space and
+percentage.
+
+## Research integration
+
+`POST /api/spaces/{id}/sources/from-research` turns research citations into
+normal sources. Passing `space_id` when adding sources to a research project
+does the same automatically, so a research run leaves durable, indexed evidence.
+
+
 ## Provenance
 
 Metadata is denormalised onto `files` (`source_id`, `source_kind`, `source_url`,
@@ -117,6 +170,14 @@ Graph file nodes also carry the URL, site and fetch date.
 | `POST .../{sid}/reindex` | Force re-embedding |
 | `POST /api/spaces/{id}/feeds` | Subscribe to RSS/Atom |
 | `POST /api/spaces/{id}/crawl` | One-level same-site crawl |
+| `GET /api/spaces/search` | Search every space at once |
+| `GET/POST /api/spaces/{id}/digest` | Preview / create a daily digest |
+| `GET /api/spaces/{id}/digests` | Digest history |
+| `GET /api/spaces/{id}/signals` | Entity aliases + possible contradictions |
+| `GET/POST /api/spaces/{id}/profiles` | Capture profiles (headers/cookies) |
+| `GET /api/spaces/{id}/usage` | Saved bytes, quota and percentage |
+| `GET/PATCH /api/spaces/{id}/policy` | Domain allow/deny, quota, digest toggle |
+| `POST /api/spaces/{id}/sources/from-research` | Save research citations |
 | `GET/POST /api/spaces/{id}/collections` | Collections |
 | `POST/DELETE .../collections` | Attach/remove a source |
 | `GET /api/spaces/{id}/export` | Markdown vault ZIP |
@@ -136,11 +197,16 @@ Existing document endpoints accept `scope=field|project:<id>` and
 ## Security
 
 - User-initiated capture only; no autonomous crawling unless a source opts in
-  with `refresh_interval`.
+  with `refresh_interval` or a space enables daily digests.
 - SSRF guard on initial URLs and every redirect; private, loopback, link-local
   and metadata addresses are refused.
 - `robots.txt` is honoured for pages and feeds.
 - Size and redirect caps; non-HTML content rejected except PDF.
+- Domains can be allow-listed or denied per space; the check runs again after
+  redirects so a public page cannot bounce to a blocked host.
+- Capture profile secrets stay in the space's local SQLite file and are only
+  attached to matching hosts.
+- Storage quotas cap saved source bytes and snapshot bytes.
 - Deleting a linked space never deletes the user's files. Deleting a managed
   space moves it to `~/.palimind/trash` instead of unlinking immediately.
 
@@ -160,9 +226,10 @@ integration.
 
 - JavaScript-rendered pages may yield no readable text; a snapshot is still
   saved when extraction succeeds.
-- Paywalled/authenticated pages are not supported yet; the fetch is anonymous.
-- YouTube transcripts depend on public caption tracks; videos without captions
-  fail with a clear error and can still be opened in the browser.
-- Contradiction detection and automated entity alias resolution are future
-  graph work; provenance and source-aware graph nodes are already in place.
+- Paywalled/authenticated pages are supported through capture profiles, but
+  multi-step login flows and CAPTCHAs are not automated.
+- Contradiction and alias signals are deterministic heuristics; they surface
+  candidates for review rather than authoritative verdicts.
 - PDF-from-URL is capped by the same 5 MB response limit as HTML.
+- Quota accounting covers saved `sources/` and raw snapshots, not the user's
+  pre-existing files in a linked folder.

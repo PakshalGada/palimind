@@ -722,6 +722,35 @@ export const api = {
   spaces: {
     list: () =>
       get<{ spaces: KnowledgeSpace[]; active_space_id: string | null; default_parent?: string }>('/spaces'),
+    searchAll: (q: string, opts: { limitPerSpace?: number; maxResults?: number; spaceIds?: string[] } = {}) => {
+      const params = new URLSearchParams({ q });
+      if (opts.limitPerSpace) params.set('limit_per_space', String(opts.limitPerSpace));
+      if (opts.maxResults) params.set('max_results', String(opts.maxResults));
+      if (opts.spaceIds?.length) params.set('space_ids', opts.spaceIds.join(','));
+      return get<{
+        query: string;
+        results: {
+          space_id: string;
+          space_name: string;
+          space_root: string;
+          file_path: string;
+          section: string;
+          page?: number | null;
+          score?: number | null;
+          lane?: string;
+          url?: string;
+          title?: string;
+          site?: string;
+          fetched_at?: number | null;
+          content: string;
+        }[];
+        total: number;
+        spaces_searched: number;
+        by_space: Record<string, number>;
+        errors: { space_id: string; error: string }[];
+        error?: string;
+      }>(`/spaces/search?${params}`);
+    },
     create: (data: {
       name: string;
       parent_dir?: string;
@@ -803,6 +832,23 @@ export const api = {
         post<{ status?: string; result?: unknown; error?: string }>(
           `/spaces/${encodeURIComponent(spaceId)}/sources/${encodeURIComponent(sourceId)}/reindex`,
         ),
+      fromResearch: (
+        spaceId: string,
+        sources: { url: string; title?: string }[],
+        tags?: string[],
+        note?: string,
+      ) =>
+        post<{
+          status?: string;
+          sources?: KnowledgeSource[];
+          queued?: string[];
+          errors?: { url: string; error: string }[];
+          error?: string;
+        }>(`/spaces/${encodeURIComponent(spaceId)}/sources/from-research`, {
+          sources,
+          tags,
+          note,
+        }),
     },
     feeds: {
       add: (spaceId: string, url: string, limit = 30) =>
@@ -816,6 +862,105 @@ export const api = {
         `/spaces/${encodeURIComponent(spaceId)}/crawl`,
         { url, max_pages: maxPages },
       ),
+    profiles: {
+      list: (spaceId: string) =>
+        get<{
+          profiles: {
+            id: string;
+            name: string;
+            domain: string;
+            headers: Record<string, string>;
+            cookies: string;
+            user_agent: string;
+          }[];
+          error?: string;
+        }>(`/spaces/${encodeURIComponent(spaceId)}/profiles`),
+      save: (
+        spaceId: string,
+        data: {
+          id?: string;
+          name?: string;
+          domain: string;
+          headers?: Record<string, string> | string;
+          cookies?: string;
+          user_agent?: string;
+        },
+      ) =>
+        post<{ status?: string; profile?: { id: string; name: string; domain: string }; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/profiles`,
+          data,
+        ),
+      remove: (spaceId: string, profileId: string) =>
+        del<{ status?: string; removed?: boolean; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/profiles/${encodeURIComponent(profileId)}`,
+        ),
+    },
+    digest: {
+      preview: (spaceId: string, days = 1) =>
+        get<{
+          title: string;
+          text: string;
+          source_count: number;
+          changed_count: number;
+          attention_count: number;
+          contradictions: unknown[];
+          error?: string;
+        }>(`/spaces/${encodeURIComponent(spaceId)}/digest?days=${days}`),
+      create: (spaceId: string, days = 1, force = false) =>
+        post<{ status?: string; source?: KnowledgeSource; digest?: { title: string; text: string }; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/digest`,
+          { days, force },
+        ),
+      list: (spaceId: string) =>
+        get<{ digests: KnowledgeSource[]; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/digests`,
+        ),
+    },
+    signals: (spaceId: string) =>
+      get<{
+        aliases: { canonical: string; labels: string[]; mentions: number }[];
+        contradictions: {
+          entity: string;
+          reason: string;
+          a: { file_path: string; title: string; url: string; quote: string };
+          b: { file_path: string; title: string; url: string; quote: string };
+        }[];
+        error?: string;
+      }>(`/spaces/${encodeURIComponent(spaceId)}/signals`),
+    usage: (spaceId: string) =>
+      get<{
+        sources_bytes: number;
+        snapshot_bytes: number;
+        total_bytes: number;
+        quota_bytes: number;
+        remaining_bytes: number | null;
+        percent: number | null;
+        exceeded: boolean;
+        error?: string;
+      }>(`/spaces/${encodeURIComponent(spaceId)}/usage`),
+    policy: {
+      get: (spaceId: string) =>
+        get<{
+          domain_mode: 'off' | 'allow' | 'deny';
+          domains: string[];
+          quota_bytes: number;
+          digest_enabled: boolean;
+          error?: string;
+        }>(`/spaces/${encodeURIComponent(spaceId)}/policy`),
+      update: (
+        spaceId: string,
+        changes: {
+          domain_mode?: 'off' | 'allow' | 'deny';
+          domains?: string[];
+          quota_bytes?: number;
+          digest_enabled?: boolean;
+        },
+      ) =>
+        patch<{ status?: string; space?: KnowledgeSpace; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/policy`,
+          changes,
+        ),
+    },
     collections: {
       list: (spaceId: string) =>
         get<{ collections: SourceCollection[]; error?: string }>(
