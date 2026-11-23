@@ -45,31 +45,24 @@ def due_sources(root: Path) -> list[dict]:
 
 def refresh_due_sources() -> dict:
     """Refresh opted-in sources and build due daily digests."""
-    from palimind import knowledge, spaces
-    from palimind.spaces import sources as sources_mod
+    from palimind import spaces
+    from palimind.spaces import ingest as ingest_mod
 
     refreshed = failed = 0
     for space in spaces.list_spaces():
         root = Path(str(space.get("root") or ""))
         if not root.is_dir():
             continue
-        space_refreshed = 0
         for record in due_sources(root):
             try:
-                result = sources_mod.ingest_web_source(root, str(record["id"]))
-                if result.get("status") in ("ready", "not_modified"):
+                result = ingest_mod.ingest_and_index(root, str(record["id"]))
+                if result.get("status") in ("indexed", "ready", "not_modified"):
                     refreshed += 1
-                    space_refreshed += 1
                 else:
                     failed += 1
             except Exception:  # noqa: BLE001 - one bad page must not stop the loop
                 failed += 1
                 logger.exception("Scheduled refresh failed for %s", record.get("url"))
-        if space_refreshed:
-            try:
-                knowledge.run_index(root, wait=False)
-            except Exception:  # noqa: BLE001
-                logger.debug("Index enqueue after refresh failed", exc_info=True)
 
     digest_created = digest_failed = 0
     try:

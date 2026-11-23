@@ -14,19 +14,23 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-def _work(root: Path, source_ids: list[str]) -> None:
-    from palimind import knowledge
+def ingest_and_index(root: Path, source_id: str) -> dict:
+    """Fetch a source, then index that exact file and record the outcome."""
     from palimind.spaces import sources
 
+    record = sources.ingest_web_source(root, source_id)
+    if record.get("status") in ("ready", "not_modified", "indexed"):
+        indexed = sources.index_source(root, source_id)
+        return {**record, **indexed}
+    return record
+
+
+def _work(root: Path, source_ids: list[str]) -> None:
     for source_id in source_ids:
         try:
-            sources.ingest_web_source(root, source_id)
+            ingest_and_index(root, source_id)
         except Exception:  # noqa: BLE001 - one source must not stop the batch
             logger.exception("Source ingestion failed for %s", source_id)
-    try:
-        knowledge.run_index(root, wait=False)
-    except Exception:  # noqa: BLE001
-        logger.debug("Index enqueue after source ingestion failed", exc_info=True)
 
 
 def schedule_ingest(root: Path, source_ids: str | list[str]) -> None:

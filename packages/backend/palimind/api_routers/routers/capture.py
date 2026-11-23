@@ -55,7 +55,6 @@ def _save(url: str, title: str, space_id: str = "") -> dict:
 
 @router.post("/note")
 async def capture_note(req: Request):
-    from palimind import knowledge
     from palimind.spaces import sources as sources_mod
 
     try:
@@ -77,10 +76,10 @@ async def capture_note(req: Request):
     )
     if result.get("error"):
         return result
-    asyncio.create_task(asyncio.to_thread(knowledge.run_index, root, wait=False))
+    indexed = await asyncio.to_thread(sources_mod.index_source, root, str(result["id"]))
     return {
         "status": "success",
-        "source": result,
+        "source": indexed,
         "space_id": (record or {}).get("id"),
         "space_name": (record or {}).get("name"),
     }

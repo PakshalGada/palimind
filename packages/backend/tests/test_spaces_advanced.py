@@ -516,3 +516,35 @@ def test_redaction_hides_reader_and_backup(tmp_path: Path) -> None:
 
     archive = zipfile.ZipFile(io.BytesIO(data))
     assert record["file_path"] not in archive.namelist()
+
+
+def test_index_source_marks_indexed_or_failed(tmp_path: Path, monkeypatch) -> None:
+    from palimind.rag.indexing import generate_embeddings_batch
+
+    root = Path(_space(tmp_path, "Indexing")["root"])
+    record = sources_mod.create_text_source(root, "index this note", title="Index me")
+
+    def fake_embeddings(texts, *_args, **_kwargs):
+        return [[0.01] * 1024 for _ in texts]
+
+    monkeypatch.setattr("palimind.rag.indexing.generate_embeddings_batch", fake_embeddings)
+    indexed = sources_mod.index_source(root, record["id"])
+    assert indexed["status"] == "indexed", indexed
+    assert indexed["index_result"]["indexed"] == 1
+    conn = get_connection(root)
+    try:
+        assert conn.execute(
+            "SELECT 1 FROM files WHERE path = ?", (record["file_path"],)
+        ).fetchone() is not None
+    finally:
+        conn.close()
+
+    second = sources_mod.create_text_source(root, "another note", title="Second")
+
+    def broken_embeddings(*_args, **_kwargs):
+        raise RuntimeError("ollama unavailable")
+
+    monkeypatch.setattr("palimind.rag.indexing.generate_embeddings_batch", broken_embeddings)
+    failed = sources_mod.index_source(root, second["id"])
+    assert failed["status"] == "failed"
+    assert "ollama unavailable" in failed["error"]

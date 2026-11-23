@@ -613,6 +613,78 @@ def related_sources(root: Path, source_id: str, limit: int = 5) -> list[dict]:
     return [item[1] for item in scored[: max(1, min(int(limit or 5), 20))]]
 
 
+def index_source(root: Path, source_id: str) -> dict:
+    """Index exactly one saved source and persist its indexing outcome.
+
+    This bypasses the durable run planner: a newly saved file must be searchable
+    even if another run was already planned before the file existed. The source
+    status becomes ``indexed`` on success or ``failed`` with the real error.
+    """
+    from palimind import knowledge
+
+    root = Path(root)
+    conn = get_connection(root)
+    try:
+        row = get_source(conn, source_id)
+        if row is None:
+            return {"error": "Source not found"}
+        file_path = str(row.get("file_path") or "")
+        if not file_path:
+            return {"error": "Source has no file to index yet."}
+        row["status"] = "indexing"
+        row["error"] = ""
+        row["updated_at"] = _now()
+        upsert_source(conn, row)
+    finally:
+        conn.close()
+
+    try:
+        result = knowledge.reindex_file(root, file_path)
+    except Exception as exc:  # noqa: BLE001 - surface the reason on the source
+        message = f"Indexing failed: {exc}"
+        return _set_index_result(root, source_id, "failed", message)
+
+    errors = result.get("errors") or []
+    if errors:
+        message = str(errors[0].get("error") or "Indexing failed")
+        return _set_index_result(root, source_id, "failed", message, result=result)
+    if not result.get("indexed"):
+        return _set_index_result(
+            root,
+            source_id,
+            "failed",
+            "The indexer did not add this source.",
+            result=result,
+        )
+    return _set_index_result(root, source_id, "indexed", "", result=result)
+
+
+def _set_index_result(
+    root: Path,
+    source_id: str,
+    status: str,
+    error: str,
+    *,
+    result: dict | None = None,
+) -> dict:
+    conn = get_connection(Path(root))
+    try:
+        row = get_source(conn, source_id)
+        if row is None:
+            return {"error": "Source not found"}
+        row["status"] = status
+        row["error"] = error
+        row["last_checked"] = _now()
+        row["updated_at"] = _now()
+        saved = upsert_source(conn, row)
+        out = _public(saved)
+        if result is not None:
+            out["index_result"] = result
+        return out
+    finally:
+        conn.close()
+
+
 def source_content(root: Path, source_id: str) -> dict | None:
     root = Path(root)
     conn = get_connection(root)

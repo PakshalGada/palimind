@@ -263,7 +263,6 @@ async def save_research_sources(space_id: str, req: Request):
 
 @router.post("/{space_id}/sources")
 async def add_space_sources(space_id: str, req: Request):
-    from palimind import knowledge
     from palimind.spaces import sources as sources_mod
 
     root = _space_root(space_id)
@@ -286,8 +285,8 @@ async def add_space_sources(space_id: str, req: Request):
         )
         if record.get("error"):
             return {"error": record["error"]}
-        asyncio.create_task(asyncio.to_thread(knowledge.run_index, root, wait=False))
-        return {"status": "success", "sources": [record]}
+        indexed = await asyncio.to_thread(sources_mod.index_source, root, str(record["id"]))
+        return {"status": "success", "sources": [indexed]}
 
     raw_urls = body.get("urls")
     if isinstance(raw_urls, str):

@@ -23,13 +23,15 @@ import { Dialog, EmptyState, SkeletonList } from '../../ui/primitives';
 import SpaceSettingsDialog from './SpaceSettingsDialog';
 import SavedSearchesDialog from './SavedSearchesDialog';
 
-const PENDING = new Set(['queued', 'fetching', 'extracting', 'writing']);
+const PENDING = new Set(['queued', 'fetching', 'extracting', 'writing', 'indexing']);
 const STATUS_LABEL: Record<string, string> = {
   queued: 'Queued',
   fetching: 'Fetching',
   extracting: 'Extracting',
   writing: 'Saving',
-  ready: 'Ready',
+  ready: 'Saved',
+  indexing: 'Indexing',
+  indexed: 'Indexed',
   failed: 'Failed',
   blocked: 'Blocked',
   not_modified: 'Up to date',
@@ -62,7 +64,7 @@ interface AddResult {
 }
 
 function statusTone(status: string): string {
-  if (status === 'ready') return 'ok';
+  if (status === 'ready' || status === 'indexed') return 'ok';
   if (status === 'failed' || status === 'blocked') return 'error';
   if (STATUS_LABEL[status] && status !== 'ready') return 'warn';
   return 'idle';

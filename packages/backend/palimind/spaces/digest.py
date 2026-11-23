@@ -203,9 +203,15 @@ def create_digest(root: Path, *, days: int = 1, force: bool = False) -> dict:
                 ),
             },
         )
-        return {"status": "created", "source": saved, "digest": payload}
     finally:
         conn.close()
+    try:
+        from palimind.spaces import sources as sources_mod
+
+        saved = sources_mod.index_source(root, source_id)
+    except Exception:  # noqa: BLE001 - digest remains readable on disk
+        pass
+    return {"status": "created", "source": saved, "digest": payload}
 
 
 def list_digests(root: Path, limit: int = 30) -> list[dict]:

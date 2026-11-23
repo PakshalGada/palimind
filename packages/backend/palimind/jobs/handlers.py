@@ -161,8 +161,7 @@ async def run_web_ingest_job(job: dict[str, Any]) -> dict[str, Any]:
     """Fetch one saved URL, write its Markdown source and index it."""
     from pathlib import Path
 
-    from palimind import knowledge
-    from palimind.spaces import sources as sources_mod
+    from palimind.spaces import ingest as ingest_mod
 
     payload = job.get("payload") or {}
     root = Path(str(payload.get("root") or job.get("target") or ""))
@@ -170,13 +169,9 @@ async def run_web_ingest_job(job: dict[str, Any]) -> dict[str, Any]:
     if not root.is_dir() or not source_id:
         return {"status": "error", "output": "web_ingest requires root and source_id"}
 
-    record = await asyncio.to_thread(sources_mod.ingest_web_source, root, source_id)
-    if record.get("status") in ("ready", "not_modified"):
-        try:
-            await asyncio.to_thread(knowledge.run_index, root, wait=False)
-        except Exception as exc:  # noqa: BLE001 - saved content is still usable
-            return {"status": "success", "output": f"saved; index failed: {exc}"}
-        return {"status": "success", "output": "source saved and queued for indexing"}
+    record = await asyncio.to_thread(ingest_mod.ingest_and_index, root, source_id)
+    if record.get("status") in ("indexed", "ready", "not_modified"):
+        return {"status": "success", "output": "source saved and indexed"}
     return {
         "status": "error",
         "output": str(record.get("error") or "source ingestion failed"),

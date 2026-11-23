@@ -197,7 +197,6 @@ def run_due_searches() -> dict:
         root = Path(str(space.get("root") or ""))
         if not root.is_dir():
             continue
-        space_created = 0
         for search in list_saved_searches(root):
             if not search.get("alert"):
                 continue
@@ -208,16 +207,14 @@ def run_due_searches() -> dict:
                 result = run_search(root, str(search["id"]), limit=8)
                 hits = result.get("results") or []
                 if hits:
-                    _alert_source(root, search, hits)
+                    alert = _alert_source(root, search, hits)
+                    try:
+                        from palimind.spaces import sources as sources_mod
+
+                        sources_mod.index_source(root, str(alert["id"]))
+                    except Exception:  # noqa: BLE001 - alert remains readable on disk
+                        pass
                     created += 1
-                    space_created += 1
             except Exception:  # noqa: BLE001 - one alert must not stop the loop
                 failed += 1
-        if space_created:
-            try:
-                from palimind import knowledge
-
-                knowledge.run_index(root, wait=False)
-            except Exception:  # noqa: BLE001
-                pass
     return {"created": created, "failed": failed}
