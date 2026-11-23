@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "PaliMind Capture",
+  "version": "1.0.0",
+  "description": "Save the current page into a PaliMind knowledge space.",
+  "permissions": ["activeTab", "storage", "contextMenus"],
+  "host_permissions": [
+    "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*"
+  ],
+  "action": {
+    "default_title": "Save to PaliMind",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

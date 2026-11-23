@@ -921,6 +921,8 @@ def graph_payload(
     max_nodes: int = 400,
     max_edges: int = 1200,
     collection: str = "",
+    since_year: int | None = None,
+    until_year: int | None = None,
 ) -> dict[str, Any]:
     """Load and filter the document graph without sending every node to the UI."""
     from palimind.document.graph import load_doc_graph
@@ -1011,6 +1013,12 @@ def graph_payload(
                 return False
         if doc_year is not None and node_type == "file" and meta.get("doc_year") != doc_year:
             return False
+        if node_type == "file":
+            year = meta.get("doc_year")
+            if since_year is not None and year is not None and int(year) < int(since_year):
+                return False
+            if until_year is not None and year is not None and int(year) > int(until_year):
+                return False
         if doc_type and node_type == "file" and str(meta.get("doc_type") or "") != doc_type:
             return False
         if min_degree and degree.get(node_id, 0) < min_degree:
@@ -1068,6 +1076,11 @@ def graph_payload(
     if max_edges > 0:
         edges = edges[: max(1, int(max_edges))]
 
+    relation_counts: dict[str, int] = {}
+    for edge in edges:
+        key = str(edge.get("relation") or "related")
+        relation_counts[key] = relation_counts.get(key, 0) + 1
+
     nodes = [
         {
             "id": nid,
@@ -1094,9 +1107,13 @@ def graph_payload(
                 "target": edge.get("target", ""),
                 "relation": edge.get("relation", ""),
                 "weight": edge.get("weight", 1.0),
+                "confidence": round(
+                    min(1.0, max(0.05, float(edge.get("weight", 1.0) or 1.0) / 3.0)), 3
+                ),
             }
             for edge in edges
         ],
+        "typed_relations": relation_counts,
         "node_count": len(nodes),
         "edge_count": len(edges),
         "total_nodes": total_nodes,

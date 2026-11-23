@@ -73,3 +73,18 @@ def save_and_schedule(
         ingest_mod.schedule_ingest(root, queued)
     result["queued"] = queued
     return result
+
+
+def save_deep_research(root: Path, sources: Iterable[dict]) -> dict:
+    """Persist the cited sources from a completed deep-research answer."""
+    items = [
+        {"url": item.get("url"), "title": item.get("title")}
+        for item in sources or []
+        if item.get("url")
+    ]
+    return save_and_schedule(
+        root,
+        items,
+        tags=["deep-research"],
+        note="Saved from a deep-research answer",
+    )

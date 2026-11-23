@@ -20,6 +20,7 @@ from palimind.storage.db import (
     get_source,
     upsert_source,
 )
+from palimind.spaces.store import find_by_root
 
 logger = logging.getLogger(__name__)
 
@@ -86,13 +87,13 @@ def parse_feed(xml_text: str, base_url: str = "") -> tuple[str, list[dict]]:
     return feed_title, items
 
 
-def fetch_feed(url: str, *, allow_private: bool = False) -> tuple[str, list[dict], str]:
+def fetch_feed(url: str, *, allow_private: bool = False, respect_robots: bool = True) -> tuple[str, list[dict], str]:
     import httpx
 
     start = web_source.normalise_url(url)
     if not web_source._safe_url(start, allow_private=allow_private):
         raise FeedError("That address is not allowed (private or internal network).")
-    if not web_source._robots_allowed(start, allow_private=allow_private):
+    if respect_robots and not web_source._robots_allowed(start, allow_private=allow_private):
         raise FeedError("robots.txt does not allow reading this feed.")
 
     current = start
@@ -139,7 +140,12 @@ def add_feed(
     allowed, reason = policy.domain_allowed(root, url)
     if not allowed:
         return {"error": reason}
-    title, items, final_url = fetch_feed(url, allow_private=allow_private)
+    space = find_by_root(root) or {}
+    title, items, final_url = fetch_feed(
+        url,
+        allow_private=allow_private,
+        respect_robots=space.get("respect_robots") is not False,
+    )
     canonical = web_source.canonicalise(final_url)
     conn = get_connection(root)
     try:

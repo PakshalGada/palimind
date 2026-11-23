@@ -562,6 +562,78 @@ async def space_usage(space_id: str):
     return await asyncio.to_thread(policy.space_usage, root)
 
 
+@router.post("/restore")
+async def restore_space_backup(
+    req: Request,
+    name: str,
+    parent_dir: str = "",
+    root: str = "",
+):
+    from palimind import spaces
+    from palimind.spaces import backup as backup_mod
+
+    data = await req.body()
+    if not data:
+        return {"error": "Upload a backup ZIP."}
+    try:
+        record = await asyncio.to_thread(
+            spaces.create_space,
+            name,
+            parent_dir=parent_dir or None,
+            root=root or None,
+            mode="link" if root else "create",
+        )
+        restored = await asyncio.to_thread(
+            backup_mod.restore_backup, data, Path(str(record["root"]))
+        )
+    except spaces.SpaceError as exc:
+        return {"error": str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"Could not restore the backup: {exc}"}
+    return {"status": "success", "space": record, **restored}
+
+
+@router.get("/{space_id}/backup")
+async def export_space_backup(space_id: str):
+    from palimind import spaces
+    from palimind.spaces import backup as backup_mod
+
+    record = spaces.get_space(space_id)
+    root = _space_root(space_id)
+    if record is None or root is None:
+        return {"error": "Space not found"}
+    payload = await asyncio.to_thread(backup_mod.create_backup, root, record)
+    filename = f"{record.get('slug') or 'knowledge'}-backup.zip"
+    return Response(
+        content=payload,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/{space_id}/retention/prune")
+async def prune_space_retention(space_id: str, req: Request):
+    from palimind import spaces
+    from palimind.spaces import retention
+
+    root = _space_root(space_id)
+    if root is None:
+        return {"error": "Space not found"}
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    days = int(body.get("days") or 0)
+    if not days:
+        space = spaces.get_space(space_id) or {}
+        days = int(space.get("retention_days") or 0)
+    if days <= 0:
+        return {"error": "Set retention_days first."}
+    return await asyncio.to_thread(
+        retention.prune_space, root, days, dry_run=bool(body.get("dry_run"))
+    )
+
+
 @router.get("/{space_id}/policy")
 async def get_space_policy(space_id: str):
     from palimind import spaces
@@ -574,6 +646,9 @@ async def get_space_policy(space_id: str):
         "domains": space.get("domains") or [],
         "quota_bytes": space.get("quota_bytes") or 0,
         "digest_enabled": bool(space.get("digest_enabled")),
+        "auto_save_research": bool(space.get("auto_save_research")),
+        "respect_robots": space.get("respect_robots") is not False,
+        "retention_days": int(space.get("retention_days") or 0),
     }
 
 

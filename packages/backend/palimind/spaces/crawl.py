@@ -78,7 +78,12 @@ def crawl_site(
     allowed, reason = policy.domain_allowed(root, start)
     if not allowed:
         return {"error": reason}
-    page = web_source.fetch_page(start, allow_private=allow_private)
+    space = policy._space(root) or {}
+    page = web_source.fetch_page(
+        start,
+        allow_private=allow_private,
+        respect_robots=space.get("respect_robots") is not False,
+    )
     if page.content_type and page.content_type != "text/html":
         return {"error": "The start page is not HTML."}
 

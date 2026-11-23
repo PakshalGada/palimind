@@ -268,3 +268,15 @@ def test_capture_profile_headers_reach_the_request(tmp_path: Path, server_url: s
     saved = sources.ingest_web_source(root, row["id"])
     assert saved["status"] == "ready", saved
     assert saved["title"] == "Header hello"
+
+
+def test_robots_toggle_allows_blocked_page(tmp_path: Path, server_url: str) -> None:
+    from palimind import spaces
+
+    root = _space(tmp_path)
+    record = spaces.find_by_root(root)
+    spaces.update_space(record["id"], {"respect_robots": False})
+
+    row = sources.create_web_source(root, server_url + "/private")
+    saved = sources.ingest_web_source(root, row["id"])
+    assert saved["status"] == "ready", saved

@@ -26,6 +26,9 @@ export default function SpaceSettingsDialog({ open, spaceId, onClose, onChanged 
   const [domains, setDomains] = useState('');
   const [quotaMb, setQuotaMb] = useState('0');
   const [digestEnabled, setDigestEnabled] = useState(false);
+  const [autoSaveResearch, setAutoSaveResearch] = useState(false);
+  const [respectRobots, setRespectRobots] = useState(true);
+  const [retentionDays, setRetentionDays] = useState('0');
   const [usage, setUsage] = useState<{ total_bytes: number; quota_bytes: number; percent: number | null } | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -52,6 +55,9 @@ export default function SpaceSettingsDialog({ open, spaceId, onClose, onChanged 
         setDomains((policy.domains || []).join('\n'));
         setQuotaMb(policy.quota_bytes ? String(Math.round(policy.quota_bytes / (1024 * 1024))) : '0');
         setDigestEnabled(Boolean(policy.digest_enabled));
+        setAutoSaveResearch(Boolean(policy.auto_save_research));
+        setRespectRobots(policy.respect_robots !== false);
+        setRetentionDays(String(policy.retention_days || 0));
       }
       setProfiles(listed.profiles || []);
       if (!usageData.error) setUsage(usageData);
@@ -78,6 +84,9 @@ export default function SpaceSettingsDialog({ open, spaceId, onClose, onChanged 
           .filter(Boolean),
         quota_bytes: Math.max(0, Number(quotaMb) || 0) * 1024 * 1024,
         digest_enabled: digestEnabled,
+        auto_save_research: autoSaveResearch,
+        respect_robots: respectRobots,
+        retention_days: Math.max(0, Number(retentionDays) || 0),
       });
       if (data.error) {
         addToast(data.error, { tone: 'error' });
@@ -222,6 +231,46 @@ export default function SpaceSettingsDialog({ open, spaceId, onClose, onChanged 
                 />
                 Generate a daily digest
               </label>
+              <label className="space-settings__check">
+                <input
+                  type="checkbox"
+                  checked={autoSaveResearch}
+                  onChange={(e) => setAutoSaveResearch(e.target.checked)}
+                />
+                Save deep-research sources automatically
+              </label>
+              <label className="space-settings__check">
+                <input
+                  type="checkbox"
+                  checked={respectRobots}
+                  onChange={(e) => setRespectRobots(e.target.checked)}
+                />
+                Respect robots.txt
+              </label>
+              <label className="space-settings__label">
+                Retention (days, 0 = keep)
+                <input
+                  className="ui-input"
+                  type="number"
+                  min={0}
+                  value={retentionDays}
+                  onChange={(e) => setRetentionDays(e.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="ui-btn ui-btn--sm"
+                onClick={() => {
+                  void api.spaces.retention
+                    .prune(spaceId!, Number(retentionDays) || 0, true)
+                    .then((data) => {
+                      if (data.error) addToast(data.error, { tone: 'error' });
+                      else addToast(`${data.would_remove ?? 0} source(s) would be pruned`, { tone: 'success' });
+                    });
+                }}
+              >
+                Preview prune
+              </button>
             </div>
             {usage ? (
               <p className="knowledge-muted">
@@ -237,6 +286,40 @@ export default function SpaceSettingsDialog({ open, spaceId, onClose, onChanged 
               <button type="button" className="ui-btn ui-btn--sm" onClick={() => void createDigest()}>
                 Save digest now
               </button>
+              <a className="ui-btn ui-btn--sm" href={api.spaces.backupUrl(spaceId!)} download>
+                Download backup
+              </a>
+              <label className="ui-btn ui-btn--sm">
+                Restore backup
+                <input
+                  type="file"
+                  accept=".zip,application/zip"
+                  hidden
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const name = window.prompt('Name for the restored space', 'Restored space');
+                    if (!name) return;
+                    void api.spaces
+                      .restore(file, name)
+                      .then((data) => {
+                        if (data.error) {
+                          addToast(data.error, { tone: 'error' });
+                          return;
+                        }
+                        addToast('Backup restored', { tone: 'success' });
+                        window.dispatchEvent(new CustomEvent('palimind:spaces-changed'));
+                        onChanged?.();
+                      })
+                      .catch((err) =>
+                        addToast(err instanceof Error ? err.message : 'Restore failed.', {
+                          tone: 'error',
+                        }),
+                      );
+                    e.target.value = '';
+                  }}
+                />
+              </label>
             </div>
             {digest ? (
               <pre className="source-reader__content space-settings__digest">{digest.text}</pre>

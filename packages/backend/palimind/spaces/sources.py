@@ -173,12 +173,14 @@ def ingest_web_source(
         from palimind.spaces import profiles
 
         profile = profiles.profile_for(root, str(row.get("url") or ""))
+        space = policy._space(root) or {}
         page = web_source.fetch_page(
             row["url"],
             etag=str(row.get("etag") or ""),
             last_modified=str(row.get("last_modified") or ""),
             allow_private=allow_private,
             extra_headers=profiles.headers_for(profile),
+            respect_robots=space.get("respect_robots") is not False,
         )
         allowed, reason = policy.domain_allowed(root, page.url)
         if not allowed:

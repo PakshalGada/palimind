@@ -80,11 +80,21 @@ def refresh_due_sources() -> dict:
         digest_failed = int(digest_result.get("failed") or 0)
     except Exception:  # noqa: BLE001
         logger.exception("Digest generation failed")
+
+    retention_removed = 0
+    try:
+        from palimind.spaces import retention as retention_mod
+
+        retention_result = retention_mod.run_due_retention()
+        retention_removed = int(retention_result.get("removed") or 0)
+    except Exception:  # noqa: BLE001
+        logger.exception("Retention prune failed")
     return {
         "refreshed": refreshed,
         "failed": failed,
         "digests_created": digest_created,
         "digests_failed": digest_failed,
+        "retention_removed": retention_removed,
     }
 
 

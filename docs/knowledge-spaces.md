@@ -136,7 +136,42 @@ percentage.
 
 `POST /api/spaces/{id}/sources/from-research` turns research citations into
 normal sources. Passing `space_id` when adding sources to a research project
-does the same automatically, so a research run leaves durable, indexed evidence.
+does the same automatically. When deep research finishes, cited sources are
+saved into the active space if that space has **Save deep-research sources
+automatically** enabled (or a `save_space_id` is passed to `/api/chat`).
+
+## Retention and robots
+
+- `respect_robots` (default on) controls whether `robots.txt` is enforced for
+  pages, feeds and crawls. Turning it off is an explicit user choice.
+- `retention_days` prunes older saved sources during maintenance, including
+  their files, vectors, chunks and graph nodes. Digests and feed rows are kept;
+  `POST /api/spaces/{id}/retention/prune` supports `dry_run` previews.
+
+## Backup and restore
+
+`GET /api/spaces/{id}/backup` creates a portable ZIP with `sources/`, the
+graph/config and `sources.json` metadata. `POST /api/spaces/restore` accepts
+that ZIP plus a name/parent folder, creates a new space and restores files and
+source metadata. Path traversal entries are ignored.
+
+## External capture
+
+`POST /api/capture/link` (JSON) and `GET /api/capture/link?...` (bookmarklet /
+share-sheet receipt page) save into the active space or a supplied `space_id`.
+A Manifest V3 extension in `packages/browser-extension` adds a toolbar popup
+and a “Save page to PaliMind” context menu. The auth middleware accepts the
+bearer token from the query string for these local capture links.
+
+## Graph intelligence
+
+- Edges expose a `confidence` score derived from relation weight plus the
+  original typed relation (`has_section`, `references`, `related`, …);
+  `typed_relations` summarises counts.
+- `since_year` / `until_year` filter the graph to a timeline.
+- `/signals` now returns **agreements** alongside alias groups and possible
+  contradictions; all keep file/quotes/URL provenance.
+
 
 
 ## Provenance
@@ -176,7 +211,11 @@ Graph file nodes also carry the URL, site and fetch date.
 | `GET /api/spaces/{id}/signals` | Entity aliases + possible contradictions |
 | `GET/POST /api/spaces/{id}/profiles` | Capture profiles (headers/cookies) |
 | `GET /api/spaces/{id}/usage` | Saved bytes, quota and percentage |
-| `GET/PATCH /api/spaces/{id}/policy` | Domain allow/deny, quota, digest toggle |
+| `GET/PATCH /api/spaces/{id}/policy` | Domain allow/deny, quota, digest/research/robots/retention |
+| `POST /api/spaces/{id}/retention/prune` | Preview/apply retention pruning |
+| `GET /api/spaces/{id}/backup` | Portable backup ZIP |
+| `POST /api/spaces/restore` | Restore a backup into a new space |
+| `POST /api/capture/link` | Extension/share-sheet capture |
 | `POST /api/spaces/{id}/sources/from-research` | Save research citations |
 | `GET/POST /api/spaces/{id}/collections` | Collections |
 | `POST/DELETE .../collections` | Attach/remove a source |

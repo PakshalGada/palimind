@@ -114,6 +114,9 @@ def public(record: dict[str, Any]) -> dict[str, Any]:
         "icon": record.get("icon") or "book",
         "note": record.get("note") or "",
         "digest_enabled": bool(record.get("digest_enabled")),
+        "auto_save_research": bool(record.get("auto_save_research")),
+        "respect_robots": record.get("respect_robots") is not False,
+        "retention_days": int(record.get("retention_days") or 0),
         "domain_mode": record.get("domain_mode") or "off",
         "domains": list(record.get("domains") or []),
         "quota_bytes": int(record.get("quota_bytes") or 0),
@@ -244,6 +247,9 @@ def create_space(
         "icon": icon or "book",
         "note": usernote or "",
         "digest_enabled": False,
+        "auto_save_research": False,
+        "respect_robots": True,
+        "retention_days": 0,
         "domain_mode": "off",
         "domains": [],
         "quota_bytes": 0,
@@ -287,6 +293,16 @@ def update_space(space_id: str, changes: dict[str, Any]) -> dict[str, Any] | Non
         record["note"] = str(changes.get("note") or "")[:2000]
     if "digest_enabled" in changes:
         record["digest_enabled"] = bool(changes.get("digest_enabled"))
+    if "auto_save_research" in changes:
+        record["auto_save_research"] = bool(changes.get("auto_save_research"))
+    if "respect_robots" in changes:
+        record["respect_robots"] = bool(changes.get("respect_robots"))
+    if "retention_days" in changes:
+        try:
+            days = int(changes.get("retention_days") or 0)
+        except (TypeError, ValueError) as exc:
+            raise SpaceError("retention_days must be an integer.") from exc
+        record["retention_days"] = max(0, days)
     if "domain_mode" in changes:
         mode = str(changes.get("domain_mode") or "off").lower()
         if mode not in ("off", "allow", "deny"):

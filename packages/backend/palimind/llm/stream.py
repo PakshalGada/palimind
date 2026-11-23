@@ -611,6 +611,7 @@ async def deep_research_mode_stream(
     worker_url: str | None = None,
     long_term_episodes: list[dict] | None = None,
     display_text: str | None = None,
+    save_space_root: Path | None = None,
 ) -> StreamingResponse:
     """DEEP RESEARCH MODE: Plans research sub-topics, dispatches parallel research
     agents with web access, then synthesizes a comprehensive research report."""
@@ -696,6 +697,7 @@ async def deep_research_mode_stream(
 
         full_text = ""
         citation_payload: dict | None = None
+        research_sources_to_save: list[dict] = []
         try:
             while True:
                 if pipeline_task.done():
@@ -724,6 +726,7 @@ async def deep_research_mode_stream(
                 outputs = result.get("outputs", [])
                 synthesis = result.get("synthesis", "")
                 citation_payload = result.get("citations")
+                research_sources_to_save = list(result.get("sources") or [])
 
                 if synthesis:
                     full_text += synthesis
@@ -791,6 +794,17 @@ async def deep_research_mode_stream(
                 asyncio.create_task(
                     background_update_memory(active_field, active_sess_id, visible_query, full_text)
                 )
+            if save_space_root and research_sources_to_save:
+                try:
+                    from palimind.spaces import research as research_mod
+
+                    await asyncio.to_thread(
+                        research_mod.save_deep_research,
+                        save_space_root,
+                        research_sources_to_save,
+                    )
+                except Exception as exc:  # noqa: BLE001 - saving must not break the answer
+                    print(f"[deep-research] saving sources to knowledge space failed: {exc}")
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 

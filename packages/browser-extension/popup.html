@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Save to PaliMind</title>
+    <style>
+      body { font: 13px system-ui, sans-serif; width: 320px; margin: 0; padding: 14px; color: #111; }
+      h1 { font-size: 14px; margin: 0 0 10px; }
+      label { display: block; color: #666; font-size: 11px; margin: 8px 0 3px; }
+      input { width: 100%; box-sizing: border-box; padding: 7px; border: 1px solid #ccc; border-radius: 5px; }
+      button { margin-top: 12px; width: 100%; padding: 8px; border: 1px solid #111; border-radius: 5px; background: #111; color: #fff; cursor: pointer; }
+      p { color: #666; line-height: 1.4; }
+      .ok { color: #0a7a3d; }
+      .err { color: #b00020; }
+    </style>
+  </head>
+  <body>
+    <h1>Save to PaliMind</h1>
+    <label for="base">PaliMind URL</label>
+    <input id="base" value="http://127.0.0.1:8000" />
+    <label for="token">API token (<code>~/.palimind/api_token</code>)</label>
+    <input id="token" type="password" placeholder="paste token" />
+    <p id="status"></p>
+    <button id="save">Save current page</button>
+    <button id="save-settings" style="background:#fff;color:#111;margin-top:6px">Save connection settings</button>
+    <script src="popup.js"></script>
+  </body>
+</html>

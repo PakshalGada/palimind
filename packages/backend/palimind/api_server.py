@@ -90,6 +90,7 @@ from palimind.api_routers.routers.config import (
 )
 from palimind.api_routers.routers.config import router as config_router
 from palimind.api_routers.routers.cookbook import router as cookbook_router
+from palimind.api_routers.routers.capture import router as capture_router
 from palimind.api_routers.routers.desktop import router as desktop_router
 from palimind.api_routers.routers.document import router as document_router
 from palimind.api_routers.routers.files import router as files_router
@@ -204,6 +205,7 @@ app.include_router(images_router)
 app.include_router(jobs_router)
 app.include_router(document_router)
 app.include_router(spaces_router)
+app.include_router(capture_router)
 app.include_router(files_router)
 app.include_router(cookbook_router)
 app.include_router(desktop_router)
@@ -2167,6 +2169,7 @@ async def chat_stream(
     rag_mode: str | None = None,
     reply_to: int | None = None,
     model: str | None = None,
+    save_space_id: str | None = None,
 ):
     """Chat SSE stream.
 
@@ -2193,6 +2196,7 @@ async def chat_stream(
             rag_mode,
             reply_to,
             model,
+            save_space_id,
         )
     except BaseException:
         _unregister_chat_stream(entry)
@@ -2216,6 +2220,7 @@ async def _chat_stream_response(
     rag_mode: str | None = None,
     reply_to: int | None = None,
     model: str | None = None,
+    save_space_id: str | None = None,
 ) -> StreamingResponse:
     display_text = (display_query or "").strip() or None
     if scope.startswith("agent:"):
@@ -2413,6 +2418,18 @@ async def _chat_stream_response(
         )
         if dr_note:
             print(f"[chat] {dr_note}")
+        save_space_root = None
+        try:
+            from palimind import spaces as spaces_mod
+
+            if save_space_id:
+                save_space_root = spaces_mod.resolve_space(save_space_id)
+            elif scope == "field":
+                active_space = spaces_mod.get_space(spaces_mod.active_space_id())
+                if active_space and active_space.get("auto_save_research"):
+                    save_space_root = Path(str(active_space["root"]))
+        except Exception:  # noqa: BLE001 - autosave is optional
+            save_space_root = None
         return await deep_research_mode_stream(
             q,
             active_sess_id,
@@ -2429,6 +2446,7 @@ async def _chat_stream_response(
             worker_url=dr_url,
             long_term_episodes=long_term_episodes,
             display_text=display_text,
+            save_space_root=save_space_root,
         )
 
     from palimind.opencode.router import resolve_model

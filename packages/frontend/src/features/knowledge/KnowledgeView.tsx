@@ -30,12 +30,23 @@ export default function KnowledgeView() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [createMode, setCreateMode] = useState<'create' | 'link'>('create');
   const [sourceCount, setSourceCount] = useState(0);
-  const [graphStats, setGraphStats] = useState<{ nodes: number; edges: number } | null>(null);
+  const [graphStats, setGraphStats] = useState<{
+    nodes: number;
+    edges: number;
+    typed?: Record<string, number>;
+  } | null>(null);
+  const [sinceYear, setSinceYear] = useState('');
+  const [untilYear, setUntilYear] = useState('');
   const [signals, setSignals] = useState<{
     aliases: { canonical: string; labels: string[]; mentions: number }[];
     contradictions: {
       entity: string;
       reason: string;
+      a: { title: string; file_path: string; url: string; quote: string };
+      b: { title: string; file_path: string; url: string; quote: string };
+    }[];
+    agreements: {
+      entity: string;
       a: { title: string; file_path: string; url: string; quote: string };
       b: { title: string; file_path: string; url: string; quote: string };
     }[];
@@ -76,11 +87,18 @@ export default function KnowledgeView() {
     void (async () => {
       try {
         const [data, signalData] = await Promise.all([
-          api.graph.get(),
+          api.graph.get({
+            sinceYear: sinceYear ? Number(sinceYear) : undefined,
+            untilYear: untilYear ? Number(untilYear) : undefined,
+          }),
           api.spaces.signals(activeSpace.id),
         ]);
         if (!cancelled) {
-          setGraphStats({ nodes: data.nodes?.length ?? 0, edges: data.edges?.length ?? 0 });
+          setGraphStats({
+            nodes: data.nodes?.length ?? 0,
+            edges: data.edges?.length ?? 0,
+            typed: data.typed_relations,
+          });
           if (!signalData.error) setSignals(signalData);
         }
       } catch {
@@ -90,7 +108,7 @@ export default function KnowledgeView() {
     return () => {
       cancelled = true;
     };
-  }, [tab, activeSpace]);
+  }, [tab, activeSpace, sinceYear, untilYear]);
 
   const activate = async (space: KnowledgeSpace) => {
     try {
@@ -260,11 +278,42 @@ export default function KnowledgeView() {
                     ? `${graphStats.nodes} nodes and ${graphStats.edges} relationships across this space.`
                     : 'Build the graph from your indexed sources to explore entities and relationships.'}
                 </p>
+                {graphStats?.typed ? (
+                  <p className="knowledge-muted">
+                    {Object.entries(graphStats.typed)
+                      .slice(0, 6)
+                      .map(([relation, count]) => `${relation}: ${count}`)
+                      .join(' · ')}
+                  </p>
+                ) : null}
+                <div className="knowledge-graph-tab__timeline">
+                  <label>
+                    From
+                    <input
+                      className="ui-input"
+                      type="number"
+                      placeholder="year"
+                      value={sinceYear}
+                      onChange={(e) => setSinceYear(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    To
+                    <input
+                      className="ui-input"
+                      type="number"
+                      placeholder="year"
+                      value={untilYear}
+                      onChange={(e) => setUntilYear(e.target.value)}
+                    />
+                  </label>
+                </div>
                 {signals ? (
                   <div className="knowledge-graph-signals">
                     <p>
                       {signals.aliases.length} alias group(s) ·{' '}
-                      {signals.contradictions.length} possible contradiction(s)
+                      {signals.contradictions.length} possible contradiction(s) ·{' '}
+                      {signals.agreements.length} agreement(s)
                     </p>
                     {signals.aliases.slice(0, 4).map((item) => (
                       <p key={item.canonical} className="knowledge-muted">

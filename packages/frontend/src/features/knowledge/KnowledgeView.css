@@ -1715,3 +1715,21 @@
 .space-settings__digest {
   max-height: 220px;
 }
+.knowledge-graph-tab__timeline {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.knowledge-graph-tab__timeline label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: var(--type-2xs);
+  text-align: left;
+}
+.knowledge-graph-tab__timeline .ui-input {
+  width: 96px;
+  height: 30px;
+}

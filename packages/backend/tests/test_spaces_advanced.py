@@ -290,3 +290,142 @@ def test_agent_tool_supports_digest_and_cross_space_search(tmp_path: Path, monke
 
     digest = tool.knowledge_space(action="digest", space_id=first["id"])
     assert "Digest" in digest
+
+
+def test_retention_prunes_old_sources(tmp_path: Path) -> None:
+    from palimind.spaces import retention
+
+    space = _space(tmp_path, "Retention")
+    root = Path(space["root"])
+    record = sources_mod.create_text_source(root, "old note", title="Old")
+    conn = get_connection(root)
+    try:
+        conn.execute(
+            "UPDATE sources SET fetched_at = ?, created_at = ? WHERE id = ?",
+            (time.time() - 10 * 86400, time.time() - 10 * 86400, record["id"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    preview = retention.prune_space(root, 5, dry_run=True)
+    assert preview["would_remove"] == 1
+    assert (root / record["file_path"]).is_file()
+
+    result = retention.prune_space(root, 5)
+    assert result["removed"] == 1
+    assert not (root / record["file_path"]).exists()
+    assert sources_mod.list_space_sources(root)["total"] == 0
+
+
+def test_backup_and_restore_roundtrip(tmp_path: Path) -> None:
+    from palimind.spaces import backup
+
+    space = _space(tmp_path, "Backup")
+    root = Path(space["root"])
+    note = sources_mod.create_text_source(root, "backup me", title="Backup note")
+    data = backup.create_backup(root, space)
+    assert data
+
+    parent = tmp_path / "restored-parent"
+    parent.mkdir()
+    new_space = spaces.create_space("Restored", parent_dir=str(parent))
+    result = backup.restore_backup(data, Path(new_space["root"]))
+    assert result["restored_files"] >= 2
+    assert (Path(new_space["root"]) / note["file_path"]).is_file()
+    restored = sources_mod.list_space_sources(Path(new_space["root"]))
+    assert restored["total"] == 1
+    assert restored["sources"][0]["title"] == "Backup note"
+
+
+def test_deep_research_save_helper(tmp_path: Path, monkeypatch) -> None:
+    space = _space(tmp_path, "Deep")
+    root = Path(space["root"])
+    monkeypatch.setattr(
+        "palimind.spaces.ingest.schedule_ingest", lambda *args, **kwargs: None
+    )
+    result = research.save_deep_research(
+        root,
+        [
+            {"url": "https://example.com/one", "title": "One"},
+            {"url": "https://example.com/two", "title": "Two"},
+        ],
+    )
+    assert len(result["sources"]) == 2
+    listed = sources_mod.list_space_sources(root)
+    assert listed["total"] == 2
+    assert listed["sources"][0]["tags"] == ["deep-research"]
+    assert "deep-research" in (listed["sources"][0]["note"] or "")
+
+
+def test_agreements_and_graph_confidence_timeline(tmp_path: Path) -> None:
+    from palimind import knowledge
+    from palimind.document.graph import DocGraph
+
+    space = _space(tmp_path, "Timeline")
+    root = Path(space["root"])
+    conn = get_connection(root)
+    try:
+        first = upsert_file(conn, "a.md", "h1", time.time(), doc_type="note", doc_year=2020)
+        second = upsert_file(conn, "b.md", "h2", time.time(), doc_type="note", doc_year=2024)
+        ids_a = insert_chunks(
+            conn,
+            first,
+            [(0, "text", "Acme revenue increased sharply.", "Revenue", "", "", None, 5, 8)],
+        )
+        ids_b = insert_chunks(
+            conn,
+            second,
+            [(0, "text", "Acme revenue increased sharply this year.", "Revenue", "", "", None, 6, 9)],
+        )
+        insert_entity_mentions(
+            conn,
+            [
+                (ids_a[0], "Acme", "organization", ""),
+                (ids_b[0], "Acme", "organization", ""),
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    agreements = analysis.agreement_candidates(root)
+    assert agreements and agreements[0]["entity"] == "Acme"
+
+    graph = DocGraph(root)
+    graph.add_file_node("a.md", label="A", doc_year=2020)
+    graph.add_file_node("b.md", label="B", doc_year=2024)
+    graph.add_edge("file:a.md", "file:b.md", "related")
+    graph.save()
+
+    full = knowledge.graph_payload(root)
+    assert full["edges"][0]["confidence"] > 0
+    assert full["typed_relations"].get("related") == 1
+    assert full["edges"][0]["relation"] == "related"
+
+    payload = knowledge.graph_payload(root, since_year=2023)
+    assert [n["file_path"] for n in payload["nodes"] if n["type"] == "file"] == ["b.md"]
+
+
+def test_capture_link_endpoint_for_extension_and_share_sheet(tmp_path: Path, monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+    import palimind.api_server as server
+
+    monkeypatch.setattr(
+        "palimind.spaces.ingest.schedule_ingest", lambda *args, **kwargs: None
+    )
+    _space(tmp_path, "Capture")
+    client = TestClient(server.app)
+
+    saved = client.post(
+        "/api/capture/link",
+        json={"url": "https://example.com/shared", "title": "Shared page"},
+    ).json()
+    assert saved["status"] == "success"
+    assert saved["source"]["url"] == "https://example.com/shared"
+
+    receipt = client.get(
+        "/api/capture/link",
+        params={"url": "https://example.com/from-share-sheet", "format": "json"},
+    ).json()
+    assert receipt["status"] == "success"

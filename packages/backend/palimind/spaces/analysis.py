@@ -232,6 +232,96 @@ def contradiction_candidates(root: Path, *, limit: int = 10) -> list[dict[str, A
     return found
 
 
+def agreement_candidates(root: Path, *, limit: int = 10) -> list[dict[str, Any]]:
+    """Pairs of sentences from different files that make similar, aligned claims."""
+    from palimind.document.graph import normalize_entity_name
+    from palimind.storage.db import get_connection
+
+    root = Path(root)
+    conn = get_connection(root)
+    try:
+        rows = conn.execute(
+            """
+            SELECT em.entity_text, c.content, f.path, f.source_title, f.source_url,
+                   c.section_title
+            FROM entity_mentions em
+            JOIN chunks c ON c.id = em.chunk_id
+            JOIN files f ON f.id = c.file_id
+            ORDER BY em.entity_text
+            LIMIT 5000
+            """
+        ).fetchall()
+    except Exception:  # noqa: BLE001
+        rows = []
+    finally:
+        conn.close()
+
+    by_entity: dict[str, list[dict]] = {}
+    for entity, content, path, title, url, section in rows:
+        name = str(entity or "").strip()
+        if not name:
+            continue
+        by_entity.setdefault(normalize_entity_name(name), []).append(
+            {
+                "entity": name,
+                "content": str(content or ""),
+                "file_path": str(path or ""),
+                "title": str(title or ""),
+                "url": str(url or ""),
+                "section": str(section or ""),
+            }
+        )
+
+    found: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for mentions in by_entity.values():
+        for i, first in enumerate(mentions):
+            for second in mentions[i + 1 :]:
+                if first["file_path"] == second["file_path"]:
+                    continue
+                key = "|".join(
+                    sorted((first["file_path"], second["file_path"]))
+                ) + "|" + mentions[0]["entity"].casefold()
+                if key in seen:
+                    continue
+                for sentence_a in _sentences(first["content"])[:8]:
+                    for sentence_b in _sentences(second["content"])[:8]:
+                        tokens_a, tokens_b = _tokens(sentence_a), _tokens(sentence_b)
+                        if len(tokens_a) < 3 or len(tokens_b) < 3:
+                            continue
+                        overlap = len(tokens_a & tokens_b) / max(
+                            1, min(len(tokens_a), len(tokens_b))
+                        )
+                        if overlap < 0.75:
+                            continue
+                        if _reason(sentence_a, sentence_b):
+                            continue
+                        seen.add(key)
+                        found.append(
+                            {
+                                "entity": mentions[0]["entity"],
+                                "a": {
+                                    "file_path": first["file_path"],
+                                    "title": first["title"],
+                                    "url": first["url"],
+                                    "quote": sentence_a[:240],
+                                },
+                                "b": {
+                                    "file_path": second["file_path"],
+                                    "title": second["title"],
+                                    "url": second["url"],
+                                    "quote": sentence_b[:240],
+                                },
+                            }
+                        )
+                        break
+                    if key in seen:
+                        break
+                if len(found) >= limit:
+                    return found
+    return found
+
+
 def entity_aliases(root: Path, *, limit: int = 40) -> list[dict[str, Any]]:
     """Group entity surface forms that normalise to the same canonical name."""
     from palimind.document.graph import normalize_entity_name
@@ -284,4 +374,5 @@ def signals(root: Path, *, limit: int = 10) -> dict[str, Any]:
     return {
         "aliases": entity_aliases(Path(root)),
         "contradictions": contradiction_candidates(Path(root), limit=limit),
+        "agreements": agreement_candidates(Path(root), limit=limit),
     }

@@ -713,7 +713,17 @@ export const api = {
     recommendations: (top = 10) => get<{ recommendations?: Recommendation[] }>(`/cookbook/recommendations?top=${top}`),
   },
   graph: {
-    get: () => get<GraphData & { error?: string; needs_rebuild?: boolean }>('/document/graph'),
+    get: (params: { scope?: string; collection?: string; sinceYear?: number; untilYear?: number } = {}) => {
+      const search = new URLSearchParams();
+      if (params.scope) search.set('scope', params.scope);
+      if (params.collection) search.set('collection', params.collection);
+      if (params.sinceYear) search.set('since_year', String(params.sinceYear));
+      if (params.untilYear) search.set('until_year', String(params.untilYear));
+      const suffix = search.toString() ? `?${search}` : '';
+      return get<GraphData & { error?: string; needs_rebuild?: boolean; typed_relations?: Record<string, number> }>(
+        `/document/graph${suffix}`,
+      );
+    },
     rebuild: () => post<{ error?: string }>('/document/graph/rebuild'),
   },
   fs: {
@@ -925,6 +935,11 @@ export const api = {
           a: { file_path: string; title: string; url: string; quote: string };
           b: { file_path: string; title: string; url: string; quote: string };
         }[];
+        agreements: {
+          entity: string;
+          a: { file_path: string; title: string; url: string; quote: string };
+          b: { file_path: string; title: string; url: string; quote: string };
+        }[];
         error?: string;
       }>(`/spaces/${encodeURIComponent(spaceId)}/signals`),
     usage: (spaceId: string) =>
@@ -938,13 +953,42 @@ export const api = {
         exceeded: boolean;
         error?: string;
       }>(`/spaces/${encodeURIComponent(spaceId)}/usage`),
+    retention: {
+      prune: (spaceId: string, days?: number, dryRun = false) =>
+        post<{
+          removed?: number;
+          would_remove?: number;
+          errors?: number;
+          paths?: string[];
+          error?: string;
+        }>(`/spaces/${encodeURIComponent(spaceId)}/retention/prune`, {
+          days,
+          dry_run: dryRun,
+        }),
+    },
+    backupUrl: (spaceId: string) => `${BASE}/spaces/${encodeURIComponent(spaceId)}/backup`,
+    restore: async (data: Blob, name: string, parentDir?: string) => {
+      const params = new URLSearchParams({ name });
+      if (parentDir) params.set('parent_dir', parentDir);
+      const res = await fetch(`${BASE}/spaces/restore?${params}`, {
+        method: 'POST',
+        credentials: 'include',
+        body: data,
+      });
+      return parse<{ status?: string; space?: KnowledgeSpace; restored_files?: number; error?: string }>(
+        res,
+        'POST /spaces/restore',
+      );
+    },
     policy: {
-      get: (spaceId: string) =>
-        get<{
+      get: (spaceId: string) =>        get<{
           domain_mode: 'off' | 'allow' | 'deny';
           domains: string[];
           quota_bytes: number;
           digest_enabled: boolean;
+          auto_save_research: boolean;
+          respect_robots: boolean;
+          retention_days: number;
           error?: string;
         }>(`/spaces/${encodeURIComponent(spaceId)}/policy`),
       update: (
@@ -954,6 +998,9 @@ export const api = {
           domains?: string[];
           quota_bytes?: number;
           digest_enabled?: boolean;
+          auto_save_research?: boolean;
+          respect_robots?: boolean;
+          retention_days?: number;
         },
       ) =>
         patch<{ status?: string; space?: KnowledgeSpace; error?: string }>(

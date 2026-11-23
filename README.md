@@ -208,11 +208,12 @@ you choose.
 - Spaces stored anywhere on disk; PaliMind can create the folder for you.
 - A **Sources** library with status, title, site, author, publish/fetch dates,
   tags, reading state, favourites, collections and a reader view.
-- Cross-space search, daily digests, entity-alias signals and possible
-  contradiction hints with source quotes.
+- Cross-space search, daily digests, entity-alias signals, confidence-scored
+  typed graph edges, timeline filters and agreement/contradiction hints.
 - Authenticated capture profiles (headers/cookies per domain), per-space domain
-  allow/deny lists and storage quotas.
-- Save research citations into a space automatically.
+  allow/deny lists, robots toggle, retention policy and storage quotas.
+- Save research citations automatically (including deep-research answers),
+  browser-extension/share-sheet capture, and portable backup/restore.
 - Web capture with `robots.txt` and SSRF protection, readable-text extraction,
   canonical-URL deduplication, HTML snapshots and offline reading.
 - Local vector search with SQLite/FTS5 metadata and FAISS HNSW vectors. No external database.

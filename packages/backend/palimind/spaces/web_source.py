@@ -240,13 +240,14 @@ def fetch_page(
     last_modified: str = "",
     allow_private: bool = False,
     extra_headers: dict[str, str] | None = None,
+    respect_robots: bool = True,
 ) -> FetchedPage:
     import httpx
 
     start = normalise_url(url)
     if not _safe_url(start, allow_private=allow_private):
         raise FetchError("That address is not allowed (private or internal network).")
-    if not _robots_allowed(start, allow_private=allow_private):
+    if respect_robots and not _robots_allowed(start, allow_private=allow_private):
         raise FetchError("robots.txt does not allow saving this page.")
 
     headers = {"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"}
