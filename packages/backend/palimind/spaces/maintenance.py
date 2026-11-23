@@ -89,12 +89,22 @@ def refresh_due_sources() -> dict:
         retention_removed = int(retention_result.get("removed") or 0)
     except Exception:  # noqa: BLE001
         logger.exception("Retention prune failed")
+
+    alerts_created = 0
+    try:
+        from palimind.spaces import searches as searches_mod
+
+        alert_result = searches_mod.run_due_searches()
+        alerts_created = int(alert_result.get("created") or 0)
+    except Exception:  # noqa: BLE001
+        logger.exception("Saved-search alerts failed")
     return {
         "refreshed": refreshed,
         "failed": failed,
         "digests_created": digest_created,
         "digests_failed": digest_failed,
         "retention_removed": retention_removed,
+        "alerts_created": alerts_created,
     }
 
 

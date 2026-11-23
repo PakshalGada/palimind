@@ -155,6 +155,25 @@ graph/config and `sources.json` metadata. `POST /api/spaces/restore` accepts
 that ZIP plus a name/parent folder, creates a new space and restores files and
 source metadata. Path traversal entries are ignored.
 
+## Chat and web-search capture
+
+- Assistant messages have a **Save to knowledge** menu: **Save answer as note**
+  and **Save links in this answer** (citations + URLs found in the text).
+- The source drawer has **Save all sources** for web search/research results,
+  preserving each item's title.
+- Both use `/api/capture/note` and `/api/capture/sources`, which target the
+  active space (or `space_id`).
+- Sources carry **Local only** badges; any source can be marked **Redacted**,
+  which hides its reader content and excludes its file from exports/backups.
+
+## Saved searches and alerts
+
+`/api/spaces/{id}/searches` stores a name, query, optional collection and an
+`alert` flag. Running a saved search returns live hybrid-search hits; the
+maintenance loop re-runs alert searches every six hours and writes a normal
+`kind=alert` source when matches are found, so alerts appear in the library and
+are searchable.
+
 ## External capture
 
 `POST /api/capture/link` (JSON) and `GET /api/capture/link?...` (bookmarklet /
@@ -216,6 +235,9 @@ Graph file nodes also carry the URL, site and fetch date.
 | `GET /api/spaces/{id}/backup` | Portable backup ZIP |
 | `POST /api/spaces/restore` | Restore a backup into a new space |
 | `POST /api/capture/link` | Extension/share-sheet capture |
+| `POST /api/capture/note` / `/api/capture/sources` | Save an answer or all links |
+| `GET/POST /api/spaces/{id}/searches` | Saved searches and alert queries |
+| `POST /api/spaces/{id}/searches/{sid}/run` | Run a saved search |
 | `POST /api/spaces/{id}/sources/from-research` | Save research citations |
 | `GET/POST /api/spaces/{id}/collections` | Collections |
 | `POST/DELETE .../collections` | Attach/remove a source |

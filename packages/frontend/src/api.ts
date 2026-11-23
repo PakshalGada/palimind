@@ -729,9 +729,41 @@ export const api = {
   fs: {
     list: (path?: string) => get<{ current_path: string; parent_path?: string; items: DirItem[]; error?: string }>(`/fs/list${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   },
+  capture: {
+    note: (data: { text: string; title?: string; tags?: string[]; space_id?: string }) =>
+      post<{
+        status?: string;
+        source?: KnowledgeSource;
+        space_id?: string;
+        space_name?: string;
+        error?: string;
+      }>('/capture/note', data),
+    sources: (data: {
+      urls?: string[];
+      items?: { url: string; title?: string }[];
+      title?: string;
+      tags?: string[];
+      space_id?: string;
+    }) =>
+      post<{
+        status?: string;
+        sources?: KnowledgeSource[];
+        errors?: { url: string; error: string }[];
+        space_id?: string;
+        space_name?: string;
+        error?: string;
+      }>('/capture/sources', data),
+    link: (data: { url: string; title?: string; space_id?: string }) =>
+      post<{
+        status?: string;
+        source?: KnowledgeSource;
+        space_id?: string;
+        space_name?: string;
+        error?: string;
+      }>('/capture/link', data),
+  },
   spaces: {
-    list: () =>
-      get<{ spaces: KnowledgeSpace[]; active_space_id: string | null; default_parent?: string }>('/spaces'),
+    list: () =>      get<{ spaces: KnowledgeSpace[]; active_space_id: string | null; default_parent?: string }>('/spaces'),
     searchAll: (q: string, opts: { limitPerSpace?: number; maxResults?: number; spaceIds?: string[] } = {}) => {
       const params = new URLSearchParams({ q });
       if (opts.limitPerSpace) params.set('limit_per_space', String(opts.limitPerSpace));
@@ -824,7 +856,7 @@ export const api = {
       update: (
         spaceId: string,
         sourceId: string,
-        changes: { title?: string; note?: string; tags?: string[]; reading_state?: string; favorite?: boolean; refresh_interval?: number; collection_id?: string },
+        changes: { title?: string; note?: string; tags?: string[]; reading_state?: string; favorite?: boolean; refresh_interval?: number; redacted?: boolean; collection_id?: string },
       ) =>
         patch<{ status?: string; source?: KnowledgeSource; error?: string }>(
           `/spaces/${encodeURIComponent(spaceId)}/sources/${encodeURIComponent(sourceId)}`,
@@ -965,6 +997,49 @@ export const api = {
           days,
           dry_run: dryRun,
         }),
+    },
+    searches: {
+      list: (spaceId: string) =>
+        get<{
+          searches: {
+            id: string;
+            name: string;
+            query: string;
+            collection: string;
+            alert: boolean;
+            last_checked: number | null;
+            last_count: number;
+          }[];
+          error?: string;
+        }>(`/spaces/${encodeURIComponent(spaceId)}/searches`),
+      save: (
+        spaceId: string,
+        data: { id?: string; name?: string; query: string; collection?: string; alert?: boolean },
+      ) =>
+        post<{ status?: string; search?: { id: string; name: string }; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/searches`,
+          data,
+        ),
+      remove: (spaceId: string, searchId: string) =>
+        del<{ status?: string; error?: string }>(
+          `/spaces/${encodeURIComponent(spaceId)}/searches/${encodeURIComponent(searchId)}`,
+        ),
+      run: (spaceId: string, searchId: string, limit = 8) =>
+        post<{
+          results?: {
+            file_path: string;
+            section: string;
+            content: string;
+            url?: string;
+            title?: string;
+            score?: number | null;
+          }[];
+          search?: { id: string; name: string };
+          total?: number;
+          error?: string;
+        }>(
+          `/spaces/${encodeURIComponent(spaceId)}/searches/${encodeURIComponent(searchId)}/run?limit=${limit}`,
+        ),
     },
     backupUrl: (spaceId: string) => `${BASE}/spaces/${encodeURIComponent(spaceId)}/backup`,
     restore: async (data: Blob, name: string, parentDir?: string) => {

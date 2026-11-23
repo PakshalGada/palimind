@@ -212,8 +212,8 @@ you choose.
   typed graph edges, timeline filters and agreement/contradiction hints.
 - Authenticated capture profiles (headers/cookies per domain), per-space domain
   allow/deny lists, robots toggle, retention policy and storage quotas.
-- Save research citations automatically (including deep-research answers),
-  browser-extension/share-sheet capture, and portable backup/restore.
+- Save answer/link actions in chat, save-all for web sources, saved searches with
+  alerts, local-only/redaction badges, and portable backup/restore.
 - Web capture with `robots.txt` and SSRF protection, readable-text extraction,
   canonical-URL deduplication, HTML snapshots and offline reading.
 - Local vector search with SQLite/FTS5 metadata and FAISS HNSW vectors. No external database.

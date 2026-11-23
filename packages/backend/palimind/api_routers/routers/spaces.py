@@ -634,6 +634,63 @@ async def prune_space_retention(space_id: str, req: Request):
     )
 
 
+@router.get("/{space_id}/searches")
+async def list_saved_searches(space_id: str):
+    from palimind.spaces import searches as searches_mod
+
+    root = _space_root(space_id)
+    if root is None:
+        return {"error": "Space not found"}
+    return {"searches": await asyncio.to_thread(searches_mod.list_saved_searches, root)}
+
+
+@router.post("/{space_id}/searches")
+async def save_space_search(space_id: str, req: Request):
+    from palimind.spaces import searches as searches_mod
+
+    root = _space_root(space_id)
+    if root is None:
+        return {"error": "Space not found"}
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    try:
+        search = await asyncio.to_thread(
+            searches_mod.save_search,
+            root,
+            name=str(body.get("name") or ""),
+            query=str(body.get("query") or ""),
+            collection=str(body.get("collection") or ""),
+            alert=bool(body.get("alert")),
+            search_id=str(body.get("id") or ""),
+        )
+    except ValueError as exc:
+        return {"error": str(exc)}
+    return {"status": "success", "search": search}
+
+
+@router.delete("/{space_id}/searches/{search_id}")
+async def delete_space_search(space_id: str, search_id: str):
+    from palimind.spaces import searches as searches_mod
+
+    root = _space_root(space_id)
+    if root is None:
+        return {"error": "Space not found"}
+    removed = await asyncio.to_thread(searches_mod.delete_search, root, search_id)
+    return {"status": "success" if removed else "not_found"}
+
+
+@router.post("/{space_id}/searches/{search_id}/run")
+async def run_space_search(space_id: str, search_id: str, limit: int = 8):
+    from palimind.spaces import searches as searches_mod
+
+    root = _space_root(space_id)
+    if root is None:
+        return {"error": "Space not found"}
+    return await asyncio.to_thread(searches_mod.run_search, root, search_id, limit=limit)
+
+
 @router.get("/{space_id}/policy")
 async def get_space_policy(space_id: str):
     from palimind import spaces
@@ -785,11 +842,20 @@ async def export_space(space_id: str):
         return {"error": "Space not found"}
 
     def _build() -> bytes:
+        from palimind.spaces import sources as sources_mod
+
+        redacted = {
+            str(item.get("file_path"))
+            for item in (sources_mod.list_space_sources(root).get("sources") or [])
+            if item.get("redacted") and item.get("file_path")
+        }
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
             for path in sorted(root.rglob("*.md")):
                 rel = path.relative_to(root)
                 if rel.parts and rel.parts[0] == ".palimind":
+                    continue
+                if str(rel) in redacted:
                     continue
                 archive.write(path, str(rel))
             graph_file = root / ".palimind" / "doc_graph.json"

@@ -85,6 +85,8 @@ def _public(row: dict) -> dict:
     except (TypeError, json.JSONDecodeError):
         out["tags"] = []
     out["favorite"] = bool(row.get("favorite"))
+    out["local_only"] = row.get("local_only") in (None, "", 1, "1", True)
+    out["redacted"] = bool(row.get("redacted"))
     return out
 
 
@@ -494,6 +496,7 @@ def update_space_source(root: Path, source_id: str, changes: dict) -> dict | Non
         "reading_state",
         "favorite",
         "refresh_interval",
+        "redacted",
     }
     conn = get_connection(Path(root))
     try:
@@ -507,6 +510,8 @@ def update_space_source(root: Path, source_id: str, changes: dict) -> dict | Non
                 row["tags"] = _tags(value)
             elif key == "favorite":
                 row["favorite"] = int(bool(value))
+            elif key == "redacted":
+                row["redacted"] = int(bool(value))
             elif key == "refresh_interval":
                 row["refresh_interval"] = max(0, int(value or 0))
             elif key == "reading_state":
@@ -619,12 +624,14 @@ def source_content(root: Path, source_id: str) -> dict | None:
         return None
     rel = str(row.get("file_path") or "")
     text = ""
-    if rel:
+    if rel and not row.get("redacted"):
         target = root / rel
         try:
             text = target.read_text("utf-8", errors="replace")
         except OSError:
             text = ""
+    elif row.get("redacted"):
+        text = "This source is marked redacted. Its content is hidden from readers and exports."
     return {
         "source": _public(row),
         "content": text,

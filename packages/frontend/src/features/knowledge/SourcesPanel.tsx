@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  Bell,
   Check,
   Clock,
   ExternalLink,
+  Eye,
+  EyeOff,
   FileText,
   Globe,
   Plus,
@@ -18,6 +21,7 @@ import type { KnowledgeSource, SourceCollection } from '../../types';
 import { useApp } from '../../AppContext';
 import { Dialog, EmptyState, SkeletonList } from '../../ui/primitives';
 import SpaceSettingsDialog from './SpaceSettingsDialog';
+import SavedSearchesDialog from './SavedSearchesDialog';
 
 const PENDING = new Set(['queued', 'fetching', 'extracting', 'writing']);
 const STATUS_LABEL: Record<string, string> = {
@@ -82,6 +86,7 @@ export default function SourcesPanel({ spaceId, onCountChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchesOpen, setSearchesOpen] = useState(false);
   const [addMode, setAddMode] = useState<'link' | 'text' | 'feed' | 'site'>('link');
   const [urls, setUrls] = useState('');
   const [feedUrl, setFeedUrl] = useState('');
@@ -350,6 +355,9 @@ export default function SourcesPanel({ spaceId, onCountChange }: Props) {
         <button type="button" className="ui-btn ui-btn--sm" onClick={() => void createCollection()}>
           <Plus size={13} /> Collection
         </button>
+        <button type="button" className="ui-btn ui-btn--sm" onClick={() => setSearchesOpen(true)}>
+          <Bell size={13} /> Searches
+        </button>
         <button type="button" className="ui-btn ui-btn--sm" onClick={() => setSettingsOpen(true)}>
           <Settings size={13} /> Settings
         </button>
@@ -442,6 +450,14 @@ export default function SourcesPanel({ spaceId, onCountChange }: Props) {
                     ))}
                   </span>
                 ) : null}
+                <span className="source-card__badges">
+                  {source.local_only !== false ? (
+                    <span className="knowledge-pill knowledge-pill--ok">Local only</span>
+                  ) : null}
+                  {source.redacted ? (
+                    <span className="knowledge-pill knowledge-pill--error">Redacted</span>
+                  ) : null}
+                </span>
                 <div className="source-card__actions">
                   <button
                     type="button"
@@ -460,6 +476,19 @@ export default function SourcesPanel({ spaceId, onCountChange }: Props) {
                     onClick={() => void act(source, 'state')}
                   >
                     <Check size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    className="ui-icon-btn"
+                    title={source.redacted ? 'Unredact' : 'Redact content'}
+                    aria-label={source.redacted ? 'Unredact' : 'Redact content'}
+                    onClick={() =>
+                      void api.spaces.sources
+                        .update(spaceId, source.id, { redacted: !source.redacted })
+                        .then(() => void fetchSources())
+                    }
+                  >
+                    {source.redacted ? <Eye size={13} /> : <EyeOff size={13} />}
                   </button>
                   {source.kind === 'web' ? (
                     <button
@@ -685,6 +714,11 @@ export default function SourcesPanel({ spaceId, onCountChange }: Props) {
               <span className={`knowledge-pill knowledge-pill--${statusTone(reader.source.status)}`}>
                 {STATUS_LABEL[reader.source.status] || reader.source.status}
               </span>
+              {reader.source.redacted ? (
+                <span className="knowledge-pill knowledge-pill--error">Redacted</span>
+              ) : (
+                <span className="knowledge-pill knowledge-pill--ok">Local only</span>
+              )}
               {reader.source.author ? <span>By {reader.source.author}</span> : null}
               {reader.source.fetched_at ? <span>Saved {dateLabel(reader.source.fetched_at)}</span> : null}
               {reader.source.file_path ? (
@@ -731,6 +765,11 @@ export default function SourcesPanel({ spaceId, onCountChange }: Props) {
         onChanged={() => {
           void fetchSources();
         }}
+      />
+      <SavedSearchesDialog
+        open={searchesOpen}
+        spaceId={spaceId}
+        onClose={() => setSearchesOpen(false)}
       />
     </div>
   );

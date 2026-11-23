@@ -153,6 +153,7 @@ headers, rendered as `[title](url)` citations, and attached to graph file nodes.
 | `GET /api/spaces/{id}/usage` | Storage usage vs quota |
 | `GET /api/spaces/{id}/backup` / `POST /api/spaces/restore` | Backup/restore |
 | `POST /api/capture/link` | Extension/share-sheet capture |
+| `GET/POST /api/spaces/{id}/searches` | Saved searches/alerts |
 | `GET/POST /api/spaces/{id}/collections` | Collections (retrieval scopes) |
 | `GET /api/spaces/{id}/export` | Markdown vault ZIP |
 | `GET /api/spaces/{id}/graph/export` | Graph JSON or GraphML |

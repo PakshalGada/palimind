@@ -7,6 +7,7 @@ endpoint saves into the active space unless ``space_id`` is supplied.
 
 from __future__ import annotations
 
+import asyncio
 from html import escape
 from pathlib import Path
 
@@ -47,6 +48,95 @@ def _save(url: str, title: str, space_id: str = "") -> dict:
     return {
         "status": "success",
         "source": source,
+        "space_id": (record or {}).get("id"),
+        "space_name": (record or {}).get("name"),
+    }
+
+
+@router.post("/note")
+async def capture_note(req: Request):
+    from palimind import knowledge
+    from palimind.spaces import sources as sources_mod
+
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    text = str(body.get("text") or "").strip()
+    if not text:
+        return {"error": "text is required"}
+    root, record = _target_root(str(body.get("space_id") or ""))
+    if root is None:
+        return {"error": "No knowledge space selected."}
+    result = await asyncio.to_thread(
+        sources_mod.create_text_source,
+        root,
+        text,
+        title=str(body.get("title") or ""),
+        tags=body.get("tags"),
+    )
+    if result.get("error"):
+        return result
+    asyncio.create_task(asyncio.to_thread(knowledge.run_index, root, wait=False))
+    return {
+        "status": "success",
+        "source": result,
+        "space_id": (record or {}).get("id"),
+        "space_name": (record or {}).get("name"),
+    }
+
+
+@router.post("/sources")
+async def capture_sources(req: Request):
+    from palimind import knowledge
+    from palimind.spaces import sources as sources_mod
+
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    urls = body.get("urls")
+    if isinstance(urls, str):
+        urls = [urls]
+    urls = [str(item).strip() for item in (urls or []) if str(item).strip()]
+    raw_items = body.get("items")
+    items_in = [item for item in raw_items or [] if isinstance(item, dict) and item.get("url")]
+    if not urls and not items_in:
+        return {"error": "urls is required"}
+    root, record = _target_root(str(body.get("space_id") or ""))
+    if root is None:
+        return {"error": "No knowledge space selected."}
+    created = []
+    errors = []
+    ids = []
+    targets = items_in or [{"url": url} for url in urls]
+    for item in targets[:50]:
+        url = str(item.get("url") or "").strip()
+        if not url:
+            continue
+        result = await asyncio.to_thread(
+            sources_mod.create_web_source,
+            root,
+            url,
+            title=str(item.get("title") or body.get("title") or ""),
+            tags=body.get("tags"),
+        )
+        if result.get("error"):
+            errors.append({"url": url, "error": result["error"]})
+            continue
+        created.append(result)
+        if result.get("status") in ("queued", "failed", "blocked"):
+            ids.append(str(result["id"]))
+    if ids:
+        from palimind.spaces import ingest as ingest_mod
+
+        ingest_mod.schedule_ingest(root, ids)
+    else:
+        asyncio.create_task(asyncio.to_thread(knowledge.run_index, root, wait=False))
+    return {
+        "status": "success",
+        "sources": created,
+        "errors": errors,
         "space_id": (record or {}).get("id"),
         "space_name": (record or {}).get("name"),
     }

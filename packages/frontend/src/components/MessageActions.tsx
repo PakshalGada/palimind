@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  BookOpen,
   Check,
   ChevronDown,
   Copy,
@@ -15,6 +16,7 @@ import {
   Volume2,
 } from 'lucide-react';
 import { useConfirm } from './ConfirmDialog';
+import { api } from '../api';
 import './MessageActions.css';
 
 export interface MessageActionsProps {
@@ -57,6 +59,40 @@ function extractCode(md: string): string {
   return blocks.length ? blocks.join('\n\n') : md;
 }
 
+function messageUrls(md: string): string[] {
+  const urls = new Set<string>();
+  for (const match of md.matchAll(/https?:\/\/[^\s)\]"'<>]+/g)) {
+    urls.add(match[0].replace(/[.,;:]+$/, ''));
+  }
+  return [...urls];
+}
+
+function answerTitle(md: string): string {
+  const line = md
+    .split('\n')
+    .map((item) => item.replace(/^#+\s*/, '').trim())
+    .find(Boolean);
+  return (line || 'Saved answer').slice(0, 100);
+}
+
+async function saveAnswer(md: string): Promise<void> {
+  if (!md.trim()) return;
+  await api.capture.note({
+    text: md,
+    title: answerTitle(md),
+    tags: ['chat-answer'],
+  });
+  window.dispatchEvent(new CustomEvent('palimind:sources-changed'));
+}
+
+async function saveLinks(md: string): Promise<number> {
+  const urls = messageUrls(md);
+  if (!urls.length) return 0;
+  const data = await api.capture.sources({ urls, tags: ['chat-links'] });
+  if (!data.error) window.dispatchEvent(new CustomEvent('palimind:sources-changed'));
+  return data.sources?.length ?? 0;
+}
+
 export default function MessageActions({
   content,
   isUser,
@@ -75,8 +111,12 @@ export default function MessageActions({
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
+  const [saveMenuOpen, setSaveMenuOpen] = useState(false);
+  const [savedAnswer, setSavedAnswer] = useState(false);
+  const [savedLinks, setSavedLinks] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const shareRef = useRef<HTMLDivElement>(null);
+  const saveRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!copyMenuOpen) return;
@@ -95,6 +135,15 @@ export default function MessageActions({
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
   }, [shareMenuOpen]);
+
+  useEffect(() => {
+    if (!saveMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (saveRef.current && !saveRef.current.contains(e.target as Node)) setSaveMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [saveMenuOpen]);
 
   const flash = () => {
     setCopied(true);
@@ -209,6 +258,47 @@ export default function MessageActions({
       >
         {bookmarked ? <Star size={14} fill="currentColor" /> : <StarOff size={14} />}
       </button>
+
+      {!isUser && (
+        <div className="msg-actions-copy" ref={saveRef}>
+          <button
+            type="button"
+            className="msg-action-btn"
+            title="Save to knowledge"
+            aria-label="Save message to knowledge"
+            aria-haspopup="menu"
+            aria-expanded={saveMenuOpen}
+            onClick={() => setSaveMenuOpen((v) => !v)}
+          >
+            <BookOpen size={14} />
+            <ChevronDown size={11} className="msg-action-caret" />
+          </button>
+          {saveMenuOpen && (
+            <div className="msg-actions-menu" role="menu">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setSaveMenuOpen(false);
+                  void saveAnswer(content).then(() => setSavedAnswer(true));
+                }}
+              >
+                {savedAnswer ? 'Answer saved' : 'Save answer as note'}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setSaveMenuOpen(false);
+                  void saveLinks(content).then((count) => setSavedLinks(count > 0));
+                }}
+              >
+                {savedLinks ? 'Links saved' : 'Save links in this answer'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="msg-actions-copy" ref={shareRef}>
         <button

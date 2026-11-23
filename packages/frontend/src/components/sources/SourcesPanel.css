@@ -277,3 +277,20 @@
     border-left: 0;
   }
 }
+
+.sources-drawer__save-all {
+  margin-left: auto;
+  margin-right: 8px;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--ink-muted);
+  font-family: var(--font-body);
+  font-size: var(--type-2xs);
+  cursor: pointer;
+}
+.sources-drawer__save-all:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}

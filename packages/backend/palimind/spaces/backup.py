@@ -27,6 +27,11 @@ def create_backup(root: Path, space: dict | None = None) -> bytes:
     sources = [
         {name: row[index] for index, name in enumerate(SOURCE_COLUMNS)} for row in rows
     ]
+    redacted_paths = {
+        str(item.get("file_path"))
+        for item in sources
+        if item.get("redacted") and item.get("file_path")
+    }
     manifest = {
         "format": "palimind-space",
         "version": 1,
@@ -42,6 +47,8 @@ def create_backup(root: Path, space: dict | None = None) -> bytes:
                 continue
             rel = path.relative_to(root).as_posix()
             if not rel.startswith(_ALLOWED_PREFIXES):
+                continue
+            if rel in redacted_paths:
                 continue
             archive.write(path, rel)
     return buffer.getvalue()

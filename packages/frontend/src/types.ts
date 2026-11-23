@@ -41,6 +41,8 @@ export interface KnowledgeSource {
   last_checked: number | null;
   parent_id: string;
   change_summary: string;
+  local_only: boolean;
+  redacted: boolean;
   created_at?: number;
   updated_at?: number;
 }

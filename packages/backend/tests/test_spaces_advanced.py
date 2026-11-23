@@ -429,3 +429,90 @@ def test_capture_link_endpoint_for_extension_and_share_sheet(tmp_path: Path, mon
         params={"url": "https://example.com/from-share-sheet", "format": "json"},
     ).json()
     assert receipt["status"] == "success"
+
+
+def test_capture_note_and_sources_endpoints(tmp_path: Path, monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+    import palimind.api_server as server
+
+    monkeypatch.setattr(
+        "palimind.spaces.ingest.schedule_ingest", lambda *args, **kwargs: None
+    )
+    space = _space(tmp_path, "Capture API")
+    client = TestClient(server.app)
+
+    note = client.post(
+        "/api/capture/note",
+        json={"text": "A saved answer", "title": "Answer", "space_id": space["id"]},
+    ).json()
+    assert note["status"] == "success"
+    assert note["source"]["title"] == "Answer"
+
+    links = client.post(
+        "/api/capture/sources",
+        json={
+            "items": [
+                {"url": "https://example.com/a", "title": "A"},
+                {"url": "https://example.com/b", "title": "B"},
+            ],
+            "space_id": space["id"],
+        },
+    ).json()
+    assert links["status"] == "success"
+    assert [item["title"] for item in links["sources"]] == ["A", "B"]
+
+
+def test_saved_search_runs_and_creates_alert_source(tmp_path: Path, monkeypatch) -> None:
+    from palimind import knowledge
+    from palimind.spaces import searches
+
+    space = _space(tmp_path, "Alerts")
+    root = Path(space["root"])
+    saved = searches.save_search(
+        root, name="Graph alert", query="graph", alert=True
+    )
+    monkeypatch.setattr(
+        knowledge,
+        "search",
+        lambda root, query, **kwargs: {
+            "results": [
+                {
+                    "file_path": "sources/web/a.md",
+                    "title": "Graph article",
+                    "url": "https://example.com/graph",
+                    "content": "graphs connect ideas",
+                }
+            ],
+            "errors": [],
+        },
+    )
+    first = searches.run_due_searches()
+    assert first["created"] == 1
+    alerts = sources_mod.list_space_sources(root, kind="alert")
+    assert alerts["total"] == 1
+    assert alerts["sources"][0]["kind"] == "alert"
+
+    run = searches.run_search(root, saved["id"])
+    assert run["results"][0]["title"] == "Graph article"
+
+    second = searches.run_due_searches()
+    assert second["created"] == 0
+
+
+def test_redaction_hides_reader_and_backup(tmp_path: Path) -> None:
+    from palimind.spaces import backup
+
+    space = _space(tmp_path, "Private")
+    root = Path(space["root"])
+    record = sources_mod.create_text_source(root, "secret content", title="Secret")
+    sources_mod.update_space_source(root, record["id"], {"redacted": True})
+
+    content = sources_mod.source_content(root, record["id"])
+    assert "secret content" not in content["content"]
+    assert "redacted" in content["content"].lower()
+
+    data = backup.create_backup(root, space)
+    import io, zipfile
+
+    archive = zipfile.ZipFile(io.BytesIO(data))
+    assert record["file_path"] not in archive.namelist()

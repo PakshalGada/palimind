@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useState } from 'react';
+import { api } from '../../api';
 import { Favicon } from '@/components/activity/primitives/Favicon';
 import { Icon } from '@/components/activity/icons';
 import type { CitationPayload } from '../../types';
@@ -55,10 +56,29 @@ export function SourcesPanel({
 }) {
   const items = buildSourceItems(citations, textCitations, mediaCitations, legacySources);
   const [open, setOpen] = useState(false);
+  const [savedAll, setSavedAll] = useState(false);
   const [highlight, setHighlight] = useState<number | null>(null);
   const panelId = useId();
 
   const close = useCallback(() => setOpen(false), []);
+
+  const saveAll = useCallback(async () => {
+    const targets = items
+      .filter((item) => item.url)
+      .map((item) => ({ url: item.url as string, title: item.title }));
+    if (!targets.length) return;
+    try {
+      const data = await api.capture.sources({ items: targets, tags: ['web-search'] });
+      if (data.error) {
+        console.error(data.error);
+        return;
+      }
+      setSavedAll(true);
+      window.dispatchEvent(new CustomEvent('palimind:sources-changed'));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [items]);
 
   // Citation markers in the answer ask the source list to reveal their row.
   useEffect(() => {
@@ -255,6 +275,15 @@ export function SourcesPanel({
               <h2 id={`${panelId}-title`} className="sources-drawer__title">
                 Sources <span>{items.length}</span>
               </h2>
+              {items.some((item) => item.url) && (
+                <button
+                  type="button"
+                  className="sources-drawer__save-all"
+                  onClick={() => void saveAll()}
+                >
+                  {savedAll ? 'Saved to knowledge' : 'Save all sources'}
+                </button>
+              )}
               <button
                 type="button"
                 className="sources-drawer__close"

@@ -221,6 +221,8 @@ def init_db(root: Path) -> None:
                 last_checked      REAL,
                 parent_id         TEXT DEFAULT '',
                 change_summary    TEXT DEFAULT '',
+                local_only        INTEGER DEFAULT 1,
+                redacted          INTEGER DEFAULT 0,
                 created_at        REAL,
                 updated_at        REAL
             )
@@ -266,11 +268,26 @@ def init_db(root: Path) -> None:
             "CREATE INDEX IF NOT EXISTS idx_capture_profiles_domain "
             "ON capture_profiles(domain)"
         )
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS saved_searches (
+                id           TEXT PRIMARY KEY,
+                name         TEXT NOT NULL,
+                query        TEXT NOT NULL,
+                collection   TEXT DEFAULT '',
+                alert        INTEGER DEFAULT 0,
+                last_checked REAL,
+                last_count   INTEGER DEFAULT 0,
+                created_at   REAL,
+                updated_at   REAL
+            )
+        """)
         cur.execute("PRAGMA table_info(sources)")
         source_cols = {col[1] for col in cur.fetchall()}
         for col_def in [
             ("parent_id", "TEXT DEFAULT ''"),
             ("change_summary", "TEXT DEFAULT ''"),
+            ("local_only", "INTEGER DEFAULT 1"),
+            ("redacted", "INTEGER DEFAULT 0"),
         ]:
             col_name, col_type = col_def
             if col_name not in source_cols:
@@ -353,6 +370,12 @@ def _ensure_schema(root: Path, conn: sqlite3.Connection) -> sqlite3.Connection:
                 ).fetchone()
                 is not None
             )
+            has_searches = (
+                conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='saved_searches'"
+                ).fetchone()
+                is not None
+            )
             source_cols = (
                 {row[1] for row in conn.execute("PRAGMA table_info(sources)")}
                 if has_sources
@@ -364,8 +387,10 @@ def _ensure_schema(root: Path, conn: sqlite3.Connection) -> sqlite3.Connection:
                 or not has_summary_fts
                 or not has_sources
                 or not has_profiles
+                or not has_searches
                 or "source_id" not in file_cols
                 or "change_summary" not in source_cols
+                or "redacted" not in source_cols
             ):
                 conn.close()
                 init_db(root)
@@ -1122,6 +1147,8 @@ SOURCE_COLUMNS = (
     "last_checked",
     "parent_id",
     "change_summary",
+    "local_only",
+    "redacted",
     "created_at",
     "updated_at",
 )
@@ -1138,6 +1165,8 @@ def upsert_source(conn: sqlite3.Connection, source: dict) -> dict:
     values["status"] = values.get("status") or "queued"
     values["reading_state"] = values.get("reading_state") or "unread"
     values["favorite"] = int(values.get("favorite") or 0)
+    values["local_only"] = 1 if values.get("local_only") in (None, "", True, 1, "1") else 0
+    values["redacted"] = int(bool(values.get("redacted")))
     conn.execute(
         f"""
         INSERT INTO sources ({", ".join(SOURCE_COLUMNS)})
@@ -1164,6 +1193,10 @@ def upsert_source(conn: sqlite3.Connection, source: dict) -> dict:
             favorite=excluded.favorite,
             refresh_interval=excluded.refresh_interval,
             last_checked=excluded.last_checked,
+            parent_id=excluded.parent_id,
+            change_summary=excluded.change_summary,
+            local_only=excluded.local_only,
+            redacted=excluded.redacted,
             updated_at=excluded.updated_at
         """,
         tuple(values[name] for name in SOURCE_COLUMNS),
