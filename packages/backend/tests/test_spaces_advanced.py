@@ -266,3 +266,27 @@ def test_advanced_http_surface(tmp_path: Path, monkeypatch) -> None:
     ).json()
     assert saved["status"] == "success"
     assert len(saved["sources"]) == 1
+
+
+def test_agent_tool_supports_digest_and_cross_space_search(tmp_path: Path, monkeypatch) -> None:
+    import importlib
+    from palimind import knowledge
+
+    tool = importlib.import_module("palimind.agents.tools.knowledge-space.tool")
+    first = _space(tmp_path, "Tool Alpha")
+    _space(tmp_path, "Tool Beta")
+    sources_mod.create_text_source(Path(first["root"]), "tool note", title="Tool note")
+
+    monkeypatch.setattr(
+        knowledge,
+        "search",
+        lambda root, query, **kwargs: {
+            "results": [{"file_path": "a.md", "content": "hit", "score": 0.5}],
+            "errors": [],
+        },
+    )
+    found = tool.knowledge_space(action="search_all", query="hit", space_id=first["id"])
+    assert "Tool Alpha" in found and "Tool Beta" in found
+
+    digest = tool.knowledge_space(action="digest", space_id=first["id"])
+    assert "Digest" in digest

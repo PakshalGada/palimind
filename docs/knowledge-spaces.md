@@ -190,7 +190,9 @@ Existing document endpoints accept `scope=field|project:<id>` and
 
 `knowledge_space` (`agents/tools/knowledge-space`) exposes:
 
-- `action=search` — hybrid retrieval with cited passages;
+- `action=search` — hybrid retrieval inside one space;
+- `action=search_all` — cross-space retrieval with space labels;
+- `action=digest` — generate the daily digest;
 - `action=add_url` — fetch, save and index a page;
 - `action=add_note` — save pasted text.
 

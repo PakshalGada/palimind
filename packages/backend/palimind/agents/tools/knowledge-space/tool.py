@@ -53,6 +53,39 @@ def knowledge_space(
             lines.append(f"[{index}] {where}\n{hit.get('content', '')[:700]}")
         return "\n\n".join(lines)
 
+    if action == "search_all":
+        if not query.strip():
+            return "Error: query is required."
+        from palimind.spaces import search as search_mod
+
+        payload = search_mod.search_all(
+            query, limit_per_space=3, max_results=max(1, min(int(limit or 8), 30))
+        )
+        hits = payload.get("results") or []
+        if not hits:
+            return f"No passages found across {payload.get('spaces_searched', 0)} space(s)."
+        lines = [
+            f"Found {len(hits)} result(s) across {payload.get('spaces_searched', 0)} space(s):"
+        ]
+        for index, hit in enumerate(hits, start=1):
+            lines.append(
+                f"[{index}] {hit.get('space_name')} · {hit.get('title') or hit.get('file_path')}"
+                f"\n{hit.get('content', '')[:600]}"
+            )
+        return "\n\n".join(lines)
+
+    if action == "digest":
+        from palimind.spaces import digest as digest_mod
+
+        result = digest_mod.create_digest(root, days=1)
+        if result.get("status") == "error":
+            return f"Error: {result.get('error')}"
+        source = result.get("source") or {}
+        return (
+            f"Digest {result.get('status')}: "
+            f"{source.get('title') or (result.get('digest') or {}).get('title')}"
+        )
+
     if action == "add_url":
         if not url.strip():
             return "Error: url is required."
@@ -91,13 +124,14 @@ def knowledge_space(
 
 TOOL_DEFINITION: dict[str, Any] = {
     "description": (
-        "Work with the active knowledge space: search saved documents/sources, "
-        "or save a URL or note so it becomes searchable and appears in the graph."
+        "Work with knowledge spaces: search one space, search every space, build a "
+        "daily digest, or save a URL or note so it becomes searchable and appears "
+        "in the graph."
     ),
     "parameters": {
         "action": {
             "type": "string",
-            "description": "search | add_url | add_note",
+            "description": "search | search_all | digest | add_url | add_note",
             "required": True,
         },
         "query": {"type": "string", "description": "Search query", "required": False},
