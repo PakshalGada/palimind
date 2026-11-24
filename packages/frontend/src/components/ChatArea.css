@@ -86,36 +86,6 @@
     color: var(--ink-muted);
 }
 
-.chat-hero__prompts {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    width: 100%;
-    max-width: 620px;
-    margin-top: 22px;
-}
-
-.chat-hero__prompt {
-    min-height: 40px;
-    padding: 9px 14px;
-    border: 1px solid transparent;
-    border-radius: var(--radius-md);
-    background: var(--surface-2);
-    color: var(--ink-secondary);
-    font-family: var(--font-sans);
-    font-size: var(--type-base);
-    text-align: left;
-    cursor: pointer;
-    transition:
-        background-color var(--dur-2) var(--ease-out),
-        border-color var(--dur-2) var(--ease-out),
-        color var(--dur-2) var(--ease-out);
-}
-.chat-hero__prompt:hover {
-    background: var(--surface-hover);
-    border-color: transparent;
-    color: var(--ink);
-}
 @media (max-width: 760px) {
     .chat-interface.empty-chat {
         padding: 16px;
@@ -125,9 +95,6 @@
     }
     .chat-hero-title {
         font-size: var(--type-xl);
-    }
-    .chat-hero__prompts {
-        grid-template-columns: minmax(0, 1fr);
     }
 }
 

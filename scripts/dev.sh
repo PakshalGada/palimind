@@ -22,14 +22,30 @@ fi
 # 3. Start backend in background (log to /tmp)
 LOG="${TMPDIR:-/tmp}/palimind-backend.log"
 echo "[dev] Starting backend (log: $LOG)…"
-( cd packages/backend && "$PY" -m palimind.api_server ) >"$LOG" 2>&1 &
+# Cap glibc arenas before Python starts: dozens of threads otherwise create
+# 64 MB heaps that are never returned to the OS.
+export MALLOC_ARENA_MAX="${MALLOC_ARENA_MAX:-4}"
+
+cleanup() {
+  if [[ -n "${BACKEND_PID:-}" ]]; then
+    kill -TERM "$BACKEND_PID" 2>/dev/null || true
+    for _ in {1..20}; do
+      kill -0 "$BACKEND_PID" 2>/dev/null || break
+      sleep 0.1
+    done
+    kill -KILL "$BACKEND_PID" 2>/dev/null || true
+  fi
+}
+# HUP covers closing the terminal; TERM/INT cover Ctrl+C and `kill`.
+trap cleanup EXIT INT TERM HUP
+
+# `exec` so $! is the Python process itself (not a wrapping subshell), which
+# makes the cleanup reliable and lets the backend's parent-death watchdog fire
+# if this script is killed without running the trap.
+( cd packages/backend && exec "$PY" -m palimind.api_server ) >"$LOG" 2>&1 &
 BACKEND_PID=$!
-trap 'kill "$BACKEND_PID" 2>/dev/null || true' EXIT
 
 # 4. Launch tauri dev
 echo "[dev] Starting tauri dev…"
 npm run dev --prefix apps/desktop
-
-# 5. Cleanup on exit (trap handles it)
-kill "$BACKEND_PID" 2>/dev/null || true
 echo "[dev] Backend stopped."

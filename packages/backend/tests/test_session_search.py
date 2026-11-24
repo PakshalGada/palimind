@@ -125,3 +125,47 @@ def test_search_endpoint(tmp_path: Path, monkeypatch) -> None:
     )
     assert response["results"], response
     assert response["results"][0]["session_id"] == sid
+
+
+def test_legacy_database_without_parent_id_upgrades(tmp_path: Path) -> None:
+    """A pre-branching store must migrate instead of failing schema setup."""
+    import sqlite3
+
+    db = tmp_path / ".palimind" / "state.db"
+    db.parent.mkdir(parents=True)
+    conn = sqlite3.connect(db)
+    conn.executescript(
+        """
+        CREATE TABLE sessions (
+            id TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT '',
+            created_at REAL NOT NULL, summary TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL,
+            role TEXT NOT NULL, content TEXT NOT NULL, timestamp REAL NOT NULL,
+            meta TEXT NOT NULL DEFAULT '{}'
+        );
+        CREATE TABLE session_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        INSERT INTO sessions VALUES ('s1', 'Legacy chat', 1, '');
+        INSERT INTO messages(session_id, role, content, timestamp)
+            VALUES ('s1', 'user', 'legacy one', 1),
+                   ('s1', 'system', 'legacy two', 2);
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    hits = session_store.search_messages(tmp_path, "legacy")
+    assert hits, "search should work after the legacy store is migrated"
+
+    conn = sqlite3.connect(db)
+    try:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(messages)")}
+        assert "parent_id" in columns
+        parents = [row[0] for row in conn.execute("SELECT parent_id FROM messages ORDER BY id")]
+        assert parents == [None, 1], "existing messages should be chained"
+        assert conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_messages_parent'"
+        ).fetchone()
+    finally:
+        conn.close()

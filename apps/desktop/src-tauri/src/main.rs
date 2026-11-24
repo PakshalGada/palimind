@@ -205,6 +205,10 @@ fn main() {
         };
         let backend_child = backend_cmd
             .current_dir(&backend_root)
+            // Must be in place before Python's first malloc: glibc otherwise
+            // creates up to 8 arenas per core (64 MB each, never returned to
+            // the OS) for this server's many threads.
+            .env("MALLOC_ARENA_MAX", "4")
             .stdin(devnull_in)
             .stdout(log_out)
             .stderr(log_err)
@@ -223,6 +227,7 @@ fn main() {
     };
 
     let backend_for_exit = Arc::clone(&backend_process);
+    let backend_for_run = Arc::clone(&backend_process);
 
     // Platform-aware accelerator helper
     let is_mac = cfg!(target_os = "macos");
@@ -248,8 +253,9 @@ fn main() {
     };
     let api_base_for_hotkey = api_base.clone();
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(computer_use::ApiBase(api_base.clone()))
+        .manage(backend_for_run)
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -362,10 +368,34 @@ fn main() {
         .on_window_event(move |window, event| {
             if let tauri::WindowEvent::Destroyed = event {
                 if window.label() == "main" {
-                    drop(backend_for_exit.lock().unwrap());
+                    // The previous `drop(guard)` only released the mutex; it
+                    // never killed the child, so the backend could outlive the
+                    // window. Take the process and stop it.
+                    if let Ok(mut guard) = backend_for_exit.lock() {
+                        if let Some(mut child) = guard.0.take() {
+                            let _ = child.kill();
+                            let _ = child.wait();
+                        }
+                    }
                 }
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Palimind");
+        .build(tauri::generate_context!())
+        .expect("error while building Palimind");
+
+    app.run(move |app_handle, event| {
+        if let tauri::RunEvent::Exit = event {
+            // Some exit paths (tray Quit, OS shutdown) never destroy the main
+            // window, so clean up the backend here as well instead of relying
+            // on destructors during process teardown.
+            if let Some(state) = app_handle.try_state::<Arc<Mutex<BackendProcess>>>() {
+                if let Ok(mut guard) = state.lock() {
+                    if let Some(mut child) = guard.0.take() {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                    }
+                }
+            }
+        }
+    });
 }

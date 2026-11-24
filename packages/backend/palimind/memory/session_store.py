@@ -109,8 +109,6 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_messages_session
             ON messages(session_id, id);
-        CREATE INDEX IF NOT EXISTS idx_messages_parent
-            ON messages(parent_id);
 
         CREATE TABLE IF NOT EXISTS session_meta (
             key   TEXT PRIMARY KEY,
@@ -139,8 +137,18 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         END;
         """
     )
-    _migrate_message_parents(conn)
     _backfill_messages_fts(conn)
+    # Rebuild FTS before the parent migration: chaining rows fires the FTS
+    # update triggers, and deleting from an unindexed external-content table
+    # raises "database disk image is malformed".
+    _migrate_message_parents(conn)
+    # The index must wait until the migration has added ``parent_id`` to
+    # databases created before branching existed. Creating it inside the
+    # script above aborts schema setup on those files ("no such column:
+    # parent_id") because ``CREATE TABLE IF NOT EXISTS`` never alters them.
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_messages_parent ON messages(parent_id)"
+    )
     conn.commit()
 
 

@@ -17,7 +17,8 @@ RUN apt-get update \
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    PALIMIND_PORT=8000
+    PALIMIND_PORT=8000 \
+    MALLOC_ARENA_MAX=4
 
 WORKDIR /app
 COPY packages/backend/pyproject.toml ./

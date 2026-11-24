@@ -36,7 +36,7 @@ dev: frontend-build ## Run the desktop app in dev mode (backend must be installe
 	cd $(BACKEND_DIR) && $(PY_BIN) -m palimind.cli.main ui
 
 backend: ## Start only the FastAPI backend on :8000
-	cd $(BACKEND_DIR) && python -m palimind.api_server
+	cd $(BACKEND_DIR) && MALLOC_ARENA_MAX=$${MALLOC_ARENA_MAX:-4} python -m palimind.api_server
 
 frontend-dev: ## Run only the React frontend via Vite
 	npm run dev --prefix $(FRONTEND_DIR)

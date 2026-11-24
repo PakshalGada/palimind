@@ -189,6 +189,67 @@ def stop_api_server(port: int) -> bool:
         return False
 
 
+def reap_orphan_api_servers(only_non_listening: bool = False) -> int:
+    """Kill leftover ``palimind.api_server`` processes whose launcher is gone.
+
+    A terminal close (SIGHUP) or a launcher crash can reparent the backend to
+    init while it is still spinning an index run — invisible to
+    :func:`stop_api_server` because it may no longer be listening on the port.
+    Only processes already reparented to init are touched, so a backend that
+    another live ``pm ui`` session started is never killed.
+
+    With *only_non_listening*, a detached backend that is still serving (for
+    example one kept alive with ``--keep-backend``) is left alone.
+
+    Returns the number of processes killed.
+    """
+    try:
+        import os
+
+        import psutil
+    except ImportError:
+        return 0
+
+    listening: set[int] = set()
+    if only_non_listening:
+        try:
+            for conn in psutil.net_connections(kind="inet"):
+                if conn.status == psutil.CONN_LISTEN and conn.pid:
+                    listening.add(conn.pid)
+        except (psutil.AccessDenied, OSError):
+            pass
+
+    victims: list[psutil.Process] = []
+    for proc in psutil.process_iter(["pid", "ppid", "cmdline"]):
+        try:
+            info = proc.info
+            if proc.pid == os.getpid() or proc.pid in listening:
+                continue
+            cmd = " ".join(info.get("cmdline") or []).lower()
+            if "palimind.api_server" not in cmd:
+                continue
+            # Still attached to a live launcher (another `pm ui`, Tauri, …).
+            if (info.get("ppid") or 0) > 1:
+                continue
+            victims.append(proc)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
+            continue
+
+    for proc in victims:
+        try:
+            proc.terminate()
+        except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
+            pass
+    if victims:
+        _, alive = psutil.wait_procs(victims, timeout=5)
+        for proc in alive:
+            try:
+                proc.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
+                pass
+    return len(victims)
+
+
 config_app = typer.Typer(help="Manage PaliMind configuration")
 app.add_typer(config_app, name="config")
 
@@ -612,6 +673,36 @@ def ui(
     print_startup_banner(config)
     print_header("Palimind Launcher", config)
 
+    # glibc reads this before the interpreter's first allocation, so it must be
+    # set in the environment the backend inherits — setting it inside the
+    # backend is too late. Capping arenas keeps RSS from inflating to several
+    # GB across dozens of threads (each arena is a 64 MB, never-returned heap).
+    os.environ.setdefault("MALLOC_ARENA_MAX", "4")
+
+    # Closing the terminal sends SIGHUP; `kill` and service managers send
+    # SIGTERM. Convert both into SystemExit so the cleanup in the `finally`
+    # block always runs instead of leaving the backend and Ollama orphaned.
+    import signal
+
+    def _on_terminate(signum, _frame):
+        raise SystemExit(128 + signum)
+
+    _terminate_signals = [signal.SIGTERM]
+    if hasattr(signal, "SIGHUP"):  # not available on Windows
+        _terminate_signals.append(signal.SIGHUP)
+    for _sig in _terminate_signals:
+        try:
+            signal.signal(_sig, _on_terminate)
+        except (ValueError, OSError):
+            pass
+
+    # A previous app session may have crashed or been closed with its terminal,
+    # leaving a wedged backend that is no longer listening. Reap it before
+    # starting a new one; healthy `--keep-backend` servers stay untouched.
+    reaped = reap_orphan_api_servers(only_non_listening=True)
+    if reaped:
+        print_info(f"Reaped {reaped} orphaned API server process(es)")
+
     # commands.py sits at <repo>/packages/backend/palimind/cli/commands.py
     repo_root = Path(__file__).resolve().parents[4]
     root_dir = repo_root / "packages" / "backend"  # python package (pip -e target, backend cwd)
@@ -774,6 +865,11 @@ def ui(
             server_log = Path(tempfile.gettempdir()) / "palimind-api-server.log"
             server_log_fh = open(server_log, "wb")  # noqa: SIM115 - closed below
             try:
+                backend_env = dict(os.environ)
+                if keep_backend:
+                    # The watchdog would otherwise tear the server down as soon
+                    # as this launcher exits, defeating --keep-backend.
+                    backend_env["PALIMIND_NO_PARENT_WATCHDOG"] = "1"
                 backend_proc = spawn(
                     [
                         sys.executable,
@@ -786,6 +882,7 @@ def ui(
                     ],
                     stdout=server_log_fh,
                     stderr=subprocess.STDOUT,
+                    env=backend_env,
                 )
             finally:
                 server_log_fh.close()  # the child keeps its own handle
@@ -851,6 +948,11 @@ def ui(
             if ollama_proc is not None:
                 stop_tree(ollama_proc)
                 print_info("Ollama stopped.")
+            # Belt and braces: if the server daemonised itself or a worker
+            # outlived stop_tree, make sure nothing CPU-bound is left behind.
+            reaped = reap_orphan_api_servers()
+            if reaped:
+                print_info(f"Reaped {reaped} orphaned API server process(es)")
 
 
 @app.command()

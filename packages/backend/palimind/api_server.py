@@ -6,6 +6,7 @@ import re
 import subprocess
 import sys as _sys
 import tempfile
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -24,6 +25,11 @@ for _k, _v in (
     ("OPENBLAS_NUM_THREADS", "2"),
     ("VECLIB_MAXIMUM_THREADS", "2"),
     ("NUMEXPR_NUM_THREADS", "2"),
+    # glibc defaults to up to 8 malloc arenas per core. This process carries
+    # dozens of threads (uvicorn, torch/OpenMP, index workers, watchers), and
+    # each arena grows to 64 MB and is never returned to the OS — the main
+    # reason RSS stayed at several GB after an index run finished.
+    ("MALLOC_ARENA_MAX", "4"),
 ):
     _os.environ.setdefault(_k, _v)
 
@@ -55,6 +61,95 @@ def _detach_stdio() -> None:
         _sys.stderr = open(_os.devnull, "w", encoding="utf-8")
     except Exception:
         pass  # never crash the server over a logging redirect
+
+
+def _install_parent_watchdog() -> None:
+    """Terminate this server as soon as the launcher that spawned it dies.
+
+    Closing the terminal (SIGHUP), closing the Tauri window, or a launcher
+    crash used to leave the backend orphaned: it survived with its CPU-bound
+    index workers, several GB of RSS, open sockets and nothing left to serve.
+    Bind the server's lifetime to its parent instead of trusting every launcher
+    to run its own cleanup.
+
+    Linux gets a kernel ``PDEATHSIG`` for an immediate signal; every platform
+    also gets a small polling thread as a backstop (and for Windows/macOS).
+
+    Opt out with ``PALIMIND_NO_PARENT_WATCHDOG=1`` — used by
+    ``pm ui --keep-backend`` and safe for systemd-style supervisors where the
+    parent is already PID 1.
+    """
+    if _os.environ.get("PALIMIND_NO_PARENT_WATCHDOG", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    ):
+        return
+    try:
+        parent_pid = _os.getppid()
+    except OSError:
+        return
+    # Already detached/reparented to init or a service manager: nothing to watch.
+    if parent_pid <= 1:
+        return
+
+    if _sys.platform.startswith("linux"):
+        try:
+            import ctypes
+            import signal as _signal
+
+            libc = ctypes.CDLL("libc.so.6", use_errno=True)
+            PR_SET_PDEATHSIG = 1
+            if libc.prctl(PR_SET_PDEATHSIG, int(_signal.SIGTERM), 0, 0, 0) == 0:
+                # The parent can die between getppid() and prctl(); in that
+                # case PDEATHSIG was armed too late, so signal ourselves.
+                if _os.getppid() != parent_pid:
+                    _os.kill(_os.getpid(), _signal.SIGTERM)
+                    return
+        except Exception:
+            pass  # fall through to the polling thread
+
+    def _watch(parent: int) -> None:
+        import signal as _signal
+
+        try:
+            import psutil as _psutil
+        except ImportError:
+            _psutil = None  # type: ignore[assignment]
+
+        def _parent_gone() -> bool:
+            try:
+                # Unix reparents us to init/a subreaper, so this changes.
+                if _os.getppid() != parent:
+                    return True
+            except OSError:
+                return True
+            # Windows keeps the original parent PID after it exits, so confirm
+            # the process is still alive. (os.kill(pid, 0) would terminate it.)
+            if _psutil is not None:
+                try:
+                    return not _psutil.pid_exists(parent)
+                except Exception:
+                    return False
+            return False
+
+        while True:
+            time.sleep(2.0)
+            if not _parent_gone():
+                continue
+            # Launcher is gone. Ask uvicorn to shut down cleanly, then force
+            # the process down if a native worker thread refuses to unwind.
+            try:
+                _os.kill(_os.getpid(), _signal.SIGTERM)
+            except OSError:
+                _os._exit(1)
+            time.sleep(5.0)
+            _os._exit(1)
+
+    threading.Thread(
+        target=_watch, args=(parent_pid,), name="palimind-parent-watchdog", daemon=True
+    ).start()
 
 
 import httpx
@@ -2777,11 +2872,36 @@ async def update_voice_settings(req: Request):
 
 def run_server(port: int = 8000, host: str | None = None):
     _detach_stdio()
+    _install_parent_watchdog()
     if host is None:
         from palimind.settings import SERVER_HOST
 
         host = SERVER_HOST
-    uvicorn.run("palimind.api_server:app", host=host, port=port)
+    status = 0
+    try:
+        uvicorn.run(
+            "palimind.api_server:app",
+            host=host,
+            port=port,
+            # A stuck index/OCR request must not hold the shutdown forever:
+            # closing the app should always win over in-flight work.
+            timeout_graceful_shutdown=5,
+        )
+    except BaseException:
+        status = 1
+        raise
+    finally:
+        # Indexing and OCR run in non-daemon worker threads; uvicorn's
+        # graceful stop does not wait for them, and native pools can keep the
+        # interpreter alive indefinitely. Exit hard so no CPU-spinning,
+        # socket-holding process is ever left behind.
+        try:
+            import ctypes
+
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass
+        _os._exit(status)
 
 
 if __name__ == "__main__":
