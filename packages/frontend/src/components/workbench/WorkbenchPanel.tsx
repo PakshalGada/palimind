@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as
 import { Folder, Globe2, Link2, Package, X } from 'lucide-react';
 import { useApp, type WorkbenchTab } from '../../AppContext';
 import ArtifactPanel from '../ArtifactPanel';
+import ArtifactShelf from './ArtifactShelf';
 import BrowserDock from '../../features/agents/browser/BrowserDock';
 import FileTreeView from '../FileTreeView';
 import { SourcesPanel } from '../sources/SourcesPanel';
@@ -76,16 +77,30 @@ export default function WorkbenchPanel() {
     sessions,
     activeSessionId,
     activeField,
+    openArtifactLibrary,
   } = useApp();
   const [width, setWidth] = useState(initialWidth);
+  const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null);
   const draggingRef = useRef(false);
   const startXRef = useRef(0);
   const startWidthRef = useRef(width);
 
-  const artifactCount = useMemo(() => {
+  const sessionArtifacts = useMemo(() => {
     const session = sessions.find((item) => item.id === activeSessionId);
-    return collectArtifacts(session?.messages).length;
+    return collectArtifacts(session?.messages);
   }, [sessions, activeSessionId]);
+  const artifactCount = sessionArtifacts.length;
+
+  useEffect(() => {
+    if (sessionArtifacts.length === 0) {
+      setSelectedArtifactId(null);
+      return;
+    }
+    setSelectedArtifactId((current) => {
+      if (current && sessionArtifacts.some((artifact) => artifact.id === current)) return current;
+      return sessionArtifacts[sessionArtifacts.length - 1].id;
+    });
+  }, [sessionArtifacts]);
 
   const persist = useCallback((next: number) => {
     try {
@@ -188,7 +203,23 @@ export default function WorkbenchPanel() {
       </header>
 
       <div className="app-workbench__body">
-        {workbenchTab === 'artifacts' && <ArtifactPanel forceVisible embedded panelVisible />}
+        {workbenchTab === 'artifacts' && (
+          <div className="wb-artifacts">
+            <ArtifactShelf
+              artifacts={sessionArtifacts}
+              activeId={selectedArtifactId}
+              onSelect={setSelectedArtifactId}
+              onOpenLibrary={openArtifactLibrary}
+            />
+            <ArtifactPanel
+              forceVisible
+              embedded
+              panelVisible
+              requestedId={selectedArtifactId}
+              onSelectionChange={setSelectedArtifactId}
+            />
+          </div>
+        )}
         {workbenchTab === 'browser' && (
           <BrowserDock embedded onClose={closeWorkbench} />
         )}

@@ -142,12 +142,18 @@ export default function ArtifactPanel({
   forceVisible = false,
   embedded = false,
   panelVisible = true,
+  requestedId = null,
+  onSelectionChange,
 }: {
   forceVisible?: boolean;
   /** Rendered inside the Workbench, which owns the panel chrome. */
   embedded?: boolean;
   /** The Workbench tab is visible. */
   panelVisible?: boolean;
+  /** Select this artifact from an external shelf. */
+  requestedId?: string | null;
+  /** Notify the shelf when the panel selection changes. */
+  onSelectionChange?: (id: string) => void;
 }) {
   const {
     artifactPanelOpen,
@@ -162,6 +168,7 @@ export default function ArtifactPanel({
     activeProjectId,
     setActiveProjectId,
     addToast,
+    pinContext,
   } = useApp();
 
   const messages = useMemo(
@@ -357,6 +364,13 @@ export default function ArtifactPanel({
     });
   }, [editing, activeKey]);
 
+  // The Workbench shelf can select an artifact from outside the panel.
+  useEffect(() => {
+    if (!requestedId) return;
+    setExternal(null);
+    setSelectedId(requestedId);
+  }, [requestedId]);
+
   // Keep the selected tab valid as artifacts stream in.
   useEffect(() => {
     if (external) return;
@@ -486,13 +500,14 @@ export default function ArtifactPanel({
   const selectSessionArtifact = useCallback((id: string) => {
     setExternal(null);
     setSelectedId(id);
+    onSelectionChange?.(id);
     setNewIds(prev => {
       if (!prev.has(id)) return prev;
       const next = new Set(prev);
       next.delete(id);
       return next;
     });
-  }, []);
+  }, [onSelectionChange]);
 
   const toggleEditing = useCallback(() => {
     pendingScrollRef.current = previewScrollRef.current?.scrollTop ?? null;
@@ -699,6 +714,17 @@ export default function ArtifactPanel({
         streaming={streaming}
         onBack={() => setExternal(null)}
         onOpenLibrary={() => setArtifactLibraryOpen(true)}
+        onUseContext={
+          active
+            ? () =>
+                pinContext({
+                  id: `${activeSessionId ?? 'draft'}:${activeKey}`,
+                  kind: 'artifact',
+                  title: active.title,
+                  content,
+                })
+            : undefined
+        }
         onClose={() => {
           setArtifactLibraryOpen(false);
           setArtifactPanelOpen(false);

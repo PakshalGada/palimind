@@ -17,7 +17,7 @@ import MessageContent from './MessageContent';
 import { speech, useSpeech } from '../utils/speech';
 import { getVoice } from '../utils/voicePrefs';
 import type { BranchChild } from '../types';
-import { parseArtifacts, shouldAutoOpenArtifact } from '../utils/artifacts';
+import { parseArtifacts, shouldAutoOpenArtifact, type Artifact } from '../utils/artifacts';
 import { saveToVault } from '../utils/artifactVault';
 import { exportConversation, type ConversationExportFormat } from '../utils/conversationExport';
 import { useChatStreamContext } from '../stream/context';
@@ -56,6 +56,7 @@ export default function ChatArea() {
     addToast,
     openArtifact,
     addChatMemory,
+    pinContext,
   } = useApp();
   const messagesRef = useRef<HTMLDivElement>(null);
   const [scrollbarVisible, setScrollbarVisible] = useState(false);
@@ -436,6 +437,22 @@ export default function ChatArea() {
               onOpenArtifact={openArtifact}
               onToggleBookmark={toggleBookmark}
               onRemember={() => addChatMemory(msg.content.slice(0, 500))}
+              onPin={() =>
+                pinContext({
+                  id: `msg:${activeSessionId ?? 'draft'}:${msg.id ?? i}`,
+                  kind: 'message',
+                  title: msg.content.replace(/^#+\s*/, '').split('\n')[0].slice(0, 90) || 'Pinned message',
+                  content: msg.content,
+                })
+              }
+              onUseArtifactContext={(artifact) =>
+                pinContext({
+                  id: `${activeSessionId ?? 'draft'}:${artifact.id}`,
+                  kind: 'artifact',
+                  title: artifact.title,
+                  content: artifact.content,
+                })
+              }
               activityMode={activityMode}
               sessionId={activeSessionId}
               showFollowUps={!isStreaming && i === (currentSess?.messages?.length ?? 0) - 1}
@@ -553,6 +570,8 @@ interface MessageComponentProps {
   onOpenArtifact: (artifactId: string) => void;
   onToggleBookmark: (msg: ChatMessage) => void;
   onRemember: () => void;
+  onPin: () => void;
+  onUseArtifactContext: (artifact: Artifact) => void;
   activityMode: ActivityMode;
   sessionId: string | null;
   showFollowUps?: boolean;
@@ -572,6 +591,8 @@ const MessageComponent = memo(function MessageComponent({
   onOpenArtifact,
   onToggleBookmark,
   onRemember,
+  onPin,
+  onUseArtifactContext,
   activityMode,
   sessionId,
   showFollowUps = false,
@@ -663,7 +684,11 @@ const MessageComponent = memo(function MessageComponent({
           />
         )}
         {artifacts.length > 0 ? (
-          <ArtifactAnswerBlock artifacts={artifacts} onOpen={onOpenArtifact} />
+          <ArtifactAnswerBlock
+            artifacts={artifacts}
+            onOpen={onOpenArtifact}
+            onUseContext={onUseArtifactContext}
+          />
         ) : (
           <>
             <MessageContent
@@ -692,6 +717,7 @@ const MessageComponent = memo(function MessageComponent({
           onShare={onShare}
           onToggleBookmark={() => onToggleBookmark(msg)}
           onRemember={onRemember}
+          onPin={onPin}
         />
         {showFollowUps && !isUser && (
           <FollowUpChips

@@ -12,6 +12,7 @@ import { ActivityStore } from '../src/components/activity/store';
 import { RunSurface } from '../src/components/activity/shell/RunSurface';
 import { SourcesPanel } from '../src/components/sources/SourcesPanel';
 import ArtifactAnswerBlock from '../src/components/ArtifactAnswerBlock';
+import ArtifactShelf from '../src/components/workbench/ArtifactShelf';
 import { ActivitySurfaceContext } from '../src/stream/context';
 import type { ActivityState } from '../src/components/activity/model';
 import ComputerUsePanel from '../src/features/desktop/ComputerUsePanel';
@@ -438,11 +439,38 @@ const artifactBlockHtml = renderToStaticMarkup(
       },
     ],
     onOpen: noop,
+    onUseContext: noop,
   }),
 );
 check('artifact answer block', artifactBlockHtml, [
   'Q3 Business Review',
-  'Open in artifact',
+  '1 slide',
+  'Use as context',
+  'Open',
+]);
+
+const shelfHtml = renderToStaticMarkup(
+  React.createElement(ArtifactShelf, {
+    artifacts: [
+      {
+        id: 'artifact-1',
+        type: 'slide-outline',
+        language: 'slides',
+        title: 'Q3 Business Review',
+        content: '# Overview\n- Growth: 28%',
+        messageIndex: 1,
+      },
+    ],
+    activeId: 'artifact-1',
+    onSelect: noop,
+    onOpenLibrary: noop,
+  }),
+);
+check('artifact shelf', shelfHtml, [
+  'This chat',
+  'Q3 Business Review',
+  'Slides',
+  'Find an artifact',
 ]);
 
 console.log(failures === 0 ? 'SMOKE OK' : `SMOKE FAILED (${failures})`);

@@ -77,3 +77,37 @@
         margin-left: 40px;
     }
 }
+
+.artifact-answer-block__meta {
+    color: var(--text-muted);
+    font-size: var(--type-2xs);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.artifact-answer-block__context {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    height: 28px;
+    padding: 0 9px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink-muted);
+    font-family: var(--font-sans);
+    font-size: var(--type-xs);
+    cursor: pointer;
+}
+.artifact-answer-block__context:hover {
+    background: var(--surface-hover);
+    color: var(--ink);
+}
+
+@media (max-width: 640px) {
+    .artifact-answer-block__context {
+        margin-left: 40px;
+    }
+}

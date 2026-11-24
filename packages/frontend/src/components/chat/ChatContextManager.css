@@ -1,0 +1,170 @@
+.chat-context-manager {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.chat-context-manager__budget {
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+}
+.chat-context-manager__budget-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+    color: var(--ink);
+    font-size: var(--type-sm);
+}
+.chat-context-manager__budget-head span {
+    color: var(--text-muted);
+    font-size: var(--type-xs);
+    font-variant-numeric: tabular-nums;
+}
+.chat-context-manager__bar {
+    height: 7px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--surface-hover);
+}
+.chat-context-manager__bar span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--primary-color);
+}
+.chat-context-manager__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-top: 8px;
+    color: var(--text-muted);
+    font-size: var(--type-2xs);
+    font-variant-numeric: tabular-nums;
+}
+
+.chat-context-manager__section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.chat-context-manager__section-head h3 {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin: 0;
+    font-size: var(--type-sm);
+    color: var(--ink);
+}
+.chat-context-manager__actions {
+    display: flex;
+    gap: 6px;
+}
+.chat-context-manager__actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 26px;
+    padding: 0 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--ink-secondary);
+    font-family: var(--font-sans);
+    font-size: var(--type-2xs);
+    cursor: pointer;
+}
+.chat-context-manager__actions button:hover:not(:disabled) {
+    background: var(--surface-hover);
+    color: var(--ink);
+}
+.chat-context-manager__actions button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.chat-context-manager__empty {
+    margin: 0;
+    padding: 16px;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-md);
+    color: var(--text-muted);
+    font-size: var(--type-sm);
+    line-height: 1.5;
+}
+
+.chat-context-manager__list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 300px;
+    margin: 0;
+    padding: 0;
+    overflow: auto;
+    list-style: none;
+}
+.chat-context-manager__list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+}
+.chat-context-manager__kind {
+    flex-shrink: 0;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--surface-hover);
+    color: var(--text-muted);
+    font-size: 10px;
+    line-height: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.chat-context-manager__kind.is-artifact {
+    background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+    color: var(--primary-color);
+}
+.chat-context-manager__list li > div {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.chat-context-manager__list strong {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink);
+    font-size: var(--type-sm);
+}
+.chat-context-manager__list p {
+    margin: 2px 0 0;
+    color: var(--text-muted);
+    font-size: var(--type-xs);
+    line-height: 1.4;
+}
+.chat-context-manager__list li > button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.chat-context-manager__list li > button:hover {
+    background: var(--surface-hover);
+    color: var(--danger-color, #be123c);
+}

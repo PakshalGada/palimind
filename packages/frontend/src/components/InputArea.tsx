@@ -180,6 +180,7 @@ function InputArea({
     addToast,
     responseStyle,
     chatMemory,
+    pinnedContext,
   } = useApp();
 
   const { send: sendMessage, stop: stopStream } = useChatStreamActions();
@@ -985,6 +986,12 @@ function InputArea({
       if (isChatView && activeView === "chat" && !activeSkill && chatMemory.length > 0) {
         modelText = `Known facts about the user (use only when relevant, never repeat them back verbatim):\n- ${chatMemory.join("\n- ")}\n\n${modelText}`;
       }
+      if (isChatView && activeView === "chat" && !activeSkill && pinnedContext.length > 0) {
+        const context = pinnedContext
+          .map((item) => `## ${item.kind === "artifact" ? "Artifact" : "Pinned context"}: ${item.title}\n${item.content.slice(0, 4000)}`)
+          .join("\n\n");
+        modelText = `Use this context when it is relevant to the request:\n\n${context}\n\n---\n\n${modelText}`;
+      }
 
       sendMessage({
         text: modelText,
@@ -1042,6 +1049,7 @@ function InputArea({
     forkTarget,
     responseStyle,
     chatMemory,
+    pinnedContext,
   ]);
 
   const findLastMessage = useCallback(

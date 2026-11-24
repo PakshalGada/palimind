@@ -7,6 +7,7 @@ import {
   GitFork,
   Loader2,
   Pencil,
+  Pin,
   RefreshCw,
   Share2,
   Square,
@@ -40,6 +41,8 @@ export interface MessageActionsProps {
   /** Share the conversation: 'copy' (transcript) or a file export format. */
   onShare: (format?: 'copy' | 'md' | 'pdf' | 'docx') => void;
   onToggleBookmark: () => void;
+  /** Pin this message to the chat context. */
+  onPin?: () => void;
   /** Add the answer to local chat memory. */
   onRemember?: () => void;
 }
@@ -109,6 +112,7 @@ export default function MessageActions({
   onDelete,
   onShare,
   onToggleBookmark,
+  onPin,
   onRemember,
 }: MessageActionsProps) {
   const confirm = useConfirm();
@@ -263,6 +267,18 @@ export default function MessageActions({
       >
         {bookmarked ? <Star size={14} fill="currentColor" /> : <StarOff size={14} />}
       </button>
+
+      {onPin && (
+        <button
+          type="button"
+          className="msg-action-btn"
+          title="Pin to chat context"
+          aria-label="Pin message to chat context"
+          onClick={onPin}
+        >
+          <Pin size={14} />
+        </button>
+      )}
 
       {!isUser && (
         <div className="msg-actions-copy" ref={saveRef}>

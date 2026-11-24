@@ -6,6 +6,7 @@ import type { ShortcutOverrides } from './utils/shortcuts';
 import { loadShortcutOverrides, saveShortcutOverrides } from './utils/shortcuts';
 import { useTheme } from './design/ThemeProvider';
 import { resolveScope } from './lib/scope';
+import { summarizePinnedContext } from './utils/chatContext';
 
 export type ToastTone = 'default' | 'success' | 'warning' | 'error' | 'info';
 
@@ -43,6 +44,14 @@ export type ActivityMode = 'llm' | 'document' | 'moe' | 'deep_research' | 'agent
 export type ActivityStatus = 'pending' | 'active' | 'done' | 'error';
 export type WorkbenchTab = 'artifacts' | 'browser' | 'files' | 'sources';
 export type ResponseStyle = 'default' | 'brief' | 'executive' | 'technical' | 'teaching';
+
+export interface ChatContextItem {
+  id: string;
+  kind: 'message' | 'artifact';
+  title: string;
+  content: string;
+  createdAt: number;
+}
 
 export interface ActivityStep {
   id: string;
@@ -118,6 +127,7 @@ interface AppState {
   workbenchTab: WorkbenchTab;
   responseStyle: ResponseStyle;
   chatMemory: string[];
+  pinnedContext: ChatContextItem[];
   shortcutOverrides: ShortcutOverrides;
 }
 
@@ -176,6 +186,10 @@ interface AppContextType extends AppState {
   setResponseStyle: (style: ResponseStyle) => void;
   addChatMemory: (text: string) => void;
   removeChatMemory: (index: number) => void;
+  pinContext: (item: Omit<ChatContextItem, 'createdAt'>) => void;
+  unpinContext: (id: string) => void;
+  clearPinnedContext: () => void;
+  compactPinnedContext: () => void;
   setShortcutOverride: (commandId: string, combo: string | null) => void;
   resetShortcut: (commandId: string) => void;
   resetAllShortcuts: () => void;
@@ -267,6 +281,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ? stored
       : 'default';
   });
+  const [pinnedContext, setPinnedContext] = useState<ChatContextItem[]>([]);
+  const contextKey = `palimind:chat-context:${activeSessionId ?? 'new'}`;
+  const previousContextKey = useRef(contextKey);
+  useEffect(() => {
+    try {
+      const previous = previousContextKey.current;
+      if (previous !== contextKey && !localStorage.getItem(contextKey)) {
+        const carried = localStorage.getItem(previous);
+        if (carried) localStorage.setItem(contextKey, carried);
+      }
+      const parsed = JSON.parse(localStorage.getItem(contextKey) || '[]');
+      setPinnedContext(Array.isArray(parsed) ? parsed.filter((item) => item && item.id && item.content) : []);
+    } catch {
+      setPinnedContext([]);
+    }
+    previousContextKey.current = contextKey;
+  }, [contextKey]);
   const [chatMemory, setChatMemory] = useState<string[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
@@ -322,6 +353,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // ignore unavailable storage
     }
   }, []);
+
+  const persistPinnedContext = useCallback((items: ChatContextItem[]) => {
+    try {
+      localStorage.setItem(contextKey, JSON.stringify(items));
+    } catch {
+      // storage is optional
+    }
+  }, [contextKey]);
+
+  const pinContext = useCallback((item: Omit<ChatContextItem, 'createdAt'>) => {
+    if (!item.content.trim()) return;
+    setPinnedContext((items) => {
+      if (items.some((existing) => existing.id === item.id)) return items;
+      const next = [...items, { ...item, content: item.content.slice(0, 12000), createdAt: Date.now() }].slice(-12);
+      persistPinnedContext(next);
+      return next;
+    });
+  }, [persistPinnedContext]);
+
+  const unpinContext = useCallback((id: string) => {
+    setPinnedContext((items) => {
+      const next = items.filter((item) => item.id !== id);
+      persistPinnedContext(next);
+      return next;
+    });
+  }, [persistPinnedContext]);
+
+  const clearPinnedContext = useCallback(() => {
+    setPinnedContext([]);
+    persistPinnedContext([]);
+  }, [persistPinnedContext]);
+
+  const compactPinnedContext = useCallback(() => {
+    setPinnedContext((items) => {
+      const summary = summarizePinnedContext(items);
+      if (!summary) return items;
+      const next = [summary];
+      persistPinnedContext(next);
+      return next;
+    });
+  }, [persistPinnedContext]);
 
   const setResponseStyle = useCallback((style: ResponseStyle) => {
     setResponseStyleState(style);
@@ -631,6 +703,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     workbenchOpen, workbenchTab, setWorkbenchTab, openWorkbench, closeWorkbench, toggleWorkbench,
     responseStyle, setResponseStyle,
     chatMemory, addChatMemory, removeChatMemory,
+    pinnedContext, pinContext, unpinContext, clearPinnedContext, compactPinnedContext,
     shortcutOverrides, setShortcutOverride, resetShortcut, resetAllShortcuts,
   }), [
     activeView, agentsView, activeField, activeProjectId, activeProjectName, activeSessionId, sessions, selectedFiles,
@@ -645,6 +718,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     workbenchOpen, workbenchTab, setWorkbenchTab, openWorkbench, closeWorkbench, toggleWorkbench,
     responseStyle, setResponseStyle,
     chatMemory, addChatMemory, removeChatMemory,
+    pinnedContext, pinContext, unpinContext, clearPinnedContext, compactPinnedContext,
     toggleSidebar, setShortcutOverride, resetShortcut, resetAllShortcuts,
     openArtifactLibrary, openArtifact, clearArtifactTarget,
     setActiveProjectId, setActiveProjectName, setTheme, refreshFields, addToast, clearSelectedFiles,

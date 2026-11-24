@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Brain, Columns2, Cpu, Folder, Package, ShieldCheck } from 'lucide-react';
+import { Brain, Columns2, Cpu, Folder, Package, Pin, ShieldCheck } from 'lucide-react';
 import { useApp } from '../../AppContext';
 import { collectArtifacts } from '../../utils/artifacts';
 import { runCommand } from '../../commands/registry';
+import ChatContextManager from './ChatContextManager';
 import ChatMemoryDialog from './ChatMemoryDialog';
 import ChatTrustDialog from './ChatTrustDialog';
 import './ChatContextBar.css';
@@ -27,8 +28,10 @@ export default function ChatContextBar() {
     responseStyle,
     setResponseStyle,
     chatMemory,
+    pinnedContext,
   } = useApp();
   const [memoryOpen, setMemoryOpen] = useState(false);
+  const [contextOpen, setContextOpen] = useState(false);
   const [trustOpen, setTrustOpen] = useState(false);
 
   if (activeView !== 'chat') return null;
@@ -85,6 +88,15 @@ export default function ChatContextBar() {
       <button
         type="button"
         className="chat-context-chip chat-context-chip--button"
+        title="Manage chat context"
+        onClick={() => setContextOpen(true)}
+      >
+        <Pin size={12} />
+        Context{pinnedContext.length > 0 ? ` ${pinnedContext.length}` : ''}
+      </button>
+      <button
+        type="button"
+        className="chat-context-chip chat-context-chip--button"
         title="Compare two models"
         onClick={() => runCommand('chat.compare-models')}
       >
@@ -126,6 +138,7 @@ export default function ChatContextBar() {
         Local-first
       </button>
       <ChatMemoryDialog open={memoryOpen} onClose={() => setMemoryOpen(false)} />
+      <ChatContextManager open={contextOpen} onClose={() => setContextOpen(false)} />
       <ChatTrustDialog open={trustOpen} onClose={() => setTrustOpen(false)} />
     </div>
   );

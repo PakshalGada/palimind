@@ -1,4 +1,4 @@
-import { ChevronLeft, Layers3, Package, X } from 'lucide-react';
+import { ChevronLeft, Layers3, Package, Pin, X } from 'lucide-react';
 
 export default function ArtifactPanelHeader({
   count,
@@ -7,6 +7,7 @@ export default function ArtifactPanelHeader({
   streaming,
   onBack,
   onOpenLibrary,
+  onUseContext,
   onClose,
 }: {
   count: number;
@@ -16,6 +17,7 @@ export default function ArtifactPanelHeader({
   streaming: boolean;
   onBack: () => void;
   onOpenLibrary: () => void;
+  onUseContext?: () => void;
   onClose: () => void;
 }) {
   return (
@@ -47,6 +49,17 @@ export default function ArtifactPanelHeader({
         )}
       </div>
       <div className="artp-head-actions">
+        {onUseContext && (
+          <button
+            type="button"
+            className="artp-icon-btn"
+            onClick={onUseContext}
+            title="Use as chat context"
+            aria-label="Use artifact as chat context"
+          >
+            <Pin size={15} />
+          </button>
+        )}
         <button
           type="button"
           className="artp-icon-btn"
