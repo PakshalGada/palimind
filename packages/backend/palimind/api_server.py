@@ -1407,6 +1407,9 @@ async def remove_session(req: Request, scope: str = "field"):
     if not session_id:
         return {"error": "session_id is required"}
     sessions_data = await asyncio.to_thread(delete_session, root, session_id)
+    from palimind.chat_audit import append_chat_audit
+
+    append_chat_audit("chat.delete_session", session_id=session_id, scope=scope)
     return sessions_data
 
 

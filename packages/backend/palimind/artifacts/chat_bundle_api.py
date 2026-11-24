@@ -5,11 +5,11 @@ from __future__ import annotations
 import asyncio
 import re
 import time
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from palimind.artifacts.chat_bundle import build_chat_bundle
+from palimind.chat_audit import append_chat_audit
 from palimind.security.tokens import palimind_home
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -36,6 +36,15 @@ async def export_chat_bundle(req: Request):
     except Exception as exc:  # noqa: BLE001 - surface a clear bundle failure
         raise HTTPException(status_code=500, detail=f"Could not build bundle: {exc}") from exc
 
+    append_chat_audit(
+        "chat.export_bundle",
+        session_id=str(body.get("session_id") or ""),
+        detail={
+            "messages": len(body.get("messages") or []),
+            "artifacts": len(body.get("artifacts") or []),
+            "sources": len(body.get("sources") or []),
+        },
+    )
     name = _filename(str(body.get("title") or "Conversation"))
     stored = palimind_home() / "artifacts" / "exports" / f"{int(time.time())}-{name}"
     try:

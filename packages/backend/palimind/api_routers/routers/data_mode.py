@@ -11,6 +11,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
+from palimind.chat_audit import append_chat_audit
+
 router = APIRouter(prefix="/api/data", tags=["data"])
 
 _TABLE_SUFFIXES = {".csv", ".tsv", ".xlsx", ".xlsm", ".xls", ".json", ".jsonl", ".ndjson"}
@@ -318,6 +320,10 @@ async def data_query(req: Request):
         raise
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=f"Query failed: {exc}") from exc
+    append_chat_audit(
+        "data.query",
+        detail={"upload_id": upload_id, "rows": result.get("row_count", 0)},
+    )
     return result
 
 
@@ -376,6 +382,10 @@ async def data_export(req: Request):
         data = df.to_csv(index=False).encode("utf-8")
         media = "text/csv"
         name = f"{Path(meta['name']).stem}-cleaned.csv"
+    append_chat_audit(
+        "data.export",
+        detail={"upload_id": upload_id, "format": fmt, "rows": int(df.shape[0])},
+    )
     return Response(
         content=data,
         media_type=media,
@@ -406,4 +416,5 @@ async def data_dashboard(req: Request):
         except HTTPException:
             continue
     title = str(body.get("title") or Path(meta["name"]).stem or "Data dashboard")
+    append_chat_audit("data.dashboard", detail={"upload_id": upload_id, "charts": len(charts)})
     return {"title": f"{title} dashboard", "html": _dashboard(title, profile, charts)}

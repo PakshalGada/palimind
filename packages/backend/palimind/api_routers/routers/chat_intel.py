@@ -7,6 +7,8 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 
+from palimind.chat_audit import append_chat_audit, read_chat_audit
+
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 _CRITIC_SYSTEM = (
@@ -80,6 +82,7 @@ async def chat_critic(req: Request):
     content = str(result.get("content") or "").strip()
     if not content:
         raise HTTPException(status_code=502, detail="The local model returned an empty critique")
+    append_chat_audit("chat.critic", detail={"model": model, "answer_chars": len(text)})
     return {"critique": content, "model": model}
 
 
@@ -163,4 +166,13 @@ async def chat_council(req: Request):
         except Exception:
             pass
 
+    append_chat_audit(
+        "chat.council",
+        detail={"models": models, "usable": len(usable)},
+    )
     return {"members": members, "synthesis": synthesis, "models": models}
+
+
+@router.get("/audit")
+async def chat_audit(session_id: str = "", limit: int = 100):
+    return {"events": read_chat_audit(limit=limit, session_id=session_id)}

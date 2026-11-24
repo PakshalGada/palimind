@@ -786,6 +786,19 @@ export const api = {
     cancel: (itemId: string) => post<{ item?: QueueItem; error?: string }>(`/agents/queue/${itemId}/cancel`),
   },
   chat: {
+    /** Read the local chat/data/export audit trail. */
+    audit: (sessionId = '', limit = 100) =>
+      get<{
+        events: {
+          timestamp: number;
+          event: string;
+          session_id: string;
+          scope: string;
+          detail: Record<string, unknown>;
+        }[];
+      }>(
+        `/chat/audit?session_id=${encodeURIComponent(sessionId)}&limit=${limit}`,
+      ),
     /** Download a ZIP with the transcript, artifacts and sources. */
     exportBundle: async (payload: {
       title: string;
