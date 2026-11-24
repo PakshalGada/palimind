@@ -39,6 +39,8 @@ export interface MessageActionsProps {
   /** Share the conversation: 'copy' (transcript) or a file export format. */
   onShare: (format?: 'copy' | 'md' | 'pdf' | 'docx') => void;
   onToggleBookmark: () => void;
+  /** Add the answer to local chat memory. */
+  onRemember?: () => void;
 }
 
 function toPlainText(md: string): string {
@@ -106,6 +108,7 @@ export default function MessageActions({
   onDelete,
   onShare,
   onToggleBookmark,
+  onRemember,
 }: MessageActionsProps) {
   const confirm = useConfirm();
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
@@ -284,6 +287,16 @@ export default function MessageActions({
                 }}
               >
                 {savedAnswer ? 'Answer saved' : 'Save answer as note'}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setSaveMenuOpen(false);
+                  onRemember?.();
+                }}
+              >
+                Remember this answer
               </button>
               <button
                 type="button"

@@ -55,6 +55,7 @@ export default function ChatArea() {
     refreshSessions,
     addToast,
     openArtifact,
+    addChatMemory,
   } = useApp();
   const messagesRef = useRef<HTMLDivElement>(null);
   const [scrollbarVisible, setScrollbarVisible] = useState(false);
@@ -434,6 +435,7 @@ export default function ChatArea() {
               onShare={handleShare}
               onOpenArtifact={openArtifact}
               onToggleBookmark={toggleBookmark}
+              onRemember={() => addChatMemory(msg.content.slice(0, 500))}
               activityMode={activityMode}
               sessionId={activeSessionId}
               showFollowUps={!isStreaming && i === (currentSess?.messages?.length ?? 0) - 1}
@@ -550,6 +552,7 @@ interface MessageComponentProps {
   onShare: (format?: ConversationExportFormat | 'copy') => void;
   onOpenArtifact: (artifactId: string) => void;
   onToggleBookmark: (msg: ChatMessage) => void;
+  onRemember: () => void;
   activityMode: ActivityMode;
   sessionId: string | null;
   showFollowUps?: boolean;
@@ -568,6 +571,7 @@ const MessageComponent = memo(function MessageComponent({
   onShare,
   onOpenArtifact,
   onToggleBookmark,
+  onRemember,
   activityMode,
   sessionId,
   showFollowUps = false,
@@ -687,6 +691,7 @@ const MessageComponent = memo(function MessageComponent({
           onDelete={() => onDelete(index)}
           onShare={onShare}
           onToggleBookmark={() => onToggleBookmark(msg)}
+          onRemember={onRemember}
         />
         {showFollowUps && !isUser && (
           <FollowUpChips
