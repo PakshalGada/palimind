@@ -1,0 +1,96 @@
+.chat-trust {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.chat-trust__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0;
+}
+.chat-trust__grid > div {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+}
+.chat-trust__grid dt {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 3px;
+    color: var(--text-muted);
+    font-size: var(--type-2xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.chat-trust__grid dd {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink);
+    font-size: var(--type-sm);
+    font-weight: 600;
+}
+
+.chat-trust__memory h3 {
+    margin: 0 0 8px;
+    font-size: var(--type-sm);
+    color: var(--ink);
+}
+.chat-trust__memory p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--type-sm);
+    line-height: 1.45;
+}
+.chat-trust__memory ul {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 220px;
+    margin: 0;
+    padding: 0;
+    overflow: auto;
+    list-style: none;
+}
+.chat-trust__memory li {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--ink-secondary);
+    font-size: var(--type-sm);
+    line-height: 1.4;
+}
+.chat-trust__memory button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.chat-trust__memory button:hover {
+    background: var(--surface-hover);
+    color: var(--danger-color, #be123c);
+}
+
+@media (max-width: 520px) {
+    .chat-trust__grid {
+        grid-template-columns: 1fr;
+    }
+}

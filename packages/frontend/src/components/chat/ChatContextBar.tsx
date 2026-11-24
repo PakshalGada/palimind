@@ -3,6 +3,7 @@ import { Brain, Cpu, Folder, Package, ShieldCheck } from 'lucide-react';
 import { useApp } from '../../AppContext';
 import { collectArtifacts } from '../../utils/artifacts';
 import ChatMemoryDialog from './ChatMemoryDialog';
+import ChatTrustDialog from './ChatTrustDialog';
 import './ChatContextBar.css';
 
 function leaf(path: string | null): string {
@@ -27,6 +28,7 @@ export default function ChatContextBar() {
     chatMemory,
   } = useApp();
   const [memoryOpen, setMemoryOpen] = useState(false);
+  const [trustOpen, setTrustOpen] = useState(false);
 
   if (activeView !== 'chat') return null;
 
@@ -104,11 +106,17 @@ export default function ChatContextBar() {
       >
         Recap
       </button>
-      <span className="chat-context-chip chat-context-chip--quiet" title="Local-first">
+      <button
+        type="button"
+        className="chat-context-chip chat-context-chip--button chat-context-chip--quiet"
+        title="Chat details"
+        onClick={() => setTrustOpen(true)}
+      >
         <ShieldCheck size={12} />
         Local-first
-      </span>
+      </button>
       <ChatMemoryDialog open={memoryOpen} onClose={() => setMemoryOpen(false)} />
+      <ChatTrustDialog open={trustOpen} onClose={() => setTrustOpen(false)} />
     </div>
   );
 }
