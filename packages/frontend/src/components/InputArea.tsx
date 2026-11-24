@@ -977,9 +977,12 @@ function InputArea({
       }
 
       const mode = isChatView ? "llm" : chatMode;
-      const stylePrefix = isChatView && activeView === "chat" ? RESPONSE_STYLE_PREFIX[responseStyle] : "";
+      const stylePrefix =
+        isChatView && activeView === "chat" && !activeSkill
+          ? RESPONSE_STYLE_PREFIX[responseStyle]
+          : "";
       if (stylePrefix) modelText = `${stylePrefix}\n\n${modelText}`;
-      if (isChatView && activeView === "chat" && chatMemory.length > 0) {
+      if (isChatView && activeView === "chat" && !activeSkill && chatMemory.length > 0) {
         modelText = `Known facts about the user (use only when relevant, never repeat them back verbatim):\n- ${chatMemory.join("\n- ")}\n\n${modelText}`;
       }
 
