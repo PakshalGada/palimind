@@ -194,6 +194,26 @@ function InputArea({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState("");
+  const draftKey = `palimind:draft:${activeSessionId ?? "new"}`;
+  const restoredDraftRef = useRef<string | null>(null);
+  // Drafts survive session switches and reloads.
+  useEffect(() => {
+    if (restoredDraftRef.current === draftKey) return;
+    restoredDraftRef.current = draftKey;
+    try {
+      setValue(localStorage.getItem(draftKey) ?? "");
+    } catch {
+      setValue("");
+    }
+  }, [draftKey]);
+  useEffect(() => {
+    try {
+      if (value) localStorage.setItem(draftKey, value);
+      else localStorage.removeItem(draftKey);
+    } catch {
+      // storage is optional
+    }
+  }, [draftKey, value]);
   // A quoted message the next send replies to. Set by the message row.
   const [replyTarget, setReplyTarget] = useState<
     { messageId?: number; author: string; content: string } | null
