@@ -378,7 +378,10 @@ export const api = {
         `/agents/${agentId}/tools/${encodeURIComponent(tool)}/invoke`,
         { args },
       ),
-    skills: () => get<{ skills: SkillMeta[] }>('/agents/skills'),
+    skills: (workspaceRoot?: string | null) =>
+      get<{ skills: SkillMeta[] }>(
+        `/agents/skills${workspaceRoot ? `?workspace_root=${encodeURIComponent(workspaceRoot)}` : ''}`,
+      ),
     sections: {
       list: () => get<{ sections: { id: string; name: string; sort_order: number }[] }>('/agents/sections/all'),
       create: (name: string, sortOrder = 0) =>
@@ -530,13 +533,45 @@ export const api = {
     skillsAdmin: {
       validate: (skill: Partial<SkillMeta>) =>
         post<{ valid: boolean; error?: string | null }>('/agents/skills/validate', { skill }),
-      install: (skill: Partial<SkillMeta>, overwrite = false) =>
+      install: (skill: Partial<SkillMeta>, overwrite = false, workspaceRoot?: string | null) =>
         post<{ status?: string; skill?: SkillMeta; error?: string }>('/agents/skills/install', {
           skill,
           overwrite,
+          workspace_root: workspaceRoot || undefined,
         }),
-      uninstall: (id: string) =>
-        post<{ status?: string }>('/agents/skills/uninstall', { id }),
+      uninstall: (id: string, workspaceRoot?: string | null) =>
+        post<{ status?: string }>('/agents/skills/uninstall', {
+          id,
+          workspace_root: workspaceRoot || undefined,
+        }),
+      build: (prompt: string, opts: { install?: boolean; overwrite?: boolean; workspaceRoot?: string | null } = {}) =>
+        post<{ draft?: Partial<SkillMeta>; skill?: SkillMeta; error?: string; raw?: string }>(
+          '/agents/skills/build',
+          {
+            prompt,
+            install: opts.install ?? false,
+            overwrite: opts.overwrite ?? false,
+            workspace_root: opts.workspaceRoot || undefined,
+          },
+        ),
+      recommendations: (query: string, context = '', workspaceRoot?: string | null) =>
+        get<{ skills: SkillMeta[] }>(
+          `/agents/skills/recommendations?q=${encodeURIComponent(query)}&context=${encodeURIComponent(context)}${workspaceRoot ? `&workspace_root=${encodeURIComponent(workspaceRoot)}` : ''}`,
+        ),
+      history: (limit = 50) =>
+        get<{
+          runs: { timestamp: number; skill_id: string; command: string; query: string; status: string }[];
+        }>(`/agents/skills/history?limit=${limit}`),
+      recordRun: (data: { skillId: string; command: string; query?: string; status?: string }) =>
+        post<{ run: { timestamp: number; skill_id: string; command: string; query: string; status: string } }>(
+          '/agents/skills/history',
+          {
+            skill_id: data.skillId,
+            command: data.command,
+            query: data.query,
+            status: data.status,
+          },
+        ),
       export: (id: string) =>
         get<{ skill?: SkillMeta; error?: string }>(`/agents/skills/export?id=${encodeURIComponent(id)}`),
       marketplace: () => get<{ skills: MarketplaceSkill[] }>('/agents/skills/marketplace'),
@@ -545,7 +580,10 @@ export const api = {
           '/agents/skills/marketplace/install',
           { id, overwrite },
         ),
-      commands: () => get<{ commands: SkillCommand[] }>('/agents/skills/commands'),
+      commands: (workspaceRoot?: string | null) =>
+        get<{ commands: SkillCommand[] }>(
+          `/agents/skills/commands${workspaceRoot ? `?workspace_root=${encodeURIComponent(workspaceRoot)}` : ''}`,
+        ),
       resolve: (text: string) =>
         post<{ resolved: boolean; command?: string; skill?: SkillMeta; input?: string }>(
           '/agents/skills/resolve',

@@ -817,8 +817,10 @@ def validate_skill(data: dict[str, Any]) -> str | None:
     return None
 
 
-def _skill_write_path(skill_id: str) -> Path:
+def _skill_write_path(skill_id: str, workspace_root: Path | str | None = None) -> Path:
     safe = "".join(c for c in str(skill_id) if c.isalnum() or c in "-_")
+    if workspace_root:
+        return Path(workspace_root) / WORKSPACE_SKILLS_SUBDIR / f"{safe}.json"
     return SKILLS_DIR / f"{safe}.json"
 
 
@@ -852,6 +854,7 @@ def install_skill(
     *,
     source: str = "user",
     overwrite: bool = False,
+    workspace_root: Path | str | None = None,
 ) -> dict[str, Any]:
     """Validate and persist a skill to the global skills directory.
 
@@ -862,26 +865,30 @@ def install_skill(
     if error:
         raise ValueError(error)
     sid = str(data["id"])
-    existing = get_skill(sid)
+    existing = get_skill(sid, workspace_root)
     if existing and existing.get("builtin") and not overwrite:
         raise ValueError(f"'{sid}' is a built-in skill; pass overwrite to replace it")
-    if _skill_write_path(sid).exists() and not overwrite:
+    target = _skill_write_path(sid, workspace_root)
+    if target.exists() and not overwrite:
         raise ValueError(f"skill '{sid}' already exists")
     normalized = _normalize_skill(data, builtin=False)
     if normalized is None:
         raise ValueError("invalid skill")
-    payload = {**normalized, "source": source}
-    SKILLS_DIR.mkdir(parents=True, exist_ok=True)
-    _skill_write_path(sid).write_text(json.dumps(payload, indent=2), "utf-8")
+    payload = {
+        **normalized,
+        "source": "workspace" if workspace_root else source,
+    }
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(payload, indent=2), "utf-8")
     return payload
 
 
-def uninstall_skill(skill_id: str) -> bool:
-    """Remove a user-installed skill. Built-ins cannot be removed."""
-    skill = get_skill(skill_id)
+def uninstall_skill(skill_id: str, workspace_root: Path | str | None = None) -> bool:
+    """Remove a user or workspace skill. Built-ins cannot be removed."""
+    skill = get_skill(skill_id, workspace_root)
     if skill is None or skill.get("builtin"):
         return False
-    path = _skill_write_path(skill_id)
+    path = _skill_write_path(skill_id, workspace_root)
     if path.exists():
         try:
             path.unlink()
@@ -889,6 +896,39 @@ def uninstall_skill(skill_id: str) -> bool:
         except OSError:
             return False
     return False
+
+
+def recommend_skills(
+    query: str,
+    *,
+    workspace_root: Path | str | None = None,
+    context: str = "",
+    limit: int = 6,
+) -> list[dict[str, Any]]:
+    """Rank installed skills by keyword overlap with the prompt and context."""
+    words = {
+        word
+        for word in re.findall(r"[a-z0-9]{3,}", f"{query} {context}".lower())
+        if word not in {"the", "and", "for", "with", "this", "that", "from", "into", "your"}
+    }
+    ranked: list[tuple[int, dict[str, Any]]] = []
+    for skill in list_skills(workspace_root):
+        if not skill.get("enabled", True):
+            continue
+        haystack = " ".join(
+            [
+                str(skill.get("name") or ""),
+                str(skill.get("description") or ""),
+                str(skill.get("category") or ""),
+                " ".join(skill.get("tags") or []),
+                str(skill.get("command") or ""),
+            ]
+        ).lower()
+        score = sum(2 if word in haystack else 0 for word in words)
+        if score > 0:
+            ranked.append((score, skill))
+    ranked.sort(key=lambda item: (-item[0], item[1]["id"]))
+    return [skill for _score, skill in ranked[: max(1, min(int(limit or 6), 20))]]
 
 
 def export_skill(skill_id: str) -> dict[str, Any] | None:
@@ -957,6 +997,7 @@ __all__ = [
     "list_marketplace",
     "list_skills",
     "register_plugin_skill",
+    "recommend_skills",
     "resolve_command",
     "skill_commands",
     "skill_instructions",

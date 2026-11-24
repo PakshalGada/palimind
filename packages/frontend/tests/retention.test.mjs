@@ -20,4 +20,12 @@ test('retention defaults, saves and validates per chat', async () => {
   assert.equal(retention.loadRetention('s2'), 0);
   assert.equal(retention.retentionLabel(30), 'Keep for 30 days');
   assert.equal(retention.retentionLabel(0), 'Keep until I delete');
+
+  const now = Date.now();
+  assert.equal(retention.isRetentionExpired('s1', [{ timestamp: now }], now), false);
+  assert.equal(
+    retention.isRetentionExpired('s1', [{ timestamp: now - 31 * 86400000 }], now),
+    true,
+  );
+  assert.equal(retention.isRetentionExpired('s2', [{ timestamp: 0 }], now), false);
 });

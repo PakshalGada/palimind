@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import re
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -302,11 +304,11 @@ async def uninstall_agent_plugin(plugin_id: str):
 
 
 @router.get("/skills")
-async def agent_skills():
+async def agent_skills(workspace_root: str = ""):
     """List the skills that can be attached to agents."""
     from palimind.agents.skills import list_skills
 
-    return {"skills": list_skills()}
+    return {"skills": list_skills(workspace_root or None)}
 
 
 # ── Phase 4.1: adaptive reasoning ─────────────────────────────────────────
@@ -355,7 +357,10 @@ async def install_skill_endpoint(req: Request):
     overwrite = bool(body.get("overwrite", False))
     try:
         installed = install_skill(
-            skill, source=str(body.get("source", "user")), overwrite=overwrite
+            skill,
+            source=str(body.get("source", "user")),
+            overwrite=overwrite,
+            workspace_root=body.get("workspace_root") or None,
         )
         return {"status": "success", "skill": installed}
     except ValueError as e:
@@ -367,7 +372,7 @@ async def uninstall_skill_endpoint(req: Request):
     from palimind.agents.skills import uninstall_skill
 
     body = await req.json()
-    ok = uninstall_skill(str(body.get("id", "")))
+    ok = uninstall_skill(str(body.get("id", "")), body.get("workspace_root") or None)
     return {"status": "success" if ok else "not_found"}
 
 
@@ -403,10 +408,108 @@ async def marketplace_install(req: Request):
 
 
 @router.get("/skills/commands")
-async def skill_commands_endpoint():
+async def skill_commands_endpoint(workspace_root: str = ""):
     from palimind.agents.skills import skill_commands
 
-    return {"commands": skill_commands()}
+    return {"commands": skill_commands(workspace_root or None)}
+
+
+@router.get("/skills/recommendations")
+async def skill_recommendations(q: str = "", context: str = "", workspace_root: str = "", limit: int = 6):
+    from palimind.agents.skills import recommend_skills
+
+    return {
+        "skills": recommend_skills(
+            q,
+            workspace_root=workspace_root or None,
+            context=context,
+            limit=limit,
+        )
+    }
+
+
+@router.get("/skills/history")
+async def skill_history(limit: int = 50):
+    from palimind.agents.skill_history import read_skill_history
+
+    return {"runs": read_skill_history(limit)}
+
+
+@router.post("/skills/history")
+async def record_skill_history(req: Request):
+    from palimind.agents.skill_history import record_skill_run
+
+    body = await req.json()
+    return {
+        "run": record_skill_run(
+            skill_id=str(body.get("skill_id") or ""),
+            command=str(body.get("command") or ""),
+            query=str(body.get("query") or ""),
+            status=str(body.get("status") or "sent"),
+        )
+    }
+
+
+@router.post("/skills/build")
+async def build_skill_endpoint(req: Request):
+    """Draft a skill from a natural-language description with the local model."""
+    from palimind import api_server as server
+    from palimind.agents.skills import install_skill, validate_skill
+    from palimind.llm.mixture_of_expert.llm import llm_chat_safe
+    from palimind.llm.mixture_of_expert.tools import get_tool_names
+
+    body = await req.json()
+    prompt = str(body.get("prompt") or "").strip()
+    if not prompt:
+        return {"error": "prompt is required"}
+    config = server._global_chat_config()
+    model = str(config.get("chat_model") or "llama3")
+    url = str(config.get("ollama_base_url") or "http://localhost:11434")
+    tools = ", ".join(get_tool_names())
+    system = (
+        "You are a skill builder for PaliMind. Return ONLY a JSON object with keys: "
+        "id, name, description, category, command, tools, compose, instructions. "
+        "id must be lowercase letters, digits, dash or underscore. command must look like /name. "
+        "tools must be chosen only from this list: " + tools + ". "
+        "compose is a list of existing skill ids to chain (or empty). "
+        "instructions must be a precise, reusable method, not a one-off answer."
+    )
+    try:
+        result = await asyncio.to_thread(
+            llm_chat_safe,
+            [
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt},
+            ],
+            model,
+            url,
+            error_prefix="[skill builder error",
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"Could not draft the skill: {exc}"}
+    raw = str(result.get("content") or "").strip()
+    raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.I | re.S).strip()
+    try:
+        draft = json.loads(raw)
+    except json.JSONDecodeError:
+        return {"error": "The model did not return valid skill JSON.", "raw": raw}
+    if not isinstance(draft, dict):
+        return {"error": "The model did not return a skill object.", "raw": raw}
+    error = validate_skill(draft)
+    if error:
+        return {"error": error, "draft": draft}
+    installed = None
+    if body.get("install"):
+        try:
+            installed = install_skill(
+                draft,
+                source="builder",
+                overwrite=bool(body.get("overwrite")),
+                workspace_root=body.get("workspace_root") or None,
+            )
+        except ValueError as exc:
+            return {"error": str(exc), "draft": draft}
+    return {"draft": draft, "skill": installed}
 
 
 @router.post("/skills/resolve")

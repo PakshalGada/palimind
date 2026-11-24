@@ -29,3 +29,15 @@ export function saveRetention(sessionId: string | null, days: RetentionDays): vo
     // storage is optional
   }
 }
+
+export function isRetentionExpired(
+  sessionId: string | null,
+  messages: { timestamp?: number }[],
+  now = Date.now(),
+): boolean {
+  const days = loadRetention(sessionId);
+  if (!days) return false;
+  const last = messages.reduce((latest, message) => Math.max(latest, message.timestamp || 0), 0);
+  if (!last) return false;
+  return now - last > days * 24 * 60 * 60 * 1000;
+}

@@ -27,6 +27,7 @@ import { getCommand } from "../commands/catalog";
 import { runCommand } from "../commands/registry";
 import { formatShortcut } from "../utils/shortcuts";
 import { resolveScope } from "../lib/scope";
+import { isRetentionExpired } from "../utils/retention";
 import { PixelIcon } from "./pixel/PixelIcon";
 import type { PixelSprite } from "./pixel/sprites";
 import type { KnowledgeSpace } from "../types";
@@ -307,6 +308,17 @@ export default function Sidebar() {
   const handleSwitchSession = async (id: string) => {
     const req = beginSessionRequest();
     try {
+      const target = sessions.find((session) => session.id === id);
+      if (target && isRetentionExpired(id, target.messages)) {
+        const removed = await api.sessions.remove(id, req.scope);
+        if (!req.isCurrent()) return;
+        if (!removed.error) {
+          setSessions(removed.sessions as typeof sessions);
+          setActiveSessionId(removed.active_session_id);
+          addToast("Chat deleted by its retention policy.", { tone: "info" });
+          return;
+        }
+      }
       const data = await api.sessions.setActive(id, req.scope);
       if (!req.isCurrent()) return;
       if (!data.error) {

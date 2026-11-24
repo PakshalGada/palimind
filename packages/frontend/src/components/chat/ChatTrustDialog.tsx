@@ -271,7 +271,7 @@ export default function ChatTrustDialog({
         <section className="chat-trust__retention" aria-label="Retention controls">
           <div>
             <h3>Retention</h3>
-            <p>Retention policy is stored locally; delete the chat now to remove the transcript.</p>
+            <p>Retention is checked when you open this chat; delete it now to remove the transcript immediately.</p>
           </div>
           <select
             value={retention}

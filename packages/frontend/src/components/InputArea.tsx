@@ -902,6 +902,15 @@ function InputArea({
     const direct = parseArtifactCommand(text, slashCommands);
     const activeSkill = pending ?? direct?.command ?? null;
     const skillQuery = pending ? text : (direct?.query ?? "");
+    if (activeSkill?.skillId || activeSkill?.artifact) {
+      void api.agents.skillsAdmin
+        .recordRun({
+          skillId: activeSkill.skillId || activeSkill.command,
+          command: activeSkill.command,
+          query: skillQuery,
+        })
+        .catch(() => undefined);
+    }
     let visibleText = text;
     let modelText = text;
 
