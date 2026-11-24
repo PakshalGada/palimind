@@ -186,6 +186,7 @@ from palimind.api_routers.routers.config import (
 from palimind.api_routers.routers.config import router as config_router
 from palimind.api_routers.routers.cookbook import router as cookbook_router
 from palimind.api_routers.routers.capture import router as capture_router
+from palimind.api_routers.routers.chat_intel import router as chat_intel_router
 from palimind.api_routers.routers.desktop import router as desktop_router
 from palimind.api_routers.routers.document import router as document_router
 from palimind.api_routers.routers.files import router as files_router
@@ -303,6 +304,7 @@ app.include_router(jobs_router)
 app.include_router(document_router)
 app.include_router(spaces_router)
 app.include_router(capture_router)
+app.include_router(chat_intel_router)
 app.include_router(files_router)
 app.include_router(cookbook_router)
 app.include_router(desktop_router)

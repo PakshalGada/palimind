@@ -723,6 +723,16 @@ export const api = {
         filename: match?.[1] || res.headers.get('x-palimind-filename') || 'chat-bundle.zip',
       };
     },
+    /** Run a critic pass over an assistant answer. */
+    critic: (data: { text: string; question?: string; model?: string }) =>
+      post<{ critique: string; model: string }>('/chat/critic', data),
+    /** Ask several local models and synthesize their answers. */
+    council: (data: { text: string; models?: string[] }) =>
+      post<{
+        members: { model: string; answer: string }[];
+        synthesis: string;
+        models: string[];
+      }>('/chat/council', data),
     /** Rewrite a draft prompt with the local chat model. */
     coach: (text: string) => post<{ prompt: string }>('/chat/coach', { text }),
     /**

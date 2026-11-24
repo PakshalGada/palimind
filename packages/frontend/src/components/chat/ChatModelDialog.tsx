@@ -1,9 +1,11 @@
-import { Columns2, Gavel, ShieldCheck, Wand2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Columns2, Gavel, Loader2, Send, ShieldCheck, Users, Wand2 } from 'lucide-react';
 import { useApp } from '../../AppContext';
 import { api } from '../../api';
 import { resolveScope } from '../../lib/scope';
 import { runCommand } from '../../commands/registry';
 import { Dialog } from '../../ui/primitives';
+import { formatMarkdown } from '../../utils/markdown';
 import { routeLabel } from '../../utils/chatRouting';
 import './ChatModelDialog.css';
 
@@ -41,7 +43,29 @@ export default function ChatModelDialog({
     activeView,
     activeProjectId,
     selectedAgentId,
+    sessions,
+    activeSessionId,
+    addToast,
   } = useApp();
+  const [busy, setBusy] = useState<'critic' | 'council' | null>(null);
+  const [result, setResult] = useState<{
+    title: string;
+    body: string;
+    models?: string[];
+  } | null>(null);
+
+  const session = sessions.find((item) => item.id === activeSessionId);
+  const { lastUser, lastAssistant } = useMemo(() => {
+    const messages = session?.messages ?? [];
+    let user = '';
+    let assistant = '';
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (!user && messages[index].role === 'user') user = messages[index].content;
+      if (!assistant && messages[index].role !== 'user') assistant = messages[index].content;
+      if (user && assistant) break;
+    }
+    return { lastUser: user, lastAssistant: assistant };
+  }, [session?.messages]);
 
   const scope = resolveScope(activeView, {
     agentId: selectedAgentId,
@@ -53,13 +77,58 @@ export default function ChatModelDialog({
     void api.config.setMoe({ moe_sub_mode: mode }, scope).catch(() => undefined);
   };
 
+  const runCritic = async () => {
+    if (!lastAssistant.trim()) {
+      addToast('Ask a question first — there is no answer to critique.', { tone: 'info' });
+      return;
+    }
+    setBusy('critic');
+    try {
+      const data = await api.chat.critic({ text: lastAssistant, question: lastUser });
+      setResult({ title: 'Critic pass', body: data.critique, models: [data.model] });
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Critic pass failed.', { tone: 'error' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const runCouncil = async () => {
+    const prompt = lastUser.trim() || lastAssistant.trim();
+    if (!prompt) {
+      addToast('Ask a question first so the council has something to answer.', { tone: 'info' });
+      return;
+    }
+    setBusy('council');
+    try {
+      const data = await api.chat.council({ text: prompt });
+      setResult({
+        title: 'Council synthesis',
+        body: data.synthesis,
+        models: data.models,
+      });
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Council failed.', { tone: 'error' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const useResult = () => {
+    if (!result) return;
+    window.dispatchEvent(
+      new CustomEvent('palimind:prefill-composer', { detail: { text: result.body } }),
+    );
+    onClose();
+  };
+
   return (
     <Dialog
       open={open}
       onClose={onClose}
       title="Model intelligence"
       subtitle={`Current model: ${currentModel || 'Loading…'}`}
-      width={620}
+      width={640}
     >
       <div className="chat-model">
         <section>
@@ -98,21 +167,24 @@ export default function ChatModelDialog({
           <h3>Answer quality</h3>
           <button
             type="button"
-            onClick={() => {
-              window.dispatchEvent(
-                new CustomEvent('palimind:prefill-composer', {
-                  detail: {
-                    text: 'Critique the previous answer. List errors, unsupported claims, missing evidence and edge cases, then give a corrected version.',
-                  },
-                }),
-              );
-              onClose();
-            }}
+            disabled={busy !== null || !lastAssistant.trim()}
+            onClick={() => void runCritic()}
           >
-            <Gavel size={15} />
+            {busy === 'critic' ? <Loader2 size={15} className="spin" /> : <Gavel size={15} />}
             <span>
               <strong>Critic pass</strong>
-              <small>Review the last answer and revise it.</small>
+              <small>Review the last answer and propose a corrected version.</small>
+            </span>
+          </button>
+          <button
+            type="button"
+            disabled={busy !== null || !lastUser.trim()}
+            onClick={() => void runCouncil()}
+          >
+            {busy === 'council' ? <Loader2 size={15} className="spin" /> : <Users size={15} />}
+            <span>
+              <strong>Run council</strong>
+              <small>Ask several local models and synthesize their answers.</small>
             </span>
           </button>
           <button
@@ -129,6 +201,25 @@ export default function ChatModelDialog({
             </span>
           </button>
         </section>
+
+        {result && (
+          <section className="chat-model__result">
+            <div className="chat-model__result-head">
+              <strong>{result.title}</strong>
+              {result.models && (
+                <span>{result.models.join(' · ')}</span>
+              )}
+            </div>
+            <div
+              className="chat-model__result-body"
+              dangerouslySetInnerHTML={{ __html: formatMarkdown(result.body) }}
+            />
+            <button type="button" className="chat-model__use" onClick={useResult}>
+              <Send size={13} />
+              Use in composer
+            </button>
+          </section>
+        )}
 
         <div className="chat-model__foot">
           <ShieldCheck size={13} />
