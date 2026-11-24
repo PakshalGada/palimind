@@ -1,5 +1,4 @@
 import { formatMarkdown } from './markdown';
-import { parseSlides } from './slides';
 import { renderMermaid } from './artifactMermaid';
 import { buildArtifactOfficePayload } from './officePipeline';
 import { api } from '../api';
@@ -233,140 +232,13 @@ async function exportDocx(artifact: ExportableArtifact): Promise<Blob> {
   return Packer.toBlob(document);
 }
 
-interface SlideSpec {
-  title: string;
-  bullets: string[];
-}
-
-function parseSlideOutline(artifact: ExportableArtifact): SlideSpec[] {
-  // Use the same parser as the in-app slide preview so PPTX export matches
-  // exactly what the user approved on screen.
-  if (artifact.type === 'slide-outline') {
-    const parsed = parseSlides(artifact.content).map((slide) => ({
-      title: slide.title,
-      bullets: slide.bullets,
-    }));
-    if (parsed.length > 0) return parsed;
-  }
-
-  const slides: SlideSpec[] = [];
-  let current: SlideSpec | null = null;
-  const startSlide = (title: string): SlideSpec => {
-    const spec = { title: title || `Slide ${slides.length + 1}`, bullets: [] as string[] };
-    slides.push(spec);
-    current = spec;
-    return spec;
-  };
-
-  if (artifact.type !== 'slide-outline') {
-    startSlide(artifact.title || 'Artifact');
-    artifact.content
-      .split('\n')
-      .map(line => line.replace(/^#{1,6}\s*/, '').replace(/^\s*[-*]\s+/, '').trim())
-      .filter(Boolean)
-      .forEach(line => {
-        // Overflow starts a new slide; the line that overflowed belongs on it.
-        const target =
-          current && current.bullets.length < 12 ? current : startSlide('Continued');
-        target.bullets.push(line.slice(0, 220));
-      });
-    return slides;
-  }
-
-  for (const raw of artifact.content.split('\n')) {
-    const line = raw.trim();
-    if (!line) continue;
-    if (/^---+$/.test(line)) {
-      current = null;
-      continue;
-    }
-    const heading =
-      line.match(/^#{1,4}\s+(.+)$/)?.[1] ||
-      line.match(/^slide\s*\d+\s*[:.-]\s*(.+)$/i)?.[1];
-    if (heading) {
-      startSlide(heading.replace(/[*_`]/g, '').slice(0, 200));
-      continue;
-    }
-    if (!current) current = startSlide(artifact.title || 'Slide');
-    const bullet = line.replace(/^\s*[-*•]\s+/, '').replace(/^\d+[.)]\s+/, '');
-    current.bullets.push(bullet.slice(0, 220));
-  }
-  if (slides.length === 0) startSlide(artifact.title || 'Artifact');
-  return slides;
-}
-
 async function exportPptx(artifact: ExportableArtifact): Promise<Blob> {
-  // Prefer the designed server-side deck pipeline (cover, sections, KPI cards,
-  // comparison, timeline, closing). The pptxgenjs path below is the offline
-  // fallback and intentionally stays simple.
-  try {
-    const payload = buildArtifactOfficePayload(artifact, 'pptx');
-    const result = await api.office.generate(payload);
-    return result.blob;
-  } catch {
-    // Offline / older backend: fall back to the local renderer.
-  }
-
-  const PptxGenJS = (await import('pptxgenjs')).default;
-  const pptx = new PptxGenJS();
-  pptx.layout = 'LAYOUT_WIDE';
-  pptx.author = 'Palimind';
-  pptx.title = artifact.title;
-  const dark = document.documentElement.classList.contains('light-mode') === false;
-
-  const cover = pptx.addSlide();
-  cover.background = { color: dark ? '09090B' : 'FFFFFF' };
-  cover.addText(artifact.title || 'Artifact', {
-    x: 0.7,
-    y: 2.4,
-    w: 11.9,
-    h: 1.1,
-    fontSize: 34,
-    bold: true,
-    color: dark ? 'F4F4F5' : '18181B',
-    fontFace: 'Arial',
-  });
-  cover.addText('Generated with Palimind', {
-    x: 0.7,
-    y: 5.6,
-    w: 11.9,
-    h: 0.5,
-    fontSize: 13,
-    color: dark ? 'A1A1AA' : '52525B',
-    fontFace: 'Arial',
-  });
-
-  for (const spec of parseSlideOutline(artifact)) {
-    const slide = pptx.addSlide();
-    slide.background = { color: dark ? '09090B' : 'FFFFFF' };
-    slide.addText(spec.title, {
-      x: 0.6,
-      y: 0.45,
-      w: 12.1,
-      h: 0.8,
-      fontSize: 26,
-      bold: true,
-      color: dark ? 'F4F4F5' : '18181B',
-      fontFace: 'Arial',
-    });
-    if (spec.bullets.length) {
-      slide.addText(
-        spec.bullets.map(text => ({ text, options: { bullet: true } })),
-        {
-          x: 0.8,
-          y: 1.5,
-          w: 11.7,
-          h: 5,
-          fontSize: 17,
-          color: dark ? 'D4D4D8' : '3F3F46',
-          fontFace: 'Arial',
-          breakLine: true,
-        },
-      );
-    }
-  }
-
-  return (await pptx.write({ outputType: 'blob' })) as Blob;
+  // PowerPoint export goes through the local designed-deck pipeline. The
+  // client-side fallback was removed: it duplicated the renderer, could drift
+  // from the preview, and pulled an image parser with known DoS advisories.
+  const payload = buildArtifactOfficePayload(artifact, 'pptx');
+  const result = await api.office.generate(payload);
+  return result.blob;
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {

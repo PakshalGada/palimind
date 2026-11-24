@@ -1,24 +1,15 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { useApp } from './AppContext';
 import { api } from './api';
 import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
 import CompareModal from './components/CompareModal';
-import SettingsPage from './features/settings/SettingsPage';
 import DirectoryPicker from './components/DirectoryPicker';
-import KnowledgeGraph from './components/KnowledgeGraph';
 import ToastContainer from './components/ToastContainer';
 import SetupProgress from './components/SetupProgress';
 import ShortcutsModal from './components/ShortcutsModal';
 import CommandPalette from './components/CommandPalette';
 import QuickAsk from './components/QuickAsk';
-import AgentGraph from './components/AgentGraph';
-import SkillManager from './components/SkillManager';
-import PlanReview from './components/PlanReview';
-import ResearchPlanModal from './components/ResearchPlanModal';
-import TaskMonitor from './components/TaskMonitor';
-import AgentManager from './features/agents/AgentManager';
-import AgentsWorkspace from './features/agents/AgentsWorkspace';
 import AppLayout from './components/layout/AppLayout';
 import ConnectionBanner from './components/layout/ConnectionBanner';
 import ResponsiveSidebar from './components/layout/ResponsiveSidebar';
@@ -30,10 +21,20 @@ import { resolveScope } from './lib/scope';
 import { speech } from './utils/speech';
 import { getVoice, isAutoSpeakOn } from './utils/voicePrefs';
 import { ChatStreamProvider } from './stream/ChatStream';
-import HomeView from './features/home/HomeView';
-import ProjectsView from './features/projects/ProjectsView';
-import ArtifactsView from './features/artifacts/ArtifactsView';
-import KnowledgeView from './features/knowledge/KnowledgeView';
+
+const SettingsPage = lazy(() => import('./features/settings/SettingsPage'));
+const KnowledgeGraph = lazy(() => import('./components/KnowledgeGraph'));
+const AgentGraph = lazy(() => import('./components/AgentGraph'));
+const SkillManager = lazy(() => import('./components/SkillManager'));
+const PlanReview = lazy(() => import('./components/PlanReview'));
+const ResearchPlanModal = lazy(() => import('./components/ResearchPlanModal'));
+const TaskMonitor = lazy(() => import('./components/TaskMonitor'));
+const AgentManager = lazy(() => import('./features/agents/AgentManager'));
+const AgentsWorkspace = lazy(() => import('./features/agents/AgentsWorkspace'));
+const HomeView = lazy(() => import('./features/home/HomeView'));
+const ProjectsView = lazy(() => import('./features/projects/ProjectsView'));
+const ArtifactsView = lazy(() => import('./features/artifacts/ArtifactsView'));
+const KnowledgeView = lazy(() => import('./features/knowledge/KnowledgeView'));
 
 export default function App() {
   const {
@@ -266,26 +267,30 @@ export default function App() {
         <SetupProgress />
         <ConnectionBanner />
         <div className="view-enter" key={activeView}>
-          {activeView === 'home' && <HomeView />}
-          {activeView === 'chat' && <ChatArea />}
-          {activeView === 'agents' && <AgentsWorkspace />}
-          {activeView === 'knowledge' && <KnowledgeView />}
-          {activeView === 'projects' && <ProjectsView />}
-          {activeView === 'artifacts' && <ArtifactsView />}
+          <Suspense fallback={null}>
+            {activeView === 'home' && <HomeView />}
+            {activeView === 'chat' && <ChatArea />}
+            {activeView === 'agents' && <AgentsWorkspace />}
+            {activeView === 'knowledge' && <KnowledgeView />}
+            {activeView === 'projects' && <ProjectsView />}
+            {activeView === 'artifacts' && <ArtifactsView />}
+          </Suspense>
         </div>
-        <AgentManager />
-        <CompareModal open={compareOpen} onClose={() => setCompareOpen(false)} />
-        <SettingsPage />
-        <DirectoryPicker />
-        <KnowledgeGraph />
-        <ShortcutsModal />
-        <CommandPalette />
-        <QuickAsk />
-        <AgentGraph />
-        <SkillManager />
-        <PlanReview />
-        <ResearchPlanModal />
-        <TaskMonitor />
+        <Suspense fallback={null}>
+          <AgentManager />
+          <CompareModal open={compareOpen} onClose={() => setCompareOpen(false)} />
+          <SettingsPage />
+          <DirectoryPicker />
+          <KnowledgeGraph />
+          <ShortcutsModal />
+          <CommandPalette />
+          <QuickAsk />
+          <AgentGraph />
+          <SkillManager />
+          <PlanReview />
+          <ResearchPlanModal />
+          <TaskMonitor />
+        </Suspense>
         <ToastContainer />
       </AppLayout>
     </ChatStreamProvider>

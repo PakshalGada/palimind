@@ -1524,6 +1524,7 @@ _MULTI_TOOL_PLUGINS: list[str] = [
     "palimind.agents.tools.apply-patch.tool",
     "palimind.agents.tools.office.tool",
     "palimind.agents.tools.data.tool",
+    "palimind.agents.tools.media.tool",
     "palimind.agents.task_tools",
     "palimind.agents.channel_tools",
     "palimind.agents.wait_tools",
