@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { ArrowUp, BarChart3, Code2, FileText, Globe2, Loader2, Mic, Presentation, Search, Sparkles, Square, Users } from "lucide-react";
+import { ArrowUp, BarChart3, Camera, Clipboard, Code2, FileText, Globe2, Loader2, Mic, Presentation, Search, Sparkles, Square, Users, Volume2, VolumeX } from "lucide-react";
 import ModelSwitcher from "./ModelSwitcher";
 import ModelPicker from "../features/agents/ModelPicker";
 import OfficeExportWatcher, { type OfficeJob } from "./OfficeExportWatcher";
@@ -40,6 +40,8 @@ import { useCommandHandlers } from "../commands/useCommand";
 import { useChatStreamActions } from "../stream/context";
 import { memoryForScope } from "../utils/chatMemory";
 import { routeChatSubMode } from "../utils/chatRouting";
+import { captureBrowserScreen, dataUrlToFile, readClipboardPayload } from "../utils/capture";
+import { isAutoSpeakOn, setAutoSpeak } from "../utils/voicePrefs";
 import { exportWAV } from "../utils/audio";
 import { api } from "../api";
 import {
@@ -199,6 +201,8 @@ function InputArea({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState("");
   const [coaching, setCoaching] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(() => isAutoSpeakOn(null));
+  const [captureBusy, setCaptureBusy] = useState<"clipboard" | "screenshot" | null>(null);
   const draftKey = `palimind:draft:${activeSessionId ?? "new"}`;
   const restoredDraftRef = useRef<string | null>(null);
   // Drafts survive session switches and reloads.
@@ -729,6 +733,67 @@ function InputArea({
 
   // Online (OpenCode proxy) models have no local size metadata.
   const isOnline = (m: ModelItem) => !m.parameter_size && !m.size_gb;
+
+  const attachFile = useCallback((file: File) => {
+    setAttachedFiles([...attachedFiles, file]);
+  }, [attachedFiles, setAttachedFiles]);
+
+  const captureClipboard = useCallback(async () => {
+    setCaptureBusy("clipboard");
+    try {
+      const payload = await readClipboardPayload();
+      if (payload.file) attachFile(payload.file);
+      if (payload.text) {
+        setValue((current) => (current.trim() ? `${current.trim()}\n${payload.text}` : payload.text || ""));
+      }
+      if (!payload.file && !payload.text) {
+        addToast("Nothing readable in the clipboard. Copy text or an image first.", { tone: "info" });
+      } else if (payload.file) {
+        addToast("Clipboard image attached", { tone: "success" });
+      } else {
+        addToast("Clipboard text added to the composer", { tone: "success" });
+      }
+    } catch {
+      addToast("Could not read the clipboard.", { tone: "error" });
+    } finally {
+      setCaptureBusy(null);
+    }
+  }, [attachFile, addToast]);
+
+  const captureScreenshot = useCallback(async () => {
+    setCaptureBusy("screenshot");
+    try {
+      let file: File | null = null;
+      try {
+        const result = await api.desktop.screenshot({ screen: 0, annotate: false });
+        if (result.ok && result.data?.image) {
+          file = dataUrlToFile(result.data.image, `screenshot-${Date.now()}.png`);
+        }
+      } catch {
+        // Browser fallback below.
+      }
+      if (!file) file = await captureBrowserScreen();
+      if (!file) {
+        addToast("Could not capture the screen. The desktop app or screen permission is required.", {
+          tone: "error",
+        });
+        return;
+      }
+      attachFile(file);
+      addToast("Screenshot attached", { tone: "success" });
+    } finally {
+      setCaptureBusy(null);
+    }
+  }, [attachFile, addToast]);
+
+  const toggleVoiceMode = useCallback(() => {
+    const next = !voiceMode;
+    setVoiceMode(next);
+    setAutoSpeak(next);
+    addToast(next ? "Voice conversation on — replies will be spoken." : "Voice conversation off.", {
+      tone: "info",
+    });
+  }, [voiceMode, addToast]);
 
   const coachPrompt = useCallback(async () => {
     const text = value.trim();
@@ -1801,6 +1866,50 @@ function InputArea({
                 Listening…
               </span>
             )}
+            <PromptInputAction tooltip="Paste text or an image from the clipboard">
+              <button
+                type="button"
+                className={`mic-btn${captureBusy === "clipboard" ? " processing" : ""}`}
+                aria-label="Paste from clipboard"
+                title="Paste text or an image from the clipboard"
+                disabled={captureBusy !== null || isGenerating}
+                onClick={() => void captureClipboard()}
+              >
+                {captureBusy === "clipboard" ? (
+                  <Loader2 size={16} className="spin" aria-hidden="true" />
+                ) : (
+                  <Clipboard size={16} aria-hidden="true" />
+                )}
+              </button>
+            </PromptInputAction>
+            <PromptInputAction tooltip="Capture the screen and attach it">
+              <button
+                type="button"
+                className={`mic-btn${captureBusy === "screenshot" ? " processing" : ""}`}
+                aria-label="Capture screen"
+                title="Capture the screen and attach it"
+                disabled={captureBusy !== null || isGenerating}
+                onClick={() => void captureScreenshot()}
+              >
+                {captureBusy === "screenshot" ? (
+                  <Loader2 size={16} className="spin" aria-hidden="true" />
+                ) : (
+                  <Camera size={16} aria-hidden="true" />
+                )}
+              </button>
+            </PromptInputAction>
+            <PromptInputAction tooltip={voiceMode ? "Voice conversation on" : "Voice conversation off"}>
+              <button
+                type="button"
+                className={`mic-btn${voiceMode ? " active" : ""}`}
+                aria-label={voiceMode ? "Turn off voice conversation" : "Turn on voice conversation"}
+                aria-pressed={voiceMode}
+                title={voiceMode ? "Replies are spoken aloud" : "Speak replies aloud"}
+                onClick={toggleVoiceMode}
+              >
+                {voiceMode ? <Volume2 size={16} aria-hidden="true" /> : <VolumeX size={16} aria-hidden="true" />}
+              </button>
+            </PromptInputAction>
             <PromptInputAction tooltip={coaching ? "Improving…" : "Improve prompt"}>
               <button
                 type="button"
