@@ -267,6 +267,14 @@ export default function DataModeDialog({
             </section>
 
             <section className="data-mode__section">
+              <h3><Table2 size={14} /> Preview</h3>
+              <DataTable
+                columns={columns}
+                rows={profile.preview.map((row) => columns.map((column) => row[column]))}
+              />
+            </section>
+
+            <section className="data-mode__section">
               <h3><Sparkles size={14} /> Ask the data</h3>
               <div className="data-mode__ask">
                 <input
