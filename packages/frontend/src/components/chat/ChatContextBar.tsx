@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Brain, Cpu, Folder, Package, ShieldCheck } from 'lucide-react';
+import { Brain, Columns2, Cpu, Folder, Package, ShieldCheck } from 'lucide-react';
 import { useApp } from '../../AppContext';
 import { collectArtifacts } from '../../utils/artifacts';
+import { runCommand } from '../../commands/registry';
 import ChatMemoryDialog from './ChatMemoryDialog';
 import ChatTrustDialog from './ChatTrustDialog';
 import './ChatContextBar.css';
@@ -81,6 +82,15 @@ export default function ChatContextBar() {
           <option value="teaching">Teaching</option>
         </select>
       </label>
+      <button
+        type="button"
+        className="chat-context-chip chat-context-chip--button"
+        title="Compare two models"
+        onClick={() => runCommand('chat.compare-models')}
+      >
+        <Columns2 size={12} />
+        Compare
+      </button>
       <button
         type="button"
         className="chat-context-chip chat-context-chip--button"
