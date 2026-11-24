@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { Brain, Columns2, Cpu, Folder, Package, Pin, ShieldCheck } from 'lucide-react';
+import { Brain, Cpu, Folder, Package, Pin, Search, ShieldCheck, Wand2 } from 'lucide-react';
 import { useApp } from '../../AppContext';
 import { collectArtifacts } from '../../utils/artifacts';
-import { runCommand } from '../../commands/registry';
+import { memoryForScope } from '../../utils/chatMemory';
 import ChatContextManager from './ChatContextManager';
+import ChatContinuityDialog from './ChatContinuityDialog';
+import ChatModelDialog from './ChatModelDialog';
+import ChatSearchDialog from './ChatSearchDialog';
 import ChatMemoryDialog from './ChatMemoryDialog';
 import ChatTrustDialog from './ChatTrustDialog';
 import './ChatContextBar.css';
@@ -29,20 +32,29 @@ export default function ChatContextBar() {
     setResponseStyle,
     chatMemory,
     pinnedContext,
+    autoRoute,
   } = useApp();
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [continuityOpen, setContinuityOpen] = useState(false);
+  const [modelOpen, setModelOpen] = useState(false);
   const [trustOpen, setTrustOpen] = useState(false);
 
   if (activeView !== 'chat') return null;
 
   const session = sessions.find((item) => item.id === activeSessionId);
   const artifactCount = collectArtifacts(session?.messages).length;
+  const memoryCount = memoryForScope(chatMemory, {
+    sessionId: activeSessionId,
+    projectId: activeProjectId,
+  }).length;
   const workspace = activeProjectId
     ? activeProjectName || 'Project'
     : leaf(activeField);
-  const mode =
-    llmSubMode === 'moe'
+  const mode = autoRoute
+    ? 'Auto'
+    : llmSubMode === 'moe'
       ? 'Mixture of Experts'
       : llmSubMode === 'deep_research'
         ? 'Deep Research'
@@ -97,11 +109,11 @@ export default function ChatContextBar() {
       <button
         type="button"
         className="chat-context-chip chat-context-chip--button"
-        title="Compare two models"
-        onClick={() => runCommand('chat.compare-models')}
+        title="Model intelligence, critic pass and model comparison"
+        onClick={() => setModelOpen(true)}
       >
-        <Columns2 size={12} />
-        Compare
+        <Wand2 size={12} />
+        Intelligence
       </button>
       <button
         type="button"
@@ -110,21 +122,22 @@ export default function ChatContextBar() {
         onClick={() => setMemoryOpen(true)}
       >
         <Brain size={12} />
-        Memory{chatMemory.length > 0 ? ` ${chatMemory.length}` : ''}
+        Memory{memoryCount > 0 ? ` ${memoryCount}` : ''}
       </button>
       <button
         type="button"
         className="chat-context-chip chat-context-chip--button"
-        title="Summarize this conversation"
-        onClick={() =>
-          window.dispatchEvent(
-            new CustomEvent('palimind:prefill-composer', {
-              detail: {
-                text: 'Catch me up: summarize this conversation into decisions, action items, open questions and key facts.',
-              },
-            }),
-          )
-        }
+        title="Search this conversation"
+        onClick={() => setSearchOpen(true)}
+      >
+        <Search size={12} />
+        Search
+      </button>
+      <button
+        type="button"
+        className="chat-context-chip chat-context-chip--button"
+        title="Recap, decisions and next steps"
+        onClick={() => setContinuityOpen(true)}
       >
         Recap
       </button>
@@ -139,6 +152,9 @@ export default function ChatContextBar() {
       </button>
       <ChatMemoryDialog open={memoryOpen} onClose={() => setMemoryOpen(false)} />
       <ChatContextManager open={contextOpen} onClose={() => setContextOpen(false)} />
+      <ChatSearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <ChatContinuityDialog open={continuityOpen} onClose={() => setContinuityOpen(false)} />
+      <ChatModelDialog open={modelOpen} onClose={() => setModelOpen(false)} />
       <ChatTrustDialog open={trustOpen} onClose={() => setTrustOpen(false)} />
     </div>
   );

@@ -130,14 +130,19 @@ export default function ChatArea() {
   // flash the bubble so it is easy to spot in a long thread.
   useEffect(() => {
     const onGoto = (event: Event) => {
-      const detail = (event as CustomEvent<{ sessionId?: string; messageId?: number }>).detail;
+      const detail = (
+        event as CustomEvent<{ sessionId?: string; messageId?: number; messageIndex?: number }>
+      ).detail;
       const messageId = detail?.messageId;
-      if (!messageId) return;
+      const messageIndex = detail?.messageIndex;
+      if (messageId == null && messageIndex == null) return;
       if (detail.sessionId && detail.sessionId !== activeSessionId) return;
       const timer = window.setTimeout(() => {
-        const el = messagesRef.current?.querySelector<HTMLElement>(
-          `[data-message-id="${messageId}"]`,
-        );
+        const selector =
+          messageId != null
+            ? `[data-message-id="${messageId}"]`
+            : `[data-message-index="${messageIndex}"]`;
+        const el = messagesRef.current?.querySelector<HTMLElement>(selector);
         el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
         el?.classList.add('message-flash');
         window.setTimeout(() => el?.classList.remove('message-flash'), 2400);
@@ -673,6 +678,7 @@ const MessageComponent = memo(function MessageComponent({
     <div
       className={`message ${isUser ? 'user-message' : 'system-message'} history-message`}
       data-message-id={msg.id}
+      data-message-index={index}
     >
       <div className="message-wrapper">
         {!isUser && (

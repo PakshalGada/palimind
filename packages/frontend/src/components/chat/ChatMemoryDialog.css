@@ -98,3 +98,84 @@
     background: var(--surface-hover);
     color: var(--danger-color, #be123c);
 }
+
+.chat-memory__form select {
+    height: 36px;
+    padding: 0 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--ink-secondary);
+    font-family: var(--font-sans);
+    font-size: var(--type-xs);
+}
+.chat-memory__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.chat-memory__filters {
+    display: flex;
+    gap: 3px;
+}
+.chat-memory__filter {
+    height: 24px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: var(--type-2xs);
+    cursor: pointer;
+}
+.chat-memory__filter:hover {
+    background: var(--surface-hover);
+    color: var(--ink);
+}
+.chat-memory__filter.is-active {
+    border-color: var(--line);
+    background: var(--surface-2);
+    color: var(--ink);
+}
+.chat-memory__search {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    padding: 0 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--text-muted);
+}
+.chat-memory__search input {
+    width: 140px;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--type-xs);
+    outline: none;
+}
+.chat-memory__scope {
+    flex-shrink: 0;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--surface-hover);
+    color: var(--text-muted);
+    font-size: 10px;
+    line-height: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.chat-memory__scope.is-global {
+    background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+    color: var(--primary-color);
+}
+.chat-memory__list li > span:nth-child(2) {
+    flex: 1 1 auto;
+    min-width: 0;
+}

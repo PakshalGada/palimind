@@ -38,6 +38,8 @@ import { useApp } from "../AppContext";
 import type { ActivityMode, ResponseStyle } from "../AppContext";
 import { useCommandHandlers } from "../commands/useCommand";
 import { useChatStreamActions } from "../stream/context";
+import { memoryForScope } from "../utils/chatMemory";
+import { routeChatSubMode } from "../utils/chatRouting";
 import { exportWAV } from "../utils/audio";
 import { api } from "../api";
 import {
@@ -179,6 +181,7 @@ function InputArea({
     setIsTranscribing,
     addToast,
     responseStyle,
+    autoRoute,
     chatMemory,
     pinnedContext,
   } = useApp();
@@ -937,6 +940,10 @@ function InputArea({
       const agentInfo = selectedAgentId
         ? allAgents.find((a) => a.id === selectedAgentId)
         : undefined;
+      const routedSubMode =
+        isChatView && activeView === "chat" && !activeSkill
+          ? routeChatSubMode(text, llmSubMode, autoRoute)
+          : llmSubMode;
       let actMode: ActivityMode = "llm";
       let actTitle = "LLM";
       if (activeView === "agents") {
@@ -948,10 +955,10 @@ function InputArea({
       } else if (activeSkill) {
         actMode = "llm";
         actTitle = "LLM";
-      } else if (llmSubMode === "moe") {
+      } else if (routedSubMode === "moe") {
         actMode = "moe";
         actTitle = "Mixture of Experts";
-      } else if (llmSubMode === "deep_research") {
+      } else if (routedSubMode === "deep_research") {
         actMode = "deep_research";
         actTitle = "Deep Research";
       }
@@ -983,8 +990,12 @@ function InputArea({
           ? RESPONSE_STYLE_PREFIX[responseStyle]
           : "";
       if (stylePrefix) modelText = `${stylePrefix}\n\n${modelText}`;
-      if (isChatView && activeView === "chat" && !activeSkill && chatMemory.length > 0) {
-        modelText = `Known facts about the user (use only when relevant, never repeat them back verbatim):\n- ${chatMemory.join("\n- ")}\n\n${modelText}`;
+      const relevantMemory = memoryForScope(chatMemory, {
+        sessionId: activeSessionId,
+        projectId: activeProjectId,
+      });
+      if (isChatView && activeView === "chat" && !activeSkill && relevantMemory.length > 0) {
+        modelText = `Known facts about the user (use only when relevant, never repeat them back verbatim):\n- ${relevantMemory.map((item) => item.text).join("\n- ")}\n\n${modelText}`;
       }
       if (isChatView && activeView === "chat" && !activeSkill && pinnedContext.length > 0) {
         const context = pinnedContext
@@ -999,7 +1010,7 @@ function InputArea({
         mode,
         scope,
         sessionId: activeSessionId,
-        subMode: mode === "llm" ? (activeSkill ? "default" : llmSubMode) : undefined,
+        subMode: mode === "llm" ? (activeSkill ? "default" : routedSubMode) : undefined,
         // Search is part of every turn now; there is no composer toggle.
         webSearch: true,
         displayText: activeSkill ? visibleText : undefined,
@@ -1048,6 +1059,7 @@ function InputArea({
     replyTarget?.messageId,
     forkTarget,
     responseStyle,
+    autoRoute,
     chatMemory,
     pinnedContext,
   ]);

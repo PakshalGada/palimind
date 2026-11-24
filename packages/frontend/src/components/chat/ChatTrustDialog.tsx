@@ -2,6 +2,7 @@ import { Cpu, Database, Folder, Package, ShieldCheck, Trash2 } from 'lucide-reac
 import { useApp } from '../../AppContext';
 import { Dialog } from '../../ui/primitives';
 import { collectArtifacts } from '../../utils/artifacts';
+import { memoryForScope } from '../../utils/chatMemory';
 import './ChatTrustDialog.css';
 
 function leaf(path: string | null): string {
@@ -31,6 +32,10 @@ export default function ChatTrustDialog({
 
   const session = sessions.find((item) => item.id === activeSessionId);
   const artifacts = collectArtifacts(session?.messages).length;
+  const activeMemory = memoryForScope(chatMemory, {
+    sessionId: activeSessionId,
+    projectId: activeProjectId,
+  });
   const workspace = activeProjectId
     ? activeProjectName || 'Project'
     : leaf(activeField);
@@ -69,7 +74,7 @@ export default function ChatTrustDialog({
           </div>
           <div>
             <dt><Database size={13} /> Memory</dt>
-            <dd>{chatMemory.length} fact{chatMemory.length === 1 ? '' : 's'}</dd>
+            <dd>{activeMemory.length} fact{activeMemory.length === 1 ? '' : 's'}</dd>
           </div>
           <div>
             <dt><ShieldCheck size={13} /> Processing</dt>
@@ -79,17 +84,17 @@ export default function ChatTrustDialog({
 
         <section className="chat-trust__memory">
           <h3>Chat memory</h3>
-          {chatMemory.length === 0 ? (
+          {activeMemory.length === 0 ? (
             <p>Nothing remembered yet. Add facts from the Memory button or any answer’s save menu.</p>
           ) : (
             <ul>
-              {chatMemory.map((item, index) => (
-                <li key={`${index}-${item}`}>
-                  <span>{item}</span>
+              {activeMemory.map((item) => (
+                <li key={item.id}>
+                  <span>{item.text}</span>
                   <button
                     type="button"
-                    onClick={() => removeChatMemory(index)}
-                    aria-label={`Forget: ${item}`}
+                    onClick={() => removeChatMemory(item.id)}
+                    aria-label={`Forget: ${item.text}`}
                     title="Forget this"
                   >
                     <Trash2 size={13} />

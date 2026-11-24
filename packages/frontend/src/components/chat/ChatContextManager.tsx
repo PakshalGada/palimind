@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Archive, Pin, Trash2 } from 'lucide-react';
 import { useApp } from '../../AppContext';
 import { summarizeContextBudget } from '../../utils/chatContext';
+import { memoryForScope } from '../../utils/chatMemory';
 import { Dialog } from '../../ui/primitives';
 import './ChatContextManager.css';
 
@@ -20,10 +21,15 @@ export default function ChatContextManager({
     chatMemory,
     sessions,
     activeSessionId,
+    activeProjectId,
   } = useApp();
 
   const session = sessions.find((item) => item.id === activeSessionId);
   const messageCount = session?.messages.length ?? 0;
+  const activeMemory = memoryForScope(chatMemory, {
+    sessionId: activeSessionId,
+    projectId: activeProjectId,
+  });
 
   const budget = 8192;
   const { totalTokens, contextTokens, messageTokens, memoryTokens, pct } = useMemo(
@@ -31,10 +37,10 @@ export default function ChatContextManager({
       summarizeContextBudget({
         pinnedContext,
         messages: session?.messages ?? [],
-        memory: chatMemory,
+        memory: activeMemory.map((item) => item.text),
         budget,
       }),
-    [pinnedContext, session?.messages, chatMemory],
+    [pinnedContext, session?.messages, activeMemory],
   );
 
   return (

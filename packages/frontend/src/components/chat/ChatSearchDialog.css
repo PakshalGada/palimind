@@ -1,0 +1,87 @@
+.chat-search {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.chat-search__input {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 38px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--text-muted);
+}
+.chat-search__input input {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--type-sm);
+    outline: none;
+}
+.chat-search__empty {
+    margin: 4px 0;
+    padding: 18px;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-md);
+    color: var(--text-muted);
+    font-size: var(--type-sm);
+    text-align: center;
+}
+.chat-search__list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 420px;
+    margin: 0;
+    padding: 0;
+    overflow: auto;
+    list-style: none;
+}
+.chat-search__list button {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink-secondary);
+    text-align: left;
+    cursor: pointer;
+}
+.chat-search__list button:hover {
+    border-color: var(--line);
+    background: var(--surface-2);
+}
+.chat-search__role {
+    flex-shrink: 0;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--surface-hover);
+    color: var(--text-muted);
+    font-size: 10px;
+    line-height: 16px;
+    text-transform: uppercase;
+}
+.chat-search__role.is-user {
+    background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+    color: var(--primary-color);
+}
+.chat-search__snippet {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--type-xs);
+    line-height: 1.45;
+}
+.chat-search__meta {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}

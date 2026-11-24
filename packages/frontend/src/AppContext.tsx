@@ -7,6 +7,13 @@ import { loadShortcutOverrides, saveShortcutOverrides } from './utils/shortcuts'
 import { useTheme } from './design/ThemeProvider';
 import { resolveScope } from './lib/scope';
 import { summarizePinnedContext } from './utils/chatContext';
+import {
+  loadChatMemory,
+  makeMemoryEntry,
+  saveChatMemory,
+  type ChatMemoryEntry,
+  type ChatMemoryScope,
+} from './utils/chatMemory';
 
 export type ToastTone = 'default' | 'success' | 'warning' | 'error' | 'info';
 
@@ -126,7 +133,8 @@ interface AppState {
   workbenchOpen: boolean;
   workbenchTab: WorkbenchTab;
   responseStyle: ResponseStyle;
-  chatMemory: string[];
+  autoRoute: boolean;
+  chatMemory: ChatMemoryEntry[];
   pinnedContext: ChatContextItem[];
   shortcutOverrides: ShortcutOverrides;
 }
@@ -184,8 +192,9 @@ interface AppContextType extends AppState {
   closeWorkbench: () => void;
   toggleWorkbench: (tab?: WorkbenchTab) => void;
   setResponseStyle: (style: ResponseStyle) => void;
-  addChatMemory: (text: string) => void;
-  removeChatMemory: (index: number) => void;
+  setAutoRoute: (value: boolean) => void;
+  addChatMemory: (text: string, scope?: ChatMemoryScope) => void;
+  removeChatMemory: (id: string) => void;
   pinContext: (item: Omit<ChatContextItem, 'createdAt'>) => void;
   unpinContext: (id: string) => void;
   clearPinnedContext: () => void;
@@ -281,6 +290,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ? stored
       : 'default';
   });
+  const [autoRoute, setAutoRouteState] = useState(
+    () => typeof window !== 'undefined' && localStorage.getItem('palimind:chat-auto-route') === '1',
+  );
   const [pinnedContext, setPinnedContext] = useState<ChatContextItem[]>([]);
   const contextKey = `palimind:chat-context:${activeSessionId ?? 'new'}`;
   const previousContextKey = useRef(contextKey);
@@ -298,15 +310,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     previousContextKey.current = contextKey;
   }, [contextKey]);
-  const [chatMemory, setChatMemory] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const parsed = JSON.parse(localStorage.getItem('palimind:chat-memory') || '[]');
-      return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string').slice(0, 40) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [chatMemory, setChatMemory] = useState<ChatMemoryEntry[]>(loadChatMemory);
   const [workbenchTab, setWorkbenchTabState] = useState<WorkbenchTab>(() => {
     if (typeof window === 'undefined') return 'artifacts';
     const stored = localStorage.getItem('palimind:workbench-tab');
@@ -395,6 +399,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [persistPinnedContext]);
 
+  const setAutoRoute = useCallback((value: boolean) => {
+    setAutoRouteState(value);
+    try {
+      if (value) localStorage.setItem('palimind:chat-auto-route', '1');
+      else localStorage.removeItem('palimind:chat-auto-route');
+    } catch {
+      // storage is optional
+    }
+  }, []);
+
   const setResponseStyle = useCallback((style: ResponseStyle) => {
     setResponseStyleState(style);
     try {
@@ -404,32 +418,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const persistMemory = useCallback((items: string[]) => {
-    try {
-      localStorage.setItem('palimind:chat-memory', JSON.stringify(items));
-    } catch {
-      // storage is optional
-    }
-  }, []);
+  useEffect(() => {
+    if (!activeSessionId) return;
+    setChatMemory((items) => {
+      let changed = false;
+      const next = items.map((item) => {
+        if (item.scope === 'chat' && item.scopeId === 'draft') {
+          changed = true;
+          return { ...item, scopeId: activeSessionId };
+        }
+        return item;
+      });
+      if (changed) saveChatMemory(next);
+      return changed ? next : items;
+    });
+  }, [activeSessionId]);
 
-  const addChatMemory = useCallback((text: string) => {
-    const clean = text.trim().slice(0, 500);
+  const addChatMemory = useCallback((text: string, scope: ChatMemoryScope = 'chat') => {
+    const clean = text.trim();
     if (!clean) return;
     setChatMemory((items) => {
-      if (items.includes(clean)) return items;
-      const next = [...items, clean].slice(-40);
-      persistMemory(next);
+      if (items.some((item) => item.text === clean)) return items;
+      const scopeId =
+        scope === 'chat' ? (activeSessionId ?? 'draft') : scope === 'project' ? (activeProjectId ?? '') : '';
+      const next = [...items, makeMemoryEntry(clean, scope, scopeId)].slice(-60);
+      saveChatMemory(next);
       return next;
     });
-  }, [persistMemory]);
+  }, [activeSessionId, activeProjectId]);
 
-  const removeChatMemory = useCallback((index: number) => {
+  const removeChatMemory = useCallback((id: string) => {
     setChatMemory((items) => {
-      const next = items.filter((_, position) => position !== index);
-      persistMemory(next);
+      const next = items.filter((item) => item.id !== id);
+      saveChatMemory(next);
       return next;
     });
-  }, [persistMemory]);
+  }, []);
 
   const setWorkbenchTab = useCallback((tab: WorkbenchTab) => {
     setWorkbenchTabState(tab);
@@ -701,7 +725,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     artifactLibraryOpen, setArtifactLibraryOpen, artifactTarget,
     openArtifactLibrary, openArtifact, clearArtifactTarget,
     workbenchOpen, workbenchTab, setWorkbenchTab, openWorkbench, closeWorkbench, toggleWorkbench,
-    responseStyle, setResponseStyle,
+    responseStyle, setResponseStyle, autoRoute, setAutoRoute,
     chatMemory, addChatMemory, removeChatMemory,
     pinnedContext, pinContext, unpinContext, clearPinnedContext, compactPinnedContext,
     shortcutOverrides, setShortcutOverride, resetShortcut, resetAllShortcuts,
@@ -716,7 +740,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     sidebarCollapsed, commandPaletteOpen, shortcutsModalOpen,
     artifactPanelOpen, artifactLibraryOpen, artifactTarget, shortcutOverrides,
     workbenchOpen, workbenchTab, setWorkbenchTab, openWorkbench, closeWorkbench, toggleWorkbench,
-    responseStyle, setResponseStyle,
+    responseStyle, setResponseStyle, autoRoute, setAutoRoute,
     chatMemory, addChatMemory, removeChatMemory,
     pinnedContext, pinContext, unpinContext, clearPinnedContext, compactPinnedContext,
     toggleSidebar, setShortcutOverride, resetShortcut, resetAllShortcuts,
