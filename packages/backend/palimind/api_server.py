@@ -2138,6 +2138,51 @@ async def _tracked_chat_sse(entry: _ChatStreamEntry, inner):
         _unregister_chat_stream(entry)
 
 
+@app.post("/api/chat/coach")
+async def chat_coach(req: Request):
+    """Rewrite a draft prompt with the local chat model."""
+    from fastapi import HTTPException
+
+    try:
+        body = await req.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body") from None
+    text = str((body or {}).get("text") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+    config = _global_chat_config()
+    ollama_url = str(config.get("ollama_base_url") or "http://localhost:11434")
+    chat_model = str(config.get("chat_model") or "llama3")
+    system_prompt = (
+        "You are a prompt coach. Rewrite the user's draft prompt so it is clearer, "
+        "more specific and more likely to produce a great answer. Preserve the user's "
+        "intent and language. Add only the necessary context: audience, constraints, "
+        "desired format and success criteria. Do not answer the prompt. Return only the "
+        "rewritten prompt, with no preamble or commentary."
+    )
+    from palimind.generative.responder import generate_response, generate_response_stream
+
+    def run() -> str:
+        stream = generate_response_stream(
+            text,
+            "",
+            [],
+            ollama_url,
+            chat_model,
+            system_prompt,
+            is_chat_only=True,
+        )
+        return generate_response(stream).strip()
+
+    try:
+        prompt = await asyncio.to_thread(run)
+    except Exception as exc:  # noqa: BLE001 - surface a clear local-model error
+        raise HTTPException(status_code=500, detail=f"Could not improve the prompt: {exc}") from exc
+    if not prompt:
+        raise HTTPException(status_code=500, detail="The local model returned an empty prompt")
+    return {"prompt": prompt[:4000]}
+
+
 @app.post("/api/chat/stop")
 async def chat_stop(stream_id: str):
     """Stop a chat stream and persist its partial answer before responding.

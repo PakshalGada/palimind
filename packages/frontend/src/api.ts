@@ -693,6 +693,8 @@ export const api = {
     cancel: (itemId: string) => post<{ item?: QueueItem; error?: string }>(`/agents/queue/${itemId}/cancel`),
   },
   chat: {
+    /** Rewrite a draft prompt with the local chat model. */
+    coach: (text: string) => post<{ prompt: string }>('/chat/coach', { text }),
     /**
      * Stop a chat stream. The server persists the partial answer before it
      * responds, so a sessions refresh afterwards already contains it.

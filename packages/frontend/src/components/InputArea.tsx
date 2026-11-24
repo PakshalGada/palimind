@@ -194,6 +194,7 @@ function InputArea({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState("");
+  const [coaching, setCoaching] = useState(false);
   const draftKey = `palimind:draft:${activeSessionId ?? "new"}`;
   const restoredDraftRef = useRef<string | null>(null);
   // Drafts survive session switches and reloads.
@@ -724,6 +725,23 @@ function InputArea({
 
   // Online (OpenCode proxy) models have no local size metadata.
   const isOnline = (m: ModelItem) => !m.parameter_size && !m.size_gb;
+
+  const coachPrompt = useCallback(async () => {
+    const text = value.trim();
+    if (!text) {
+      addToast("Type a prompt first.", { tone: "info" });
+      return;
+    }
+    setCoaching(true);
+    try {
+      const data = await api.chat.coach(text);
+      if (data.prompt) setValue(data.prompt);
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : "Could not improve the prompt.", { tone: "error" });
+    } finally {
+      setCoaching(false);
+    }
+  }, [value, addToast]);
 
   const handleSend = useCallback(async () => {
     if (onLocalSend) {
@@ -1741,6 +1759,22 @@ function InputArea({
                 Listening…
               </span>
             )}
+            <PromptInputAction tooltip={coaching ? "Improving…" : "Improve prompt"}>
+              <button
+                type="button"
+                className="mic-btn"
+                aria-label="Improve prompt"
+                title="Improve prompt with the local model"
+                disabled={coaching || isGenerating || !value.trim()}
+                onClick={() => void coachPrompt()}
+              >
+                {coaching ? (
+                  <Loader2 size={16} className="spin" aria-hidden="true" />
+                ) : (
+                  <Sparkles size={16} aria-hidden="true" />
+                )}
+              </button>
+            </PromptInputAction>
             <PromptInputAction
               tooltip={
                 isTranscribing
