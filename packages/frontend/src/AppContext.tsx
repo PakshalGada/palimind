@@ -117,6 +117,7 @@ interface AppState {
   workbenchOpen: boolean;
   workbenchTab: WorkbenchTab;
   responseStyle: ResponseStyle;
+  chatMemory: string[];
   shortcutOverrides: ShortcutOverrides;
 }
 
@@ -173,6 +174,8 @@ interface AppContextType extends AppState {
   closeWorkbench: () => void;
   toggleWorkbench: (tab?: WorkbenchTab) => void;
   setResponseStyle: (style: ResponseStyle) => void;
+  addChatMemory: (text: string) => void;
+  removeChatMemory: (index: number) => void;
   setShortcutOverride: (commandId: string, combo: string | null) => void;
   resetShortcut: (commandId: string) => void;
   resetAllShortcuts: () => void;
@@ -264,6 +267,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ? stored
       : 'default';
   });
+  const [chatMemory, setChatMemory] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const parsed = JSON.parse(localStorage.getItem('palimind:chat-memory') || '[]');
+      return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string').slice(0, 40) : [];
+    } catch {
+      return [];
+    }
+  });
   const [workbenchTab, setWorkbenchTabState] = useState<WorkbenchTab>(() => {
     if (typeof window === 'undefined') return 'artifacts';
     const stored = localStorage.getItem('palimind:workbench-tab');
@@ -319,6 +331,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // storage is optional
     }
   }, []);
+
+  const persistMemory = useCallback((items: string[]) => {
+    try {
+      localStorage.setItem('palimind:chat-memory', JSON.stringify(items));
+    } catch {
+      // storage is optional
+    }
+  }, []);
+
+  const addChatMemory = useCallback((text: string) => {
+    const clean = text.trim().slice(0, 500);
+    if (!clean) return;
+    setChatMemory((items) => {
+      if (items.includes(clean)) return items;
+      const next = [...items, clean].slice(-40);
+      persistMemory(next);
+      return next;
+    });
+  }, [persistMemory]);
+
+  const removeChatMemory = useCallback((index: number) => {
+    setChatMemory((items) => {
+      const next = items.filter((_, position) => position !== index);
+      persistMemory(next);
+      return next;
+    });
+  }, [persistMemory]);
 
   const setWorkbenchTab = useCallback((tab: WorkbenchTab) => {
     setWorkbenchTabState(tab);
@@ -591,6 +630,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     openArtifactLibrary, openArtifact, clearArtifactTarget,
     workbenchOpen, workbenchTab, setWorkbenchTab, openWorkbench, closeWorkbench, toggleWorkbench,
     responseStyle, setResponseStyle,
+    chatMemory, addChatMemory, removeChatMemory,
     shortcutOverrides, setShortcutOverride, resetShortcut, resetAllShortcuts,
   }), [
     activeView, agentsView, activeField, activeProjectId, activeProjectName, activeSessionId, sessions, selectedFiles,
@@ -604,6 +644,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     artifactPanelOpen, artifactLibraryOpen, artifactTarget, shortcutOverrides,
     workbenchOpen, workbenchTab, setWorkbenchTab, openWorkbench, closeWorkbench, toggleWorkbench,
     responseStyle, setResponseStyle,
+    chatMemory, addChatMemory, removeChatMemory,
     toggleSidebar, setShortcutOverride, resetShortcut, resetAllShortcuts,
     openArtifactLibrary, openArtifact, clearArtifactTarget,
     setActiveProjectId, setActiveProjectName, setTheme, refreshFields, addToast, clearSelectedFiles,

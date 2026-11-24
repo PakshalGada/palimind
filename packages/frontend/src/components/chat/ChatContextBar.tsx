@@ -1,6 +1,8 @@
-import { Cpu, Folder, Package, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
+import { Brain, Cpu, Folder, Package, ShieldCheck } from 'lucide-react';
 import { useApp } from '../../AppContext';
 import { collectArtifacts } from '../../utils/artifacts';
+import ChatMemoryDialog from './ChatMemoryDialog';
 import './ChatContextBar.css';
 
 function leaf(path: string | null): string {
@@ -22,7 +24,9 @@ export default function ChatContextBar() {
     openWorkbench,
     responseStyle,
     setResponseStyle,
+    chatMemory,
   } = useApp();
+  const [memoryOpen, setMemoryOpen] = useState(false);
 
   if (activeView !== 'chat') return null;
 
@@ -78,6 +82,15 @@ export default function ChatContextBar() {
       <button
         type="button"
         className="chat-context-chip chat-context-chip--button"
+        title="Chat memory"
+        onClick={() => setMemoryOpen(true)}
+      >
+        <Brain size={12} />
+        Memory{chatMemory.length > 0 ? ` ${chatMemory.length}` : ''}
+      </button>
+      <button
+        type="button"
+        className="chat-context-chip chat-context-chip--button"
         title="Summarize this conversation"
         onClick={() =>
           window.dispatchEvent(
@@ -95,6 +108,7 @@ export default function ChatContextBar() {
         <ShieldCheck size={12} />
         Local-first
       </span>
+      <ChatMemoryDialog open={memoryOpen} onClose={() => setMemoryOpen(false)} />
     </div>
   );
 }

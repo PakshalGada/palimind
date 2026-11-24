@@ -179,6 +179,7 @@ function InputArea({
     setIsTranscribing,
     addToast,
     responseStyle,
+    chatMemory,
   } = useApp();
 
   const { send: sendMessage, stop: stopStream } = useChatStreamActions();
@@ -940,6 +941,9 @@ function InputArea({
       const mode = isChatView ? "llm" : chatMode;
       const stylePrefix = isChatView && activeView === "chat" ? RESPONSE_STYLE_PREFIX[responseStyle] : "";
       if (stylePrefix) modelText = `${stylePrefix}\n\n${modelText}`;
+      if (isChatView && activeView === "chat" && chatMemory.length > 0) {
+        modelText = `Known facts about the user (use only when relevant, never repeat them back verbatim):\n- ${chatMemory.join("\n- ")}\n\n${modelText}`;
+      }
 
       sendMessage({
         text: modelText,
@@ -996,6 +1000,7 @@ function InputArea({
     replyTarget?.messageId,
     forkTarget,
     responseStyle,
+    chatMemory,
   ]);
 
   const findLastMessage = useCallback(
