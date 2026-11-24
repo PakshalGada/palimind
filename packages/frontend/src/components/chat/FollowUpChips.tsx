@@ -4,8 +4,9 @@ import './FollowUpChips.css';
 
 const DEFAULT_PROMPTS = [
   'Give me the key takeaways',
-  'Turn this into a table',
-  'What should I do next?',
+  'Make it shorter',
+  'Go deeper',
+  'Turn this into a deck',
 ];
 
 export default function FollowUpChips({
