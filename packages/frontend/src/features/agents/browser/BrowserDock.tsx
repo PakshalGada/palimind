@@ -5,6 +5,7 @@ import {
   Globe2,
   Loader2,
   Maximize2,
+  MessageSquare,
   Minimize2,
   Plus,
   RotateCw,
@@ -172,6 +173,23 @@ export default function BrowserDock({
     if (!target) return;
     setEditing(false);
     await userAct('goto', { url: target });
+  };
+
+  const sendPageToChat = async () => {
+    await ensureHuman();
+    const result = (await enqueue('extract', { max_chars: 6000 })) as
+      | { extracted_text?: string; title?: string; url?: string }
+      | undefined;
+    const text = result?.extracted_text?.trim();
+    if (!text) return;
+    const source = result?.url ? `${result.title || 'Page'} — ${result.url}` : result?.title || 'Page';
+    window.dispatchEvent(
+      new CustomEvent('palimind:prefill-composer', {
+        detail: {
+          text: `Summarize this page and extract the key points.\n\nSource: ${source}\n\n${text.slice(0, 6000)}`,
+        },
+      }),
+    );
   };
 
   const pagePoint = (event: React.MouseEvent) => {
@@ -365,6 +383,16 @@ export default function BrowserDock({
           onClick={() => changeZoom(15)}
         >
           <ZoomIn size={14} />
+        </button>
+        <button
+          type="button"
+          className="ag-icon-btn"
+          title="Send page to chat"
+          aria-label="Send page to chat"
+          disabled={!state.open || busy}
+          onClick={() => void sendPageToChat()}
+        >
+          <MessageSquare size={14} />
         </button>
         <input
           ref={addressRef}

@@ -711,6 +711,7 @@ def human_action(action: str, payload: dict[str, Any] | None = None) -> dict[str
         "new_tab",
         "select_tab",
         "close_tab",
+        "extract",
     }
     if action not in allowed:
         return {"error": f"unknown browser action: {action}"}
@@ -759,6 +760,11 @@ def human_action(action: str, payload: dict[str, Any] | None = None) -> dict[str
             worker.call(worker.op_select_tab, int(body.get("index", 0)))
         elif action == "close_tab":
             worker.call(worker.op_close_tab, int(body.get("index", 0)))
+        elif action == "extract":
+            text = worker.call(worker.op_extract, int(body.get("max_chars", 8000)))
+            state = live_state()
+            state["extracted_text"] = text
+            return state
         else:
             return {"error": f"unknown browser action: {action}"}
     except Exception as exc:  # noqa: BLE001
