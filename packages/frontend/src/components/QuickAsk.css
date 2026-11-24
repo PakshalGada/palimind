@@ -1,0 +1,104 @@
+.quick-ask__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 4000;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 16vh 16px 16px;
+    background: color-mix(in srgb, var(--color-bg) 55%, transparent);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+.quick-ask {
+    width: min(620px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-lg);
+}
+.quick-ask__head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--ink);
+    font-size: var(--type-sm);
+    font-weight: 600;
+}
+.quick-ask__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-xs);
+    background: var(--surface-2);
+    color: var(--primary-color);
+}
+.quick-ask__head > button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-left: auto;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+.quick-ask__head > button:hover {
+    background: var(--surface-hover);
+    color: var(--ink);
+}
+.quick-ask textarea {
+    width: 100%;
+    min-height: 82px;
+    resize: vertical;
+    padding: 10px 11px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--type-md);
+    line-height: 1.45;
+    outline: none;
+}
+.quick-ask textarea:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 1px;
+}
+.quick-ask__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--text-muted);
+    font-size: var(--type-2xs);
+}
+.quick-ask__foot button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 30px;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--primary-color);
+    color: var(--on-primary, #fff);
+    font-family: var(--font-sans);
+    font-size: var(--type-xs);
+    font-weight: 600;
+    cursor: pointer;
+}
+.quick-ask__foot button:disabled {
+    opacity: 0.45;
+    cursor: default;
+}

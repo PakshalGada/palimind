@@ -222,6 +222,7 @@ export default function SkillManager() {
               <TextArea
                 rows={2}
                 value={buildPrompt}
+                aria-label="Describe the skill to build"
                 placeholder="Describe a skill, e.g. review invoices and flag totals that do not reconcile"
                 onChange={(event) => setBuildPrompt(event.target.value)}
               />

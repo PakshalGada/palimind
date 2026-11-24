@@ -42,7 +42,8 @@ import { useChatStreamActions } from "../stream/context";
 import { memoryForScope } from "../utils/chatMemory";
 import { routeChatSubMode } from "../utils/chatRouting";
 import { captureBrowserScreen, dataUrlToFile, readClipboardPayload } from "../utils/capture";
-import { isAutoSpeakOn, setAutoSpeak } from "../utils/voicePrefs";
+import { setAutoSpeak } from "../utils/voicePrefs";
+import { shouldAutoSendVoice, shouldRestartVoice } from "../utils/voiceLoop";
 import { exportWAV } from "../utils/audio";
 import { api } from "../api";
 import {
@@ -202,7 +203,10 @@ function InputArea({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState("");
   const [coaching, setCoaching] = useState(false);
-  const [voiceMode, setVoiceMode] = useState(() => isAutoSpeakOn(null));
+  const [voiceMode, setVoiceMode] = useState(false);
+  const voiceModeRef = useRef(false);
+  voiceModeRef.current = voiceMode;
+  const [voicePendingSend, setVoicePendingSend] = useState(false);
   const [captureBusy, setCaptureBusy] = useState<"clipboard" | "screenshot" | null>(null);
   const [dataFile, setDataFile] = useState<File | null>(null);
   const draftKey = `palimind:draft:${activeSessionId ?? "new"}`;
@@ -354,8 +358,13 @@ function InputArea({
       const res = await api.voice.transcribe(wav);
       const text = (res.text || "").trim();
       if (text) {
-        setValue((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text));
-        requestAnimationFrame(() => textareaRef.current?.focus());
+        if (shouldAutoSendVoice(text, voiceModeRef.current)) {
+          setValue(text);
+          setVoicePendingSend(true);
+        } else {
+          setValue((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text));
+          requestAnimationFrame(() => textareaRef.current?.focus());
+        }
       } else if (res.error) {
         addToast(res.error);
       }
@@ -438,6 +447,19 @@ function InputArea({
     }
     await transcribePcm(merged, sampleRate);
   };
+
+  const toggleVoiceMode = useCallback(() => {
+    const next = !voiceMode;
+    setVoiceMode(next);
+    setAutoSpeak(next);
+    if (next) {
+      void startRecording();
+      addToast("Hands-free voice on — speak, send, and keep going.", { tone: "info" });
+    } else {
+      if (isRecording) void stopRecording();
+      addToast("Hands-free voice off.", { tone: "info" });
+    }
+  }, [voiceMode, isRecording, startRecording, stopRecording, addToast]);
 
   // Release the microphone if the composer unmounts mid-recording (e.g. the
   // user switches views), otherwise the input stream stays open.
@@ -787,15 +809,6 @@ function InputArea({
       setCaptureBusy(null);
     }
   }, [attachFile, addToast]);
-
-  const toggleVoiceMode = useCallback(() => {
-    const next = !voiceMode;
-    setVoiceMode(next);
-    setAutoSpeak(next);
-    addToast(next ? "Voice conversation on — replies will be spoken." : "Voice conversation off.", {
-      tone: "info",
-    });
-  }, [voiceMode, addToast]);
 
   const coachPrompt = useCallback(async () => {
     const text = value.trim();
@@ -1198,6 +1211,23 @@ function InputArea({
   handleSendRef.current = handleSend;
 
   useEffect(() => {
+    if (!voicePendingSend || isGenerating || isTranscribing) return;
+    setVoicePendingSend(false);
+    void handleSendRef.current();
+  }, [voicePendingSend, isGenerating, isTranscribing]);
+
+  const wasGenerating = useRef(false);
+  useEffect(() => {
+    const was = wasGenerating.current;
+    wasGenerating.current = isGenerating;
+    if (!shouldRestartVoice({ voiceMode, wasGenerating: was, isGenerating, isRecording, isTranscribing })) return;
+    const timer = window.setTimeout(() => {
+      if (voiceModeRef.current) void startRecording();
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [isGenerating, voiceMode, isRecording, isTranscribing, startRecording]);
+
+  useEffect(() => {
     const handler = (e: Event) => {
       const content = (e as CustomEvent).detail?.content as string | undefined;
       if (typeof content !== 'string' || !content.trim()) return;
@@ -1495,6 +1525,8 @@ function InputArea({
                 <button
                   type="button"
                   className="chip-remove"
+                  aria-label={`Remove ${file.name}`}
+                  title={`Remove ${file.name}`}
                   onClick={() => removeAttachment(idx)}
                 >
                   <svg

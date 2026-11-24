@@ -6,6 +6,7 @@
 //  3. Open the main WebView window pointing at http://127.0.0.1:<port>/ui
 //  4. Register global shortcuts (platform-aware):
 //       Ctrl/Cmd/Super+Shift+Space  → toggle main window (PaliSpace)
+//       Ctrl/Cmd/Super+Shift+A      → quick ask
 //  5. Clean up the backend on app exit
 
 use std::fs::File;
@@ -18,7 +19,7 @@ use std::time::Duration;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Manager,
+    AppHandle, Emitter, Manager,
 };
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, ShortcutState};
 
@@ -246,6 +247,13 @@ fn main() {
     } else {
         "Super+Shift+C"
     };
+    let ask_hotkey = if is_mac {
+        "Command+Shift+A"
+    } else if is_linux {
+        "Super+Shift+A"
+    } else {
+        "Ctrl+Shift+A"
+    };
     let stop_hotkey = if is_mac {
         "Command+Shift+Escape"
     } else {
@@ -289,7 +297,7 @@ fn main() {
 
             let popup_base = api_base_for_hotkey.clone();
             let shortcut_result = app.global_shortcut().on_shortcuts(
-                [space_hotkey, popup_hotkey, stop_hotkey],
+                [space_hotkey, popup_hotkey, stop_hotkey, ask_hotkey],
                 move |app, shortcut, event| {
                     if event.state() != ShortcutState::Pressed {
                         return;
@@ -309,6 +317,13 @@ fn main() {
                                 }
                             }
                         }
+                        Code::KeyA => {
+                            if let Some(win) = app.get_webview_window("main") {
+                                let _ = win.show();
+                                let _ = win.set_focus();
+                            }
+                            let _ = app.emit("palimind:quick-ask", ());
+                        }
                         _ => {}
                     }
                 },
@@ -321,6 +336,7 @@ fn main() {
             let tray_h = handle.clone();
             let tray_base = api_base_for_hotkey.clone();
             let open_item = MenuItem::with_id(app, "open", "Open Palimind", true, None::<&str>)?;
+            let ask_item = MenuItem::with_id(app, "ask", "Quick ask", true, None::<&str>)?;
             let computer_item =
                 MenuItem::with_id(app, "computer", "Computer Use", true, None::<&str>)?;
             let stop_item =
@@ -328,7 +344,7 @@ fn main() {
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(
                 app,
-                &[&open_item, &computer_item, &stop_item, &quit_item],
+                &[&open_item, &ask_item, &computer_item, &stop_item, &quit_item],
             )?;
 
             TrayIconBuilder::new()
@@ -339,6 +355,13 @@ fn main() {
                             let _ = win.show();
                             let _ = win.set_focus();
                         }
+                    }
+                    "ask" => {
+                        if let Some(win) = tray_h.get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+                        let _ = tray_h.emit("palimind:quick-ask", ());
                     }
                     "computer" => {
                         let _ = computer_use::open_popup(app, &tray_base);

@@ -11,6 +11,7 @@ import ToastContainer from './components/ToastContainer';
 import SetupProgress from './components/SetupProgress';
 import ShortcutsModal from './components/ShortcutsModal';
 import CommandPalette from './components/CommandPalette';
+import QuickAsk from './components/QuickAsk';
 import AgentGraph from './components/AgentGraph';
 import SkillManager from './components/SkillManager';
 import PlanReview from './components/PlanReview';
@@ -157,6 +158,9 @@ export default function App() {
       setAgentsView('work');
       setAgentsWorkTab('board');
     },
+    'chat.quick-ask': () => {
+      window.dispatchEvent(new Event('palimind:quick-ask'));
+    },
     'chat.compare-models': () => setCompareOpen(true),
   });
 
@@ -276,6 +280,7 @@ export default function App() {
         <KnowledgeGraph />
         <ShortcutsModal />
         <CommandPalette />
+        <QuickAsk />
         <AgentGraph />
         <SkillManager />
         <PlanReview />

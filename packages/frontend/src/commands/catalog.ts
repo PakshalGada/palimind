@@ -99,6 +99,14 @@ export const COMMANDS: CommandDef[] = [
     defaultShortcut: 'Mod+Shift+L',
   },
   {
+    id: 'chat.quick-ask',
+    title: 'Quick Ask',
+    category: 'Chat',
+    icon: 'search',
+    description: 'Open the global quick-ask overlay',
+    keywords: ['quick', 'ask', 'overlay', 'hotkey'],
+  },
+  {
     id: 'chat.compare-models',
     title: 'Compare Models Side by Side',
     category: 'Chat',
