@@ -204,6 +204,7 @@ from palimind.api_routers.routers.uploads import router as uploads_router
 from palimind.api_routers.routers.voice import router as voice_router
 from palimind.artifacts.api import router as artifacts_router
 from palimind.artifacts.office_api import router as office_router
+from palimind.artifacts.chat_bundle_api import router as chat_bundle_router
 from palimind.document.stream import document_mode_stream
 from palimind.events import hub as event_hub
 from palimind.events import sse as event_sse
@@ -287,6 +288,7 @@ app.include_router(webhooks_router)
 app.include_router(projects_router)
 app.include_router(artifacts_router)
 app.include_router(office_router)
+app.include_router(chat_bundle_router)
 app.include_router(openai_router)
 app.include_router(workflows_router)
 app.include_router(uploads_router)

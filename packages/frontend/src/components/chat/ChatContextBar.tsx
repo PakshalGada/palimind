@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Brain, Cpu, Folder, Package, Pin, Search, ShieldCheck, Wand2 } from 'lucide-react';
+import { Brain, Cpu, Folder, Package, Pin, Search, Share2, ShieldCheck, Wand2 } from 'lucide-react';
 import { useApp } from '../../AppContext';
 import { collectArtifacts } from '../../utils/artifacts';
 import { memoryForScope } from '../../utils/chatMemory';
@@ -7,6 +7,7 @@ import ChatContextManager from './ChatContextManager';
 import ChatContinuityDialog from './ChatContinuityDialog';
 import ChatModelDialog from './ChatModelDialog';
 import ChatSearchDialog from './ChatSearchDialog';
+import ChatShareDialog from './ChatShareDialog';
 import ChatMemoryDialog from './ChatMemoryDialog';
 import ChatTrustDialog from './ChatTrustDialog';
 import './ChatContextBar.css';
@@ -39,6 +40,7 @@ export default function ChatContextBar() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [continuityOpen, setContinuityOpen] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [trustOpen, setTrustOpen] = useState(false);
 
   if (activeView !== 'chat') return null;
@@ -143,6 +145,15 @@ export default function ChatContextBar() {
       </button>
       <button
         type="button"
+        className="chat-context-chip chat-context-chip--button"
+        title="Share transcript, artifacts and sources"
+        onClick={() => setShareOpen(true)}
+      >
+        <Share2 size={12} />
+        Share
+      </button>
+      <button
+        type="button"
         className="chat-context-chip chat-context-chip--button chat-context-chip--quiet"
         title="Chat details"
         onClick={() => setTrustOpen(true)}
@@ -155,6 +166,7 @@ export default function ChatContextBar() {
       <ChatSearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
       <ChatContinuityDialog open={continuityOpen} onClose={() => setContinuityOpen(false)} />
       <ChatModelDialog open={modelOpen} onClose={() => setModelOpen(false)} />
+      <ChatShareDialog open={shareOpen} onClose={() => setShareOpen(false)} />
       <ChatTrustDialog open={trustOpen} onClose={() => setTrustOpen(false)} />
     </div>
   );

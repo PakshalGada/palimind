@@ -693,6 +693,36 @@ export const api = {
     cancel: (itemId: string) => post<{ item?: QueueItem; error?: string }>(`/agents/queue/${itemId}/cancel`),
   },
   chat: {
+    /** Download a ZIP with the transcript, artifacts and sources. */
+    exportBundle: async (payload: {
+      title: string;
+      messages: { role: string; content: string; timestamp?: number }[];
+      artifacts: { title: string; type: string; content: string }[];
+      sources: { title?: string; url?: string; file?: string; section?: string; kind?: string }[];
+    }): Promise<{ blob: Blob; filename: string }> => {
+      const res = await fetch(`${BASE}/chat/export-bundle`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        let detail = `${res.status} ${res.statusText}`;
+        try {
+          const data = (await res.json()) as { detail?: string; error?: string };
+          detail = data.detail || data.error || detail;
+        } catch {
+          // keep the status text
+        }
+        throw new Error(`Could not export the chat: ${detail}`);
+      }
+      const disposition = res.headers.get('content-disposition') || '';
+      const match = /filename="?([^";]+)"?/i.exec(disposition);
+      return {
+        blob: await res.blob(),
+        filename: match?.[1] || res.headers.get('x-palimind-filename') || 'chat-bundle.zip',
+      };
+    },
     /** Rewrite a draft prompt with the local chat model. */
     coach: (text: string) => post<{ prompt: string }>('/chat/coach', { text }),
     /**
