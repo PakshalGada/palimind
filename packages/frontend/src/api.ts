@@ -180,6 +180,99 @@ export const api = {
     tree: () => get<{ tree?: TreeNode[]; error?: string }>('/files/tree'),
     treeSub: (path: string) => get<{ children?: TreeNode[]; error?: string }>(`/files/tree/sub?path=${encodeURIComponent(path)}`),
   },
+  data: {
+    profile: (uploadId: string) =>
+      post<{
+        upload: { id: string; name: string; size: number; mime?: string };
+        rows: number;
+        columns: number;
+        numeric_columns: string[];
+        categorical_columns: string[];
+        column_profile: {
+          name: string;
+          dtype: string;
+          non_null: number;
+          missing: number;
+          unique: number;
+          sample: unknown;
+          min?: unknown;
+          max?: unknown;
+          mean?: unknown;
+        }[];
+        preview: Record<string, unknown>[];
+        quality: { duplicate_rows: number; missing_cells: number; total_cells: number };
+        suggested_questions: string[];
+      }>('/data/profile', { upload_id: uploadId }),
+    query: (data: { uploadId: string; question?: string; sql?: string }) =>
+      post<{
+        sql: string;
+        columns: string[];
+        rows: unknown[][];
+        row_count: number;
+      }>('/data/query', {
+        upload_id: data.uploadId,
+        question: data.question,
+        sql: data.sql,
+      }),
+    chart: (data: {
+      uploadId: string;
+      sql?: string;
+      chartType?: string;
+      x?: string;
+      y?: string;
+    }) =>
+      post<{
+        chart: import('./utils/deckPlan').DeckChart;
+        x: string;
+        y: string;
+        rows: Record<string, unknown>[];
+      }>('/data/chart', {
+        upload_id: data.uploadId,
+        sql: data.sql,
+        chart_type: data.chartType,
+        x: data.x,
+        y: data.y,
+      }),
+    exportFile: async (data: {
+      uploadId: string;
+      sql?: string;
+      cleaned?: boolean;
+      format?: 'csv' | 'xlsx';
+    }): Promise<{ blob: Blob; filename: string }> => {
+      const res = await fetch(`${BASE}/data/export`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          upload_id: data.uploadId,
+          sql: data.sql,
+          cleaned: data.cleaned,
+          format: data.format || 'csv',
+        }),
+      });
+      if (!res.ok) {
+        let detail = `${res.status} ${res.statusText}`;
+        try {
+          const payload = (await res.json()) as { detail?: string; error?: string };
+          detail = payload.detail || payload.error || detail;
+        } catch {
+          // keep the status text
+        }
+        throw new Error(`Could not export data: ${detail}`);
+      }
+      const disposition = res.headers.get('content-disposition') || '';
+      const match = /filename="?([^";]+)"?/i.exec(disposition);
+      return {
+        blob: await res.blob(),
+        filename: match?.[1] || res.headers.get('x-palimind-filename') || 'cleaned.csv',
+      };
+    },
+    dashboard: (data: { uploadId: string; title?: string }) =>
+      post<{ title: string; html: string }>('/data/dashboard', {
+        upload_id: data.uploadId,
+        title: data.title,
+      }),
+  },
   uploads: {
     create: (name: string, mime: string, data: string) =>
       post<{ upload?: { id: string; name: string; kind: string }; error?: string }>('/uploads', { name, mime, data }),

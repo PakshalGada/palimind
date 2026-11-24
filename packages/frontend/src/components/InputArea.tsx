@@ -32,6 +32,7 @@ import { useOneShot } from "./pixel/useOneShot";
 import LoadingSpinner from "./LoadingSpinner";
 import AgentAvatar from "./AgentAvatar";
 import { ComposerCaption } from "./ComposerCaption";
+import DataModeDialog from "./chat/DataModeDialog";
 import { botStateFor } from "../bots/config";
 import MicWave from "./MicWave";
 import { useApp } from "../AppContext";
@@ -203,6 +204,7 @@ function InputArea({
   const [coaching, setCoaching] = useState(false);
   const [voiceMode, setVoiceMode] = useState(() => isAutoSpeakOn(null));
   const [captureBusy, setCaptureBusy] = useState<"clipboard" | "screenshot" | null>(null);
+  const [dataFile, setDataFile] = useState<File | null>(null);
   const draftKey = `palimind:draft:${activeSessionId ?? "new"}`;
   const restoredDraftRef = useRef<string | null>(null);
   // Drafts survive session switches and reloads.
@@ -1475,15 +1477,7 @@ function InputArea({
                     type="button"
                     className="chip-action"
                     title="Profile this data"
-                    onClick={() =>
-                      window.dispatchEvent(
-                        new CustomEvent("palimind:prefill-composer", {
-                          detail: {
-                            text: `Profile the attached data file "${file.name}". Show the columns, types, missing values, duplicates, outliers and three useful questions I could ask.`,
-                          },
-                        }),
-                      )
-                    }
+                    onClick={() => setDataFile(file)}
                   >
                     <BarChart3 size={11} />
                     Profile
@@ -1982,6 +1976,7 @@ function InputArea({
       </PromptInput>
 
       <OfficeExportWatcher job={officeJob} onDone={() => setOfficeJob(null)} />
+      <DataModeDialog file={dataFile} onClose={() => setDataFile(null)} />
     </div>
   );
 }
