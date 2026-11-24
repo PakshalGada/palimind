@@ -396,3 +396,10 @@
     border-color: var(--line);
     color: var(--ink);
 }
+
+.command-bar__index-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--primary-color);
+}

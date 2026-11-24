@@ -171,7 +171,11 @@ export default function CommandBar() {
           title={status.busy ? status.label : `${status.label} · ${currentModel}`}
         >
           {status.busy ? (
-            <PixelLoader cell={1} label={status.label} />
+            isIndexing ? (
+              <span className="command-bar__index-dot" aria-hidden="true" />
+            ) : (
+              <PixelLoader cell={1} label={status.label} />
+            )
           ) : (
             <PixelGlyph sprite="checker" cell={1} className="command-bar__idle" />
           )}
