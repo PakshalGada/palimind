@@ -160,3 +160,33 @@ def test_pipeline_rejects_unknown_formats_and_escapes_paths(office_home: Path) -
     assert bad.status_code == 400
     outside = client.get("/api/office/file/..%2F..%2Fapi_token")
     assert outside.status_code in (403, 404)
+
+
+def test_deck_plan_endpoint_matches_the_export_planner(office_home: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    import palimind.api_server as server
+
+    client = TestClient(server.app)
+    response = client.post(
+        "/api/office/deck-plan",
+        json={
+            "title": "Q3 review",
+            "content": (
+                "# Revenue grew 18% in Q3\n"
+                "- Growth accelerated for three quarters\n"
+                "[chart: bar] Quarterly revenue ($M) | Q1: 4.2 | Q2: 5.1 | Q3: 6.0\n\n"
+                "# What we will cover\n"
+                "- Results\n"
+                "- Next steps\n"
+            ),
+        },
+    )
+    assert response.status_code == 200
+    plan = response.json()["plan"]
+    assert plan["title"] == "Q3 review"
+    assert plan["slides"][0]["layout"] == "chart"
+    assert plan["slides"][0]["chart"]["values"] == [4.2, 5.1, 6.0]
+
+    empty = client.post("/api/office/deck-plan", json={"title": "Empty"})
+    assert empty.status_code == 400

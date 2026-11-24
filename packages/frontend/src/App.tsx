@@ -48,6 +48,7 @@ export default function App() {
     setCommandPaletteOpen, setShortcutsModalOpen,
     toggleSidebar, setArtifactPanelOpen,
     artifactPanelOpen,
+    toggleWorkbench,
     shortcutOverrides, commandPaletteOpen,
   } = useApp();
 
@@ -114,6 +115,9 @@ export default function App() {
     'view.toggle-theme': () => setTheme(theme === 'dark' ? 'light' : 'dark'),
     'view.toggle-artifacts': () => {
       setArtifactPanelOpen(!artifactPanelOpen);
+    },
+    'view.toggle-workbench': () => {
+      toggleWorkbench();
     },
     'view.browse-artifacts': () => setActiveView('artifacts'),
     'nav.chat': () => {

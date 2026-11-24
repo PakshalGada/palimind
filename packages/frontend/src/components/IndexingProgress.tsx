@@ -1,6 +1,5 @@
 import { useApp } from '../AppContext';
 import { ProgressBar } from '../ui/primitives';
-import Thinking from './Thinking';
 
 export default function IndexingProgress() {
   const { isIndexing, indexingStatus } = useApp();
@@ -9,14 +8,7 @@ export default function IndexingProgress() {
 
   return (
     <div id="indexing-progress-container" className="indexing-progress-container">
-      <ProgressBar
-        label={
-          <>
-            <Thinking variant="beacon" size={12} />
-            {indexingStatus || 'Indexing Knowledge Base...'}
-          </>
-        }
-      />
+      <ProgressBar label={indexingStatus || 'Indexing knowledge base…'} />
     </div>
   );
 }

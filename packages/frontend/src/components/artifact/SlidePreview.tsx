@@ -115,7 +115,6 @@ export default function SlidePreview({ content, title }: { content: string; titl
             ) : (
               <p className="slide-canvas__empty">Add bullets below the slide heading.</p>
             )}
-            <span className="slide-canvas__brand">Palimind</span>
           </article>
         </div>
       )}

@@ -19,7 +19,7 @@ import io
 import math
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 # ── theme ──────────────────────────────────────────────────────────────────
@@ -53,6 +53,22 @@ _MAX_BULLET_CHARS = 320
 
 
 @dataclass(frozen=True)
+class DeckChart:
+    """A chart attached to a slide, parsed from the outline."""
+
+    kind: str = "bar"
+    title: str = ""
+    unit: str = ""
+    categories: tuple[str, ...] = ()
+    values: tuple[float, ...] = ()
+    series_name: str = "Value"
+    raw: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class SlidePlan:
     """One slide after planning, before drawing."""
 
@@ -61,6 +77,12 @@ class SlidePlan:
     layout: str = "content"
     subtitle: str = ""
     hint: str = ""
+    chart: DeckChart | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["chart"] = self.chart.to_dict() if self.chart else None
+        return data
 
 
 @dataclass(frozen=True)
@@ -69,6 +91,13 @@ class DeckPlan:
     subtitle: str = ""
     slides: tuple[SlidePlan, ...] = ()
     body: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "title": self.title,
+            "subtitle": self.subtitle,
+            "slides": [slide.to_dict() for slide in self.slides],
+        }
 
 
 # ── small text utilities ───────────────────────────────────────────────────
@@ -226,6 +255,69 @@ _HINT_RE = re.compile(
     r"(?:\[layout:\s*([a-z0-9 _-]+)\]|<!--\s*layout:\s*([a-z0-9 _-]+)\s*-->)",
     re.IGNORECASE,
 )
+_CHART_RE = re.compile(
+    r"^\[chart:\s*(bar|line|area|pie|donut)\]\s*(.+)$",
+    re.IGNORECASE,
+)
+_NUMBER_RE = re.compile(r"-?\d+(?:[.,]\d+)*")
+
+
+def _number(value: str) -> float | None:
+    match = _NUMBER_RE.search(str(value or ""))
+    if not match:
+        return None
+    raw = match.group(0).replace(",", "")
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def _parse_chart(line: str) -> DeckChart | None:
+    """Parse ``[chart: bar] Title ($M) | Q1: 4.2 | Q2: 5.1``."""
+    match = _CHART_RE.match(str(line or "").strip())
+    if not match:
+        return None
+    kind = match.group(1).lower()
+    rest = match.group(2).strip()
+    parts = [part.strip() for part in rest.split("|") if part.strip()]
+    if len(parts) < 2:
+        return None
+    title_part = parts[0]
+    unit = ""
+    unit_match = re.search(r"\(([^)]+)\)\s*$", title_part)
+    if unit_match:
+        unit = unit_match.group(1).strip()
+        title_part = title_part[: unit_match.start()].strip()
+    categories: list[str] = []
+    values: list[float] = []
+    for part in parts[1:]:
+        label = part
+        value_text = part
+        if ":" in part:
+            label, value_text = part.split(":", 1)
+        elif "=" in part:
+            label, value_text = part.split("=", 1)
+        else:
+            tokens = part.rsplit(" ", 1)
+            if len(tokens) == 2:
+                label, value_text = tokens[0], tokens[1]
+        number = _number(value_text)
+        if number is None:
+            continue
+        categories.append(_plain(label).strip()[:48] or f"Item {len(categories) + 1}")
+        values.append(number)
+    if not values:
+        return None
+    return DeckChart(
+        kind=kind,
+        title=_plain(title_part),
+        unit=unit,
+        categories=tuple(categories),
+        values=tuple(values),
+        series_name=_plain(title_part) or "Value",
+        raw=str(line).strip(),
+    )
 _AGENDA_WORDS = (
     "agenda",
     "what we will cover",
@@ -314,6 +406,17 @@ def _normalise_slide_list(slides: Any) -> list[tuple[str, list[str], str]]:
             if isinstance(bullets, str):
                 bullets = bullets.splitlines()
             hint = str(item.get("layout") or item.get("_layout") or "").strip().lower()
+            chart = item.get("chart")
+            if isinstance(chart, dict):
+                kind = str(chart.get("kind") or chart.get("type") or "bar").lower()
+                title = str(chart.get("title") or "")
+                unit = str(chart.get("unit") or "")
+                categories = chart.get("categories") or []
+                values = chart.get("values") or []
+                parts = [f"[chart: {kind}] {title}" + (f" ({unit})" if unit else "")]
+                for category, value in zip(categories, values):
+                    parts.append(f"{category}: {value}")
+                bullets = [*bullets, " | ".join(parts)]
             out.append(
                 (
                     str(item.get("title") or "Slide"),
@@ -367,6 +470,10 @@ def parse_outline(
             continue
         if marker_hint:
             hint = marker_hint
+        chart = _CHART_RE.match(line)
+        if chart:
+            bullets.append(line)
+            continue
         bullet = _BULLET_RE.match(line)
         if bullet:
             bullets.append(bullet.group(1).strip())
@@ -394,6 +501,7 @@ def _infer_layout(title: str, bullets: list[str], hint: str = "", *, is_last: bo
         aliases = {
             "kpi": "metrics",
             "metric": "metrics",
+            "metrics": "metrics",
             "stat": "metrics",
             "stats": "metrics",
             "cards": "cards",
@@ -408,6 +516,8 @@ def _infer_layout(title: str, bullets: list[str], hint: str = "", *, is_last: bo
             "section": "section",
             "bullets": "bullets",
             "list": "bullets",
+            "chart": "chart",
+            "graph": "chart",
         }
         if cleaned in aliases:
             return aliases[cleaned]
@@ -473,13 +583,19 @@ def plan_deck(
         title_text = _clip(slide_title, 120) or f"Slide {index + 1}"
         cleaned: list[str] = []
         seen: set[str] = set()
+        chart: DeckChart | None = None
         for bullet in bullets:
             text = _clip(bullet)
+            if _CHART_RE.match(str(text)):
+                chart = _parse_chart(str(text)) or chart
+                continue
             key = _slug(text)
             if text and key not in seen:
                 cleaned.append(text)
                 seen.add(key)
         layout = _infer_layout(title_text, cleaned, hint, is_last=is_last)
+        if chart is not None and (not hint or hint.replace("_", " ") in {"chart", "graph"}):
+            layout = "chart"
 
         # Long lists become two slides instead of unreadable micro-text.
         if layout in {"cards", "bullets"} and len(cleaned) > _MAX_BULLETS + 1:
@@ -491,6 +607,7 @@ def plan_deck(
                         bullets=tuple(chunk),
                         layout=layout,
                         hint=hint,
+                        chart=chart if chunk_index == 0 else None,
                     )
                 )
         else:
@@ -500,6 +617,7 @@ def plan_deck(
                     bullets=tuple(cleaned[: _MAX_BULLETS + 2]),
                     layout=layout,
                     hint=hint,
+                    chart=chart,
                 )
             )
 
@@ -823,16 +941,6 @@ def _render_cover(prs, deck: DeckPlan) -> None:
     _add_rule(slide, 0.8, 5.95, 6.2, color=DARK_LINE, weight=0.012)
     _add_text(
         slide,
-        "Prepared with PaliMind · local-first workspace",
-        0.8,
-        6.15,
-        6.0,
-        0.3,
-        size=9,
-        color=FAINT,
-    )
-    _add_text(
-        slide,
         "01",
         10.15,
         5.3,
@@ -841,18 +949,6 @@ def _render_cover(prs, deck: DeckPlan) -> None:
         size=52,
         bold=True,
         color="1E3A8A",
-        align=PP_ALIGN.RIGHT,
-    )
-    _add_text(
-        slide,
-        "PALIMIND",
-        10.15,
-        0.62,
-        2.2,
-        0.3,
-        size=9,
-        bold=True,
-        color="60A5FA",
         align=PP_ALIGN.RIGHT,
     )
     _footer(slide, deck, 1, max(1, len(deck.slides) + 1))
@@ -1559,6 +1655,92 @@ def _render_bullets(prs, deck: DeckPlan, plan: SlidePlan, number: int, total: in
     _footer(slide, deck, number, total)
 
 
+def _render_chart(prs, deck: DeckPlan, plan: SlidePlan, number: int, total: int) -> None:
+    """Draw a native, editable PowerPoint chart for a planned chart slide."""
+    from pptx.chart.data import CategoryChartData
+    from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
+    from pptx.util import Inches, Pt
+
+    chart = plan.chart
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    _content_bg(slide)
+    _header(slide, plan.title, eyebrow="Data", number=number, total=total)
+    if chart is None or not chart.categories or not chart.values:
+        _add_text(
+            slide,
+            "Add a chart line such as [chart: bar] Revenue ($M) | Q1: 4.2 | Q2: 5.1",
+            0.78,
+            2.1,
+            11.4,
+            0.8,
+            size=14,
+            color=MUTED,
+        )
+        _footer(slide, deck, number, total)
+        return
+
+    data = CategoryChartData()
+    data.categories = list(chart.categories)
+    data.add_series(chart.series_name or chart.title or "Value", list(chart.values))
+    kind = chart.kind.lower()
+    chart_type = {
+        "bar": XL_CHART_TYPE.COLUMN_CLUSTERED,
+        "line": XL_CHART_TYPE.LINE_MARKERS,
+        "area": XL_CHART_TYPE.AREA,
+        "pie": XL_CHART_TYPE.PIE,
+        "donut": XL_CHART_TYPE.DOUGHNUT,
+    }.get(kind, XL_CHART_TYPE.COLUMN_CLUSTERED)
+
+    left, top, width, height = 0.9, 2.0, 11.4, 4.35
+    graphic = slide.shapes.add_chart(
+        chart_type, Inches(left), Inches(top), Inches(width), Inches(height), data
+    )
+    obj = graphic.chart
+    obj.font.name = FONT
+    obj.font.size = Pt(11)
+    obj.has_title = bool(chart.title)
+    if chart.title:
+        obj.chart_title.text_frame.text = chart.title
+        for paragraph in obj.chart_title.text_frame.paragraphs:
+            for run in paragraph.runs:
+                run.font.size = Pt(15)
+                run.font.bold = True
+                run.font.color.rgb = _rgb(INK)
+    obj.has_legend = kind in {"pie", "donut"}
+    if obj.has_legend:
+        obj.legend.position = XL_LEGEND_POSITION.BOTTOM
+        obj.legend.include_in_layout = False
+        obj.legend.font.size = Pt(10)
+        obj.legend.font.color.rgb = _rgb(MUTED)
+
+    try:
+        plot = obj.plots[0]
+        plot.has_data_labels = True
+        plot.data_labels.font.size = Pt(10)
+        plot.data_labels.font.color.rgb = _rgb(INK_SOFT)
+        if kind in {"bar", "line", "area"}:
+            plot.gap_width = 55
+    except Exception:
+        pass
+
+    try:
+        series = obj.series[0]
+        if kind == "line":
+            series.format.line.color.rgb = _rgb(ACCENT)
+            series.format.line.width = Pt(2.5)
+        elif kind == "pie" or kind == "donut":
+            plot.vary_by_categories = True
+        else:
+            series.format.fill.solid()
+            series.format.fill.fore_color.rgb = _rgb(ACCENT)
+    except Exception:
+        pass
+
+    if chart.unit:
+        _add_text(slide, chart.unit, 9.6, 1.55, 2.7, 0.3, size=9, color=MUTED)
+    _footer(slide, deck, number, total)
+
+
 def _render_content(prs, deck: DeckPlan, plan: SlidePlan, number: int, total: int) -> None:
     renderer = {
         "agenda": _render_agenda,
@@ -1570,6 +1752,7 @@ def _render_content(prs, deck: DeckPlan, plan: SlidePlan, number: int, total: in
         "quote": _render_quote,
         "closing": _render_closing,
         "bullets": _render_bullets,
+        "chart": _render_chart,
     }.get(plan.layout, _render_bullets)
     renderer(prs, deck, plan, number, total)
 
@@ -1586,7 +1769,6 @@ def render_deck(deck: DeckPlan) -> bytes:
     try:
         prs.core_properties.title = deck.title
         prs.core_properties.author = "PaliMind"
-        prs.core_properties.comments = "Designed with the PaliMind presentation pipeline."
     except Exception:
         pass
 

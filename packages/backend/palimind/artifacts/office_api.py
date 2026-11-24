@@ -11,8 +11,10 @@ kept under ``~/.palimind/artifacts/exports`` for later download.
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import time
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, Response
@@ -43,6 +45,45 @@ def _safe_name(value: str, fallback: str = "document") -> str:
 
 def _download_name(title: str, extension: str) -> str:
     return f"{_safe_name(title, 'document')}.{extension}"
+
+
+@lru_cache(maxsize=64)
+def _plan_cached(title: str, content: str, subtitle: str, slides_json: str) -> dict:
+    from palimind.artifacts.deck import parse_outline, plan_deck
+
+    slides = json.loads(slides_json) if slides_json else None
+    specs = parse_outline(title, content, slides)
+    plan = plan_deck(title, specs, subtitle=subtitle)
+    return plan.to_dict()
+
+
+@router.post("/deck-plan")
+async def deck_plan(req: Request):
+    """Plan a deck without rendering bytes, for the in-app slide preview."""
+    try:
+        body = await req.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body") from None
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="JSON object required")
+
+    title = str(body.get("title") or "Presentation").strip() or "Presentation"
+    content = str(body.get("content") or "")
+    subtitle = str(body.get("subtitle") or "")
+    slides = body.get("slides")
+    if not content.strip() and not slides:
+        raise HTTPException(status_code=400, detail="content is required")
+
+    try:
+        slides_json = json.dumps(slides, sort_keys=True) if slides is not None else ""
+        plan = _plan_cached(title, content, subtitle, slides_json)
+    except Exception as exc:  # noqa: BLE001 - surface a clear planning error
+        raise HTTPException(status_code=500, detail=f"Could not plan deck: {exc}") from exc
+
+    warnings: list[str] = []
+    if not plan.get("slides"):
+        warnings.append("The outline produced no content slides.")
+    return {"plan": plan, "warnings": warnings}
 
 
 @router.post("/generate")

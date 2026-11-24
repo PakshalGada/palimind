@@ -1,4 +1,5 @@
 import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, AgentQuestion, Approval, BackgroundTask, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, KnowledgeSource, KnowledgeSpace, LibraryArtifact, MarketplaceSkill, MemoryEntry, ModelItem, Overview, PlanTemplate, Project, ProjectArtifact, ProjectKbStatus, ProjectScope, QueueItem, RecentRun, Recommendation, RegistryArtifactVersion, Routine, RunRecord, SetupTask, SkillCommand, SkillMeta, SourceCollection, Team, TeamMessage, TeamNote, TeamRun, ToolMeta, TreeNode, VerificationReport, WorkspaceFile } from './types';
+import type { DeckPlan } from './utils/deckPlan';
 
 const BASE = '/api';
 
@@ -1465,6 +1466,14 @@ export const api = {
       del<{ deleted?: boolean; error?: string }>(`/plugins/${pluginId}`),
   },
   office: {
+    /** Plan a deck with the same pipeline the PPTX renderer uses. */
+    deckPlan: (payload: {
+      title: string;
+      content?: string;
+      subtitle?: string;
+      slides?: unknown;
+    }) =>
+      post<{ plan: DeckPlan; warnings: string[] }>('/office/deck-plan', payload),
     /** Turn a settled chat artifact into a real DOCX/PPTX download. */
     generate: async (payload: {
       format: 'docx' | 'pptx';

@@ -127,7 +127,8 @@
 
 /* Opening: ease the panel's width in, so the chat column reflows smoothly
    alongside it instead of snapping to its final size in a single frame. */
-.app-side-panel > .artifact-panel {
+.app-side-panel > .artifact-panel,
+.app-side-panel > .app-workbench {
   flex: 1 1 auto;
   animation: artifact-panel-in 260ms var(--ease-out);
 }
@@ -144,7 +145,8 @@
 
 /* Closing: the same keyframes played in reverse (SidePanel keeps the panel
    mounted while this runs, then unmounts it). */
-.app-side-panel.is-closing > .artifact-panel {
+.app-side-panel.is-closing > .artifact-panel,
+.app-side-panel.is-closing > .app-workbench {
   animation: artifact-panel-in 240ms var(--ease-in-out) reverse;
 }
 
@@ -214,7 +216,8 @@
   /* The persisted width lives in an inline style, so it takes !important to
      make the mobile overlay truly full-width. Mobile gets a cross-fade
      instead of the width animation, which makes no sense at inset: 0. */
-  .app-side-panel > .artifact-panel {
+  .app-side-panel > .artifact-panel,
+  .app-side-panel > .app-workbench {
     position: relative;
     width: 100% !important;
     max-width: none;
@@ -223,7 +226,8 @@
     flex: 1 1 auto;
     animation: artifact-panel-fade 200ms var(--ease-out);
   }
-  .app-side-panel.is-closing > .artifact-panel {
+  .app-side-panel.is-closing > .artifact-panel,
+  .app-side-panel.is-closing > .app-workbench {
     animation: artifact-panel-fade 200ms var(--ease-out) reverse !important;
   }
 }
@@ -233,7 +237,8 @@
   .app-sidebar-shell,
   .app-sidebar-shell .sidebar,
   .app-side-panel,
-  .app-side-panel > .artifact-panel {
+  .app-side-panel > .artifact-panel,
+  .app-side-panel > .app-workbench {
     transition: none !important;
     animation: none !important;
   }

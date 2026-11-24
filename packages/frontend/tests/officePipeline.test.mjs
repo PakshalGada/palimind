@@ -36,10 +36,13 @@ test('PPTX payload turns a slide outline into title/bullet slides', () => {
   ].join('\n');
   const payload = buildOfficePayload('pptx', deck, 'Deck');
   assert.equal(payload.format, 'pptx');
-  assert.deepEqual(payload.slides, [
-    { title: 'Overview', bullets: ['Point A', 'Point B'] },
-    { title: 'Results', bullets: ['Up 20%'] },
-  ]);
+  assert.deepEqual(
+    payload.slides.map(({ title, bullets }) => ({ title, bullets })),
+    [
+      { title: 'Overview', bullets: ['Point A', 'Point B'] },
+      { title: 'Results', bullets: ['Up 20%'] },
+    ],
+  );
 });
 
 test('empty answers produce no payload instead of an empty Office file', () => {
@@ -61,8 +64,29 @@ test('artifact previews use the same Office payload as the composer', () => {
     'pptx',
   );
   assert.equal(deck.format, 'pptx');
-  assert.deepEqual(deck.slides, [
-    { title: 'Overview', bullets: ['Point A'] },
-    { title: 'Results', bullets: ['Up 20%'] },
-  ]);
+  assert.deepEqual(
+    deck.slides.map(({ title, bullets }) => ({ title, bullets })),
+    [
+      { title: 'Overview', bullets: ['Point A'] },
+      { title: 'Results', bullets: ['Up 20%'] },
+    ],
+  );
+});
+
+test('PPTX payload keeps chart directives and layout hints', () => {
+  const deck = [
+    '```slides',
+    '# Revenue grew 18%',
+    '- Growth accelerated',
+    '[chart: bar] Quarterly revenue ($M) | Q1: 4.2 | Q2: 5.1 | Q3: 6.0',
+    '',
+    '# Performance [layout: metrics]',
+    '- Revenue: $6.0M',
+    '- Growth: 18%',
+    '```',
+  ].join('\n');
+  const payload = buildOfficePayload('pptx', deck, 'Deck');
+  assert.equal(payload?.slides?.[0]?.layout, 'chart');
+  assert.equal(payload?.slides?.[0]?.chart?.values?.[2], 6);
+  assert.equal(payload?.slides?.[1]?.layout, 'metrics');
 });

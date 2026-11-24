@@ -76,10 +76,12 @@ export function buildArtifactPrompt(kind: CreateArtifactKind, topic: string): st
       '- Put 3–5 short, concrete bullet points under each heading.',
       '- Aim for 8–12 slides, including a title slide, an agenda and a closing ask.',
       '- Use `Label: value unit` bullets on a metrics slide.',
+      '- Add a chart line when numbers are comparable, e.g. `[chart: bar] Quarterly revenue ($M) | Q1: 4.2 | Q2: 5.1 | Q3: 6.0`.',
+      '- Supported chart types: bar, line, area, pie, donut.',
       '- Prefix roadmap bullets with a quarter or phase, and comparison bullets with Current:/Proposed:.',
       '- Vary the slide shapes; do not make every slide a bullet list.',
       '- Separate slides with a blank line (a --- rule is also accepted).',
-      '- Do not add speaker notes or raw Markdown tables.',
+      '- Do not add speaker notes, product branding, watermarks or raw Markdown tables.',
       '- The app turns this outline into a downloadable .pptx file automatically; do not call a file-writing tool and keep each bullet one line.',
       ARTIFACT_RULES,
     ].filter(Boolean).join('\n');

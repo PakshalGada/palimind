@@ -1,9 +1,11 @@
 import { parseArtifacts } from './artifacts';
-import { parseSlides } from './slides';
+import { parseDeckOutline, type DeckChart } from './deckPlan';
 
 export interface OfficeSlide {
   title: string;
   bullets: string[];
+  layout?: string;
+  chart?: DeckChart | null;
 }
 
 export interface OfficePayload {
@@ -31,7 +33,12 @@ export function buildArtifactOfficePayload(
 
   const slides =
     artifact.type === 'slide-outline' || artifact.type === 'document' || artifact.type === 'markdown'
-      ? parseSlides(artifact.content)
+      ? parseDeckOutline(artifact.content, title).map((slide) => ({
+          title: slide.title,
+          bullets: slide.bullets,
+          layout: slide.layout,
+          chart: slide.chart ?? null,
+        }))
       : [
           {
             title,
@@ -69,7 +76,9 @@ export function buildOfficePayload(
 
   if (format === 'pptx') {
     const deck = artifacts.find((artifact) => artifact.type === 'slide-outline');
-    const slides = deck ? parseSlides(deck.content) : parseSlides(text);
+    const slides = deck
+      ? parseDeckOutline(deck.content, deck.title)
+      : parseDeckOutline(text, fallbackTitle);
     if (slides.length === 0) return null;
     return {
       format,
@@ -77,6 +86,8 @@ export function buildOfficePayload(
       slides: slides.map((slide) => ({
         title: slide.title,
         bullets: slide.bullets,
+        layout: slide.layout,
+        chart: slide.chart ?? null,
       })),
     };
   }

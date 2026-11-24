@@ -9,8 +9,6 @@ import {
 } from '../model';
 import { api } from '../../../api';
 import { captionFor } from '../caption';
-import AgentAvatar from '../../AgentAvatar';
-import { botStateForRun, configFromSeed, type BotAvatarConfig } from '../../../bots/config';
 import { useActivitySettings, useMediaQuery } from '../hooks';
 import { PixelIcon } from '../../pixel/PixelIcon';
 import type { PixelSprite } from '../../pixel/sprites';
@@ -28,9 +26,6 @@ import { ThinkingIndicator } from './ThinkingIndicator';
 import { PhaseSpine } from './PhaseSpine';
 import type { GrantDecision } from './PermissionGrant';
 import type { ActivityAgentAvatar } from '../../../AppContext';
-
-const DEFAULT_SEED = 'palimind-assistant';
-const DEFAULT_AVATAR: BotAvatarConfig = configFromSeed(DEFAULT_SEED);
 
 const TOOL_PIXEL: Record<string, PixelSprite> = {
   search: 'search',
@@ -295,7 +290,6 @@ function isTypingTarget(target: EventTarget | null): boolean {
 export function ActivityPanel({
   state,
   store,
-  avatar,
   history = false,
   bodyExtra,
   agentId,
@@ -384,11 +378,7 @@ export function ActivityPanel({
     ? true
     : history
       ? false
-      : settings.collapse === 'expanded'
-        ? true
-        : settings.collapse === 'collapsed'
-          ? false
-          : running && !state.answerStarted;
+      : settings.collapse === 'expanded';
   const open = manual ?? autoOpen;
 
   const caption = captionFor(state);
@@ -427,9 +417,6 @@ export function ActivityPanel({
     ? new Set(state.passages.map((passage) => passage.docName)).size
     : 0;
 
-  const avatarConfig =
-    avatar?.type === 'upload' ? undefined : avatar?.config ?? DEFAULT_AVATAR;
-
   const staticRunClass = staticRun ? ' act--static' : '';
   const liveInline = running && !state.answerStarted && !staticRun;
   const reasoningOnly =
@@ -454,24 +441,7 @@ export function ActivityPanel({
             aria-controls={bodyId}
             onClick={() => setManual(!open)}
           >
-            {avatar?.type === 'upload' && avatar.upload ? (
-              <span className="act-caption__avatar" aria-hidden="true">
-                <img src={avatar.upload} alt="" width={18} height={18} />
-              </span>
-            ) : avatarConfig ? (
-              <span className="act-caption__avatar" aria-hidden="true">
-                <AgentAvatar
-                  config={avatarConfig}
-                  type="bot"
-                  size={18}
-                  state={botStateForRun(state)}
-                  interactive={false}
-                  paused={staticRun}
-                />
-              </span>
-            ) : (
-              <StatusIcon status={nodeStatus} size={13} />
-            )}
+            <StatusIcon status={nodeStatus} size={13} />
             <span className="act-caption__text">
               {caption.kind === 'failed' && (
                 <Icon name="triangle-alert" size={12} className="act-caption__error-icon" />

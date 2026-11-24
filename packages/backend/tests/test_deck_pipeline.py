@@ -136,3 +136,52 @@ def test_build_docx_preserves_formatting_tables_and_structure() -> None:
     assert document.tables[0].cell(0, 0).text == "Metric"
     assert validate_docx(data) == []
     assert validate_docx(b"not a docx")[0].startswith("not a readable Word document")
+
+
+def test_chart_directive_plans_and_renders_a_native_chart() -> None:
+    pptx = pytest.importorskip("pptx")
+    from palimind.artifacts.deck import build_deck
+
+    content = "\n".join(
+        [
+            "# Revenue grew 18% in Q3",
+            "- Growth accelerated for three quarters",
+            "[chart: bar] Quarterly revenue ($M) | Q1: 4.2 | Q2: 5.1 | Q3: 6.0",
+            "",
+            "# What we will cover",
+            "- Results",
+            "- Drivers",
+            "- Next steps",
+        ]
+    )
+    data, plan, warnings = build_deck("Q3 review", content)
+    assert warnings == []
+    assert plan.slides[0].layout == "chart"
+    assert plan.slides[0].chart is not None
+    assert plan.slides[0].chart.categories == ("Q1", "Q2", "Q3")
+    assert plan.slides[0].chart.values == (4.2, 5.1, 6.0)
+
+    deck = pptx.Presentation(io.BytesIO(data))
+    charts = [
+        shape
+        for slide in deck.slides
+        for shape in slide.shapes
+        if getattr(shape, "has_chart", False)
+    ]
+    assert len(charts) == 1
+
+
+def test_deck_has_no_visible_product_branding() -> None:
+    pptx = pytest.importorskip("pptx")
+    from palimind.artifacts.deck import build_deck
+
+    data, _plan, _warnings = build_deck("Quarterly review", slides=_specs())
+    deck = pptx.Presentation(io.BytesIO(data))
+    text = "\n".join(
+        shape.text
+        for slide in deck.slides
+        for shape in slide.shapes
+        if getattr(shape, "has_text_frame", False)
+    )
+    assert "palimind" not in text.lower()
+    assert "prepared with" not in text.lower()

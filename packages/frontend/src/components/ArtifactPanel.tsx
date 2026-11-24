@@ -140,8 +140,14 @@ function isEditableElement(element: Element | null): boolean {
  */
 export default function ArtifactPanel({
   forceVisible = false,
+  embedded = false,
+  panelVisible = true,
 }: {
   forceVisible?: boolean;
+  /** Rendered inside the Workbench, which owns the panel chrome. */
+  embedded?: boolean;
+  /** The Workbench tab is visible. */
+  panelVisible?: boolean;
 }) {
   const {
     artifactPanelOpen,
@@ -452,12 +458,14 @@ export default function ArtifactPanel({
     return () => window.clearTimeout(timer);
   }, [newIds, streamStatus]);
 
+  const panelActive = embedded ? panelVisible : artifactPanelOpen;
+
   // Focus the panel on open, but never steal focus from the composer.
   useEffect(() => {
-    if (!artifactPanelOpen) return;
+    if (!panelActive) return;
     if (isEditableElement(document.activeElement)) return;
     panelRef.current?.focus({ preventScroll: true });
-  }, [artifactPanelOpen]);
+  }, [panelActive]);
 
   // Restore preview scroll across edit-mode toggles.
   useLayoutEffect(() => {
@@ -497,7 +505,7 @@ export default function ArtifactPanel({
   const hasActive = Boolean(active);
 
   useEffect(() => {
-    if (!artifactPanelOpen || !hasActive) return;
+    if (!panelActive || !hasActive) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
       const target = document.activeElement;
@@ -537,7 +545,7 @@ export default function ArtifactPanel({
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [artifactPanelOpen, hasActive]);
+  }, [panelActive, hasActive]);
 
   const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -641,18 +649,20 @@ export default function ArtifactPanel({
 
   return (
     <aside
-      className="artifact-panel artp"
+      className={`artifact-panel artp${embedded ? ' artp--embedded' : ''}`}
       aria-label="Artifacts panel"
       aria-busy={streaming}
+      aria-hidden={embedded && !panelVisible ? true : undefined}
       tabIndex={-1}
       ref={panelRef}
-      style={{ width: panelWidth }}
+      style={embedded ? undefined : { width: panelWidth }}
     >
       <LiveArtifactFeed
         messages={messages}
         sessionId={activeSessionId}
         onChange={setArtifactFeed}
       />
+      {!embedded && (
       <div
         className="artp-resizer"
         role="separator"
@@ -680,10 +690,12 @@ export default function ArtifactPanel({
       >
         <span className="artp-resizer-grip" aria-hidden="true" />
       </div>
+      )}
 
       <ArtifactPanelHeader
         count={external ? 0 : sessionArtifacts.length}
         external={Boolean(external)}
+        embedded={embedded}
         streaming={streaming}
         onBack={() => setExternal(null)}
         onOpenLibrary={() => setArtifactLibraryOpen(true)}
@@ -720,7 +732,7 @@ export default function ArtifactPanel({
         </div>
       ) : (
         <div className="artp-doc">
-          {!external && (sessionArtifacts.length > 1 || streaming || newIds.size > 0) && (
+          {!external && sessionArtifacts.length > 0 && (
             <ArtifactTabs
               artifacts={sessionArtifacts}
               activeId={active.id}

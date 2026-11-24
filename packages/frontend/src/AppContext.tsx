@@ -41,6 +41,8 @@ export interface AgentState {
 
 export type ActivityMode = 'llm' | 'document' | 'moe' | 'deep_research' | 'agent';
 export type ActivityStatus = 'pending' | 'active' | 'done' | 'error';
+export type WorkbenchTab = 'artifacts' | 'browser' | 'files' | 'sources';
+export type ResponseStyle = 'default' | 'brief' | 'executive' | 'technical' | 'teaching';
 
 export interface ActivityStep {
   id: string;
@@ -112,6 +114,9 @@ interface AppState {
   artifactPanelOpen: boolean;
   artifactLibraryOpen: boolean;
   artifactTarget: { id: string; nonce: number } | null;
+  workbenchOpen: boolean;
+  workbenchTab: WorkbenchTab;
+  responseStyle: ResponseStyle;
   shortcutOverrides: ShortcutOverrides;
 }
 
@@ -163,6 +168,11 @@ interface AppContextType extends AppState {
   openArtifactLibrary: () => void;
   openArtifact: (id: string) => void;
   clearArtifactTarget: () => void;
+  setWorkbenchTab: (tab: WorkbenchTab) => void;
+  openWorkbench: (tab?: WorkbenchTab) => void;
+  closeWorkbench: () => void;
+  toggleWorkbench: (tab?: WorkbenchTab) => void;
+  setResponseStyle: (style: ResponseStyle) => void;
   setShortcutOverride: (commandId: string, combo: string | null) => void;
   resetShortcut: (commandId: string) => void;
   resetAllShortcuts: () => void;
@@ -244,7 +254,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
-  const [artifactPanelOpen, setArtifactPanelOpen] = useState(false);
+  const [workbenchOpen, setWorkbenchOpenState] = useState(
+    () => typeof window !== 'undefined' && localStorage.getItem('palimind:workbench-open') === '1',
+  );
+  const [responseStyle, setResponseStyleState] = useState<ResponseStyle>(() => {
+    if (typeof window === 'undefined') return 'default';
+    const stored = localStorage.getItem('palimind:response-style');
+    return stored === 'brief' || stored === 'executive' || stored === 'technical' || stored === 'teaching'
+      ? stored
+      : 'default';
+  });
+  const [workbenchTab, setWorkbenchTabState] = useState<WorkbenchTab>(() => {
+    if (typeof window === 'undefined') return 'artifacts';
+    const stored = localStorage.getItem('palimind:workbench-tab');
+    return stored === 'browser' || stored === 'files' || stored === 'sources'
+      ? stored
+      : 'artifacts';
+  });
+  const artifactPanelOpen = workbenchOpen && workbenchTab === 'artifacts';
   const [artifactLibraryOpen, setArtifactLibraryOpen] = useState(false);
   const [artifactTarget, setArtifactTarget] = useState<{ id: string; nonce: number } | null>(null);
   const artifactNonce = useRef(0);
@@ -284,17 +311,79 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const openArtifactLibrary = useCallback(() => {
-    setArtifactPanelOpen(true);
-    setArtifactLibraryOpen(true);
+  const setResponseStyle = useCallback((style: ResponseStyle) => {
+    setResponseStyleState(style);
+    try {
+      localStorage.setItem('palimind:response-style', style);
+    } catch {
+      // storage is optional
+    }
   }, []);
+
+  const setWorkbenchTab = useCallback((tab: WorkbenchTab) => {
+    setWorkbenchTabState(tab);
+    setWorkbenchOpenState(true);
+    if (tab !== 'artifacts') setArtifactLibraryOpen(false);
+    try {
+      localStorage.setItem('palimind:workbench-tab', tab);
+      localStorage.setItem('palimind:workbench-open', '1');
+    } catch {
+      // storage is optional
+    }
+  }, []);
+
+  const openWorkbench = useCallback((tab: WorkbenchTab = 'artifacts') => {
+    setWorkbenchTab(tab);
+  }, [setWorkbenchTab]);
+
+  const closeWorkbench = useCallback(() => {
+    setWorkbenchOpenState(false);
+    setArtifactLibraryOpen(false);
+    try {
+      localStorage.removeItem('palimind:workbench-open');
+    } catch {
+      // storage is optional
+    }
+  }, []);
+
+  const toggleWorkbench = useCallback((tab: WorkbenchTab = 'artifacts') => {
+    setWorkbenchOpenState((open) => {
+      const next = !open || workbenchTab !== tab;
+      if (next) {
+        setWorkbenchTabState(tab);
+        try {
+          localStorage.setItem('palimind:workbench-open', '1');
+          localStorage.setItem('palimind:workbench-tab', tab);
+        } catch {
+          // storage is optional
+        }
+      } else {
+        try {
+          localStorage.removeItem('palimind:workbench-open');
+        } catch {
+          // storage is optional
+        }
+      }
+      return next;
+    });
+  }, [workbenchTab]);
+
+  const setArtifactPanelOpen = useCallback((value: boolean) => {
+    if (value) openWorkbench('artifacts');
+    else closeWorkbench();
+  }, [openWorkbench, closeWorkbench]);
+
+  const openArtifactLibrary = useCallback(() => {
+    setArtifactLibraryOpen(true);
+    openWorkbench('artifacts');
+  }, [openWorkbench]);
 
   const openArtifact = useCallback((id: string) => {
     artifactNonce.current += 1;
     setArtifactTarget({ id, nonce: artifactNonce.current });
     setArtifactLibraryOpen(false);
-    setArtifactPanelOpen(true);
-  }, []);
+    openWorkbench('artifacts');
+  }, [openWorkbench]);
 
   const clearArtifactTarget = useCallback(() => setArtifactTarget(null), []);
 
@@ -500,6 +589,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     artifactPanelOpen, setArtifactPanelOpen,
     artifactLibraryOpen, setArtifactLibraryOpen, artifactTarget,
     openArtifactLibrary, openArtifact, clearArtifactTarget,
+    workbenchOpen, workbenchTab, setWorkbenchTab, openWorkbench, closeWorkbench, toggleWorkbench,
+    responseStyle, setResponseStyle,
     shortcutOverrides, setShortcutOverride, resetShortcut, resetAllShortcuts,
   }), [
     activeView, agentsView, activeField, activeProjectId, activeProjectName, activeSessionId, sessions, selectedFiles,
@@ -511,10 +602,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     selectedChannelId, agentsWorkTab, agentsSettingsOpen, browserOpen, browserFullscreen,
     sidebarCollapsed, commandPaletteOpen, shortcutsModalOpen,
     artifactPanelOpen, artifactLibraryOpen, artifactTarget, shortcutOverrides,
+    workbenchOpen, workbenchTab, setWorkbenchTab, openWorkbench, closeWorkbench, toggleWorkbench,
+    responseStyle, setResponseStyle,
     toggleSidebar, setShortcutOverride, resetShortcut, resetAllShortcuts,
     openArtifactLibrary, openArtifact, clearArtifactTarget,
     setActiveProjectId, setActiveProjectName, setTheme, refreshFields, addToast, clearSelectedFiles,
-    refreshFileTree, refreshSessions, toggleSelectedFile,
+    refreshFileTree, refreshSessions, toggleSelectedFile, setArtifactPanelOpen,
   ]);
 
   const activityValue = useMemo<ActivityContextType>(() => ({

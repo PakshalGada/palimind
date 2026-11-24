@@ -225,6 +225,15 @@ export const COMMANDS: CommandDef[] = [
     defaultShortcut: 'Mod+Shift+A',
   },
   {
+    id: 'view.toggle-workbench',
+    title: 'Toggle Workbench',
+    category: 'View',
+    icon: 'blocks',
+    description: 'Show or hide the right workbench (artifacts, browser, files, sources)',
+    keywords: ['panel', 'artifacts', 'browser', 'files', 'sources'],
+    defaultShortcut: 'Mod+J',
+  },
+  {
     id: 'view.toggle-theme',
     title: 'Toggle Light / Dark Theme',
     category: 'View',

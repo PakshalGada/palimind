@@ -35,7 +35,7 @@ import { ComposerCaption } from "./ComposerCaption";
 import { botStateFor } from "../bots/config";
 import MicWave from "./MicWave";
 import { useApp } from "../AppContext";
-import type { ActivityMode } from "../AppContext";
+import type { ActivityMode, ResponseStyle } from "../AppContext";
 import { useCommandHandlers } from "../commands/useCommand";
 import { useChatStreamActions } from "../stream/context";
 import { exportWAV } from "../utils/audio";
@@ -136,6 +136,18 @@ interface InputAreaProps {
   mentionAgents?: AgentListItem[];
 }
 
+const RESPONSE_STYLE_PREFIX: Record<ResponseStyle, string> = {
+  default: "",
+  brief:
+    "Response style: be brief. Lead with the answer in 2-4 sentences, then at most 3 bullets.",
+  executive:
+    "Response style: executive. Lead with the decision, then the evidence, implications and next step. Keep it under 300 words.",
+  technical:
+    "Response style: technical. Be precise, include mechanisms, trade-offs, edge cases and concrete examples. Use short sections.",
+  teaching:
+    "Response style: teaching. Explain from first principles, define terms, use one concrete example and end with a quick check for understanding.",
+};
+
 function InputArea({
   onLocalSend,
   placeholder = "Ask me anything...",
@@ -166,6 +178,7 @@ function InputArea({
     isTranscribing,
     setIsTranscribing,
     addToast,
+    responseStyle,
   } = useApp();
 
   const { send: sendMessage, stop: stopStream } = useChatStreamActions();
@@ -925,6 +938,8 @@ function InputArea({
       }
 
       const mode = isChatView ? "llm" : chatMode;
+      const stylePrefix = isChatView && activeView === "chat" ? RESPONSE_STYLE_PREFIX[responseStyle] : "";
+      if (stylePrefix) modelText = `${stylePrefix}\n\n${modelText}`;
 
       sendMessage({
         text: modelText,
@@ -980,6 +995,7 @@ function InputArea({
     addToast,
     replyTarget?.messageId,
     forkTarget,
+    responseStyle,
   ]);
 
   const findLastMessage = useCallback(

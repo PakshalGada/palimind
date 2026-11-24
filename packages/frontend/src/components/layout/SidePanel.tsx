@@ -1,30 +1,29 @@
 import { useEffect, useState } from 'react';
-import ArtifactPanel from '../ArtifactPanel';
+import WorkbenchPanel from '../workbench/WorkbenchPanel';
 import { useApp } from '../../AppContext';
 
 /** How long the exit animation runs. Keep in sync with layout.css (240ms). */
 const CLOSE_MS = 240;
 
 /**
- * Right rail for artifacts. The panel renders nothing when closed, but instead
- * of unmounting immediately, a short "closing" phase keeps it mounted so the
- * exit animation in layout.css can play — closing no longer feels abrupt.
+ * Right rail for the Workbench (artifacts, browser, files and sources). The
+ * panel renders nothing when closed, but a short "closing" phase keeps it
+ * mounted so the exit animation can play.
  */
 export default function SidePanel() {
-  const { artifactPanelOpen, artifactLibraryOpen } = useApp();
-  const open = artifactPanelOpen || artifactLibraryOpen;
+  const { workbenchOpen } = useApp();
 
   const [phase, setPhase] = useState<'open' | 'closing' | 'closed'>(
-    open ? 'open' : 'closed',
+    workbenchOpen ? 'open' : 'closed',
   );
 
   useEffect(() => {
-    if (open) {
+    if (workbenchOpen) {
       setPhase('open');
       return;
     }
     setPhase(previous => (previous === 'closed' ? previous : 'closing'));
-  }, [open]);
+  }, [workbenchOpen]);
 
   useEffect(() => {
     if (phase !== 'closing') return;
@@ -42,7 +41,7 @@ export default function SidePanel() {
       aria-label="Side panel"
       aria-hidden={closing || undefined}
     >
-      <ArtifactPanel forceVisible />
+      <WorkbenchPanel />
     </div>
   );
 }

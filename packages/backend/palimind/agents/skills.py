@@ -173,19 +173,22 @@ BUILTIN_SKILLS: list[dict[str, Any]] = [
             "  section dividers, KPI tiles, comparison panels, timelines, numbered rows\n"
             "  and card layouts. Write for those shapes, not for a wall of bullets.\n\n"
             "DECK STRUCTURE\n"
-            "- Produce 10-16 slides with a clear narrative arc.\n"
+            "- Produce 8-12 slides with a clear narrative arc.\n"
             "- Slide 1 is the title: one # heading only. The first bullet becomes the subtitle.\n"
             "- Slide 2 should be an agenda or 'What we will cover' with 4-6 bullets.\n"
             "- Use a section-divider slide (a # heading with no bullets) before each major part.\n"
-            "- Content slides need 3-5 short bullets. One idea per bullet, ideally 8-18 words.\n"
+            "- Content slides need 1-3 short bullets. One idea per bullet, ideally 8-16 words.\n"
             "- Write bullets with a colon when a fact has a label, e.g. 'Revenue: $4.8M in Q3'.\n"
+            "- Add a chart line when a slide has comparable numbers, e.g.\n"
+            "  '[chart: bar] Quarterly revenue ($M) | Q1: 4.2 | Q2: 5.1 | Q3: 6.0'.\n"
+            "  Supported chart types: bar, line, area, pie, donut.\n"
             "  The exporter turns labelled facts into KPI tiles and other grouped content into cards.\n"
             "- For a metrics slide, give every bullet the same 'Label: value unit' shape.\n"
             "- For a comparison slide, title it 'Current vs proposed' (or 'Before vs after') and\n"
             "  prefix bullets with 'Current:' / 'Proposed:' so the exporter can split the columns.\n"
             "- For a roadmap slide, prefix each bullet with a quarter, phase or date (Q4, 2027, Phase 2).\n"
             "- Use a one-bullet slide for a strong quote or headline finding.\n"
-            "- Include at least one metrics slide, one risks or trade-offs slide, one roadmap or\n"
+            "- Include at least one metrics or chart slide, one risks or trade-offs slide, one roadmap or\n"
             "  timeline slide, and one next-steps slide.\n"
             "- Close with a clear recommendation or ask titled 'The ask' or 'Next steps'.\n\n"
             "CONTENT QUALITY\n"
@@ -194,6 +197,7 @@ BUILTIN_SKILLS: list[dict[str, Any]] = [
             "- Do not invent data. If an exact figure is unavailable, state the estimate and its basis.\n"
             "- Vary slide shapes: do not make every slide a four-card grid or a bullet list.\n"
             "- Do not use Markdown tables, code fences inside the block, emojis or raw HTML.\n"
+            "- Never add product branding, watermarks, 'Prepared by PaliMind', or app names.\n"
             "- Do not add speaker notes, commentary about the deck, or a summary after the fence."
         ),
     },
@@ -209,6 +213,254 @@ BUILTIN_SKILLS: list[dict[str, Any]] = [
             "Group changes into one logical commit, write a concise imperative "
             "commit message describing the why, stage only the intended files and "
             "commit. Never force-push and never commit secrets."
+        ),
+    },
+
+    {
+        "id": "chart-builder",
+        "name": "Chart builder",
+        "description": "Turn numbers or a CSV/XLSX file into a clear chart and explain it.",
+        "category": "data",
+        "command": "/chart",
+        "tools": ["chart_generate", "csv_query", "xlsx_read", "read_file"],
+        "instructions": (
+            "Chart method: identify the data source and the comparison the user needs. "
+            "Profile the columns, choose bar/line/area/pie/donut, generate a PNG chart, "
+            "and return the chart plus 3-5 short takeaways. State the unit and any rows "
+            "excluded. Do not invent values; if a column is ambiguous, ask or label the assumption."
+        ),
+    },
+    {
+        "id": "dashboard-builder",
+        "name": "Dashboard",
+        "description": "Build a compact HTML dashboard from a spreadsheet or dataset.",
+        "category": "data",
+        "command": "/dashboard",
+        "tools": ["chart_generate", "csv_query", "xlsx_read", "run_python"],
+        "instructions": (
+            "Dashboard method: inspect the dataset columns first. Choose 3-6 metrics and "
+            "2-4 charts that answer the user's question. Return one self-contained fenced "
+            "```html dashboard with inline CSS, real numbers and labels. No external assets, "
+            "no lorem ipsum. Include the data source, date range and any assumptions."
+        ),
+    },
+    {
+        "id": "executive-brief",
+        "name": "Executive brief",
+        "description": "Write a cited one-page brief from workspace files or web sources.",
+        "category": "writing",
+        "command": "/brief",
+        "tools": ["document_search", "summarize", "query_graph", "read_file"],
+        "instructions": (
+            "Brief method: lead with the decision or headline. Then give the three most "
+            "important findings, each with evidence and a citation. Add implications, risks "
+            "and a recommended next step. Keep it under 700 words. Separate verified facts "
+            "from estimates and say what is missing."
+        ),
+    },
+    {
+        "id": "document-compare",
+        "name": "Compare documents",
+        "description": "Compare two documents, versions or contracts for changes and conflicts.",
+        "category": "analysis",
+        "command": "/compare-docs",
+        "tools": ["document_search", "read_file", "summarize"],
+        "instructions": (
+            "Comparison method: identify both documents and their versions. Produce a table "
+            "of material changes (added, removed, changed, unchanged), then call out conflicts, "
+            "risks and ambiguous wording. Quote the exact passage for every finding. Do not "
+            "treat formatting-only differences as material."
+        ),
+    },
+    {
+        "id": "diagram-builder",
+        "name": "Diagram",
+        "description": "Turn code or notes into an architecture, flow or sequence diagram.",
+        "category": "engineering",
+        "command": "/diagram",
+        "tools": ["read_file", "list_files", "glob_files", "grep_files"],
+        "instructions": (
+            "Diagram method: read the relevant code/notes first. Choose the smallest useful "
+            "diagram type (flowchart, sequence, ER, state or C4). Return one fenced ```mermaid "
+            "block with short labels and no decorative nodes. Add a 2-4 line explanation of "
+            "the main path and any assumption."
+        ),
+    },
+    {
+        "id": "deck-from-document",
+        "name": "Deck from document",
+        "description": "Turn a report, notes or chat answer into a designed slide deck.",
+        "category": "writing",
+        "command": "/deck-from-doc",
+        "tools": ["document_search", "read_file", "summarize"],
+        "instructions": (
+            "Deck method: read the source and identify the narrative arc. Return exactly one "
+            "fenced ```slides block with 8-12 slides, claim-style titles, 1-3 short bullets per "
+            "slide, and at least one metrics or chart slide. Use [layout: ...] hints and the "
+            "[chart: type] Title (unit) | Label: value format. Include an agenda, a section "
+            "divider, a risks slide and a closing ask. No product branding."
+        ),
+    },
+    {
+        "id": "data-audit",
+        "name": "Data audit",
+        "description": "Profile a CSV/XLSX, find quality issues and produce a cleaned export.",
+        "category": "data",
+        "command": "/data-audit",
+        "tools": ["csv_query", "xlsx_read", "xlsx_write", "run_python", "chart_generate"],
+        "instructions": (
+            "Data-audit method: report row/column counts, types, missing values, duplicates, "
+            "outliers and suspicious categories. Show a small sample. Explain the cleaning "
+            "steps you recommend, apply only safe transformations, and write a cleaned file "
+            "when the user asked for one. Never silently drop rows; log every exclusion."
+        ),
+    },
+    {
+        "id": "table-extractor",
+        "name": "Extract table",
+        "description": "Pull tables from PDFs or images into clean CSV/XLSX.",
+        "category": "data",
+        "command": "/extract-table",
+        "tools": ["pdf_read", "image_ocr", "xlsx_write", "run_python"],
+        "instructions": (
+            "Table-extraction method: identify the table boundaries, preserve header names "
+            "and units, and flag merged or missing cells. Return the table as Markdown for "
+            "review and, when asked, write a CSV/XLSX export. Include the source file, page "
+            "and any extraction uncertainty."
+        ),
+    },
+    {
+        "id": "decision-matrix",
+        "name": "Decision matrix",
+        "description": "Compare options with weighted criteria and a clear recommendation.",
+        "category": "analysis",
+        "command": "/decision",
+        "tools": [],
+        "instructions": (
+            "Decision method: list the options, define 4-6 criteria, assign weights that sum "
+            "to 100%, and score each option 1-5 with a short rationale. Show the weighted table, "
+            "run a sensitivity check on the top two, and end with a recommendation and the "
+            "conditions that would change it. Label assumptions."
+        ),
+    },
+    {
+        "id": "premortem",
+        "name": "Premortem",
+        "description": "Find the ways a plan could fail before it does.",
+        "category": "analysis",
+        "command": "/premortem",
+        "tools": [],
+        "instructions": (
+            "Premortem method: assume the plan failed. List the 6-10 most plausible failure "
+            "modes, rank them by likelihood and impact, and give an early warning signal and "
+            "mitigation for each. Separate internal execution risks from external/market risks. "
+            "End with the three risks to watch first."
+        ),
+    },
+    {
+        "id": "study-guide",
+        "name": "Study guide",
+        "description": "Turn notes or PDFs into a summary, flashcards and a quiz.",
+        "category": "writing",
+        "command": "/study",
+        "tools": ["document_search", "summarize", "read_file"],
+        "instructions": (
+            "Study method: produce a one-page summary, 8-12 question/answer flashcards and a "
+            "5-question quiz with an answer key. Cover definitions, mechanisms, comparisons and "
+            "common mistakes. Cite the source section for each card. Do not invent facts."
+        ),
+    },
+    {
+        "id": "email-draft",
+        "name": "Email draft",
+        "description": "Draft or rewrite an email in the requested tone and length.",
+        "category": "writing",
+        "command": "/email",
+        "tools": [],
+        "instructions": (
+            "Email method: ask for the recipient, goal and tone only if missing. Write a clear "
+            "subject line, a short opening, the ask, the necessary context and a close. Keep it "
+            "under 180 words unless the user asks for detail. Offer one shorter variant when the "
+            "stakes are high."
+        ),
+    },
+    {
+        "id": "translator",
+        "name": "Translate",
+        "description": "Translate text while preserving structure and terminology.",
+        "category": "writing",
+        "command": "/translate",
+        "tools": [],
+        "instructions": (
+            "Translation method: identify source and target language. Preserve headings, lists, "
+            "tables and code. Keep product names and technical terms consistent; give the English "
+            "term in parentheses on first use when helpful. Flag idioms or ambiguous passages "
+            "instead of guessing."
+        ),
+    },
+    {
+        "id": "thread-summary",
+        "name": "Summarize thread",
+        "description": "Summarize a long conversation into decisions, actions and open questions.",
+        "category": "writing",
+        "command": "/summarize-thread",
+        "tools": ["summarize"],
+        "instructions": (
+            "Thread-summary method: produce a one-line summary, then sections for Decisions, "
+            "Action items (owner/date if stated), Open questions and Key facts. Keep it under "
+            "400 words. Do not add new recommendations unless asked."
+        ),
+    },
+    {
+        "id": "ocr-extract",
+        "name": "OCR",
+        "description": "Extract text and tables from images or scanned PDFs.",
+        "category": "data",
+        "command": "/ocr",
+        "tools": ["image_ocr", "pdf_read"],
+        "instructions": (
+            "OCR method: extract the text faithfully, preserve reading order and table structure, "
+            "and mark uncertain characters. Do not silently correct names, numbers or units. "
+            "Return clean Markdown and list the source files."
+        ),
+    },
+    {
+        "id": "transcribe-media",
+        "name": "Transcribe",
+        "description": "Transcribe audio/video and extract decisions and action items.",
+        "category": "writing",
+        "command": "/transcribe",
+        "tools": ["audio_transcribe", "video_frames"],
+        "instructions": (
+            "Transcription method: produce a speaker-labelled transcript when possible, then a "
+            "short summary, decisions, action items and open questions. Include timestamps for "
+            "important moments. Mark inaudible sections instead of guessing."
+        ),
+    },
+    {
+        "id": "pdf-tools",
+        "name": "PDF tools",
+        "description": "Merge, split, rotate or extract content from PDFs.",
+        "category": "data",
+        "command": "/pdf",
+        "tools": ["pdf_merge", "pdf_split", "pdf_rotate", "pdf_read"],
+        "instructions": (
+            "PDF method: confirm the operation and file order before writing anything. Perform "
+            "only the requested operation, report the output path and page count, and preserve "
+            "the originals. For extraction, cite page numbers."
+        ),
+    },
+    {
+        "id": "image-maker",
+        "name": "Image",
+        "description": "Generate an illustration, diagram or cover image.",
+        "category": "media",
+        "command": "/image",
+        "tools": ["image_generate"],
+        "instructions": (
+            "Image method: turn the request into a clear visual brief (subject, composition, "
+            "style, aspect ratio, text to include). Generate one image, then describe what it "
+            "shows and offer one concrete revision. Do not add brand marks unless asked."
         ),
     },
 ]

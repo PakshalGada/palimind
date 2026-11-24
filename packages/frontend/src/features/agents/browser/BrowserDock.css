@@ -386,3 +386,17 @@
     border-left: none;
   }
 }
+
+/* Workbench variant: the right panel owns width and chrome. */
+.ag-browser.is-embedded {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    flex: 1 1 auto;
+    border-left: none;
+    background: var(--bg-color);
+}
+.ag-browser.is-embedded .ag-browser__tabs {
+    padding-left: 4px;
+    padding-right: 4px;
+}

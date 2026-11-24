@@ -1,0 +1,193 @@
+.app-workbench {
+    position: relative;
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    min-width: 0;
+    height: 100%;
+    min-height: 0;
+    background: var(--surface);
+    border-left: 1px solid var(--line);
+    overflow: hidden;
+}
+
+.app-workbench__resizer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -4px;
+    width: 8px;
+    z-index: 4;
+    cursor: col-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.app-workbench__grip {
+    width: 2px;
+    height: 34px;
+    border-radius: 999px;
+    background: var(--line);
+    opacity: 0;
+    transition: opacity var(--dur-2) var(--ease-out);
+}
+.app-workbench__resizer:hover .app-workbench__grip,
+.app-workbench__resizer:focus-visible .app-workbench__grip {
+    opacity: 1;
+}
+
+.app-workbench__head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 4px 6px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+    flex: 0 0 auto;
+}
+
+.app-workbench__tabs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.app-workbench__tabs::-webkit-scrollbar { display: none; }
+
+.app-workbench__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 30px;
+    padding: 0 9px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink-muted);
+    font-family: var(--font-sans);
+    font-size: var(--type-2xs);
+    white-space: nowrap;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.app-workbench__tab:hover {
+    background: var(--surface-hover);
+    color: var(--ink);
+}
+.app-workbench__tab.is-active {
+    background: var(--surface-2);
+    border-color: var(--line);
+    color: var(--ink);
+}
+
+.app-workbench__badge {
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--primary-color);
+    color: var(--on-primary, #fff);
+    font-size: 10px;
+    line-height: 16px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.app-workbench__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.app-workbench__close:hover {
+    background: var(--surface-hover);
+    color: var(--ink);
+}
+
+.app-workbench__body {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+}
+.app-workbench__body > * {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+}
+
+/* The artifact panel is embedded: the workbench owns width and resizing. */
+.artp--embedded {
+    width: 100%;
+    height: 100%;
+    border-left: none;
+    background: transparent;
+}
+.artp--embedded .artp-head {
+    padding-left: 12px;
+    padding-right: 8px;
+}
+
+.wb-files,
+.wb-sources,
+.wb-empty {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 14px;
+}
+.wb-files {
+    padding: 10px 12px;
+}
+.wb-sources {
+    padding: 14px 16px;
+}
+.wb-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+body.is-resizing-workbench {
+    cursor: col-resize;
+    user-select: none;
+}
+
+@media (max-width: 1100px) {
+    .app-workbench {
+        min-width: 340px;
+    }
+}
+
+@media (max-width: 900px) {
+    .app-workbench {
+        position: absolute;
+        inset: 0;
+        width: 100% !important;
+        z-index: 45;
+        border-left: none;
+    }
+    .app-workbench__resizer {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-workbench,
+    .app-workbench__grip {
+        transition: none !important;
+    }
+}

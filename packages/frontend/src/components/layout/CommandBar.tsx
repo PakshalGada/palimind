@@ -2,6 +2,7 @@ import {
   Bell,
   Menu,
   Moon,
+  PanelRight,
   Plus,
   Search,
   Sun,
@@ -47,6 +48,9 @@ export default function CommandBar() {
     activeProjectName,
     setActiveProjectId,
     setActiveProjectName,
+    workbenchOpen,
+    workbenchTab,
+    toggleWorkbench,
   } = useApp();
 
   const sessionName =
@@ -180,6 +184,17 @@ export default function CommandBar() {
             <span className="command-bar__primary-label">{primary.label}</span>
           </button>
         )}
+
+        <button
+          type="button"
+          className={`command-bar__icon${workbenchOpen ? ' is-on' : ''}`}
+          title={workbenchOpen ? `Hide ${workbenchTab}` : 'Open workbench'}
+          aria-label={workbenchOpen ? 'Hide workbench' : 'Open workbench'}
+          aria-pressed={workbenchOpen}
+          onClick={() => toggleWorkbench(workbenchTab)}
+        >
+          <PanelRight size={15} />
+        </button>
 
         <button
           type="button"

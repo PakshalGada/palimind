@@ -390,3 +390,9 @@
     white-space: nowrap;
   }
 }
+
+.command-bar__icon.is-on {
+    background: var(--surface-2);
+    border-color: var(--line);
+    color: var(--ink);
+}

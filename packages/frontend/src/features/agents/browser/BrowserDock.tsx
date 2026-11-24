@@ -19,15 +19,24 @@ import { useBrowserSession } from './useBrowserSession';
 import { normalizeAddress, toPagePoint } from './coordinates';
 import './BrowserDock.css';
 
-export default function BrowserDock({ agentId }: { agentId?: string | null }) {
+export default function BrowserDock({
+  agentId,
+  embedded = false,
+  onClose,
+}: {
+  agentId?: string | null;
+  embedded?: boolean;
+  onClose?: () => void;
+}) {
   const {
     browserOpen,
     setBrowserOpen,
     browserFullscreen,
     setBrowserFullscreen,
   } = useApp();
+  const active = embedded || browserOpen;
   const { state, busy, frameFailed, setFrameFailed, refresh, act, claim, release, frameUrl } =
-    useBrowserSession(browserOpen, agentId || '');
+    useBrowserSession(active, agentId || '');
   const [address, setAddress] = useState('');
   const [editing, setEditing] = useState(false);
   const [frameLoading, setFrameLoading] = useState(true);
@@ -92,7 +101,7 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
   // focus to the page so page keyboard input resumes immediately.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (!browserOpen) return;
+      if (!active) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'l') {
         event.preventDefault();
         addressRef.current?.focus();
@@ -101,7 +110,7 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [browserOpen]);
+  }, [active]);
 
   /** The user taking any action is the natural handoff; no extra modal. */
   const ensureHuman = async () => {
@@ -118,7 +127,7 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
     return enqueue(action, payload);
   };
 
-  if (!browserOpen) return null;
+  if (!active) return null;
 
   const human = state.owner === 'human';
   const pending = state.owner === 'pending';
@@ -154,7 +163,8 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
         : api.browser.releaseControl()).catch(() => undefined);
     }
     setBrowserFullscreen(false);
-    setBrowserOpen(false);
+    if (embedded) onClose?.();
+    else setBrowserOpen(false);
   };
 
   const navigate = async () => {
@@ -240,7 +250,7 @@ export default function BrowserDock({ agentId }: { agentId?: string | null }) {
 
   return (
     <aside
-      className={`ag-browser${browserFullscreen ? ' is-full' : ''}`}
+      className={`ag-browser${browserFullscreen ? ' is-full' : ''}${embedded ? ' is-embedded' : ''}`}
       aria-label="Browser"
     >
       <div className="ag-browser__tabs">

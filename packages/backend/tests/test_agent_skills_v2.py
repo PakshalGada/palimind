@@ -47,7 +47,9 @@ def test_office_skills_are_detailed_and_resolvable() -> None:
     assert "```slides" in instructions
     assert "Do not call pptx_write" in instructions
     assert "KPI" in instructions
-    assert "10-16 slides" in instructions
+    assert "8-12 slides" in instructions
+    assert "[chart:" in instructions
+    assert "branding" in instructions
 
 
 def test_yaml_skill_loading(monkeypatch, tmp_path: Path) -> None:

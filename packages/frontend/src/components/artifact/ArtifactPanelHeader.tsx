@@ -3,6 +3,7 @@ import { ChevronLeft, Layers3, Package, X } from 'lucide-react';
 export default function ArtifactPanelHeader({
   count,
   external,
+  embedded = false,
   streaming,
   onBack,
   onOpenLibrary,
@@ -10,6 +11,8 @@ export default function ArtifactPanelHeader({
 }: {
   count: number;
   external: boolean;
+  /** The Workbench owns the close affordance. */
+  embedded?: boolean;
   streaming: boolean;
   onBack: () => void;
   onOpenLibrary: () => void;
@@ -32,7 +35,9 @@ export default function ArtifactPanelHeader({
         <span className="artp-head-icon" aria-hidden="true">
           <Layers3 size={15} />
         </span>
-        <span className="artp-head-label">Artifacts</span>
+        <span className="artp-head-label">
+          {embedded ? 'Conversation artifacts' : 'Artifacts'}
+        </span>
         {count > 0 && !external && <span className="artp-count">{count}</span>}
         {streaming && (
           <span className="artp-live">
@@ -51,15 +56,17 @@ export default function ArtifactPanelHeader({
         >
           <Package size={15} />
         </button>
-        <button
-          type="button"
-          className="artp-icon-btn"
-          onClick={onClose}
-          title="Close panel"
-          aria-label="Close artifacts panel"
-        >
-          <X size={15} />
-        </button>
+        {!embedded && (
+          <button
+            type="button"
+            className="artp-icon-btn"
+            onClick={onClose}
+            title="Close panel"
+            aria-label="Close artifacts panel"
+          >
+            <X size={15} />
+          </button>
+        )}
       </div>
     </header>
   );
