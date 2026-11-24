@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useConfirm } from './ConfirmDialog';
 import { api } from '../api';
+import { saveToVault } from '../utils/artifactVault';
 import './MessageActions.css';
 
 export interface MessageActionsProps {
@@ -117,6 +118,7 @@ export default function MessageActions({
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [savedAnswer, setSavedAnswer] = useState(false);
   const [savedLinks, setSavedLinks] = useState(false);
+  const [savedArtifact, setSavedArtifact] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const shareRef = useRef<HTMLDivElement>(null);
   const saveRef = useRef<HTMLDivElement>(null);
@@ -297,6 +299,26 @@ export default function MessageActions({
                 }}
               >
                 Remember this answer
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setSaveMenuOpen(false);
+                  const title = answerTitle(content);
+                  void saveToVault(
+                    {
+                      id: `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                      type: 'markdown',
+                      language: 'markdown',
+                      title,
+                      content,
+                    },
+                    'Saved from chat',
+                  ).then(() => setSavedArtifact(true));
+                }}
+              >
+                {savedArtifact ? 'Saved as artifact' : 'Save as artifact'}
               </button>
               <button
                 type="button"

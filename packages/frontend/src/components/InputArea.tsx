@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { ArrowUp, Code2, FileText, Globe2, Loader2, Mic, Presentation, Search, Sparkles, Square, Users } from "lucide-react";
+import { ArrowUp, BarChart3, Code2, FileText, Globe2, Loader2, Mic, Presentation, Search, Sparkles, Square, Users } from "lucide-react";
 import ModelSwitcher from "./ModelSwitcher";
 import ModelPicker from "../features/agents/ModelPicker";
 import OfficeExportWatcher, { type OfficeJob } from "./OfficeExportWatcher";
@@ -1382,6 +1382,25 @@ function InputArea({
                 <span className="chip-size">
                   {(file.size / 1024).toFixed(1)}KB
                 </span>
+                {/\.(csv|xlsx?|json)$/i.test(file.name) && (
+                  <button
+                    type="button"
+                    className="chip-action"
+                    title="Profile this data"
+                    onClick={() =>
+                      window.dispatchEvent(
+                        new CustomEvent("palimind:prefill-composer", {
+                          detail: {
+                            text: `Profile the attached data file "${file.name}". Show the columns, types, missing values, duplicates, outliers and three useful questions I could ask.`,
+                          },
+                        }),
+                      )
+                    }
+                  >
+                    <BarChart3 size={11} />
+                    Profile
+                  </button>
+                )}
                 <button
                   type="button"
                   className="chip-remove"
