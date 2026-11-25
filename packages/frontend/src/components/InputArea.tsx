@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { ArrowUp, BarChart3, Camera, Clipboard, Code2, FileText, Globe2, Loader2, Mic, Paperclip, Plus, Presentation, Search, Sparkles, Square, Users, Volume2, VolumeX } from "lucide-react";
+import { ArrowUp, BarChart3, Camera, Clipboard, Code2, FileText, Globe2, Loader2, Mic, Paperclip, Plus, Presentation, Search, Sparkles, Square, Users } from "lucide-react";
 import ModelSwitcher from "./ModelSwitcher";
 import ModelPicker from "../features/agents/ModelPicker";
 import OfficeExportWatcher, { type OfficeJob } from "./OfficeExportWatcher";
@@ -42,8 +42,6 @@ import { useChatStreamActions } from "../stream/context";
 import { memoryForScope } from "../utils/chatMemory";
 import { routeChatSubMode } from "../utils/chatRouting";
 import { captureBrowserScreen, dataUrlToFile, readClipboardPayload } from "../utils/capture";
-import { setAutoSpeak } from "../utils/voicePrefs";
-import { shouldAutoSendVoice, shouldRestartVoice } from "../utils/voiceLoop";
 import { exportWAV } from "../utils/audio";
 import { api } from "../api";
 import {
@@ -212,10 +210,6 @@ function InputArea({
       return true;
     }
   });
-  const [voiceMode, setVoiceMode] = useState(false);
-  const voiceModeRef = useRef(false);
-  voiceModeRef.current = voiceMode;
-  const [voicePendingSend, setVoicePendingSend] = useState(false);
   const [captureBusy, setCaptureBusy] = useState<"clipboard" | "screenshot" | null>(null);
   const [dataFile, setDataFile] = useState<File | null>(null);
   const draftKey = `palimind:draft:${activeSessionId ?? "new"}`;
@@ -377,13 +371,8 @@ function InputArea({
       const res = await api.voice.transcribe(wav);
       const text = (res.text || "").trim();
       if (text) {
-        if (shouldAutoSendVoice(text, voiceModeRef.current)) {
-          setValue(text);
-          setVoicePendingSend(true);
-        } else {
-          setValue((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text));
-          requestAnimationFrame(() => textareaRef.current?.focus());
-        }
+        setValue((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text));
+        requestAnimationFrame(() => textareaRef.current?.focus());
       } else if (res.error) {
         addToast(res.error);
       }
@@ -466,19 +455,6 @@ function InputArea({
     }
     await transcribePcm(merged, sampleRate);
   };
-
-  const toggleVoiceMode = useCallback(() => {
-    const next = !voiceMode;
-    setVoiceMode(next);
-    setAutoSpeak(next);
-    if (next) {
-      void startRecording();
-      addToast("Hands-free voice on — speak, send, and keep going.", { tone: "info" });
-    } else {
-      if (isRecording) void stopRecording();
-      addToast("Hands-free voice off.", { tone: "info" });
-    }
-  }, [voiceMode, isRecording, startRecording, stopRecording, addToast]);
 
   // Release the microphone if the composer unmounts mid-recording (e.g. the
   // user switches views), otherwise the input stream stays open.
@@ -1268,23 +1244,6 @@ function InputArea({
   // specific message by replaying its text through the normal send path.
   const handleSendRef = useRef(handleSend);
   handleSendRef.current = handleSend;
-
-  useEffect(() => {
-    if (!voicePendingSend || isGenerating || isTranscribing) return;
-    setVoicePendingSend(false);
-    void handleSendRef.current();
-  }, [voicePendingSend, isGenerating, isTranscribing]);
-
-  const wasGenerating = useRef(false);
-  useEffect(() => {
-    const was = wasGenerating.current;
-    wasGenerating.current = isGenerating;
-    if (!shouldRestartVoice({ voiceMode, wasGenerating: was, isGenerating, isRecording, isTranscribing })) return;
-    const timer = window.setTimeout(() => {
-      if (voiceModeRef.current) void startRecording();
-    }, 500);
-    return () => window.clearTimeout(timer);
-  }, [isGenerating, voiceMode, isRecording, isTranscribing, startRecording]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -2093,18 +2052,6 @@ function InputArea({
                 Listening…
               </span>
             )}
-            <PromptInputAction tooltip={voiceMode ? "Voice conversation on" : "Voice conversation off"}>
-              <button
-                type="button"
-                className={`mic-btn${voiceMode ? " active" : ""}`}
-                aria-label={voiceMode ? "Turn off voice conversation" : "Turn on voice conversation"}
-                aria-pressed={voiceMode}
-                title={voiceMode ? "Replies are spoken aloud" : "Speak replies aloud"}
-                onClick={toggleVoiceMode}
-              >
-                {voiceMode ? <Volume2 size={16} aria-hidden="true" /> : <VolumeX size={16} aria-hidden="true" />}
-              </button>
-            </PromptInputAction>
             <PromptInputAction
               tooltip={
                 isTranscribing
