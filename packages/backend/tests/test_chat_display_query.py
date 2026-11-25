@@ -48,3 +48,46 @@ def test_skill_prompt_is_hidden_but_query_is_persisted(tmp_path: Path, monkeypat
     assert user_messages == ["Q3 review"]
     assert "docx skill" not in user_messages[0]
     assert any(message["role"] == "system" for message in messages)
+
+
+def test_attachment_metadata_is_persisted_with_user_turn(tmp_path: Path, monkeypatch) -> None:
+    from palimind.generative import responder
+
+    sessions = add_new_session(tmp_path, "attached turn")
+    session_id = sessions["active_session_id"]
+
+    def fake_generate_response_stream(**_kwargs):
+        return iter(["Read it."])
+
+    async def fake_background_memory(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(responder, "generate_response_stream", fake_generate_response_stream)
+    monkeypatch.setattr(stream_mod, "background_update_memory", fake_background_memory)
+
+    attachments = [
+        {"id": "abc123", "name": "notes.txt", "mime": "text/plain", "kind": "text", "size": 42}
+    ]
+
+    async def consume() -> None:
+        response = await stream_mod.llm_mode_stream(
+            "Summarise the attachment",
+            session_id,
+            [],
+            "",
+            None,
+            "http://localhost:11434",
+            "test-model",
+            tmp_path,
+            "false",
+            attachments=attachments,
+        )
+        async for _chunk in response.body_iterator:
+            pass
+
+    asyncio.run(consume())
+
+    stored = load_sessions(tmp_path)
+    messages = stored["sessions"][0]["messages"]
+    user = next(message for message in messages if message["role"] == "user")
+    assert user["attachments"] == attachments

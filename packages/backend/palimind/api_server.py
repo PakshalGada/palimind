@@ -1966,11 +1966,13 @@ async def _agent_scope_chat(
         return StreamingResponse(model_error_stream(), media_type="text/event-stream")
     model = resolved.model
     ollama_url = resolved.base_url
+    agent_attachments: list[dict] | None = None
     if attachment_ids:
         from palimind.uploads import build_attachment_context, resolve_attachments
 
-        resolved = await asyncio.to_thread(resolve_attachments, attachment_ids)
-        context = build_attachment_context(resolved)
+        resolved_attachments = await asyncio.to_thread(resolve_attachments, attachment_ids)
+        agent_attachments = resolved_attachments.get("attachments") or None
+        context = build_attachment_context(resolved_attachments)
         if context:
             agent_input = f"{agent_input}\n\n{context}".strip()
     agent_root = _agent_chat_root(agent_id)
@@ -1994,6 +1996,7 @@ async def _agent_scope_chat(
         chat_style=True,
         display_input=display_text,
         reply_to=reply_to,
+        attachments=agent_attachments,
     )
 
 
@@ -2459,6 +2462,7 @@ async def _chat_stream_response(
                     working_root=root if not is_global_chat else None,
                     chat_style=True,
                     display_input=display_text,
+                    attachments=resolved_attachments.get("attachments") or None,
                 )
 
     moe_sub_mode = (
@@ -2517,6 +2521,7 @@ async def _chat_stream_response(
             attachment_context=attachment_context,
             display_text=display_text,
             rag_mode=rag_mode,
+            attachments=resolved_attachments.get("attachments") or None,
         )
 
     moe_sub_mode = (
@@ -2556,6 +2561,7 @@ async def _chat_stream_response(
             worker_url=work_url,
             long_term_episodes=long_term_episodes,
             display_text=display_text,
+            attachments=resolved_attachments.get("attachments") or None,
         )
 
     if chat_mode == "llm" and moe_sub_mode == "deep_research":
@@ -2596,6 +2602,7 @@ async def _chat_stream_response(
             long_term_episodes=long_term_episodes,
             display_text=display_text,
             save_space_root=save_space_root,
+            attachments=resolved_attachments.get("attachments") or None,
         )
 
     from palimind.opencode.router import resolve_model
@@ -2621,6 +2628,7 @@ async def _chat_stream_response(
         image_paths=image_paths,
         attachment_context=attachment_context,
         display_text=display_text,
+        attachments=resolved_attachments.get("attachments") or None,
     )
 
 

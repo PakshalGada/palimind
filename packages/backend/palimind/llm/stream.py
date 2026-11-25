@@ -97,6 +97,7 @@ async def llm_mode_stream(
     image_paths: list[str] | None = None,
     attachment_context: str = "",
     display_text: str | None = None,
+    attachments: list[dict] | None = None,
 ) -> StreamingResponse:
     """PLAIN LLM MODE: Chat directly with the LLM using general knowledge.
     No document context, no code execution, no tools. Live web search is
@@ -121,6 +122,7 @@ async def llm_mode_stream(
                 active_sess_id,
                 "user",
                 visible_query,
+                extra={"attachments": attachments} if attachments else None,
             )
 
         web_enabled = _truthy(web_search) and _web_worth_searching(visible_query)
@@ -430,6 +432,7 @@ async def moe_mode_stream(
     worker_url: str | None = None,
     long_term_episodes: list[dict] | None = None,
     display_text: str | None = None,
+    attachments: list[dict] | None = None,
 ) -> StreamingResponse:
     """MOE MODE: Uses an orchestrator LLM to create a plan, dispatches to 4 smaller
     agent LLMs that run in parallel with tool access, then synthesizes the results."""
@@ -446,6 +449,7 @@ async def moe_mode_stream(
                 active_sess_id,
                 "user",
                 visible_query,
+                extra={"attachments": attachments} if attachments else None,
             )
 
         orch_model = orchestrator_model or chat_model
@@ -611,6 +615,7 @@ async def deep_research_mode_stream(
     worker_url: str | None = None,
     long_term_episodes: list[dict] | None = None,
     display_text: str | None = None,
+    attachments: list[dict] | None = None,
     save_space_root: Path | None = None,
 ) -> StreamingResponse:
     """DEEP RESEARCH MODE: Plans research sub-topics, dispatches parallel research
@@ -628,6 +633,7 @@ async def deep_research_mode_stream(
                 active_sess_id,
                 "user",
                 visible_query,
+                extra={"attachments": attachments} if attachments else None,
             )
 
         orch_model = orchestrator_model or chat_model

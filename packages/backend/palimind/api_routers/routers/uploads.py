@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse
 
 router = APIRouter(prefix="/api/uploads", tags=["uploads"])
 
@@ -50,6 +52,25 @@ async def get_upload_endpoint(upload_id: str):
             for key in ("id", "name", "mime", "size", "kind", "sha256", "created_at")
         }
     }
+
+
+@router.get("/{upload_id}/file")
+async def get_upload_file_endpoint(upload_id: str):
+    """Serve an uploaded attachment inline for the right-side document viewer."""
+    from palimind.uploads import get_upload
+
+    upload = await asyncio.to_thread(get_upload, upload_id)
+    if upload is None:
+        raise HTTPException(status_code=404, detail="upload not found")
+    path = Path(str(upload.get("path") or ""))
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="file missing from local storage")
+    return FileResponse(
+        path,
+        media_type=str(upload.get("mime") or "application/octet-stream"),
+        filename=str(upload.get("name") or path.name),
+        content_disposition_type="inline",
+    )
 
 
 @router.delete("/{upload_id}")

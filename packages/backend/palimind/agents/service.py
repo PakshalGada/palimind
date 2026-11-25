@@ -213,6 +213,7 @@ async def agent_sse_stream(
     chat_style: bool = False,
     display_input: str | None = None,
     reply_to: int | None = None,
+    attachments: list[dict] | None = None,
 ) -> StreamingResponse:
     """Route an @agent-name chat invocation to an agent run.
 
@@ -265,7 +266,11 @@ async def agent_sse_stream(
                 user_text,
                 mode="agent",
                 mode_params=mode_params,
-                extra={"reply_to": int(reply_to)} if reply_to else None,
+                extra={
+                    **({"reply_to": int(reply_to)} if reply_to else {}),
+                    **({"attachments": attachments} if attachments else {}),
+                }
+                or None,
             )
 
         yield agent_sse("reasoning", {"text": f"Running agent '{agent_name}'..."})

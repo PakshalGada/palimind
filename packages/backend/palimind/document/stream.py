@@ -240,6 +240,7 @@ async def document_mode_stream(
     attachment_context: str = "",
     display_text: str | None = None,
     rag_mode: str | None = None,
+    attachments: list[dict] | None = None,
 ) -> StreamingResponse:
     """STRICT DOCUMENT RAG MODE: answers only from indexed documents.
 
@@ -274,6 +275,7 @@ async def document_mode_stream(
                 active_sess_id,
                 "user",
                 visible_query,
+                extra={"attachments": attachments} if attachments else None,
             )
 
         engine = DocumentEngine(active_field, ollama_url, chat_model, rerank=rerank)

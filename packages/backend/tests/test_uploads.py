@@ -92,5 +92,8 @@ def test_upload_endpoints(tmp_path: Path) -> None:
     got = client.get(f"/api/uploads/{upload['id']}")
     assert got.status_code == 200 and got.json()["upload"]["id"] == upload["id"]
 
+    raw = client.get(f"/api/uploads/{upload['id']}/file")
+    assert raw.status_code == 200 and raw.text == "hi"
+
     deleted = client.delete(f"/api/uploads/{upload['id']}")
     assert deleted.json()["status"] == "success"

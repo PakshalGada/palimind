@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { Globe2, Link2, Package, X } from 'lucide-react';
+import { FileText, Globe2, Link2, Package, X } from 'lucide-react';
 import { useApp, type WorkbenchTab } from '../../AppContext';
 import ArtifactPanel from '../ArtifactPanel';
 import BrowserDock from '../../features/agents/browser/BrowserDock';
 import { SourcesPanel } from '../sources/SourcesPanel';
 import { EmptyState } from '../../ui/primitives';
 import { collectArtifacts } from '../../utils/artifacts';
+import DocumentViewer from './DocumentViewer';
 import './Workbench.css';
 
 const WIDTH_KEY = 'palimind:workbench-width';
@@ -69,6 +70,7 @@ function SourcesWorkbench() {
 export default function WorkbenchPanel() {
   const {
     workbenchTab,
+    workbenchDocument,
     setWorkbenchTab,
     closeWorkbench,
     sessions,
@@ -84,6 +86,13 @@ export default function WorkbenchPanel() {
     return collectArtifacts(session?.messages);
   }, [sessions, activeSessionId]);
   const artifactCount = sessionArtifacts.length;
+  const tabs = useMemo(
+    () =>
+      workbenchDocument
+        ? [...TABS, { id: 'document' as WorkbenchTab, label: 'Document', icon: FileText }]
+        : TABS,
+    [workbenchDocument],
+  );
 
   const persist = useCallback((next: number) => {
     try {
@@ -152,7 +161,7 @@ export default function WorkbenchPanel() {
 
       <header className="app-workbench__head">
         <div className="app-workbench__tabs" role="tablist" aria-label="Workbench sections">
-          {TABS.map((tab) => {
+          {tabs.map((tab) => {
             const Icon = tab.icon;
             const active = workbenchTab === tab.id;
             return (
@@ -193,6 +202,9 @@ export default function WorkbenchPanel() {
         )}
         {workbenchTab === 'browser' && (
           <BrowserDock embedded onClose={closeWorkbench} />
+        )}
+        {workbenchTab === 'document' && workbenchDocument && (
+          <DocumentViewer attachment={workbenchDocument} />
         )}
         {workbenchTab === 'sources' && <SourcesWorkbench />}
       </div>

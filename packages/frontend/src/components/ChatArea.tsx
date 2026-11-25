@@ -10,6 +10,7 @@ import { PixelGlyph } from './pixel/PixelGlyph';
 import { PixelAssemble } from './pixel/PixelAssemble';
 import InputArea from './InputArea';
 import ArtifactAnswerBlock from './ArtifactAnswerBlock';
+import MessageAttachments from './chat/MessageAttachments';
 import FollowUpChips from './chat/FollowUpChips';
 import MessageActions from './MessageActions';
 import MessageContent from './MessageContent';
@@ -27,7 +28,7 @@ import { SourcesPanel } from '@/components/sources/SourcesPanel';
 import { isTerminal } from '@/components/activity/model';
 import { persistActivity } from '@/components/activity/store';
 import type { ActivityMode } from '../AppContext';
-import type { CitationPayload } from '../types';
+import type { CitationPayload, ChatAttachment } from '../types';
 import { resolveScope } from '../lib/scope';
 
 interface ChatMessage {
@@ -37,6 +38,7 @@ interface ChatMessage {
   sources?: string[];
   citations?: CitationPayload;
   suggestions?: string[];
+  attachments?: ChatAttachment[];
 }
 
 export default function ChatArea() {
@@ -627,6 +629,9 @@ const MessageComponent = memo(function MessageComponent({
             mode={activityMode}
             citations={msg.citations}
           />
+        )}
+        {isUser && msg.attachments && msg.attachments.length > 0 && (
+          <MessageAttachments attachments={msg.attachments} />
         )}
         {artifacts.length > 0 ? (
           <ArtifactAnswerBlock

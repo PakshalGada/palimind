@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import { api } from './api';
-import type { AppView, AgentsView, AgentsWorkTab, ChatMode, CitationPayload, LlmSubMode, Overview, Approval, Theme } from './types';
+import type { AppView, AgentsView, AgentsWorkTab, ChatAttachment, ChatMode, CitationPayload, LlmSubMode, Overview, Approval, Theme } from './types';
 import type { BotAvatarConfig } from './bots/config';
 import type { ShortcutOverrides } from './utils/shortcuts';
 import { loadShortcutOverrides, saveShortcutOverrides } from './utils/shortcuts';
@@ -49,7 +49,7 @@ export interface AgentState {
 
 export type ActivityMode = 'llm' | 'document' | 'moe' | 'deep_research' | 'agent';
 export type ActivityStatus = 'pending' | 'active' | 'done' | 'error';
-export type WorkbenchTab = 'artifacts' | 'browser' | 'sources';
+export type WorkbenchTab = 'artifacts' | 'browser' | 'sources' | 'document';
 export type ResponseStyle = 'default' | 'brief' | 'executive' | 'technical' | 'teaching';
 
 export interface ChatContextItem {
@@ -132,6 +132,7 @@ interface AppState {
   artifactTarget: { id: string; nonce: number } | null;
   workbenchOpen: boolean;
   workbenchTab: WorkbenchTab;
+  workbenchDocument: ChatAttachment | null;
   responseStyle: ResponseStyle;
   autoRoute: boolean;
   chatMemory: ChatMemoryEntry[];
@@ -189,6 +190,7 @@ interface AppContextType extends AppState {
   clearArtifactTarget: () => void;
   setWorkbenchTab: (tab: WorkbenchTab) => void;
   openWorkbench: (tab?: WorkbenchTab) => void;
+  openWorkbenchDocument: (attachment: ChatAttachment) => void;
   closeWorkbench: () => void;
   toggleWorkbench: (tab?: WorkbenchTab) => void;
   setResponseStyle: (style: ResponseStyle) => void;
@@ -316,6 +318,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const stored = localStorage.getItem('palimind:workbench-tab');
     return stored === 'browser' || stored === 'sources' ? stored : 'artifacts';
   });
+  const [workbenchDocument, setWorkbenchDocument] = useState<ChatAttachment | null>(null);
   const artifactPanelOpen = workbenchOpen && workbenchTab === 'artifacts';
   const [artifactLibraryOpen, setArtifactLibraryOpen] = useState(false);
   const [artifactTarget, setArtifactTarget] = useState<{ id: string; nonce: number } | null>(null);
@@ -467,6 +470,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const openWorkbench = useCallback((tab: WorkbenchTab = 'artifacts') => {
     setWorkbenchTab(tab);
+  }, [setWorkbenchTab]);
+
+  const openWorkbenchDocument = useCallback((attachment: ChatAttachment) => {
+    setWorkbenchDocument(attachment);
+    setWorkbenchTab('document');
   }, [setWorkbenchTab]);
 
   const closeWorkbench = useCallback(() => {
@@ -722,7 +730,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     artifactPanelOpen, setArtifactPanelOpen,
     artifactLibraryOpen, setArtifactLibraryOpen, artifactTarget,
     openArtifactLibrary, openArtifact, clearArtifactTarget,
-    workbenchOpen, workbenchTab, setWorkbenchTab, openWorkbench, closeWorkbench, toggleWorkbench,
+    workbenchOpen, workbenchTab, workbenchDocument, setWorkbenchTab, openWorkbench,
+    openWorkbenchDocument, closeWorkbench, toggleWorkbench,
     responseStyle, setResponseStyle, autoRoute, setAutoRoute,
     chatMemory, addChatMemory, removeChatMemory,
     pinnedContext, pinContext, unpinContext, clearPinnedContext, compactPinnedContext,
@@ -737,7 +746,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     selectedChannelId, agentsWorkTab, agentsSettingsOpen, browserOpen, browserFullscreen,
     sidebarCollapsed, commandPaletteOpen, shortcutsModalOpen,
     artifactPanelOpen, artifactLibraryOpen, artifactTarget, shortcutOverrides,
-    workbenchOpen, workbenchTab, setWorkbenchTab, openWorkbench, closeWorkbench, toggleWorkbench,
+    workbenchOpen, workbenchTab, workbenchDocument, setWorkbenchTab, openWorkbench,
+    openWorkbenchDocument, closeWorkbench, toggleWorkbench,
     responseStyle, setResponseStyle, autoRoute, setAutoRoute,
     chatMemory, addChatMemory, removeChatMemory,
     pinnedContext, pinContext, unpinContext, clearPinnedContext, compactPinnedContext,

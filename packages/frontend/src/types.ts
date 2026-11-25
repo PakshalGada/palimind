@@ -75,6 +75,16 @@ export interface BranchChild {
   active?: boolean;
 }
 
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  mime?: string;
+  size?: number;
+  kind?: 'image' | 'pdf' | 'text' | 'audio' | 'video' | 'file' | string;
+  sha256?: string;
+  created_at?: number;
+}
+
 export interface Message {
   id?: number;
   role: 'user' | 'system';
@@ -87,6 +97,8 @@ export interface Message {
   deleted_at?: number;
   reactions?: { id?: string; emoji: string; actor_kind?: string; actor_id?: string }[];
   suggestions?: string[];
+  /** Files attached to a user turn (name, kind, size, upload id). */
+  attachments?: ChatAttachment[];
   /** Which agent produced an assistant turn (multi-agent chats). */
   mode_params?: { agent_name?: string; agent_id?: string; [key: string]: unknown };
 }

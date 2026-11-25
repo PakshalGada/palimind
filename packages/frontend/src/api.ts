@@ -1,4 +1,4 @@
-import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, AgentQuestion, Approval, BackgroundTask, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, KnowledgeSource, KnowledgeSpace, LibraryArtifact, MarketplaceSkill, MemoryEntry, ModelItem, Overview, PlanTemplate, Project, ProjectArtifact, ProjectKbStatus, ProjectScope, QueueItem, RecentRun, Recommendation, RegistryArtifactVersion, Routine, RunRecord, SetupTask, SkillCommand, SkillMeta, SourceCollection, Team, TeamMessage, TeamNote, TeamRun, ToolMeta, TreeNode, VerificationReport, WorkspaceFile } from './types';
+import type { AgentActivitySnapshot, AgentChatMessage, AgentDefinition, AgentListItem, AgentPlan, AgentQuestion, Approval, BackgroundTask, ChatAttachment, DirItem, EffortLevel, Goal, GoalNotification, GraphData, HardwareData, KnowledgeSource, KnowledgeSpace, LibraryArtifact, MarketplaceSkill, MemoryEntry, ModelItem, Overview, PlanTemplate, Project, ProjectArtifact, ProjectKbStatus, ProjectScope, QueueItem, RecentRun, Recommendation, RegistryArtifactVersion, Routine, RunRecord, SetupTask, SkillCommand, SkillMeta, SourceCollection, Team, TeamMessage, TeamNote, TeamRun, ToolMeta, TreeNode, VerificationReport, WorkspaceFile } from './types';
 import type { DeckPlan } from './utils/deckPlan';
 
 const BASE = '/api';
@@ -275,9 +275,10 @@ export const api = {
   },
   uploads: {
     create: (name: string, mime: string, data: string) =>
-      post<{ upload?: { id: string; name: string; kind: string }; error?: string }>('/uploads', { name, mime, data }),
-    list: () => get<{ uploads?: { id: string; name: string; kind: string }[] }>('/uploads'),
+      post<{ upload?: ChatAttachment; error?: string }>('/uploads', { name, mime, data }),
+    list: () => get<{ uploads?: ChatAttachment[] }>('/uploads'),
     remove: (id: string) => del<{ status?: string }>(`/uploads/${encodeURIComponent(id)}`),
+    fileUrl: (id: string) => `${BASE}/uploads/${encodeURIComponent(id)}/file`,
   },
   config: {
     get: (scope = 'field') => get<{ chat_model?: string; embed_model?: string; moe_orchestrator_model?: string; moe_worker_model?: string; moe_sub_mode?: string; persona_name?: string; persona_system_prompt?: string }>(`/config?scope=${scope}`),

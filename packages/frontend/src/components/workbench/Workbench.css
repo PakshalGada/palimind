@@ -203,3 +203,113 @@ body.is-resizing-workbench {
     flex: 1 1 auto;
     min-width: 0;
 }
+
+/* ── attached-document viewer ──────────────────────────────────────────── */
+.wb-doc {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    background: var(--surface);
+}
+.wb-doc__bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    min-width: 0;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+}
+.wb-doc__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    border-radius: var(--radius-xs);
+    background: var(--surface-active);
+    color: var(--ink-muted);
+}
+.wb-doc__name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink);
+    font-size: var(--type-sm);
+    font-weight: 600;
+}
+.wb-doc__size {
+    flex-shrink: 0;
+    color: var(--ink-muted);
+    font-size: var(--type-2xs);
+}
+.wb-doc__action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    border-radius: var(--radius-xs);
+    color: var(--ink-muted);
+    text-decoration: none;
+}
+.wb-doc__action:hover {
+    background: var(--surface-hover);
+    color: var(--ink);
+}
+.wb-doc__body {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: flex-start;
+    justify-content: center;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    padding: 10px;
+}
+.wb-doc__frame {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: #fff;
+}
+.wb-doc__image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: var(--radius-sm);
+}
+.wb-doc__text {
+    width: 100%;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: var(--type-xs);
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.wb-doc__status {
+    margin: 12px;
+    color: var(--ink-muted);
+    font-size: var(--type-sm);
+}
+.wb-doc__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
