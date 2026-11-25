@@ -43,8 +43,7 @@ It is **local-first, not network-isolated**. Web search, URL fetching, optional 
 
 | Area | What it is for |
 |---|---|
-| **Home** | Recent chats, active agents, workspace status, and starting points |
-| **Chat** | Direct model chat with web search, tools, files, and agent mentions |
+| **Chat** | Direct model chat with optional web search, tools, files, and agent mentions |
 | **Knowledge** | PaliSpace: index a folder and ask questions with citations |
 | **Agents** | PalIAgents: create, chat with, schedule, and manage agents |
 | **Projects** | Group sessions, knowledge, and artifacts into an isolated workspace |

@@ -7,13 +7,11 @@ test('agents never fall back to global chat', () => {
   assert.equal(resolveScope('agents', { agentId: 'a1', projectId: 'p1' }), 'agent:a1');
 });
 
-test('home and chat share the global chat scope', () => {
-  assert.equal(resolveScope('home'), 'chat');
+test('chat uses the global chat scope', () => {
   assert.equal(resolveScope('chat'), 'chat');
 });
 
-test('a project wins for home, chat and knowledge', () => {
-  assert.equal(resolveScope('home', { projectId: 'p1' }), 'project:p1');
+test('a project wins for chat and knowledge', () => {
   assert.equal(resolveScope('chat', { projectId: 'p1' }), 'project:p1');
   assert.equal(resolveScope('knowledge', { projectId: 'p1' }), 'project:p1');
 });

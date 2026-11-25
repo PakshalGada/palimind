@@ -31,7 +31,6 @@ export type CommandIcon =
   | 'sun'
   | 'sync'
   | 'model'
-  | 'home'
   | 'monitor'
   | 'package';
 
@@ -132,13 +131,6 @@ export const COMMANDS: CommandDef[] = [
   },
 
   // ── Navigation ──────────────────────────────────────────────────────
-  {
-    id: 'nav.home',
-    title: 'Go to Home',
-    category: 'Navigation',
-    icon: 'home',
-    keywords: ['start', 'overview', 'recent'],
-  },
   {
     id: 'nav.chat',
     title: 'Go to Chat',

@@ -49,7 +49,7 @@ export interface AgentState {
 
 export type ActivityMode = 'llm' | 'document' | 'moe' | 'deep_research' | 'agent';
 export type ActivityStatus = 'pending' | 'active' | 'done' | 'error';
-export type WorkbenchTab = 'artifacts' | 'browser' | 'files' | 'sources';
+export type WorkbenchTab = 'artifacts' | 'browser' | 'sources';
 export type ResponseStyle = 'default' | 'brief' | 'executive' | 'technical' | 'teaching';
 
 export interface ChatContextItem {
@@ -228,11 +228,11 @@ export const ActivityContext = createContext<ActivityContextType | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [activeView, setActiveView] = useState<AppView>(() => {
     // Deep link wins over the default so a reload keeps the current view and
-    // there is no flash of Home before the hash effect runs.
-    if (typeof window === 'undefined') return 'home';
+    // there is no flash of another surface before the hash effect runs.
+    if (typeof window === 'undefined') return 'chat';
     const value = window.location.hash.replace(/^#\/?/, '');
-    const views = ['home', 'chat', 'agents', 'knowledge', 'projects', 'artifacts'];
-    return views.includes(value) ? (value as AppView) : 'home';
+    const views = ['chat', 'agents', 'knowledge', 'projects', 'artifacts'];
+    return views.includes(value) ? (value as AppView) : 'chat';
   });
   const [agentsView, setAgentsView] = useState<AgentsView>('chat');
   const [agentsWorkTab, setAgentsWorkTab] = useState<AgentsWorkTab>('overview');
@@ -314,9 +314,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [workbenchTab, setWorkbenchTabState] = useState<WorkbenchTab>(() => {
     if (typeof window === 'undefined') return 'artifacts';
     const stored = localStorage.getItem('palimind:workbench-tab');
-    return stored === 'browser' || stored === 'files' || stored === 'sources'
-      ? stored
-      : 'artifacts';
+    return stored === 'browser' || stored === 'sources' ? stored : 'artifacts';
   });
   const artifactPanelOpen = workbenchOpen && workbenchTab === 'artifacts';
   const [artifactLibraryOpen, setArtifactLibraryOpen] = useState(false);

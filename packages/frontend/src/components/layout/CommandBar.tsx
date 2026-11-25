@@ -15,7 +15,6 @@ import type { AgentsView } from '../../types';
 import './CommandBar.css';
 
 const VIEW_LABEL: Record<string, string> = {
-  home: 'Home',
   chat: 'Chat',
   agents: 'Agents',
   knowledge: 'Knowledge',

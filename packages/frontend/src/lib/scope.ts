@@ -21,7 +21,7 @@ export function resolveScope(view: AppView, context: ScopeContext = {}): ChatSco
   if (view === 'agents') {
     return agentId ? `agent:${agentId}` : '';
   }
-  if (view === 'chat' || view === 'home') {
+  if (view === 'chat') {
     return projectId ? `project:${projectId}` : 'chat';
   }
   if (view === 'knowledge') {

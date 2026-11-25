@@ -1,39 +1,27 @@
 import {
   forwardRef,
-  type FormEvent,
   type HTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
 
-type PromptInputProps = HTMLAttributes<HTMLFormElement> & {
+type PromptInputProps = HTMLAttributes<HTMLDivElement> & {
   value: string;
   onValueChange: (value: string) => void;
   isLoading?: boolean;
-  onSubmit?: () => void;
 };
 
 export function PromptInput({
   value: _value,
   onValueChange: _onValueChange,
   isLoading: _isLoading,
-  onSubmit,
   className = "",
   children,
   ...props
 }: PromptInputProps) {
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    onSubmit?.();
-  };
-
   return (
-    <form
-      {...props}
-      className={`prompt-input ${className}`.trim()}
-      onSubmit={handleSubmit}
-    >
+    <div {...props} className={`prompt-input ${className}`.trim()}>
       {children}
-    </form>
+    </div>
   );
 }
 

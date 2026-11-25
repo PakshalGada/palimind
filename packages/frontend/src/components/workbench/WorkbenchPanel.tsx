@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { Folder, Globe2, Link2, Package, X } from 'lucide-react';
+import { Globe2, Link2, Package, X } from 'lucide-react';
 import { useApp, type WorkbenchTab } from '../../AppContext';
 import ArtifactPanel from '../ArtifactPanel';
-import ArtifactShelf from './ArtifactShelf';
 import BrowserDock from '../../features/agents/browser/BrowserDock';
-import FileTreeView from '../FileTreeView';
 import { SourcesPanel } from '../sources/SourcesPanel';
 import { EmptyState } from '../../ui/primitives';
 import { collectArtifacts } from '../../utils/artifacts';
@@ -34,7 +32,6 @@ function initialWidth(): number {
 const TABS: { id: WorkbenchTab; label: string; icon: typeof Package }[] = [
   { id: 'artifacts', label: 'Artifacts', icon: Package },
   { id: 'browser', label: 'Browser', icon: Globe2 },
-  { id: 'files', label: 'Files', icon: Folder },
   { id: 'sources', label: 'Sources', icon: Link2 },
 ];
 
@@ -76,11 +73,8 @@ export default function WorkbenchPanel() {
     closeWorkbench,
     sessions,
     activeSessionId,
-    activeField,
-    openArtifactLibrary,
   } = useApp();
   const [width, setWidth] = useState(initialWidth);
-  const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null);
   const draggingRef = useRef(false);
   const startXRef = useRef(0);
   const startWidthRef = useRef(width);
@@ -90,17 +84,6 @@ export default function WorkbenchPanel() {
     return collectArtifacts(session?.messages);
   }, [sessions, activeSessionId]);
   const artifactCount = sessionArtifacts.length;
-
-  useEffect(() => {
-    if (sessionArtifacts.length === 0) {
-      setSelectedArtifactId(null);
-      return;
-    }
-    setSelectedArtifactId((current) => {
-      if (current && sessionArtifacts.some((artifact) => artifact.id === current)) return current;
-      return sessionArtifacts[sessionArtifacts.length - 1].id;
-    });
-  }, [sessionArtifacts]);
 
   const persist = useCallback((next: number) => {
     try {
@@ -205,38 +188,11 @@ export default function WorkbenchPanel() {
       <div className="app-workbench__body">
         {workbenchTab === 'artifacts' && (
           <div className="wb-artifacts">
-            <ArtifactShelf
-              artifacts={sessionArtifacts}
-              activeId={selectedArtifactId}
-              onSelect={setSelectedArtifactId}
-              onOpenLibrary={openArtifactLibrary}
-            />
-            <ArtifactPanel
-              forceVisible
-              embedded
-              panelVisible
-              requestedId={selectedArtifactId}
-              onSelectionChange={setSelectedArtifactId}
-            />
+            <ArtifactPanel forceVisible embedded panelVisible />
           </div>
         )}
         {workbenchTab === 'browser' && (
           <BrowserDock embedded onClose={closeWorkbench} />
-        )}
-        {workbenchTab === 'files' && (
-          <div className="wb-files">
-            {activeField ? (
-              <FileTreeView modal />
-            ) : (
-              <div className="wb-empty">
-                <EmptyState
-                  icon={<Folder size={22} />}
-                  title="No workspace open"
-                  description="Connect a folder or knowledge space to browse its files here."
-                />
-              </div>
-            )}
-          </div>
         )}
         {workbenchTab === 'sources' && <SourcesWorkbench />}
       </div>

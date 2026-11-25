@@ -500,12 +500,14 @@ export function Popover({
   trigger,
   children,
   align = 'start',
+  placement = 'down',
   ariaLabel,
   className = '',
 }: {
   trigger: ReactNode;
   children: ReactNode | ((close: () => void) => ReactNode);
   align?: 'start' | 'end';
+  placement?: 'down' | 'up';
   ariaLabel?: string;
   className?: string;
 }) {
@@ -555,7 +557,14 @@ export function Popover({
       return;
     }
     const r = anchorRef.current?.getBoundingClientRect();
-    if (r) setRect({ left: r.left, right: r.right, top: r.bottom + 6, width: r.width });
+    if (r) {
+      setRect({
+        left: r.left,
+        right: r.right,
+        top: placement === 'up' ? r.top - 6 : r.bottom + 6,
+        width: r.width,
+      });
+    }
     setOpen(true);
   };
 
@@ -580,9 +589,10 @@ export function Popover({
               ref={menuRef}
               role="dialog"
               aria-label={ariaLabel}
-              className={`ui-popover ${align === 'end' ? 'ui-popover--end' : ''} ${className}`.trim()}
+              className={`ui-popover ${align === 'end' ? 'ui-popover--end' : ''} ${placement === 'up' ? 'ui-popover--up' : ''} ${className}`.trim()}
               style={{
                 top: rect.top,
+                ...(placement === 'up' ? { transform: 'translateY(-100%)' } : {}),
                 ...(align === 'end' ? { right: window.innerWidth - rect.right } : { left: rect.left }),
                 minWidth: rect.width,
               }}

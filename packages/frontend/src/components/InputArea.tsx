@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { ArrowUp, BarChart3, Camera, Clipboard, Code2, FileText, Globe2, Loader2, Mic, Presentation, Search, Sparkles, Square, Users, Volume2, VolumeX } from "lucide-react";
+import { ArrowUp, BarChart3, Camera, Clipboard, Code2, FileText, Globe2, Loader2, Mic, Paperclip, Plus, Presentation, Search, Sparkles, Square, Users, Volume2, VolumeX } from "lucide-react";
 import ModelSwitcher from "./ModelSwitcher";
 import ModelPicker from "../features/agents/ModelPicker";
 import OfficeExportWatcher, { type OfficeJob } from "./OfficeExportWatcher";
@@ -60,7 +60,7 @@ import {
   PromptInputActions,
   PromptInputTextarea,
 } from "./prompt-kit/prompt-input";
-import { Button } from "../ui/primitives";
+import { Button, Popover } from "../ui/primitives";
 
 async function fileToBase64(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
@@ -201,8 +201,17 @@ function InputArea({
   });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState("");
   const [coaching, setCoaching] = useState(false);
+  const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
+  const [webSearch, setWebSearch] = useState(() => {
+    try {
+      return localStorage.getItem("palimind:web-search") !== "0";
+    } catch {
+      return true;
+    }
+  });
   const [voiceMode, setVoiceMode] = useState(false);
   const voiceModeRef = useRef(false);
   voiceModeRef.current = voiceMode;
@@ -229,6 +238,16 @@ function InputArea({
       // storage is optional
     }
   }, [draftKey, value]);
+  useEffect(() => {
+    try {
+      localStorage.setItem("palimind:web-search", webSearch ? "1" : "0");
+    } catch {
+      // storage is optional
+    }
+  }, [webSearch]);
+  useEffect(() => {
+    if (!value) setSelection(null);
+  }, [value]);
   // A quoted message the next send replies to. Set by the message row.
   const [replyTarget, setReplyTarget] = useState<
     { messageId?: number; author: string; content: string } | null
@@ -810,22 +829,61 @@ function InputArea({
     }
   }, [attachFile, addToast]);
 
-  const coachPrompt = useCallback(async () => {
-    const text = value.trim();
-    if (!text) {
-      addToast("Type a prompt first.", { tone: "info" });
-      return;
-    }
-    setCoaching(true);
-    try {
-      const data = await api.chat.coach(text);
-      if (data.prompt) setValue(data.prompt);
-    } catch (e) {
-      addToast(e instanceof Error ? e.message : "Could not improve the prompt.", { tone: "error" });
-    } finally {
-      setCoaching(false);
-    }
-  }, [value, addToast]);
+  const applyCoachedPrompt = useCallback(
+    async (target: "all" | "selection" = "all") => {
+      const range = target === "selection" ? selection : null;
+      const text = range ? value.slice(range.start, range.end) : value;
+      if (!text.trim()) {
+        addToast(range ? "Select some text first." : "Type a prompt first.", { tone: "info" });
+        return;
+      }
+      setCoaching(true);
+      try {
+        const data = await api.chat.coach(text);
+        const prompt = data.prompt?.trim();
+        if (!prompt) return;
+        if (range) {
+          const next = `${value.slice(0, range.start)}${prompt}${value.slice(range.end)}`;
+          setValue(next);
+          setSelection(null);
+          requestAnimationFrame(() => {
+            const textarea = textareaRef.current;
+            if (!textarea) return;
+            textarea.focus();
+            const cursor = range.start + prompt.length;
+            textarea.setSelectionRange(cursor, cursor);
+          });
+        } else {
+          setValue(prompt);
+          requestAnimationFrame(() => textareaRef.current?.focus());
+        }
+      } catch (e) {
+        addToast(e instanceof Error ? e.message : "Could not improve the prompt.", { tone: "error" });
+      } finally {
+        setCoaching(false);
+      }
+    },
+    [value, selection, addToast],
+  );
+
+  const updateSelection = useCallback((textarea: HTMLTextAreaElement) => {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    setSelection(end > start ? { start, end } : null);
+  }, []);
+
+  const attachFiles = useCallback(
+    (files: FileList | File[]) => {
+      const list = Array.from(files);
+      if (list.length === 0) return;
+      setAttachedFiles([...attachedFiles, ...list]);
+    },
+    [attachedFiles, setAttachedFiles],
+  );
+
+  const openFilePicker = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
 
   const handleSend = useCallback(async () => {
     if (onLocalSend) {
@@ -1100,8 +1158,8 @@ function InputArea({
         scope,
         sessionId: activeSessionId,
         subMode: mode === "llm" ? (activeSkill ? "default" : routedSubMode) : undefined,
-        // Search is part of every turn now; there is no composer toggle.
-        webSearch: true,
+        // Web search is controlled from the composer tools menu.
+        webSearch,
         displayText: activeSkill ? visibleText : undefined,
         files: selectedFiles.size > 0 ? Array.from(selectedFiles) : undefined,
         attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
@@ -1151,6 +1209,7 @@ function InputArea({
     autoRoute,
     chatMemory,
     pinnedContext,
+    webSearch,
   ]);
 
   const findLastMessage = useCallback(
@@ -1285,6 +1344,11 @@ function InputArea({
     if (e.key === "Escape" && promptForm) {
       e.preventDefault();
       setPromptForm(null);
+      return;
+    }
+    if (e.key === "Escape" && selection) {
+      e.preventDefault();
+      setSelection(null);
       return;
     }
     if (slash && slashMatches.length > 0) {
@@ -1473,6 +1537,17 @@ function InputArea({
         </div>
       )}
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        hidden
+        onChange={(event) => {
+          if (event.target.files) attachFiles(event.target.files);
+          event.target.value = "";
+        }}
+      />
+
       <PromptInput
         className="ai-command-center"
         id="ai-command-center"
@@ -1483,11 +1558,27 @@ function InputArea({
           updateSlash(nextValue);
         }}
         isLoading={showStop}
-        onSubmit={handleSend}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
+        {selection && (
+          <button
+            type="button"
+            className="composer-improve-chip"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => void applyCoachedPrompt("selection")}
+            disabled={coaching}
+            title="Improve the selected text with the local model"
+          >
+            {coaching ? (
+              <Loader2 size={13} className="spin" aria-hidden="true" />
+            ) : (
+              <Sparkles size={13} aria-hidden="true" />
+            )}
+            Improve selection
+          </button>
+        )}
         {attachedFiles.length > 0 && (
           <div className="attachment-chips">
             {attachedFiles.map((file, idx) => (
@@ -1671,10 +1762,111 @@ function InputArea({
             updateMention(e.target.value, cursor);
             updateSlash(e.target.value, cursor);
           }}
+          onSelect={(e) => updateSelection(e.currentTarget)}
+          onMouseUp={(e) => updateSelection(e.currentTarget)}
+          onKeyUp={(e) => updateSelection(e.currentTarget)}
           onKeyDown={handleKeyDown}
         />
 
         <div className="composer-footer">
+          <Popover
+            ariaLabel="Composer tools"
+            align="start"
+            placement="up"
+            className="composer-plus-menu"
+            trigger={
+              <button
+                type="button"
+                className="composer-add-btn"
+                aria-label="Attach files and tools"
+                title="Attach files and tools"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") event.stopPropagation();
+                }}
+              >
+                <Plus size={17} aria-hidden="true" />
+              </button>
+            }
+          >
+            {(close) => (
+              <>
+                <button
+                  type="button"
+                  className="composer-menu-item"
+                  onClick={() => {
+                    openFilePicker();
+                    close();
+                  }}
+                >
+                  <Paperclip size={15} aria-hidden="true" />
+                  <span className="composer-menu-item__label">Attach files</span>
+                </button>
+                <button
+                  type="button"
+                  className="composer-menu-item"
+                  disabled={captureBusy !== null || isGenerating}
+                  onClick={() => {
+                    void captureClipboard();
+                    close();
+                  }}
+                >
+                  {captureBusy === "clipboard" ? (
+                    <Loader2 size={15} className="spin" aria-hidden="true" />
+                  ) : (
+                    <Clipboard size={15} aria-hidden="true" />
+                  )}
+                  <span className="composer-menu-item__label">Paste from clipboard</span>
+                </button>
+                <button
+                  type="button"
+                  className="composer-menu-item"
+                  disabled={captureBusy !== null || isGenerating}
+                  onClick={() => {
+                    void captureScreenshot();
+                    close();
+                  }}
+                >
+                  {captureBusy === "screenshot" ? (
+                    <Loader2 size={15} className="spin" aria-hidden="true" />
+                  ) : (
+                    <Camera size={15} aria-hidden="true" />
+                  )}
+                  <span className="composer-menu-item__label">Capture screen</span>
+                </button>
+                <button
+                  type="button"
+                  className="composer-menu-item"
+                  disabled={coaching || isGenerating || !value.trim()}
+                  onClick={() => {
+                    void applyCoachedPrompt("all");
+                    close();
+                  }}
+                >
+                  {coaching ? (
+                    <Loader2 size={15} className="spin" aria-hidden="true" />
+                  ) : (
+                    <Sparkles size={15} aria-hidden="true" />
+                  )}
+                  <span className="composer-menu-item__label">Improve prompt</span>
+                </button>
+                <span className="composer-menu-sep" aria-hidden="true" />
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={webSearch}
+                  className="composer-menu-item composer-menu-item--switch"
+                  onClick={() => setWebSearch((next) => !next)}
+                >
+                  <Globe2 size={15} aria-hidden="true" />
+                  <span className="composer-menu-item__label">Use web search</span>
+                  <span className={`composer-switch${webSearch ? " is-on" : ""}`} aria-hidden="true">
+                    <span className="composer-switch__knob" />
+                  </span>
+                </button>
+              </>
+            )}
+          </Popover>
+
           {chatMode === "llm" && activeView !== "agents" && (
             <>
             <div className="moe-toggle-wrapper">
@@ -1901,38 +2093,6 @@ function InputArea({
                 Listening…
               </span>
             )}
-            <PromptInputAction tooltip="Paste text or an image from the clipboard">
-              <button
-                type="button"
-                className={`mic-btn${captureBusy === "clipboard" ? " processing" : ""}`}
-                aria-label="Paste from clipboard"
-                title="Paste text or an image from the clipboard"
-                disabled={captureBusy !== null || isGenerating}
-                onClick={() => void captureClipboard()}
-              >
-                {captureBusy === "clipboard" ? (
-                  <Loader2 size={16} className="spin" aria-hidden="true" />
-                ) : (
-                  <Clipboard size={16} aria-hidden="true" />
-                )}
-              </button>
-            </PromptInputAction>
-            <PromptInputAction tooltip="Capture the screen and attach it">
-              <button
-                type="button"
-                className={`mic-btn${captureBusy === "screenshot" ? " processing" : ""}`}
-                aria-label="Capture screen"
-                title="Capture the screen and attach it"
-                disabled={captureBusy !== null || isGenerating}
-                onClick={() => void captureScreenshot()}
-              >
-                {captureBusy === "screenshot" ? (
-                  <Loader2 size={16} className="spin" aria-hidden="true" />
-                ) : (
-                  <Camera size={16} aria-hidden="true" />
-                )}
-              </button>
-            </PromptInputAction>
             <PromptInputAction tooltip={voiceMode ? "Voice conversation on" : "Voice conversation off"}>
               <button
                 type="button"
@@ -1943,22 +2103,6 @@ function InputArea({
                 onClick={toggleVoiceMode}
               >
                 {voiceMode ? <Volume2 size={16} aria-hidden="true" /> : <VolumeX size={16} aria-hidden="true" />}
-              </button>
-            </PromptInputAction>
-            <PromptInputAction tooltip={coaching ? "Improving…" : "Improve prompt"}>
-              <button
-                type="button"
-                className="mic-btn"
-                aria-label="Improve prompt"
-                title="Improve prompt with the local model"
-                disabled={coaching || isGenerating || !value.trim()}
-                onClick={() => void coachPrompt()}
-              >
-                {coaching ? (
-                  <Loader2 size={16} className="spin" aria-hidden="true" />
-                ) : (
-                  <Sparkles size={16} aria-hidden="true" />
-                )}
               </button>
             </PromptInputAction>
             <PromptInputAction

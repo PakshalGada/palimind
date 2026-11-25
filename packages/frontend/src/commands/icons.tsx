@@ -7,7 +7,6 @@ import {
   Copy,
   Cpu,
   Folder,
-  House,
   Keyboard,
   Layers,
   MessageSquare,
@@ -46,7 +45,6 @@ const ICONS: Record<CommandIcon, IconComponent> = {
   sun: Sun,
   sync: RefreshCw,
   model: Cpu,
-  home: House,
   monitor: Monitor,
   package: Package,
 };

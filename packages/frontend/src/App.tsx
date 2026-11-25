@@ -31,7 +31,6 @@ const ResearchPlanModal = lazy(() => import('./components/ResearchPlanModal'));
 const TaskMonitor = lazy(() => import('./components/TaskMonitor'));
 const AgentManager = lazy(() => import('./features/agents/AgentManager'));
 const AgentsWorkspace = lazy(() => import('./features/agents/AgentsWorkspace'));
-const HomeView = lazy(() => import('./features/home/HomeView'));
 const ProjectsView = lazy(() => import('./features/projects/ProjectsView'));
 const ArtifactsView = lazy(() => import('./features/artifacts/ArtifactsView'));
 const KnowledgeView = lazy(() => import('./features/knowledge/KnowledgeView'));
@@ -57,17 +56,20 @@ export default function App() {
   useKeyboardShortcuts({ overrides: shortcutOverrides, disabled: commandPaletteOpen });
   usePixelMotion();
 
-  // Deep links: #home, #chat, #agents, #knowledge, #projects, #artifacts.
+  // Deep links: #chat, #agents, #knowledge, #projects, #artifacts.
   // The view is reflected in the hash so a reload keeps context. Older
-  // #research links are migrated to Projects instead of dead-ending.
+  // #research links are migrated to Projects and #home to Chat.
   useEffect(() => {
     const fromHash = () => {
       let value = window.location.hash.replace(/^#\/?/, '');
       if (value === 'research') {
         value = 'projects';
         window.history.replaceState(null, '', '#projects');
+      } else if (value === 'home') {
+        value = 'chat';
+        window.history.replaceState(null, '', '#chat');
       }
-      const views = ['home', 'chat', 'agents', 'knowledge', 'projects', 'artifacts'];
+      const views = ['chat', 'agents', 'knowledge', 'projects', 'artifacts'];
       if (views.includes(value)) setActiveView(value as typeof activeView);
     };
     fromHash();
@@ -131,7 +133,6 @@ export default function App() {
       setChatMode('document');
     },
     'nav.agents': () => setActiveView('agents'),
-    'nav.home': () => setActiveView('home'),
     'nav.projects': () => setActiveView('projects'),
     'nav.artifacts': () => setActiveView('artifacts'),
     'nav.graph': () => {
@@ -268,7 +269,6 @@ export default function App() {
         <ConnectionBanner />
         <div className="view-enter" key={activeView}>
           <Suspense fallback={null}>
-            {activeView === 'home' && <HomeView />}
             {activeView === 'chat' && <ChatArea />}
             {activeView === 'agents' && <AgentsWorkspace />}
             {activeView === 'knowledge' && <KnowledgeView />}

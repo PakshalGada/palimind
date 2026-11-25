@@ -1,5 +1,5 @@
 import { useRef, useEffect, useMemo, useState, useCallback, memo } from 'react';
-import { ArrowDown, FileText, FolderOpen, Globe2, Presentation } from 'lucide-react';
+import { ArrowDown } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { useUserName } from '../hooks/useUserName';
 import { getGreeting } from '../utils/greeting';
@@ -10,7 +10,6 @@ import { PixelGlyph } from './pixel/PixelGlyph';
 import { PixelAssemble } from './pixel/PixelAssemble';
 import InputArea from './InputArea';
 import ArtifactAnswerBlock from './ArtifactAnswerBlock';
-import ChatContextBar from './chat/ChatContextBar';
 import FollowUpChips from './chat/FollowUpChips';
 import MessageActions from './MessageActions';
 import MessageContent from './MessageContent';
@@ -467,7 +466,6 @@ export default function ChatArea() {
         </div>
 
         {isEmpty && <ChatHero />}
-        <ChatContextBar />
         {showJump && !isEmpty && (
           <button
             type="button"
@@ -488,14 +486,6 @@ export default function ChatArea() {
 function ChatHero() {
   const name = useUserName();
   const greeting = useMemo(() => getGreeting(name), [name]);
-  const { activeView, openWorkbench } = useApp();
-  const isChat = activeView === 'chat';
-
-  const prefill = (text: string) => {
-    window.dispatchEvent(
-      new CustomEvent('palimind:prefill-composer', { detail: { text } }),
-    );
-  };
 
   return (
     <div className="chat-hero">
@@ -505,57 +495,6 @@ function ChatHero() {
         </PixelAssemble>
       </span>
       <h1 className="chat-hero-title">{greeting}</h1>
-      <p className="chat-hero__hint">
-        Ask anything. Models, files and answers stay on this machine.
-      </p>
-      {isChat && (
-        <div className="chat-hero__actions">
-          <button
-            type="button"
-            className="chat-hero__action"
-            onClick={() => prefill('/pptx ')}
-          >
-            <Presentation size={15} />
-            <span>
-              <strong>Build a deck</strong>
-              <small>Designed slides with charts</small>
-            </span>
-          </button>
-          <button
-            type="button"
-            className="chat-hero__action"
-            onClick={() => prefill('/docx ')}
-          >
-            <FileText size={15} />
-            <span>
-              <strong>Write a document</strong>
-              <small>Formatted and ready to export</small>
-            </span>
-          </button>
-          <button
-            type="button"
-            className="chat-hero__action"
-            onClick={() => openWorkbench('files')}
-          >
-            <FolderOpen size={15} />
-            <span>
-              <strong>Analyze a file</strong>
-              <small>CSV, PDF, images and more</small>
-            </span>
-          </button>
-          <button
-            type="button"
-            className="chat-hero__action"
-            onClick={() => prefill('Research this for me: ')}
-          >
-            <Globe2 size={15} />
-            <span>
-              <strong>Ask the web</strong>
-              <small>Cited answers from live sources</small>
-            </span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }

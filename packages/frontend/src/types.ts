@@ -353,13 +353,7 @@ export interface ResearchSubTopic {
 }
 export type Theme = 'dark' | 'light';
 
-export type AppView =
-  | 'home'
-  | 'chat'
-  | 'agents'
-  | 'knowledge'
-  | 'projects'
-  | 'artifacts';
+export type AppView = 'chat' | 'agents' | 'knowledge' | 'projects' | 'artifacts';
 
 /** Sub-views inside the Agents workspace. Chat is the default surface. */
 export type AgentsView = 'chat' | 'work';

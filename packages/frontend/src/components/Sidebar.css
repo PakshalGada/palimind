@@ -31,6 +31,9 @@
     padding: 14px 12px 10px;
     flex: 0 0 auto;
 }
+.sb-header--plain {
+    justify-content: flex-end;
+}
 .sb-brand {
     display: flex;
     align-items: center;

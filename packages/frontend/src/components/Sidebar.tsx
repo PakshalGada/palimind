@@ -5,7 +5,6 @@ import {
   Folder,
   FolderKanban,
   FolderPlus,
-  Home,
   MessageSquare,
   Crosshair,
   Network,
@@ -432,7 +431,6 @@ export default function Sidebar() {
   };
 
   const navPixel: Record<string, PixelSprite> = {
-    home: "home",
     chat: "chat",
     agents: "bot",
     knowledge: "book",
@@ -442,14 +440,6 @@ export default function Sidebar() {
   };
 
   const navItems: NavItem[] = [
-    {
-      id: "home",
-      label: "Home",
-      icon: Home,
-      active: activeView === "home",
-      shortcutId: "nav.home",
-      onSelect: () => setActiveView("home"),
-    },
     {
       id: "chat",
       label: "Chat",
@@ -605,7 +595,7 @@ export default function Sidebar() {
     <div className="sb-section">
       <div className="sb-section-head">
         <span className="sb-section-title sb-collapsible">
-          {activeView === "home" ? "Recent chats" : "Sessions"}
+          Sessions
         </span>
         <button
           type="button"
@@ -738,33 +728,35 @@ export default function Sidebar() {
 
   return (
     <aside className="sidebar" id="main-sidebar" aria-label="Primary navigation">
-      <div className="sb-header">
-        <div className="sb-brand">
-          <button
-            type="button"
-            className="sb-workspace sb-workspace--button sb-collapsible"
-            title={activeProjectId ? `Project: ${activeProjectName ?? 'Project'}` : 'Open workspace'}
-            onClick={() => setActiveView(activeProjectId ? 'projects' : 'knowledge')}
-          >
-            <PixelIcon
-              name={activeProjectId ? "projects" : "folder"}
-              size={16}
-              state={activeProjectId ? "active" : "idle"}
-            />
-            <span className="sb-workspace__text">
-              <span className="sb-workspace__label">
-                {activeProjectId ? "Project" : "Workspace"}
+      <div className={`sb-header${activeView === "knowledge" ? "" : " sb-header--plain"}`}>
+        {activeView === "knowledge" && (
+          <div className="sb-brand">
+            <button
+              type="button"
+              className="sb-workspace sb-workspace--button sb-collapsible"
+              title={activeProjectId ? `Project: ${activeProjectName ?? 'Project'}` : 'Open workspace'}
+              onClick={() => setActiveView(activeProjectId ? 'projects' : 'knowledge')}
+            >
+              <PixelIcon
+                name={activeProjectId ? "projects" : "folder"}
+                size={16}
+                state={activeProjectId ? "active" : "idle"}
+              />
+              <span className="sb-workspace__text">
+                <span className="sb-workspace__label">
+                  {activeProjectId ? "Project" : "Workspace"}
+                </span>
+                <span className="sb-workspace__name">
+                  {activeProjectId
+                    ? activeProjectName || "Project"
+                    : activeField
+                      ? activeField.split(/[\\/]+/).filter(Boolean).pop()
+                      : "Local"}
+                </span>
               </span>
-              <span className="sb-workspace__name">
-                {activeProjectId
-                  ? activeProjectName || "Project"
-                  : activeField
-                    ? activeField.split(/[\\/]+/).filter(Boolean).pop()
-                    : "Local"}
-              </span>
-            </span>
-          </button>
-        </div>
+            </button>
+          </div>
+        )}
         <button
           type="button"
           className="sb-icon-btn"
@@ -810,7 +802,7 @@ export default function Sidebar() {
       </nav>
 
       <Scrollbar className="sb-context">
-        {(activeView === "home" || activeView === "chat") && sessionsSection}
+        {activeView === "chat" && sessionsSection}
         {activeView === "knowledge" && (
           <>
             {knowledgeSection}

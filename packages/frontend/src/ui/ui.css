@@ -1060,6 +1060,19 @@
     transform: translateY(0);
   }
 }
+.ui-popover--up {
+  animation: ui-popover-up var(--dur-2) var(--ease-out);
+}
+@keyframes ui-popover-up {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-100% + 4px));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-100%);
+  }
+}
 
 /* ── toast ───────────────────────────────────────────────────────────── */
 .ui-toast {

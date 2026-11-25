@@ -250,6 +250,7 @@ export default function ModelSwitcher() {
     <div className="model-switcher-area" id="model-switcher-area">
       <button
         id="model-switcher-pill"
+        type="button"
         className={`model-switcher-pill${isOpen ? ' open' : ''}`}
         title="Switch Model"
         aria-label="Switch model"
@@ -278,6 +279,7 @@ export default function ModelSwitcher() {
           <div className="ms-tab-bar" role="tablist">
             <button
               className={`ms-tab ${activeTab === 'models' ? 'active' : ''}`}
+              type="button"
               data-tab="models"
               role="tab"
               aria-selected={activeTab === 'models'}
@@ -287,6 +289,7 @@ export default function ModelSwitcher() {
             </button>
             <button
               className={`ms-tab ${activeTab === 'cookbook' ? 'active' : ''}`}
+              type="button"
               data-tab="cookbook"
               role="tab"
               aria-selected={activeTab === 'cookbook'}
@@ -359,7 +362,7 @@ export default function ModelSwitcher() {
                   <div className="model-empty-state">
                     <span className="model-empty-msg">{modelsError}</span>
                     <span className="model-empty-hint">{modelsError.includes('Ollama') ? 'Start Ollama and retry' : 'Run: ollama pull llama3.2'}</span>
-                    <button className="model-retry-btn" onClick={fetchModels}>Retry</button>
+                    <button type="button" className="model-retry-btn" onClick={fetchModels}>Retry</button>
                   </div>
                 )}
                 {!modelsLoading && !modelsError && filteredModels.length === 0 && (

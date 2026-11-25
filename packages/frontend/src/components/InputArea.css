@@ -46,9 +46,7 @@
     background: var(--surface-3);
 }
 .ai-command-center:focus-within {
-    box-shadow:
-        0 0 0 1px var(--ink),
-        var(--shadow-md);
+    background: var(--surface-3);
 }
 .prompt-input {
     box-sizing: border-box;
@@ -146,6 +144,125 @@
 }
 .composer-footer .moe-toggle-wrapper {
     margin-right: 0;
+}
+
+/* ── composer tools (+) menu ── */
+.composer-add-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--ink-muted);
+    cursor: pointer;
+    transition:
+        background-color var(--dur-2) var(--ease-out),
+        border-color var(--dur-2) var(--ease-out),
+        color var(--dur-2) var(--ease-out);
+}
+.composer-add-btn:hover {
+    background: var(--surface-hover);
+    border-color: var(--line);
+    color: var(--ink);
+}
+.composer-plus-menu {
+    width: 236px;
+    padding: 5px;
+}
+.composer-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 8px 9px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink-secondary);
+    font-family: var(--font-sans);
+    font-size: var(--type-sm);
+    text-align: left;
+    cursor: pointer;
+}
+.composer-menu-item:hover:not(:disabled) {
+    background: var(--surface-hover);
+    color: var(--ink);
+}
+.composer-menu-item:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+.composer-menu-item__label {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.composer-menu-sep {
+    display: block;
+    height: 1px;
+    margin: 4px 6px;
+    background: var(--line);
+}
+.composer-switch {
+    position: relative;
+    width: 28px;
+    height: 16px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: var(--surface-active);
+    transition: background-color var(--dur-2) var(--ease-out);
+}
+.composer-switch__knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--ink-faint);
+    transition:
+        transform var(--dur-2) var(--ease-out),
+        background-color var(--dur-2) var(--ease-out);
+}
+.composer-switch.is-on {
+    background: var(--primary-color);
+}
+.composer-switch.is-on .composer-switch__knob {
+    background: var(--inverse-ink, #fff);
+    transform: translateX(12px);
+}
+
+/* ── selection action above the composer ── */
+.composer-improve-chip {
+    position: absolute;
+    top: -38px;
+    right: 8px;
+    z-index: 7;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--type-2xs);
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+}
+.composer-improve-chip:hover:not(:disabled) {
+    background: var(--surface-hover);
+}
+.composer-improve-chip:disabled {
+    opacity: 0.65;
+    cursor: default;
 }
 #chat-input {
     background: transparent;

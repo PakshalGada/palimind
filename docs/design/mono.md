@@ -42,7 +42,7 @@ system state only.
 | Pixel font | **No** | Identity comes from graphics and motion; body copy stays Inter / Universal Sans |
 | Content colours | **Keep** | Respect user media |
 | Projects / Artifacts | **Promote to full views** (Phase 2) | The modal/panel split is the biggest IA problem |
-| Home view | **Yes** (Phase 2) | A calm starting surface, not a marketing page |
+| Home view | **Removed** | Chat is the starting surface; no extra landing page |
 | Pixel placements | **Six recurring spots** — brand, working status, streaming caret, indexing meter, empty-state glyph, one-shot success stamp | Everything else is static |
 | No-colour rule | **Strict for chrome and system state** | Content is excepted, documented above |
 
@@ -276,12 +276,12 @@ mobile sidebar scrim, and gradients in strict files.
 
 ### What changed in Phases 2–7
 
-- `AppView` is now `home | chat | agents | knowledge | projects | artifacts`.
+- `AppView` is now `chat | agents | knowledge | projects | artifacts`.
   Projects and Artifacts are routed views, not modals.
 - `AppLayout` gained a persistent 48px top bar (`AppTopBar`) with the pixel
   brand mark, breadcrumb, live status, command palette trigger, inbox and theme.
 - `SurfaceHeader` is the compact content header used by Projects, Artifacts and
-  Knowledge. Home uses its own editorial greeting.
+  Knowledge. Chat uses its own editorial greeting.
 - Hash deep links (`#chat`, `#projects`, …) so a reload keeps context.
 - Chat: inverted user turns, 760px reading column, solid bordered composer,
   pixel-caret streaming, dither + prompt rows in the empty state, slim chat head.
