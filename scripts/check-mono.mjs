@@ -179,6 +179,9 @@ for (const file of files) {
   if (isCss) {
     const glassAllowed =
       rel.endsWith('CommandPalette.css') || rel.endsWith('components/layout/layout.css');
+    // Functional edge masks (not decoration): the chat transcript fades out
+    // under the transparent top bar and above the floating composer.
+    const maskGradientAllowed = rel.endsWith('components/ChatArea.css');
     for (const m of text.matchAll(/backdrop-filter\s*:\s*([^;}\n]+)/g)) {
       if (!glassAllowed) {
         report(file, text, m.index, `backdrop-filter ${m[1].trim()} — solid surfaces only`, strict);
@@ -186,6 +189,16 @@ for (const file of files) {
     }
     if (strict) {
       for (const m of text.matchAll(/(?:linear|radial|conic)-gradient\(/g)) {
+        if (maskGradientAllowed) {
+          const before = text.slice(0, m.index);
+          const start = Math.max(
+            before.lastIndexOf(';'),
+            before.lastIndexOf('{'),
+            before.lastIndexOf('\n'),
+          );
+          const declaration = before.slice(start + 1);
+          if (/mask-image\s*:/.test(declaration)) continue;
+        }
         report(file, text, m.index, 'decorative gradient — the mono layer allows no gradients', strict);
       }
     }

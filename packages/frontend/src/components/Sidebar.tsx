@@ -10,11 +10,8 @@ import {
   Network,
   Package,
   Pin,
-  PanelLeftClose,
-  PanelLeftOpen,
   Plus,
   RefreshCw,
-  Settings,
   type LucideIcon,
 } from "lucide-react";
 import { useApp } from "../AppContext";
@@ -23,7 +20,6 @@ import FileTreeView from "./FileTreeView";
 import ContextMenu from "./ContextMenu";
 import { useCommandHandlers } from "../commands/useCommand";
 import { getCommand } from "../commands/catalog";
-import { runCommand } from "../commands/registry";
 import { formatShortcut } from "../utils/shortcuts";
 import { resolveScope } from "../lib/scope";
 import { isRetentionExpired } from "../utils/retention";
@@ -32,7 +28,6 @@ import type { PixelSprite } from "./pixel/sprites";
 import type { KnowledgeSpace } from "../types";
 import CreateSpaceDialog from "../features/knowledge/CreateSpaceDialog";
 import {
-  Avatar,
   Dialog,
   EmptyState,
   InlineError,
@@ -127,8 +122,6 @@ export default function Sidebar() {
     addToast,
     selectedAgentId,
     setChatMode,
-    sidebarCollapsed,
-    toggleSidebar,
     setSidebarCollapsed,
     shortcutOverrides,
     activeProjectId,
@@ -390,10 +383,6 @@ export default function Sidebar() {
 
   const handleOpenGraph = () => {
     window.dispatchEvent(new CustomEvent("palimind:open-graph"));
-  };
-
-  const openSettings = () => {
-    runCommand("general.settings");
   };
 
   useCommandHandlers({
@@ -728,8 +717,8 @@ export default function Sidebar() {
 
   return (
     <aside className="sidebar" id="main-sidebar" aria-label="Primary navigation">
-      <div className={`sb-header${activeView === "knowledge" ? "" : " sb-header--plain"}`}>
-        {activeView === "knowledge" && (
+      {activeView === "knowledge" && (
+        <div className="sb-header">
           <div className="sb-brand">
             <button
               type="button"
@@ -756,17 +745,8 @@ export default function Sidebar() {
               </span>
             </button>
           </div>
-        )}
-        <button
-          type="button"
-          className="sb-icon-btn"
-          title={`${sidebarCollapsed ? "Expand" : "Collapse"} sidebar (${shortcutFor("view.toggle-sidebar")})`}
-          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          onClick={toggleSidebar}
-        >
-          {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
-        </button>
-      </div>
+        </div>
+      )}
 
       <nav className="sb-nav" aria-label="Workspace">
         {navItems.map((item) => {
@@ -810,25 +790,6 @@ export default function Sidebar() {
           </>
         )}
       </Scrollbar>
-
-      <div className="sb-footer">
-        <div className="sb-user">
-          <Avatar name="Local workspace" size="sm" tone="accent" status="online" />
-          <div className="sb-user__meta sb-collapsible">
-            <span className="sb-user__name">Local workspace</span>
-            <span className="sb-user__hint">Offline · private</span>
-          </div>
-          <button
-            type="button"
-            className="sb-icon-btn"
-            title={`Settings (${shortcutFor("general.settings")})`}
-            aria-label="Open settings"
-            onClick={openSettings}
-          >
-            <Settings size={15} />
-          </button>
-        </div>
-      </div>
 
       {treeField && (
         <Dialog

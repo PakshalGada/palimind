@@ -1,16 +1,7 @@
-import {
-  Bell,
-  Menu,
-  Moon,
-  PanelRight,
-  Plus,
-  Search,
-  Sun,
-} from 'lucide-react';
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { PanelLeftClose, PanelLeftOpen, PanelRight, Search } from 'lucide-react';
 import { useApp } from '../../AppContext';
-import { runCommand } from '../../commands/registry';
 import { PixelGlyph } from '../pixel/PixelGlyph';
-import { PixelLoader } from '../pixel/PixelLoader';
 import type { AgentsView } from '../../types';
 import './CommandBar.css';
 
@@ -27,6 +18,55 @@ const AGENT_TABS: { id: AgentsView; label: string }[] = [
   { id: 'work', label: 'Work' },
 ];
 
+/**
+ * The conversation title. It truncates with an ellipsis when it doesn't fit,
+ * and on hover the full title scrolls back and forth (marquee) so long chat
+ * names stay readable without a tooltip.
+ */
+function ConversationTitle({ text }: { text: string }) {
+  const outerRef = useRef<HTMLSpanElement>(null);
+  const trackRef = useRef<HTMLSpanElement>(null);
+  const [distance, setDistance] = useState(0);
+  const overflowing = distance > 2;
+
+  useLayoutEffect(() => {
+    const outer = outerRef.current;
+    const track = trackRef.current;
+    if (!outer || !track) return;
+    const measure = () => {
+      const next = Math.max(0, track.scrollWidth - outer.clientWidth);
+      setDistance(next);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(outer);
+    return () => observer.disconnect();
+  }, [text]);
+
+  return (
+    <span
+      ref={outerRef}
+      className={`command-bar__title${overflowing ? ' is-overflowing' : ''}`}
+      title={text}
+    >
+      <span className="command-bar__title-static">{text}</span>
+      <span
+        ref={trackRef}
+        className="command-bar__title-track"
+        aria-hidden="true"
+        style={
+          {
+            '--marquee-distance': `${distance}px`,
+            '--marquee-duration': `${Math.max(6, distance / 45)}s`,
+          } as CSSProperties
+        }
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+
 export default function CommandBar() {
   const {
     activeView,
@@ -34,15 +74,9 @@ export default function CommandBar() {
     setAgentsView,
     sessions,
     activeSessionId,
-    theme,
-    setTheme,
     setCommandPaletteOpen,
-    inbox,
-    isIndexing,
-    indexingStatus,
-    overview,
+    sidebarCollapsed,
     toggleSidebar,
-    currentModel,
     activeProjectId,
     activeProjectName,
     setActiveProjectId,
@@ -57,82 +91,64 @@ export default function CommandBar() {
       ? sessions.find((s) => s.id === activeSessionId)?.name ?? 'New chat'
       : null;
 
-  const working = overview?.counts.working ?? 0;
-  const waiting = overview?.counts.waiting ?? inbox.length;
-
-  const status = isIndexing
-    ? { busy: true, label: indexingStatus || 'Indexing' }
-    : working > 0
-      ? { busy: true, label: `${working} working` }
-      : { busy: false, label: 'Local' };
-
-  const primary = (() => {
-    switch (activeView) {
-      case 'chat':
-        return { label: 'New chat', icon: Plus, run: () => runCommand('chat.new') };
-      case 'agents':
-        return {
-          label: 'New agent',
-          icon: Plus,
-          run: () => window.dispatchEvent(new CustomEvent('palimind:new-agent')),
-        };
-      default:
-        return null;
-    }
-  })();
-
-  const titledSurface =
-    activeView === 'projects' || activeView === 'knowledge' || activeView === 'artifacts';
+  const title = activeView === 'chat' ? sessionName ?? 'New chat' : null;
 
   return (
     <header className="command-bar" role="banner">
-      <button
-        type="button"
-        className="command-bar__icon command-bar__menu"
-        onClick={toggleSidebar}
-        aria-label="Open navigation"
-        title="Open navigation"
-      >
-        <Menu size={16} />
-      </button>
+      <div className="command-bar__left">
+        <div className="command-bar__brand">
+          <span className="command-bar__wordmark">PaliMind</span>
+        </div>
 
-      <div className="command-bar__brand">
-        <span className="command-bar__wordmark">PaliMind</span>
-      </div>
-
-      <nav className="command-bar__context" aria-label="Current context">
-        <span className={`command-bar__view${titledSurface ? ' is-implicit' : ''}`}>
-          {VIEW_LABEL[activeView] ?? activeView}
-        </span>
-        {activeProjectId && (
-          <span className="command-bar__project" title={activeProjectName ?? 'Active project'}>
-            <PixelGlyph sprite="folder" cell={1.25} />
-            <span className="command-bar__project-name">
-              {activeProjectName ?? 'Project'}
+        <nav className="command-bar__context" aria-label="Current context">
+          <span className="command-bar__view">
+            {VIEW_LABEL[activeView] ?? activeView}
+          </span>
+          {activeProjectId && (
+            <span className="command-bar__project" title={activeProjectName ?? 'Active project'}>
+              <PixelGlyph sprite="folder" cell={1.25} />
+              <span className="command-bar__project-name">
+                {activeProjectName ?? 'Project'}
+              </span>
+              <button
+                type="button"
+                className="command-bar__project-leave"
+                title="Leave project context"
+                aria-label="Leave project context"
+                onClick={() => {
+                  setActiveProjectId(null);
+                  setActiveProjectName(null);
+                }}
+              >
+                ×
+              </button>
             </span>
-            <button
-              type="button"
-              className="command-bar__project-leave"
-              title="Leave project context"
-              aria-label="Leave project context"
-              onClick={() => {
-                setActiveProjectId(null);
-                setActiveProjectName(null);
-              }}
-            >
-              ×
-            </button>
-          </span>
-        )}
-        {sessionName && activeView === 'chat' && (
-          <span className="command-bar__session" title={sessionName}>
-            {sessionName}
-          </span>
-        )}
-        {activeView === 'agents' && !activeProjectId && (
-          <span className="command-bar__session">Local agents</span>
-        )}
-      </nav>
+          )}
+        </nav>
+
+        <div className="command-bar__tools">
+          <button
+            type="button"
+            className="command-bar__icon"
+            onClick={() => setCommandPaletteOpen(true)}
+            aria-label="Search or run a command"
+            title="Search or run a command"
+          >
+            <Search size={16} />
+          </button>
+
+          <button
+            type="button"
+            className="command-bar__icon"
+            onClick={toggleSidebar}
+            aria-label={sidebarCollapsed ? 'Open navigation' : 'Close navigation'}
+            aria-pressed={!sidebarCollapsed}
+            title={sidebarCollapsed ? 'Open navigation' : 'Close navigation'}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+        </div>
+      </div>
 
       <div className="command-bar__center">
         {activeView === 'agents' ? (
@@ -150,74 +166,21 @@ export default function CommandBar() {
               </button>
             ))}
           </div>
-        ) : (
-          <button
-            type="button"
-            className="command-bar__command"
-            onClick={() => setCommandPaletteOpen(true)}
-            aria-label="Search or run a command"
-          >
-            <Search size={14} />
-            <span className="command-bar__command-label">Search or run a command</span>
-            <kbd className="command-bar__kbd">⌘K</kbd>
-          </button>
-        )}
+        ) : title ? (
+          <ConversationTitle text={title} />
+        ) : null}
       </div>
 
       <div className="command-bar__right">
-        <span
-          className={`command-bar__status${status.busy ? ' is-busy' : ''}`}
-          title={status.busy ? status.label : `${status.label} · ${currentModel}`}
-        >
-          {status.busy ? (
-            isIndexing ? (
-              <span className="command-bar__index-dot" aria-hidden="true" />
-            ) : (
-              <PixelLoader cell={1} label={status.label} />
-            )
-          ) : (
-            <PixelGlyph sprite="checker" cell={1} className="command-bar__idle" />
-          )}
-          <span className="command-bar__status-label">{status.label}</span>
-        </span>
-
-        {primary && (
-          <button type="button" className="command-bar__primary" onClick={primary.run}>
-            <primary.icon size={14} />
-            <span className="command-bar__primary-label">{primary.label}</span>
-          </button>
-        )}
-
         <button
           type="button"
           className={`command-bar__icon${workbenchOpen ? ' is-on' : ''}`}
-          title={workbenchOpen ? `Hide ${workbenchTab}` : 'Open workbench'}
-          aria-label={workbenchOpen ? 'Hide workbench' : 'Open workbench'}
+          title={workbenchOpen ? `Hide ${workbenchTab}` : 'Open side panel'}
+          aria-label={workbenchOpen ? 'Hide side panel' : 'Open side panel'}
           aria-pressed={workbenchOpen}
           onClick={() => toggleWorkbench(workbenchTab)}
         >
-          <PanelRight size={15} />
-        </button>
-
-        <button
-          type="button"
-          className="command-bar__icon"
-          title={waiting > 0 ? `${waiting} waiting on you` : 'Approvals inbox'}
-          aria-label="Approvals inbox"
-          onClick={() => window.dispatchEvent(new CustomEvent('palimind:open-inbox'))}
-        >
-          <Bell size={15} />
-          {waiting > 0 && <span className="command-bar__badge">{waiting}</span>}
-        </button>
-
-        <button
-          type="button"
-          className="command-bar__icon"
-          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-        >
-          {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+          <PanelRight size={16} />
         </button>
       </div>
     </header>

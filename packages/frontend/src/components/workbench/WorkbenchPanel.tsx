@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { FileText, Globe2, Link2, Package, X } from 'lucide-react';
 import { useApp, type WorkbenchTab } from '../../AppContext';
 import ArtifactPanel from '../ArtifactPanel';
@@ -9,25 +9,20 @@ import { collectArtifacts } from '../../utils/artifacts';
 import DocumentViewer from './DocumentViewer';
 import './Workbench.css';
 
-const WIDTH_KEY = 'palimind:workbench-width';
 const MIN_WIDTH = 360;
-const MAX_WIDTH = 980;
-const DEFAULT_WIDTH = 620;
+const MAX_WIDTH = 2000;
 
 function clampWidth(width: number): number {
   if (typeof window === 'undefined') return width;
-  const viewportMax = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, window.innerWidth - 420));
+  // Keep room for the navigation rail and a readable chat column.
+  const viewportMax = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, window.innerWidth - 620));
   return Math.min(Math.max(width, MIN_WIDTH), viewportMax);
 }
 
-function initialWidth(): number {
-  try {
-    const stored = Number(window.localStorage.getItem(WIDTH_KEY));
-    if (Number.isFinite(stored) && stored > 0) return clampWidth(stored);
-  } catch {
-    // localStorage may be unavailable
-  }
-  return DEFAULT_WIDTH;
+/** Half the window, so the panel opens as a true split view. */
+function defaultWidth(): number {
+  if (typeof window === 'undefined') return 620;
+  return clampWidth(Math.round(window.innerWidth / 2));
 }
 
 const TABS: { id: WorkbenchTab; label: string; icon: typeof Package }[] = [
@@ -76,7 +71,7 @@ export default function WorkbenchPanel() {
     sessions,
     activeSessionId,
   } = useApp();
-  const [width, setWidth] = useState(initialWidth);
+  const [width, setWidth] = useState(defaultWidth);
   const draggingRef = useRef(false);
   const startXRef = useRef(0);
   const startWidthRef = useRef(width);
@@ -93,18 +88,6 @@ export default function WorkbenchPanel() {
         : TABS,
     [workbenchDocument],
   );
-
-  const persist = useCallback((next: number) => {
-    try {
-      window.localStorage.setItem(WIDTH_KEY, String(next));
-    } catch {
-      // storage is optional
-    }
-  }, []);
-
-  useEffect(() => {
-    persist(width);
-  }, [width, persist]);
 
   const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -144,7 +127,7 @@ export default function WorkbenchPanel() {
         onPointerMove={moveResize}
         onPointerUp={endResize}
         onPointerCancel={endResize}
-        onDoubleClick={() => setWidth(DEFAULT_WIDTH)}
+        onDoubleClick={() => setWidth(defaultWidth())}
         onKeyDown={(event) => {
           if (event.key === 'ArrowLeft') {
             event.preventDefault();

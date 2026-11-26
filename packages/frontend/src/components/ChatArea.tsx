@@ -1,5 +1,4 @@
 import { useRef, useEffect, useMemo, useState, useCallback, memo } from 'react';
-import { ArrowDown } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { useUserName } from '../hooks/useUserName';
 import { getGreeting } from '../utils/greeting';
@@ -61,7 +60,6 @@ export default function ChatArea() {
   } = useApp();
   const messagesRef = useRef<HTMLDivElement>(null);
   const [scrollbarVisible, setScrollbarVisible] = useState(false);
-  const [showJump, setShowJump] = useState(false);
   const { state: streamState, activityStore } = useChatStreamContext();
   const persistedKey = useRef('');
   const finalRunRef = useRef('');
@@ -373,15 +371,6 @@ export default function ChatArea() {
     if (!el) return;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     pinnedToBottom.current = distanceFromBottom < 80;
-    setShowJump(distanceFromBottom > 320);
-  };
-
-  const jumpToLatest = () => {
-    const el = messagesRef.current;
-    if (!el) return;
-    pinnedToBottom.current = true;
-    el.scrollTop = el.scrollHeight;
-    setShowJump(false);
   };
 
   // Use message count + last message content as dependency instead of array reference
@@ -468,17 +457,6 @@ export default function ChatArea() {
         </div>
 
         {isEmpty && <ChatHero />}
-        {showJump && !isEmpty && (
-          <button
-            type="button"
-            className="chat-jump-latest"
-            onClick={jumpToLatest}
-            title="Jump to latest message"
-          >
-            <ArrowDown size={14} />
-            Latest
-          </button>
-        )}
         <InputArea />
       </div>
     </main>

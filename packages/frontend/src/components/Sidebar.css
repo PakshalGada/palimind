@@ -4,6 +4,42 @@
    ========================================================================== */
 
 .sidebar {
+    /* The rail is always black, in both themes. Everything under it reads
+       from this local dark palette so text, hovers and borders stay legible. */
+    --sidebar-bg: #000000;
+    --bg: #000000;
+    --bg-sunken: #000000;
+    --surface: #0a0a0a;
+    --surface-2: #1a1a1a;
+    --surface-3: #222222;
+    --surface-hover: #1a1a1a;
+    --surface-active: #222222;
+    --line: #222222;
+    --line-subtle: #1a1a1a;
+    --line-strong: #3a3a3a;
+    --ink: #f2f2f2;
+    --ink-secondary: #b3b3b3;
+    --ink-muted: #8a8a8a;
+    --ink-faint: #6b6b6b;
+    --color-surface: var(--surface);
+    --color-surface-raised: var(--surface-2);
+    --color-surface-hover: var(--surface-hover);
+    --color-surface-active: var(--surface-active);
+    --color-border: var(--line);
+    --color-border-subtle: var(--line-subtle);
+    --color-border-strong: var(--line-strong);
+    --color-text-primary: var(--ink);
+    --color-text-secondary: var(--ink-secondary);
+    --color-text-muted: var(--ink-muted);
+    --color-accent: #ffffff;
+    --color-accent-hover: #e6e6e6;
+    --color-accent-contrast: #000000;
+    --color-brand: #ffffff;
+    --color-brand-hover: #e6e6e6;
+    --focus: #ffffff;
+    --selection-bg: rgba(255, 255, 255, 0.22);
+    --selection-ink: #f2f2f2;
+
     position: relative;
     display: flex;
     flex-direction: column;
@@ -30,9 +66,6 @@
     gap: var(--space-2);
     padding: 14px 12px 10px;
     flex: 0 0 auto;
-}
-.sb-header--plain {
-    justify-content: flex-end;
 }
 .sb-brand {
     display: flex;
@@ -400,49 +433,6 @@
 }
 .sb-section .ui-empty--compact .ui-empty__desc {
     max-width: 210px;
-}
-
-/* ── footer / user area ──────────────────────────────────────────────── */
-.sb-footer {
-    flex: 0 0 auto;
-    margin-top: auto;
-    padding: 8px;
-    border-top: none;
-    background: transparent;
-}
-.sb-user {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    padding: 4px 4px 4px 5px;
-    border-radius: var(--radius-md);
-    transition: background var(--transition-fast);
-}
-.sb-user:hover {
-    background: var(--color-surface-hover);
-}
-.sb-user__meta {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    min-width: 0;
-    flex: 1;
-}
-.sb-user__name {
-    font-size: var(--type-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.sb-user__hint {
-    font-size: var(--type-xs);
-    color: var(--color-text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 /* ── file-tree modal (shared with FileTreeView) ──────────────────────── */

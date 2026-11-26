@@ -1,24 +1,42 @@
 /* ==========================================================================
-   CommandBar — the single 56px chrome band.
+   CommandBar — the single transparent chrome band.
 
-   One bar holds identity, breadcrumb, context (tabs or command field), live
-   status and actions. There is no second page header.
+   Left: identity, section, search and the sidebar toggle.
+   Middle: conversation title (or agents tabs).
+   Right: side-panel toggle.
    ========================================================================== */
 
 .command-bar {
+  position: relative;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 12px;
   height: 48px;
-  padding: 0 12px 0 14px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
+  padding: 0 12px 0 16px;
+  background: transparent;
+  border-bottom: none;
   min-width: 0;
   z-index: calc(var(--z-sidebar) + 1);
 }
 
-/* ── identity ─────────────────────────────────────────────────────────── */
+/* ── left cluster ─────────────────────────────────────────────────────── */
+.command-bar__left {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  /* The group stretches across the free space; only its controls should
+     capture the pointer, so the centred title can still be hovered. */
+  pointer-events: none;
+}
+.command-bar__left > * {
+  pointer-events: auto;
+}
+
 .command-bar__brand {
   display: flex;
   align-items: center;
@@ -40,7 +58,7 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  max-width: min(46vw, 520px);
+  max-width: min(30vw, 340px);
   overflow: hidden;
 }
 
@@ -51,13 +69,6 @@
   letter-spacing: -0.02em;
   color: var(--ink);
   white-space: nowrap;
-}
-
-/* Surfaces with their own compact header already name themselves. */
-@media (min-width: 901px) {
-  .command-bar__view.is-implicit {
-    display: none;
-  }
 }
 
 .command-bar__project,
@@ -109,74 +120,81 @@
   color: var(--ink);
 }
 
-.command-bar__context-link {
-  min-height: 0;
-  padding: 0 2px;
-  border: none;
-  background: transparent;
-  color: var(--ink-muted);
-  font-size: var(--type-xs);
-  cursor: pointer;
-}
-.command-bar__context-link:hover {
-  background: transparent;
-  color: var(--ink);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+.command-bar__tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
 }
 
-/* ── centre: tabs or command field ────────────────────────────────────── */
+/* ── centre: conversation title or agents tabs ────────────────────────── */
 .command-bar__center {
-  flex: 1 1 auto;
-  min-width: 0;
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 8px;
+  width: min(40vw, 560px);
+  min-width: 0;
+  pointer-events: none;
+}
+.command-bar__center > * {
+  pointer-events: auto;
 }
 
-.command-bar__command {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: min(440px, 100%);
-  height: 32px;
-  padding: 0 10px 0 12px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-full);
-  background: var(--surface-2);
-  color: var(--ink-muted);
-  font-family: var(--font-sans);
-  font-size: var(--type-sm);
-  cursor: pointer;
-  transition:
-    background-color var(--dur-2) var(--ease-out),
-    color var(--dur-2) var(--ease-out),
-    box-shadow var(--dur-2) var(--ease-out);
-}
-.command-bar__command:hover {
-  background: var(--surface-hover);
+.command-bar__title {
+  position: relative;
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: center;
+  font-family: var(--font-heading);
+  font-size: var(--type-base);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: -0.01em;
   color: var(--ink);
 }
-.command-bar__command-label {
-  flex: 1;
-  min-width: 0;
-  text-align: left;
-  white-space: nowrap;
+
+.command-bar__title-static {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.command-bar__kbd {
-  flex: 0 0 auto;
-  font-family: var(--font-mono);
-  font-size: var(--type-2xs);
-  color: var(--ink-muted);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
-  padding: 0 4px;
-  line-height: 16px;
+  white-space: nowrap;
 }
 
+.command-bar__title-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: max-content;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.command-bar__title.is-overflowing:hover .command-bar__title-static {
+  opacity: 0;
+}
+.command-bar__title.is-overflowing:hover .command-bar__title-track {
+  opacity: 1;
+  animation: command-bar-marquee var(--marquee-duration, 8s) linear infinite alternate;
+}
+
+@keyframes command-bar-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-1 * var(--marquee-distance, 0px)));
+  }
+}
+
+/* ── agents tabs ──────────────────────────────────────────────────────── */
 .command-bar__tabs {
   display: flex;
   align-items: center;
@@ -217,61 +235,13 @@
 
 /* ── right cluster ────────────────────────────────────────────────────── */
 .command-bar__right {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 6px;
   flex: 0 0 auto;
   margin-left: auto;
-}
-
-.command-bar__status {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 26px;
-  padding: 0 10px;
-  border-radius: var(--radius-full);
-  background: var(--surface-2);
-  color: var(--ink-muted);
-  font-family: var(--font-mono);
-  font-size: var(--type-2xs);
-  max-width: 220px;
-  overflow: hidden;
-}
-.command-bar__status.is-busy {
-  color: var(--ink);
-  background: var(--surface-3);
-}
-.command-bar__status-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.command-bar__idle {
-  opacity: 0.5;
-}
-
-.command-bar__primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: var(--inverse-bg);
-  color: var(--inverse-ink);
-  font-family: var(--font-sans);
-  font-size: var(--type-sm);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    background-color var(--dur-2) var(--ease-out),
-    opacity var(--dur-2) var(--ease-out);
-}
-.command-bar__primary:hover {
-  background: var(--color-accent-hover);
 }
 
 .command-bar__icon {
@@ -295,38 +265,22 @@
   background: var(--surface-2);
   color: var(--ink);
 }
-.command-bar__icon.command-bar__menu {
-  display: none;
-}
-
-.command-bar__badge {
-  position: absolute;
-  top: 1px;
-  right: 1px;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 3px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--inverse-bg);
-  color: var(--inverse-ink);
-  border-radius: var(--radius-full);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  line-height: 1;
+.command-bar__icon.is-on {
+  background: var(--surface-2);
+  border-color: var(--line);
+  color: var(--ink);
 }
 
 /* ── responsive ───────────────────────────────────────────────────────── */
 @media (max-width: 1180px) {
-  .command-bar__wordmark {
-    display: none;
-  }
   .command-bar__context {
-    max-width: 240px;
+    max-width: 220px;
   }
   .command-bar__project-name {
     max-width: 100px;
+  }
+  .command-bar__center {
+    width: min(34vw, 420px);
   }
 }
 
@@ -336,41 +290,18 @@
     padding: 0 8px;
     gap: 8px;
   }
-  .command-bar__icon.command-bar__menu {
-    display: inline-flex;
+  .command-bar__left {
+    gap: 8px;
   }
   .command-bar__context {
-    max-width: 150px;
+    max-width: 130px;
   }
   .command-bar__project,
   .command-bar__session {
     display: none;
   }
   .command-bar__center {
-    justify-content: flex-start;
-    padding: 0 4px;
-  }
-  .command-bar__command-label {
-    display: none;
-  }
-  .command-bar__command {
-    width: 36px;
-    padding: 0;
-    justify-content: center;
-  }
-  .command-bar__kbd {
-    display: none;
-  }
-  .command-bar__status {
-    display: none;
-  }
-  .command-bar__primary-label {
-    display: none;
-  }
-  .command-bar__primary {
-    width: 32px;
-    padding: 0;
-    justify-content: center;
+    width: min(34vw, 260px);
   }
   .command-bar__tab {
     padding: 0 8px;
@@ -378,8 +309,11 @@
 }
 
 @media (max-width: 640px) {
-  .command-bar__wordmark {
+  .command-bar__view {
     display: none;
+  }
+  .command-bar__center {
+    width: min(46vw, 240px);
   }
   .command-bar__tabs {
     overflow-x: auto;
@@ -391,15 +325,21 @@
   }
 }
 
-.command-bar__icon.is-on {
-    background: var(--surface-2);
-    border-color: var(--line);
-    color: var(--ink);
+@media (max-width: 480px) {
+  .command-bar__wordmark {
+    display: none;
+  }
+  .command-bar__center {
+    width: min(42vw, 200px);
+  }
 }
 
-.command-bar__index-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--primary-color);
+@media (prefers-reduced-motion: reduce) {
+  .command-bar__title.is-overflowing:hover .command-bar__title-track {
+    animation: none !important;
+    opacity: 0;
+  }
+  .command-bar__title.is-overflowing:hover .command-bar__title-static {
+    opacity: 1;
+  }
 }

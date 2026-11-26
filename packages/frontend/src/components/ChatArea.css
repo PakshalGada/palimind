@@ -15,6 +15,25 @@
     min-width: 0;
 }
 
+/* The transcript dissolves into the transparent top bar and the floating
+   composer instead of ending on a hard edge. */
+.messages {
+    -webkit-mask-image: linear-gradient(
+        to bottom,
+        transparent 0,
+        black 24px,
+        black calc(100% - 132px),
+        transparent 100%
+    );
+    mask-image: linear-gradient(
+        to bottom,
+        transparent 0,
+        black 24px,
+        black calc(100% - 132px),
+        transparent 100%
+    );
+}
+
 
 .chat-area {
     flex: 1;
@@ -98,35 +117,3 @@
     }
 }
 
-
-
-.chat-jump-latest {
-    position: absolute;
-    left: 50%;
-    bottom: 128px;
-    transform: translateX(-50%);
-    z-index: 6;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    height: 30px;
-    padding: 0 12px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    background: var(--surface);
-    color: var(--ink-secondary);
-    font-family: var(--font-sans);
-    font-size: var(--type-2xs);
-    box-shadow: var(--shadow-sm);
-    cursor: pointer;
-}
-.chat-jump-latest:hover {
-    background: var(--surface-hover);
-    color: var(--ink);
-}
-
-@media (max-width: 760px) {
-    .chat-jump-latest {
-        bottom: 112px;
-    }
-}

@@ -51,8 +51,7 @@
 .app-sidebar-shell.is-collapsed .sb-collapsible {
   display: none !important;
 }
-.app-sidebar-shell.is-collapsed .sb-header,
-.app-sidebar-shell.is-collapsed .sb-footer {
+.app-sidebar-shell.is-collapsed .sb-header {
   justify-content: center;
   padding-left: 8px;
   padding-right: 8px;
@@ -267,16 +266,6 @@
   display: flex;
   gap: 8px;
   justify-content: center;
-}
-
-/* Rail: stack the avatar above settings so both fit a 64px column. */
-.app-sidebar-shell.is-collapsed .sb-footer {
-  padding: 8px 4px;
-}
-.app-sidebar-shell.is-collapsed .sb-user {
-  flex-direction: column;
-  gap: 6px;
-  padding: 2px 0;
 }
 
 /* ── view transition ───────────────────────────────────────────────────── */
