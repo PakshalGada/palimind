@@ -49,7 +49,7 @@ export default function CreateArtifactDialog({
       open={open}
       onClose={onClose}
       title="Create an artifact"
-      subtitle="Describe what you need; the answer opens in the artifact panel, not as a wall of chat text."
+      subtitle="Describe what you need."
       width={680}
       footer={
         <div className="create-artifact-footer">

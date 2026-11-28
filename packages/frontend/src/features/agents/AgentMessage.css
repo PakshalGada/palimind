@@ -91,7 +91,7 @@
 }
 .ag-msg--note .ag-msg__prose {
   padding: 7px 11px;
-  border-radius: 13px 13px 13px 4px;
+  border-radius: var(--radius-bubble) var(--radius-bubble) var(--radius-bubble) var(--radius-xs);
   background: var(--surface-2);
 }
 

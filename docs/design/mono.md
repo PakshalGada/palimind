@@ -39,7 +39,7 @@ system state only.
 |---|---|---|
 | Theme model | **Dual mono** — dark default, light is first-class | Already shipped in `ThemeProvider`; paper mode is not an inverted afterthought |
 | Pixel mascot | **Abstract pixel mark + glyphs**; no mascot | Keeps the chrome quiet |
-| Pixel font | **No** | Identity comes from graphics and motion; body copy stays Inter / Universal Sans |
+| Pixel font | **No** | Identity comes from graphics and motion; body copy stays Geist |
 | Content colours | **Keep** | Respect user media |
 | Projects / Artifacts | **Promote to full views** (Phase 2) | The modal/panel split is the biggest IA problem |
 | Home view | **Removed** | Chat is the starting surface; no extra landing page |
@@ -88,9 +88,9 @@ Nine steps. Only three weights: **400 / 550 / 700**.
 
 | Token | Size / line | Use |
 |---|---|---|
-| `--type-2xs` | 10 / 12 | uppercase meta, counters |
-| `--type-xs` | 11 / 15 | labels, chips |
-| `--type-sm` | 12.5 / 18 | secondary UI |
+| `--type-2xs` | 11 / 14 | meta, counters |
+| `--type-xs` | 12 / 16 | labels, chips |
+| `--type-sm` | 13 / 18 | secondary UI |
 | `--type-base` | 14 / 22 | body, controls |
 | `--type-md` | 16 / 24 | chat text, inputs |
 | `--type-lg` | 20 / 28 | section titles |
@@ -98,9 +98,8 @@ Nine steps. Only three weights: **400 / 550 / 700**.
 | `--type-2xl` | 32 / 38 | hero, empty states |
 | `--type-3xl` | 40 / 46 | rare marketing moments |
 
-**Floor:** no chrome text below **10px**, and 10px is reserved for uppercase
-mono meta and counters. Everything else is ≥ 11px. The old 8.5–9.5px labels are
-gone as surfaces migrate.
+**Floor:** no chrome text below **11px**, and 11px is reserved for mono meta
+and counters. Everything else is ≥ 12px.
 
 `--font-weight-semibold` is retained as an alias that resolves to **550**; the
 scale has no 600.
@@ -182,7 +181,7 @@ If you change the import order, verify with:
 grep -o -- '--font-sans:[^;]*' packages/frontend/dist/assets/main-*.css
 ```
 
-The **last** occurrence must be the Inter/Universal Sans stack.
+The **last** occurrence must be the Geist stack.
 
 ---
 

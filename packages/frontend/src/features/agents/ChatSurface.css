@@ -174,8 +174,3 @@
   border-color: var(--ink-muted);
   color: var(--ink-secondary);
 }
-.ag-welcome__readiness-note {
-  margin-top: 4px;
-  color: var(--ink-muted);
-  font-size: var(--type-xs);
-}

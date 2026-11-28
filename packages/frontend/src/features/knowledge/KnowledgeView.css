@@ -34,7 +34,7 @@
   border: 0;
   background: transparent;
   color: var(--ink-muted);
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   font-size: var(--type-sm);
   cursor: pointer;
   white-space: nowrap;
@@ -53,7 +53,7 @@
   right: 8px;
   bottom: -1px;
   height: 2px;
-  border-radius: 2px;
+  border-radius: var(--radius-full);
   background: var(--ink);
 }
 .knowledge-tab__count {
@@ -77,6 +77,39 @@
   border-radius: 50%;
   background: var(--ink);
   animation: knowledge-pulse 1.4s ease-in-out infinite;
+}
+
+.knowledge-more-btn {
+  width: 30px;
+  padding: 0;
+}
+.knowledge-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 168px;
+  padding: 4px;
+}
+.knowledge-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--type-sm);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.knowledge-menu__item:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
 }
 
 .knowledge-scroll {

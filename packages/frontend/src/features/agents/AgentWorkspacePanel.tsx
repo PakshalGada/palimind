@@ -123,7 +123,7 @@ export default function AgentWorkspacePanel({
                 <EmptyState
                   icon={<Folder size={22} />}
                   title="No files yet"
-                  description="When this agent writes a deliverable it appears here. Every agent has its own persistent workspace."
+                  description="Deliverables from this agent appear here."
                 />
               ) : (
                 <div className="awp__list">

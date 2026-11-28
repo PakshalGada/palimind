@@ -447,9 +447,9 @@ export default function SettingsPage() {
     }
   };
 
-  const themeOptions: { value: Theme; label: string; hint: string }[] = [
-    { value: 'light', label: 'Light', hint: 'Bright surfaces' },
-    { value: 'dark', label: 'Night', hint: 'Low-light contrast' },
+  const themeOptions: { value: Theme; label: string }[] = [
+    { value: 'light', label: 'Light' },
+    { value: 'dark', label: 'Night' },
   ];
 
   const reloadPrompts = useCallback(async () => {
@@ -559,9 +559,15 @@ export default function SettingsPage() {
             aria-label="Search settings"
           />
         </div>
-        <button type="button" className="settings-page-close" onClick={close}>
-          Close <kbd>Esc</kbd>
-          <X size={13} />
+        <button
+          type="button"
+          className="settings-page-close"
+          onClick={close}
+          aria-label="Close settings"
+          title="Close settings"
+        >
+          <kbd>Esc</kbd>
+          <X size={14} />
         </button>
       </header>
 
@@ -603,8 +609,7 @@ export default function SettingsPage() {
             hidden={section !== 'appearance'}
           >
             <SectionHeader title="Appearance">
-              Choose how Palimind looks. The change applies instantly and is remembered
-              on this device.
+              Applies instantly.
             </SectionHeader>
             <div className="settings-card">
               <div className="settings-card-title">Theme</div>
@@ -620,12 +625,10 @@ export default function SettingsPage() {
                     <span className={`settings-theme-swatch ${opt.value}`} aria-hidden="true" />
                     <span className="settings-theme-meta">
                       <span>{opt.label}</span>
-                      {theme === opt.value ? (
+                      {theme === opt.value && (
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M20 6 9 17l-5-5" />
                         </svg>
-                      ) : (
-                        <span className="settings-theme-hint">{opt.hint}</span>
                       )}
                     </span>
                   </button>
@@ -650,9 +653,7 @@ export default function SettingsPage() {
             <div className="settings-card">
               <div className="settings-card-title">Motion &amp; pixel accents</div>
               <p className="settings-hint">
-                Pixel details are small, step-timed marks used for live status,
-                progress and one-shot success. Motion follows the system setting
-                unless you choose otherwise.
+                Small step-timed marks for status and progress.
               </p>
               <Toggle
                 checked={pixelAccents === 'on'}
@@ -662,7 +663,7 @@ export default function SettingsPage() {
                   applyPixelAccents(next);
                 }}
                 title="Pixel accents"
-                description="Brand blink, live status, streaming caret and progress meter."
+                description="Status, streaming and progress."
               />
               <div className="settings-field">
                 <span className="settings-field-label">Motion</span>
@@ -684,8 +685,7 @@ export default function SettingsPage() {
             <div className="settings-card">
               <div className="settings-card-title">Your name</div>
               <p className="settings-hint">
-                Used to personalise the greeting on the start screen. Stored only
-                on this device.
+                Used for the greeting. Stored locally.
               </p>
               <div className="settings-field">
                 <label htmlFor="settings-user-name">What should we call you?</label>
@@ -727,7 +727,7 @@ export default function SettingsPage() {
                   setVoiceTick((tick) => tick + 1);
                 }}
                 title="Speak replies automatically"
-                description="Plays each finished answer aloud. Agents can have their own voice and toggle in the agents settings (Voice section)."
+                description="Plays each finished answer aloud."
               />
               <div className="settings-field">
                 <span className="settings-field-label">Voice</span>

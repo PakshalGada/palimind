@@ -1,11 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BookOpen, FolderPlus, Globe, Network, Plus, RefreshCw, Search } from 'lucide-react';
+import {
+  BookOpen,
+  Download,
+  FolderPlus,
+  Globe,
+  MoreHorizontal,
+  Network,
+  Plus,
+  RefreshCw,
+  Search,
+} from 'lucide-react';
 import ChatArea from '../../components/ChatArea';
 import SurfaceHeader from '../../components/layout/SurfaceHeader';
 import { useApp } from '../../AppContext';
 import { api } from '../../api';
 import { runCommand } from '../../commands/registry';
-import { EmptyState } from '../../ui/primitives';
+import { EmptyState, Popover } from '../../ui/primitives';
 import { PixelGlyph } from '../../components/pixel/PixelGlyph';
 import type { KnowledgeSpace } from '../../types';
 import CreateSpaceDialog from './CreateSpaceDialog';
@@ -155,7 +165,7 @@ export default function KnowledgeView() {
             ? isIndexing
               ? indexingStatus || 'Indexing documents…'
               : `${activeSpace.kind === 'managed' ? 'New folder' : 'Linked folder'} · ${activeSpace.root}`
-            : 'Create a space or connect a folder — no existing folder required'
+            : undefined
         }
         actions={
           activeSpace ? (
@@ -168,36 +178,61 @@ export default function KnowledgeView() {
                   window.dispatchEvent(new CustomEvent('palimind:add-source'));
                 }}
               >
-                <Globe size={13} /> Save link
+                <Globe size={13} /> Add source
               </button>
               <button
                 type="button"
                 className="ui-btn ui-btn--sm"
                 onClick={() => setSearchOpen(true)}
               >
-                <Search size={13} /> Search all
+                <Search size={13} /> Search
               </button>
-              <button
-                type="button"
-                className="ui-btn ui-btn--sm"
-                onClick={() => openCreate('create')}
+              <Popover
+                ariaLabel="More knowledge actions"
+                align="end"
+                trigger={
+                  <button
+                    type="button"
+                    className="ui-btn ui-btn--sm knowledge-more-btn"
+                    aria-label="More knowledge actions"
+                  >
+                    <MoreHorizontal size={15} />
+                  </button>
+                }
               >
-                <Plus size={13} /> New space
-              </button>
-              <button
-                type="button"
-                className="ui-btn ui-btn--sm"
-                onClick={() => runCommand('nav.graph')}
-              >
-                <Network size={13} /> Graph
-              </button>
-              <a
-                className="ui-btn ui-btn--sm"
-                href={`/api/spaces/${encodeURIComponent(activeSpace.id)}/export`}
-                download
-              >
-                Export
-              </a>
+                {(close) => (
+                  <div className="knowledge-menu">
+                    <button
+                      type="button"
+                      className="knowledge-menu__item"
+                      onClick={() => {
+                        close();
+                        openCreate('create');
+                      }}
+                    >
+                      <Plus size={14} /> New space
+                    </button>
+                    <button
+                      type="button"
+                      className="knowledge-menu__item"
+                      onClick={() => {
+                        close();
+                        runCommand('nav.graph');
+                      }}
+                    >
+                      <Network size={14} /> Graph
+                    </button>
+                    <a
+                      className="knowledge-menu__item"
+                      href={`/api/spaces/${encodeURIComponent(activeSpace.id)}/export`}
+                      download
+                      onClick={close}
+                    >
+                      <Download size={14} /> Export
+                    </a>
+                  </div>
+                )}
+              </Popover>
               <button
                 type="button"
                 className="ui-btn ui-btn--primary ui-btn--sm"
@@ -371,7 +406,7 @@ export default function KnowledgeView() {
           <EmptyState
             glyph={<PixelGlyph sprite="book" cell={4} />}
             title="Create your first knowledge space"
-            description="You don't need a folder on this computer. PaliMind can create one anywhere you choose, then you can paste links and notes and ask questions with citations."
+            description="Create a space or connect a folder, then ask questions with citations."
             action={
               <div className="knowledge-empty-actions">
                 <button

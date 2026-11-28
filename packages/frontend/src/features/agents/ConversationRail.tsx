@@ -44,7 +44,7 @@ const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'working', label: 'Working' },
   { id: 'waiting', label: 'Waiting' },
-  { id: 'scheduled', label: 'Scheduled' },
+  { id: 'scheduled', label: 'Sched.' },
   { id: 'idle', label: 'Idle' },
 ];
 

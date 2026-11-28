@@ -296,7 +296,7 @@ export default function ProjectsView() {
               compact
               glyph={<PixelGlyph sprite="folder" cell={3} />}
               title="No projects yet"
-              description="Use the templates on the right to create your first workspace."
+              description="Use a template to create your first project."
             />
           ) : (
             <>
@@ -358,10 +358,7 @@ export default function ProjectsView() {
                   </span>
                   <div>
                     <h2>Create your first project</h2>
-                    <p>
-                      A project keeps chats, knowledge and artifacts together so a
-                      piece of work never gets lost between surfaces.
-                    </p>
+                    <p>Keep chats, knowledge and artifacts together.</p>
                   </div>
                 </div>
                 <div className="projects-zero__templates">
@@ -391,7 +388,7 @@ export default function ProjectsView() {
               <EmptyState
                 glyph={<PixelGlyph sprite="folder" cell={4} />}
                 title="Select a project"
-                description="Choose a workspace on the left, or create one to collect work in one place."
+                description="Select a project or create one."
               />
             )
           ) : (

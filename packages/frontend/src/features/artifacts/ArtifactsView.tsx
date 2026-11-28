@@ -5,19 +5,17 @@ import { useApp } from '../../AppContext';
 import '../view.css';
 
 export default function ArtifactsView() {
-  const { setArtifactPanelOpen, setArtifactLibraryOpen } = useApp();
+  const { setArtifactPanelOpen, setArtifactLibraryOpen, setActiveView } = useApp();
 
   return (
     <main className="view-frame">
-      <SurfaceHeader
-        title="Artifacts"
-        meta="Saved outputs"
-      />
+      <SurfaceHeader title="Artifacts" />
       <div className="view-frame__body view-frame__body--flush">
         <ArtifactLibrary
           embedded
           open
           onClose={() => undefined}
+          onOpenChat={() => setActiveView('chat')}
           onOpen={(artifact) => {
             // Library entries are not session artifacts, so they must be
             // handed to the panel whole rather than selected by id.

@@ -736,7 +736,7 @@ export default function ArtifactPanel({
           <EmptyState
             icon={<Code2 size={22} />}
             title="No artifacts yet"
-            description="Ask for HTML, code, a diagram, or a document. It will appear here, ready to preview, edit and save."
+            description="Ask for HTML, code, a diagram or a document."
             action={
               <button
                 type="button"

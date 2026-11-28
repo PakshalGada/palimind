@@ -166,5 +166,5 @@
 }
 .chat-context-manager__list li > button:hover {
     background: var(--surface-hover);
-    color: var(--danger-color, #be123c);
+    color: var(--danger);
 }

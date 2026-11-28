@@ -83,6 +83,16 @@ export default function App() {
     }
   }, [activeView]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void import('./features/agents/AgentsWorkspace');
+      void import('./features/knowledge/KnowledgeView');
+      void import('./features/projects/ProjectsView');
+      void import('./features/artifacts/ArtifactsView');
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   // Voice output. The speech singleton is mirrored into `isSpeaking` so the
   // app shell can style itself while talking, and finished replies are
   // spoken automatically for scopes where the per-agent toggle is on.

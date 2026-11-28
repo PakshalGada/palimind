@@ -18,9 +18,9 @@
     color: var(--text-muted);
 }
 .data-mode__error {
-    border: 1px solid color-mix(in srgb, var(--danger, #be123c) 35%, var(--line));
-    background: color-mix(in srgb, var(--danger, #be123c) 8%, transparent);
-    color: var(--danger, #be123c);
+    border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--line));
+    background: color-mix(in srgb, var(--danger) 8%, transparent);
+    color: var(--danger);
 }
 .data-mode__stats {
     display: grid;

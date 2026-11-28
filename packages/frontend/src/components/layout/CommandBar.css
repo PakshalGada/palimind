@@ -62,15 +62,6 @@
   overflow: hidden;
 }
 
-.command-bar__view {
-  font-family: var(--font-heading);
-  font-size: var(--type-base);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: -0.02em;
-  color: var(--ink);
-  white-space: nowrap;
-}
-
 .command-bar__project,
 .command-bar__session {
   display: inline-flex;
@@ -309,9 +300,6 @@
 }
 
 @media (max-width: 640px) {
-  .command-bar__view {
-    display: none;
-  }
   .command-bar__center {
     width: min(46vw, 240px);
   }

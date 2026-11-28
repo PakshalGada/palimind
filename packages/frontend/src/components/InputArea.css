@@ -339,13 +339,12 @@
     z-index: 9999;
     background: var(--surface-2);
     border: 1px solid var(--line);
-    border-radius: 14px;
+    border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg, var(--shadow-md));
     width: min(440px, calc(100vw - 40px));
     max-height: 380px;
     overflow-y: auto;
     padding: 6px;
-    backdrop-filter: blur(12px);
 }
 .slash-command-head {
     display: flex;
@@ -398,7 +397,7 @@
     justify-content: center;
     width: 32px;
     height: 32px;
-    border-radius: 9px;
+    border-radius: var(--radius-md);
     background: var(--surface-3);
     color: var(--ink-muted);
     border: 1px solid var(--line);
@@ -482,11 +481,11 @@
     height: 18px;
     padding: 0 4px;
     border: 1px solid var(--line);
-    border-radius: 5px;
+    border-radius: var(--radius-xs);
     background: var(--surface-3);
     color: var(--ink-muted);
     font-family: var(--font-mono);
-    font-size: 9.5px;
+    font-size: var(--type-2xs);
     line-height: 1;
 }
 
@@ -510,7 +509,7 @@
 }
 .composer-command-chip__name {
     padding: 1px 5px;
-    border-radius: 5px;
+    border-radius: var(--radius-xs);
     background: color-mix(in srgb, var(--primary-color) 14%, transparent);
     color: var(--primary-color);
     font-family: var(--font-mono);

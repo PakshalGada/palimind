@@ -46,6 +46,7 @@ const EXTENSIONS = new Set(['.css', '.tsx', '.ts']);
  * product chrome is policed.
  */
 const CONTENT_FILES = new Set(['utils/artifactExport.ts']);
+const CONTENT_PREFIXES = ['bots/', 'components/deck/'];
 
 /** CSS named colours that carry hue. Greys, black and white are allowed. */
 const NAMED_HUE = [
@@ -110,6 +111,7 @@ const files = walk(SRC);
 for (const file of files) {
   const rel = relative(SRC, file).split(sep).join('/');
   if (CONTENT_FILES.has(rel)) continue;
+  if (CONTENT_PREFIXES.some((prefix) => rel.startsWith(prefix))) continue;
   const strict = isStrict(rel);
   const text = stripComments(readFileSync(file, 'utf8'));
   const isCss = file.endsWith('.css');

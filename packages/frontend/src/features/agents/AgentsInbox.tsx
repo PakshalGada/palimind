@@ -253,7 +253,7 @@ export default function AgentsInbox({ open, onClose }: { open: boolean; onClose:
             <EmptyState
               icon={<Check size={22} />}
               title="All clear"
-              description="When an agent asks a question, needs permission for a risky action, or needs you in the browser, it appears here."
+              description="Approvals, questions and browser requests appear here."
             />
           ) : (
             items.map((item) => {

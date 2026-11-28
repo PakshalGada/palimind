@@ -140,12 +140,14 @@ export default function ArtifactLibrary({
   onClose,
   onOpen,
   embedded = false,
+  onOpenChat,
 }: {
   open: boolean;
   onClose: () => void;
   onOpen: (artifact: OpenedArtifact) => void;
   /** Render inline as a view instead of inside a modal. */
   embedded?: boolean;
+  onOpenChat?: () => void;
 }) {
   const confirm = useConfirm();
   const [entries, setEntries] = useState<LibraryEntry[]>([]);
@@ -371,85 +373,103 @@ export default function ArtifactLibrary({
 
   const body = (
     <div className={`artifact-library${embedded ? ' artifact-library--embedded' : ''}`}>
-        <div className="artifact-library-summary">
-          <div className="artifact-library-summary-main">
-            <span className="artifact-library-summary-total">{counts.total}</span>
-            <span className="artifact-library-summary-label">saved artifacts</span>
+        {counts.total > 0 && (
+          <div className="artifact-library-summary">
+            <div className="artifact-library-summary-main">
+              <span className="artifact-library-summary-total">{counts.total}</span>
+              <span className="artifact-library-summary-label">saved artifacts</span>
+            </div>
+            <div className="artifact-library-summary-breakdown">
+              <span><strong>{counts.vault}</strong> local</span>
+              <span><strong>{counts.project}</strong> projects</span>
+              <span><strong>{counts.global}</strong> global</span>
+            </div>
           </div>
-          <div className="artifact-library-summary-breakdown">
-            <span><strong>{counts.vault}</strong> local</span>
-            <span><strong>{counts.project}</strong> projects</span>
-            <span><strong>{counts.global}</strong> global</span>
-          </div>
-        </div>
+        )}
 
         <div className={`artifact-library-layout${selectedEntry ? '' : ' is-single'}`}>
           <section className="artifact-library-browser" aria-label="Artifact list">
-            <div className="artifact-library-toolbar">
-              <label className="artifact-library-search">
-                <Search size={14} />
-                <input
-                  type="text"
-                  value={query}
-                  placeholder="Search artifacts…"
-                  onChange={event => setQuery(event.target.value)}
-                  autoFocus
+            {counts.total > 0 && (
+              <div className="artifact-library-toolbar">
+                <label className="artifact-library-search">
+                  <span className="ui-sr-only">Search artifacts</span>
+                  <Search size={14} />
+                  <input
+                    type="text"
+                    value={query}
+                    placeholder="Search artifacts…"
+                    onChange={event => setQuery(event.target.value)}
+                  />
+                </label>
+                <Picker
+                  value={filter}
+                  options={filterOptions}
+                  onChange={setFilter}
+                  ariaLabel="Filter artifacts by source"
+                  className="artifact-library-filter"
                 />
-              </label>
-              <Picker
-                value={filter}
-                options={filterOptions}
-                onChange={setFilter}
-                ariaLabel="Filter artifacts by source"
-                className="artifact-library-filter"
-              />
-              <button
-                type="button"
-                className="artifact-library-refresh"
-                title="Refresh artifacts"
-                aria-label="Refresh artifacts"
-                disabled={loading}
-                onClick={() => void load()}
-              >
-                <RefreshCw size={14} className={loading ? 'is-spinning' : undefined} />
-              </button>
-            </div>
-
-            <div className="artifact-library-type-filters" role="tablist" aria-label="Artifact type">
-              {TYPE_FILTERS.map(item => (
                 <button
-                  key={item.value}
                   type="button"
-                  role="tab"
-                  aria-selected={typeFilter === item.value}
-                  className={`artifact-library-type-filter${
-                    typeFilter === item.value ? ' is-active' : ''
-                  }`}
-                  onClick={() => setTypeFilter(item.value)}
+                  className="artifact-library-refresh"
+                  title="Refresh artifacts"
+                  aria-label="Refresh artifacts"
+                  disabled={loading}
+                  onClick={() => void load()}
                 >
-                  {item.label}
+                  <RefreshCw size={14} className={loading ? 'is-spinning' : undefined} />
                 </button>
-              ))}
-            </div>
+              </div>
+            )}
+
+            {counts.total > 0 && (
+              <div className="artifact-library-type-filters" role="tablist" aria-label="Artifact type">
+                {TYPE_FILTERS.map(item => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    role="tab"
+                    aria-selected={typeFilter === item.value}
+                    className={`artifact-library-type-filter${
+                      typeFilter === item.value ? ' is-active' : ''
+                    }`}
+                    onClick={() => setTypeFilter(item.value)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {error && (
               <InlineError
                 title="Artifact library"
                 message={error}
+                onRetry={() => void load()}
                 onDismiss={() => setError('')}
               />
             )}
 
             {loading ? (
               <SkeletonList rows={6} />
-            ) : visible.length === 0 ? (
+            ) : error && visible.length === 0 ? null : visible.length === 0 ? (
               <EmptyState
                 icon={<Package size={24} />}
                 title={query ? 'No matching artifacts' : 'No saved artifacts yet'}
                 description={
                   query
                     ? 'Try a different title, type or content phrase.'
-                    : 'Save an artifact to the vault or pin it to a project and it will appear here.'
+                    : 'Save an artifact from chat and it will appear here.'
+                }
+                action={
+                  onOpenChat ? (
+                    <button
+                      type="button"
+                      className="ui-btn ui-btn--primary ui-btn--sm"
+                      onClick={onOpenChat}
+                    >
+                      Open chat
+                    </button>
+                  ) : undefined
                 }
               />
             ) : (
@@ -592,10 +612,6 @@ export default function ArtifactLibrary({
           )}
         </div>
 
-        <div className="artifact-library-storage">
-          Local versions are stored in IndexedDB on this device; metadata lives in
-          localStorage. Project and global versions live in the local Palimind backend.
-        </div>
     </div>
   );
 

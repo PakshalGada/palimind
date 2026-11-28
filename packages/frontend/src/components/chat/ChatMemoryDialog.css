@@ -96,7 +96,7 @@
 }
 .chat-memory__list button:hover {
     background: var(--surface-hover);
-    color: var(--danger-color, #be123c);
+    color: var(--danger);
 }
 
 .chat-memory__form select {

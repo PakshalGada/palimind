@@ -1,17 +1,8 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { PanelLeftClose, PanelLeftOpen, PanelRight, Search } from 'lucide-react';
+import { Folder, PanelLeftClose, PanelLeftOpen, PanelRight, Search } from 'lucide-react';
 import { useApp } from '../../AppContext';
-import { PixelGlyph } from '../pixel/PixelGlyph';
 import type { AgentsView } from '../../types';
 import './CommandBar.css';
-
-const VIEW_LABEL: Record<string, string> = {
-  chat: 'Chat',
-  agents: 'Agents',
-  knowledge: 'Knowledge',
-  projects: 'Projects',
-  artifacts: 'Artifacts',
-};
 
 const AGENT_TABS: { id: AgentsView; label: string }[] = [
   { id: 'chat', label: 'Chat' },
@@ -86,12 +77,10 @@ export default function CommandBar() {
     toggleWorkbench,
   } = useApp();
 
-  const sessionName =
+  const title =
     activeView === 'chat'
-      ? sessions.find((s) => s.id === activeSessionId)?.name ?? 'New chat'
+      ? sessions.find((s) => s.id === activeSessionId)?.name ?? null
       : null;
-
-  const title = activeView === 'chat' ? sessionName ?? 'New chat' : null;
 
   return (
     <header className="command-bar" role="banner">
@@ -101,12 +90,9 @@ export default function CommandBar() {
         </div>
 
         <nav className="command-bar__context" aria-label="Current context">
-          <span className="command-bar__view">
-            {VIEW_LABEL[activeView] ?? activeView}
-          </span>
           {activeProjectId && (
             <span className="command-bar__project" title={activeProjectName ?? 'Active project'}>
-              <PixelGlyph sprite="folder" cell={1.25} />
+              <Folder size={12} aria-hidden="true" />
               <span className="command-bar__project-name">
                 {activeProjectName ?? 'Project'}
               </span>

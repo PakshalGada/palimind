@@ -14,7 +14,6 @@
 @import "./components/Sidebar.css";
 @import "./components/layout/layout.css";
 @import "./components/AgentAvatar.css";
-@import "./components/WelcomeScreen.css";
 @import "./components/ChatArea.css";
 @import "./components/Messages.css";
 @import "./components/InputArea.css";

@@ -400,7 +400,7 @@ export default function SourcesPanel({ spaceId, onCountChange }: Props) {
           <EmptyState
             glyph={<Globe size={20} />}
             title="Nothing saved here yet"
-            description="Paste a link and PaliMind crawls it, saves a readable copy, indexes it and links it into the knowledge graph."
+            description="Paste a link to crawl, index and add it to the graph."
             action={
               <button type="button" className="ui-btn ui-btn--primary" onClick={() => setAddOpen(true)}>
                 <Plus size={14} /> Save your first link

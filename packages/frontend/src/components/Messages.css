@@ -69,9 +69,9 @@
 
 /* Jumped to from global search: a short glow around the target bubble. */
 @keyframes message-flash-pulse {
-    0% { box-shadow: 0 0 0 0 var(--color-brand-glow, rgba(120, 160, 255, 0.55)); }
-    70% { box-shadow: 0 0 0 14px rgba(120, 160, 255, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(120, 160, 255, 0); }
+    0% { box-shadow: 0 0 0 0 var(--ink); }
+    70% { box-shadow: 0 0 0 14px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
 }
 .message.message-flash {
     border-radius: var(--radius-lg);

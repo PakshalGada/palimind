@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
+  AlertTriangle,
   BookOpen,
   Bot,
   Folder,
@@ -23,14 +24,11 @@ import { getCommand } from "../commands/catalog";
 import { formatShortcut } from "../utils/shortcuts";
 import { resolveScope } from "../lib/scope";
 import { isRetentionExpired } from "../utils/retention";
-import { PixelIcon } from "./pixel/PixelIcon";
-import type { PixelSprite } from "./pixel/sprites";
 import type { KnowledgeSpace } from "../types";
 import CreateSpaceDialog from "../features/knowledge/CreateSpaceDialog";
 import {
   Dialog,
   EmptyState,
-  InlineError,
   Kbd,
   Scrollbar,
   SkeletonList,
@@ -419,15 +417,6 @@ export default function Sidebar() {
     return combo ? formatShortcut(combo) : "";
   };
 
-  const navPixel: Record<string, PixelSprite> = {
-    chat: "chat",
-    agents: "bot",
-    knowledge: "book",
-    "computer-use": "desktop",
-    projects: "projects",
-    artifacts: "package",
-  };
-
   const navItems: NavItem[] = [
     {
       id: "chat",
@@ -601,7 +590,6 @@ export default function Sidebar() {
           compact
           icon={<MessageSquare size={18} />}
           title="No chats yet"
-          description="Start a conversation and it will appear here."
         />
       ) : (
         <div className="sb-list">
@@ -643,11 +631,13 @@ export default function Sidebar() {
       {fieldsLoading ? (
         <SkeletonList rows={3} avatar={false} />
       ) : fieldsError ? (
-        <InlineError
-          title="Couldn't load knowledge bases"
-          message={fieldsError}
-          onRetry={() => void fetchFields()}
-        />
+        <div className="sb-error" role="alert">
+          <AlertTriangle size={13} aria-hidden="true" />
+          <span className="sb-error__text">Couldn't load knowledge bases</span>
+          <button type="button" className="sb-error__retry" onClick={() => void fetchFields()}>
+            Retry
+          </button>
+        </div>
       ) : spaces.length === 0 && fields.length === 0 ? (
         <EmptyState
           compact
@@ -726,11 +716,11 @@ export default function Sidebar() {
               title={activeProjectId ? `Project: ${activeProjectName ?? 'Project'}` : 'Open workspace'}
               onClick={() => setActiveView(activeProjectId ? 'projects' : 'knowledge')}
             >
-              <PixelIcon
-                name={activeProjectId ? "projects" : "folder"}
-                size={16}
-                state={activeProjectId ? "active" : "idle"}
-              />
+              {activeProjectId ? (
+                <FolderKanban size={16} aria-hidden="true" />
+              ) : (
+                <Folder size={16} aria-hidden="true" />
+              )}
               <span className="sb-workspace__text">
                 <span className="sb-workspace__label">
                   {activeProjectId ? "Project" : "Workspace"}
@@ -751,6 +741,7 @@ export default function Sidebar() {
       <nav className="sb-nav" aria-label="Workspace">
         {navItems.map((item) => {
           const shortcut = shortcutFor(item.shortcutId);
+          const Icon = item.icon;
           return (
             <button
               key={item.id}
@@ -766,11 +757,7 @@ export default function Sidebar() {
               }}
             >
               <span className="sb-nav-item__icon">
-                <PixelIcon
-                  name={navPixel[item.id] ?? "dot"}
-                  size={16}
-                  state={item.active ? "active" : "idle"}
-                />
+                <Icon size={16} strokeWidth={1.75} aria-hidden="true" />
               </span>
               <span className="sb-nav-item__label sb-collapsible">{item.label}</span>
               {shortcut && (

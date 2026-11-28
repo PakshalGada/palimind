@@ -7,6 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import App from './App'
 // Cascade order matters: Tailwind/shadcn defaults first, then Palimind's
 // tokens and component layers so the design system always wins.
+import '@fontsource-variable/geist';
 import './index.css'
 import './App.css'
 import './components/activity/activity.css'

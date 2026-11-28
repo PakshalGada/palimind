@@ -802,7 +802,7 @@
 .ax-swatch--custom {
   position: relative;
   overflow: hidden;
-  background: conic-gradient(#e5484d, #f5a524, #46a758, #00a2c7, #6e56cf, #d6409f, #e5484d);
+  background: conic-gradient(var(--ink-muted), var(--ink), var(--line-strong), var(--ink), var(--ink-muted));
 }
 .ax-swatch--custom input {
   position: absolute;
@@ -1173,7 +1173,7 @@
 }
 .ax-model-picker__key {
   margin-left: auto;
-  color: var(--warning, #b58b00);
+  color: var(--warning);
   font-style: normal;
   text-transform: none;
   letter-spacing: 0;

@@ -49,7 +49,7 @@ function SourcesWorkbench() {
         <EmptyState
           icon={<Link2 size={22} />}
           title="No sources yet"
-          description="Sources from the current answer will appear here with links to the original documents and pages."
+          description="Sources from this answer appear here."
         />
       </div>
     );

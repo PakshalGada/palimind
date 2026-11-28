@@ -440,11 +440,6 @@
     font-size: var(--type-sm);
     font-weight: 550;
 }
-.settings-theme-hint {
-    font-size: var(--type-xs);
-    color: var(--text-muted);
-}
-
 /* Actions + feedback */
 .settings-actions-row {
     display: flex;

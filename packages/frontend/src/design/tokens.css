@@ -26,20 +26,6 @@
     font-display: swap;
 }
 @font-face {
-    font-family: "Noto Serif";
-    src: url("/ui/fonts/NotoSerif-400.woff2") format("woff2");
-    font-style: normal;
-    font-weight: 400 600;
-    font-display: swap;
-}
-@font-face {
-    font-family: "Noto Serif";
-    src: url("/ui/fonts/NotoSerif-400Italic.woff2") format("woff2");
-    font-style: italic;
-    font-weight: 400;
-    font-display: swap;
-}
-@font-face {
     font-family: "Space Grotesk";
     src: url("/ui/fonts/SpaceGrotesk-var.woff2") format("woff2");
     font-style: normal;
@@ -47,54 +33,32 @@
     font-display: swap;
 }
 
-@font-face {
-    font-family: "Libre Baskerville";
-    src: url("/ui/fonts/libre-baskerville/LibreBaskerville-400.woff2") format("woff2");
-    font-style: normal;
-    font-weight: 400;
-    font-display: swap;
-}
-@font-face {
-    font-family: "Libre Baskerville";
-    src: url("/ui/fonts/libre-baskerville/LibreBaskerville-400Italic.woff2") format("woff2");
-    font-style: italic;
-    font-weight: 400;
-    font-display: swap;
-}
-@font-face {
-    font-family: "Libre Baskerville";
-    src: url("/ui/fonts/libre-baskerville/LibreBaskerville-700.woff2") format("woff2");
-    font-style: normal;
-    font-weight: 700;
-    font-display: swap;
-}
-
 /* ── typography, spacing and motion ─────────────────────────────────────── */
 :root {
-    /* Font stacks: Inter if the OS has it, then the platform UI font. Space
-       Grotesk is bundled for display headings, IBM Plex Mono for code/meta. */
+    /* Font stacks: Geist is bundled for body and UI, Space Grotesk for display
+       headings, IBM Plex Mono for code and meta. */
     --font-sans:
-        "Inter", ui-sans-serif, system-ui, -apple-system,
+        "Geist Variable", ui-sans-serif, system-ui, -apple-system,
         BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
         sans-serif;
     --font-display:
-        "Space Grotesk", "Inter", ui-sans-serif,
+        "Space Grotesk", "Geist Variable", ui-sans-serif,
         system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-mono:
         "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
         "Liberation Mono", monospace;
     /* Display grotesk for greetings, brand and primary headings. */
     --font-heading:
-        "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+        "Space Grotesk", "Geist Variable", ui-sans-serif, system-ui, sans-serif;
     --font-serif: var(--font-heading);
 
     /* ── type scale ────────────────────────────────────────────────────────
        Nine steps, paired line heights in the comments. New code uses
        --type-*; the --text-* ladder below is the legacy alias set and is
        mapped onto the same nine steps so both resolve to one scale. */
-    --type-2xs: 0.625rem;    /* 10 / 12  uppercase meta, counters */
-    --type-xs: 0.6875rem;    /* 11 / 15  labels, chips */
-    --type-sm: 0.78125rem;   /* 12.5 / 18  secondary UI */
+    --type-2xs: 0.6875rem;   /* 11 / 14  meta, counters */
+    --type-xs: 0.75rem;      /* 12 / 16  labels, chips */
+    --type-sm: 0.8125rem;    /* 13 / 18  secondary UI */
     --type-base: 0.875rem;   /* 14 / 22  body, controls */
     --type-md: 1rem;         /* 16 / 24  chat text, inputs */
     --type-lg: 1.25rem;      /* 20 / 28  section titles */

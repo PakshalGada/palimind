@@ -124,11 +124,11 @@ export default function ChatSurface({
       <span className="ag-welcome__mark">
         <Sparkles size={26} />
       </span>
-      <h1>{agents.length === 0 ? 'Build your first teammate' : 'Talk to your team'}</h1>
+      <h1>{agents.length === 0 ? 'Create your first agent' : 'Talk to your team'}</h1>
       <p>
         {agents.length === 0
-          ? 'Pick a role, choose a local model or your OpenCode key, and give it a first task. You can change everything later.'
-          : 'Pick an agent, a team or a channel to start. Use @ in any chat to call another agent.'}
+          ? 'Choose a model and give it a first task.'
+          : 'Pick an agent, a team or a channel to start.'}
       </p>
       <div className="ag-welcome__status" aria-label="Model readiness">
         <span className={readiness?.local ? 'is-ready' : ''}>
@@ -171,11 +171,6 @@ export default function ChatSurface({
           <Globe2 size={14} /> Browser
         </Button>
       </div>
-      {agents.length === 0 && (
-        <div className="ag-welcome__readiness-note">
-          <span>Start local and private, or paste an OpenCode key in Settings → OpenCode.</span>
-        </div>
-      )}
     </div>
   );
 }

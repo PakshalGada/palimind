@@ -86,7 +86,7 @@
 }
 .chat-trust__memory button:hover {
     background: var(--surface-hover);
-    color: var(--danger-color, #be123c);
+    color: var(--danger);
 }
 
 @media (max-width: 520px) {
@@ -234,7 +234,7 @@
     font-size: var(--type-xs);
 }
 .chat-trust__danger {
-    color: var(--danger, #be123c) !important;
+    color: var(--danger) !important;
 }
 .chat-trust__danger:disabled {
     opacity: 0.45;
@@ -294,7 +294,7 @@
     line-height: 1.45;
 }
 .chat-trust__ok {
-    color: var(--success, #0d9488) !important;
+    color: var(--success) !important;
 }
 .chat-trust__issues {
     display: flex;
