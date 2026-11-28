@@ -115,7 +115,7 @@ const SECTIONS: SectionDef[] = [
   },
   {
     key: 'desktop',
-    label: 'Computer use',
+    label: 'Computer Use',
     keywords: ['desktop', 'accessibility', 'ghost cursor', 'agent', 'control'],
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -1156,7 +1156,7 @@ export default function SettingsPage() {
             aria-labelledby="settings-tab-desktop"
             hidden={section !== 'desktop'}
           >
-            <SectionHeader title="Computer use">
+            <SectionHeader title="Computer Use">
               Let an agent see and operate any app on your Linux desktop through the
               accessibility tree. On by default; protected system apps are always
               excluded and every action is audited.
