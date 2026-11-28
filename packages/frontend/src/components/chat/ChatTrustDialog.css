@@ -120,7 +120,7 @@
     border-radius: 999px;
     background: color-mix(in srgb, var(--primary-color) 14%, transparent);
     color: var(--primary-color);
-    font-size: 10px;
+    font-size: var(--type-2xs);
     font-weight: 600;
     line-height: 16px;
 }

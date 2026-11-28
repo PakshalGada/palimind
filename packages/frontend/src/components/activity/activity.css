@@ -1102,7 +1102,7 @@ button.act-chip--action:hover {
 }
 
 .act-grant__scope-note {
-    font-size: 10px;
+    font-size: var(--type-2xs);
     color: var(--act-muted);
     white-space: nowrap;
 }
@@ -2653,7 +2653,7 @@ html[data-motion="reduced"] .act-reason__wave i { opacity: 0.6; }
     gap: 5px;
 }
 .act-grant--compact .act-grant__title { font-size: 11px; }
-.act-grant--compact .act-grant__tool { font-size: 10px; padding: 0 5px; }
+.act-grant--compact .act-grant__tool { font-size: var(--type-2xs); padding: 0 5px; }
 .act-grant--compact .act-grant__action {
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -2670,7 +2670,7 @@ html[data-motion="reduced"] .act-reason__wave i { opacity: 0.6; }
     border-radius: var(--act-radius-sm);
     background: transparent;
     color: var(--act-muted);
-    font-size: 10px;
+    font-size: var(--type-2xs);
     cursor: pointer;
 }
 .act-grant__details:hover { color: var(--act-text); }

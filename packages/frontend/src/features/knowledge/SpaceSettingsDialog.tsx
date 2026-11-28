@@ -329,8 +329,7 @@ export default function SpaceSettingsDialog({ open, spaceId, onClose, onChanged 
           <section className="space-settings__section">
             <h4>Capture profiles</h4>
             <p className="knowledge-muted">
-              Attach headers, cookies or a user agent to matching domains. Secrets stay in this
-              space's local database and are only sent to that domain.
+              Headers, cookies or a user agent for matching domains. Stored locally.
             </p>
             {profiles.length ? (
               <ul className="space-settings__profiles">

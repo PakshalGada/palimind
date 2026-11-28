@@ -27,10 +27,6 @@ export default function WorkSurface({
   return (
     <div className="ag-work">
       <header className="ag-work__head">
-        <div className="ag-work__title">
-          <span>Work</span>
-          <p>Mission control, runs, tasks and the work that repeats.</p>
-        </div>
         <div className="ag-segmented" role="tablist" aria-label="Work sections">
           {TABS.map((tab) => (
             <button

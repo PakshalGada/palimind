@@ -573,12 +573,12 @@ const MessageComponent = memo(function MessageComponent({
               }}
             />
             <div className="message-edit-actions">
-              <button type="button" className="action-btn primary" onClick={save}>
+              <button type="button" className="ui-btn ui-btn--primary" onClick={save}>
                 Save &amp; resend
               </button>
               <button
                 type="button"
-                className="action-btn"
+                className="ui-btn"
                 onClick={() => {
                   setDraft(msg.content);
                   setEditing(false);

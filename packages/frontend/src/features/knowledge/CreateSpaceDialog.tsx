@@ -128,7 +128,7 @@ export default function CreateSpaceDialog({ open, onClose, onCreated, initialMod
       open={open}
       onClose={onClose}
       title={mode === 'create' ? 'Create a knowledge space' : 'Connect a folder'}
-      subtitle="Everything stays on this device. You can put the folder anywhere."
+      subtitle="Stored locally."
       width={680}
       footer={
         <>
@@ -265,15 +265,6 @@ export default function CreateSpaceDialog({ open, onClose, onCreated, initialMod
           </div>
         </div>
 
-        <p className="space-create__picked">
-          {selected || path ? (
-            <>
-              {mode === 'create' ? 'Creating inside' : 'Linking'}: <code>{selected || path}</code>
-            </>
-          ) : (
-            'Pick a folder above.'
-          )}
-        </p>
         {error ? <p className="space-create__error">{error}</p> : null}
       </div>
     </Dialog>

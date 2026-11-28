@@ -102,7 +102,7 @@
   padding: 0 4px;
   color: var(--ink-muted);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--type-2xs);
 }
 .ag-browser__address {
   flex: 1;

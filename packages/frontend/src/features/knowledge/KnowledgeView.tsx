@@ -278,23 +278,6 @@ export default function KnowledgeView() {
               <Network size={14} /> Graph
             </button>
 
-            {spaces.length > 1 ? (
-              <select
-                className="ui-select knowledge-space-select"
-                value={activeSpace.id}
-                onChange={(e) => {
-                  const next = spaces.find((space) => space.id === e.target.value);
-                  if (next) void activate(next);
-                }}
-                aria-label="Switch knowledge space"
-              >
-                {spaces.map((space) => (
-                  <option key={space.id} value={space.id}>
-                    {space.name}
-                  </option>
-                ))}
-              </select>
-            ) : null}
           </div>
 
           {tab === 'chat' ? (

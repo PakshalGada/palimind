@@ -132,70 +132,6 @@ select {
     font-family: inherit;
 }
 
-/* ── legacy controls (kept for the pre-existing chat/action buttons) ───── */
-.action-btn {
-    width: 100%;
-    margin-top: 6px;
-    background: var(--surface-2);
-    border: 1px solid var(--line);
-    color: var(--ink);
-    font-size: var(--type-sm);
-    padding: 7px 12px;
-    border-radius: var(--radius-sm);
-}
-.action-btn:hover:not(:disabled) {
-    background: var(--surface-hover);
-    border-color: var(--line-strong);
-}
-.action-btn.primary {
-    background: var(--inverse-bg);
-    border-color: var(--inverse-bg);
-    color: var(--inverse-ink);
-}
-.action-btn.primary:hover:not(:disabled) {
-    background: var(--color-accent-hover);
-    border-color: var(--color-accent-hover);
-}
-.action-btn.ghost {
-    background: transparent;
-    border-color: transparent;
-    color: var(--ink-secondary);
-}
-.action-btn.ghost:hover:not(:disabled) {
-    background: var(--surface-hover);
-    color: var(--ink);
-}
-
-/* Destructive actions are identified by explicit label + icon, never hue. */
-.danger-btn {
-    color: var(--ink) !important;
-    border-color: var(--line-strong) !important;
-    background: transparent !important;
-}
-.danger-btn:hover:not(:disabled) {
-    background: var(--surface-hover) !important;
-    border-color: var(--ink) !important;
-}
-
-.icon-btn {
-    background: transparent;
-    color: var(--ink-muted);
-    border: none;
-    padding: 5px;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition:
-        color var(--dur-2) var(--ease-out),
-        background-color var(--dur-2) var(--ease-out);
-}
-.icon-btn:hover {
-    color: var(--ink);
-    background: var(--surface-hover);
-}
-
 /* ── focus ─────────────────────────────────────────────────────────────── */
 /* Focus is never removed. Every interactive element gets the same 2px ring,
    whether or not it paints its own border. */
@@ -421,7 +357,6 @@ html[data-motion="reduced"] .pixel-meter.is-indeterminate .pixel-meter__cell {
     .ui-icon-btn,
     .command-bar__icon,
     .sb-icon-btn,
-    .icon-btn,
     .msg-action-btn {
         width: 36px;
         height: 36px;

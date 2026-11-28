@@ -111,7 +111,7 @@ export default function DocumentViewer({ attachment }: { attachment: ChatAttachm
             <EmptyState
               icon={<FileText size={22} />}
               title="No preview available"
-              description="This file type cannot be shown here yet. Use Open or Download above to view it."
+              description="Preview unavailable for this file type."
             />
           </div>
         )}

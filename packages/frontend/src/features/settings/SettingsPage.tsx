@@ -796,7 +796,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="settings-actions-row">
-                <button className="action-btn primary" onClick={saveSttModel} disabled={sttBusy}>
+                <button className="ui-btn ui-btn--primary" onClick={saveSttModel} disabled={sttBusy}>
                   {sttBusy ? 'Saving…' : 'Save'}
                 </button>
                 <Feedback message={sttMsg} isError={sttError} />
@@ -1042,14 +1042,14 @@ export default function SettingsPage() {
 
               <div className="settings-actions-row">
                 <button
-                  className="action-btn primary"
+                  className="ui-btn ui-btn--primary"
                   onClick={saveOcKey}
                   disabled={ocKeyBusy || !ocKeyInput.trim()}
                 >
                   {ocKeyBusy ? 'Saving…' : 'Save key'}
                 </button>
                 {ocKeyConfigured && (
-                  <button className="action-btn ghost" onClick={removeOcKey} disabled={ocKeyBusy}>
+                  <button className="ui-btn ui-btn--ghost" onClick={removeOcKey} disabled={ocKeyBusy}>
                     Remove
                   </button>
                 )}
@@ -1095,7 +1095,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="settings-actions-row">
-                <button className="action-btn primary" onClick={saveEmbedModel} disabled={embedModelBusy}>
+                <button className="ui-btn ui-btn--primary" onClick={saveEmbedModel} disabled={embedModelBusy}>
                   {embedModelBusy ? 'Saving…' : 'Save'}
                 </button>
                 <Feedback message={embedModelMsg} isError={embedModelError} />
@@ -1194,7 +1194,7 @@ export default function SettingsPage() {
               </ol>
               <div className="settings-actions-row">
                 <button
-                  className="action-btn primary"
+                  className="ui-btn ui-btn--primary"
                   onClick={() => {
                     void import('@tauri-apps/api/core')
                       .then(({ invoke }) => invoke('open_computer_use'))
@@ -1248,11 +1248,11 @@ export default function SettingsPage() {
                 </p>
               )}
               <div className="settings-actions-row">
-                <button className="action-btn" onClick={refreshDesktop} disabled={desktopBusy}>
+                <button className="ui-btn" onClick={refreshDesktop} disabled={desktopBusy}>
                   {desktopBusy ? 'Checking…' : 'Check again'}
                 </button>
                 <button
-                  className="action-btn"
+                  className="ui-btn"
                   onClick={async () => {
                     await api.desktop.stop().catch(() => {});
                     await refreshDesktop();
@@ -1269,7 +1269,7 @@ export default function SettingsPage() {
               <div className="settings-card-title">Ghost cursor</div>
               <Toggle
                 title="Show a click-through target hint"
-                description="Draws a crosshair/highlight at a selected region without moving the real pointer. The hint never receives clicks."
+                description="Draws a region hint without moving the real pointer."
                 checked={ghostCursor}
                 onChange={(value) => {
                   setGhostCursor(value);

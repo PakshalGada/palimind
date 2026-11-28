@@ -448,7 +448,7 @@
     border: 1px solid var(--line);
     background: var(--surface-2);
     color: var(--ink-muted);
-    font-size: 10px;
+    font-size: var(--type-2xs);
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;

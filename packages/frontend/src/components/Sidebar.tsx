@@ -149,7 +149,7 @@ export default function Sidebar() {
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
   const [fieldsLoading, setFieldsLoading] = useState(true);
   const [fieldsError, setFieldsError] = useState<string | null>(null);
-  const [syncText, setSyncText] = useState("Sync Active Knowledge Base");
+  const [syncText, setSyncText] = useState("Sync");
   const [treeField, setTreeField] = useState<string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
   const [renameTarget, setRenameTarget] = useState<SessionSummary | null>(null);
@@ -253,27 +253,25 @@ export default function Sidebar() {
   };
 
   const handleSync = async () => {
-    setSyncText("Syncing...");
+    setSyncText("Syncing");
     try {
       const data = await api.sync();
       if (data.status === "success") {
-        setSyncText(
-          `Synced (${data.indexed_files} added, ${data.deleted_files} del)`,
-        );
+        setSyncText("Synced");
         addToast(
           `Synced successfully: ${data.indexed_files} added, ${data.deleted_files} deleted`,
           { tone: "success" },
         );
       } else {
-        setSyncText(`Error: ${data.error}`);
+        setSyncText("Retry");
         addToast(`Sync error: ${data.error}`, { tone: "error" });
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "unknown";
-      setSyncText("Error!");
+      setSyncText("Retry");
       addToast(`Sync failed: ${msg}`, { tone: "error" });
     }
-    setTimeout(() => setSyncText("Sync Active Knowledge Base"), 3000);
+    setTimeout(() => setSyncText("Sync"), 3000);
   };
 
   const handleNewSession = async () => {
@@ -700,7 +698,7 @@ export default function Sidebar() {
         onClick={handleOpenGraph}
       >
         <Network size={13} />
-        <span>Knowledge graph</span>
+        <span>Graph</span>
       </button>
     </div>
   );

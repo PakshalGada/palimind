@@ -22,12 +22,31 @@
   flex-shrink: 0;
 }
 
-.ag-rail__title {
-  font-family: var(--font-heading);
-  font-size: var(--type-md);
-  font-weight: var(--weight-medium);
+.ag-rail__view {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.ag-rail__view button {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-size: var(--type-sm);
+  cursor: pointer;
+}
+.ag-rail__view button:hover {
   color: var(--ink);
-  letter-spacing: -0.01em;
+}
+.ag-rail__view button.is-on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-xs);
 }
 
 .ag-rail__new {
@@ -376,6 +395,6 @@
   border-radius: var(--radius-full);
   background: var(--ink);
   color: var(--bg);
-  font-size: 9px;
+  font-size: var(--type-2xs);
   font-variant-numeric: tabular-nums;
 }

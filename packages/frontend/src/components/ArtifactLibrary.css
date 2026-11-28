@@ -395,3 +395,6 @@
 .artifact-library-layout.is-single {
   grid-template-columns: minmax(0, 1fr);
 }
+.artifact-library-layout.is-single .artifact-library-browser > .ui-empty {
+  margin: auto;
+}

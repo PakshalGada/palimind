@@ -20,7 +20,7 @@
   gap: 6px;
   height: 34px;
   padding: 0 14px;
-  border: 1px solid transparent;
+  border: 1px solid var(--line);
   background: var(--surface-2);
   color: var(--ink);
   font-family: var(--font-sans);
@@ -57,7 +57,7 @@
 }
 .ui-btn:hover:not(:disabled) {
   background: var(--surface-hover);
-  border-color: transparent;
+  border-color: var(--line-strong);
 }
 .ui-btn:active:not(:disabled) {
   transform: translateY(1px) scale(0.99);
@@ -798,12 +798,12 @@
 .ui-avatar--xs {
   width: 20px;
   height: 20px;
-  font-size: 8px;
+  font-size: var(--type-2xs);
 }
 .ui-avatar--sm {
   width: 26px;
   height: 26px;
-  font-size: 10px;
+  font-size: var(--type-2xs);
 }
 .ui-avatar--md {
   width: 34px;

@@ -154,6 +154,9 @@
   flex-direction: column;
   gap: 16px;
 }
+.projects-body--zero .projects-detail {
+  justify-content: center;
+}
 
 .projects-detail__head {
   display: flex;
@@ -249,7 +252,7 @@
 }
 .projects-facts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 10px;
 }
 .projects-facts > div {
@@ -279,6 +282,9 @@
   font-family: var(--font-mono);
   font-size: var(--type-xs);
   color: var(--ink-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .projects-overview__links {
   display: flex;

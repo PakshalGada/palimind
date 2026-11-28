@@ -42,28 +42,3 @@
     gap: 10px;
     margin-top: 6px;
 }
-.confirm-actions .action-btn {
-    width: auto;
-    margin-top: 0;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-weight: 550;
-}
-.confirm-actions .action-btn.primary {
-    background: var(--bg-active);
-    border-color: var(--border-color);
-    color: var(--text-main);
-}
-.confirm-actions .action-btn.primary:hover {
-    color: var(--text-main);
-}
-.confirm-actions .action-btn.danger-btn {
-    background: var(--danger-soft);
-    border-color: var(--danger);
-    color: var(--danger-strong);
-}
-.confirm-actions .action-btn.danger-btn:hover {
-    background: var(--danger);
-    border-color: var(--danger);
-    color: var(--bg-color);
-}

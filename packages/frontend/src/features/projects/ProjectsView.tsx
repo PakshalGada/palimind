@@ -285,7 +285,8 @@ export default function ProjectsView() {
         actions={headerActions}
       />
 
-      <div className="projects-body">
+      <div className={`projects-body${loading || error || projects.length ? '' : ' projects-body--zero'}`}>
+        {(loading || error || projects.length > 0) && (
         <aside className="projects-list" aria-label="Projects">
           {loading ? (
             <SkeletonList rows={5} avatar={false} />
@@ -347,6 +348,7 @@ export default function ProjectsView() {
             </>
           )}
         </aside>
+        )}
 
         <section className="projects-detail">
           {!project ? (
@@ -466,7 +468,9 @@ export default function ProjectsView() {
                   <dl className="projects-facts">
                     <div>
                       <dt>Folder</dt>
-                      <dd className="projects-facts__mono">{project.workspace_path || '—'}</dd>
+                      <dd className="projects-facts__mono" title={project.workspace_path || undefined}>
+                        {project.workspace_path || '—'}
+                      </dd>
                     </div>
                     <div>
                       <dt>Index health</dt>

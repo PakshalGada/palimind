@@ -2,7 +2,7 @@
    CommandBar — the single transparent chrome band.
 
    Left: identity, section, search and the sidebar toggle.
-   Middle: conversation title (or agents tabs).
+   Middle: conversation title.
    Right: side-panel toggle.
    ========================================================================== */
 
@@ -185,45 +185,6 @@
   }
 }
 
-/* ── agents tabs ──────────────────────────────────────────────────────── */
-.command-bar__tabs {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  height: 100%;
-}
-.command-bar__tab {
-  position: relative;
-  height: 100%;
-  padding: 0 12px;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  color: var(--ink-muted);
-  font-family: var(--font-sans);
-  font-size: var(--type-sm);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition: color var(--dur-2) var(--ease-out);
-}
-.command-bar__tab:hover {
-  color: var(--ink);
-  background: transparent;
-}
-.command-bar__tab.is-active {
-  color: var(--ink);
-}
-.command-bar__tab.is-active::after {
-  content: "";
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 4px;
-  background: var(--ink);
-}
-
 /* ── right cluster ────────────────────────────────────────────────────── */
 .command-bar__right {
   position: relative;
@@ -294,22 +255,11 @@
   .command-bar__center {
     width: min(34vw, 260px);
   }
-  .command-bar__tab {
-    padding: 0 8px;
-  }
 }
 
 @media (max-width: 640px) {
   .command-bar__center {
     width: min(46vw, 240px);
-  }
-  .command-bar__tabs {
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .command-bar__tab {
-    font-size: var(--type-xs);
-    white-space: nowrap;
   }
 }
 

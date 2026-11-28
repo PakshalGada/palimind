@@ -60,11 +60,11 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             {pending.title && <h3 className="confirm-title">{pending.title}</h3>}
             <p className="confirm-message">{pending.message}</p>
             <div className="confirm-actions">
-              <button className="action-btn ghost" onClick={() => close(false)} autoFocus>
+              <button className="ui-btn ui-btn--ghost" onClick={() => close(false)} autoFocus>
                 {pending.cancelLabel || 'Cancel'}
               </button>
               <button
-                className={`action-btn primary${pending.danger ? ' danger-btn' : ''}`}
+                className={`ui-btn ${pending.danger ? 'ui-btn--danger' : 'ui-btn--primary'}`}
                 onClick={() => close(true)}
               >
                 {pending.confirmLabel || 'Confirm'}

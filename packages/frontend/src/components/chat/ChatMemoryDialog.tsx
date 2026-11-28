@@ -65,7 +65,7 @@ export default function ChatMemoryDialog({
       open={open}
       onClose={onClose}
       title="Chat memory"
-      subtitle="Facts the assistant should keep in mind. Stored locally and added to chat prompts."
+      subtitle="Facts kept in chat prompts. Stored locally."
       width={620}
     >
       <div className="chat-memory">

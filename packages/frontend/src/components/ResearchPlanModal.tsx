@@ -131,8 +131,7 @@ export default function ResearchPlanModal() {
       }
     >
       <p className="research-plan-hint">
-        Edit any sub-topic, adjust the search queries, or add your own. The pipeline runs all
-        approved sub-topics in parallel, then synthesizes a cited report.
+        Edit sub-topics and queries before running.
       </p>
       <div className="research-plan-list">
         {plan.map((item, index) => (

@@ -36,21 +36,6 @@
     padding: 10px 12px;
     font-size: var(--type-base);
 }
-/* Settings buttons — neutral PaliSpace style, never a white accent */
-#settings-modal .action-btn.primary {
-    background: var(--bg-active);
-    border-color: var(--border-color);
-    color: var(--text-main);
-}
-#settings-modal .action-btn.ghost {
-    background: transparent;
-    color: var(--text-secondary);
-}
-#settings-modal .action-btn.primary:hover,
-#settings-modal .action-btn.ghost:hover {
-    color: var(--text-main);
-}
-
 /* ── settings additions ── */
 .settings-hint {
   font-size: var(--type-sm);
@@ -450,13 +435,6 @@
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
-}
-.settings-actions-row .action-btn {
-    width: auto;
-    margin-top: 0;
-    padding: 8px 16px;
-    border-radius: var(--radius-md);
-    font-weight: 550;
 }
 .settings-feedback {
     font-size: var(--type-sm);

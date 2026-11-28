@@ -123,7 +123,7 @@
     border-radius: 999px;
     background: var(--surface-hover);
     color: var(--text-muted);
-    font-size: 10px;
+    font-size: var(--type-2xs);
     line-height: 16px;
     text-transform: uppercase;
     letter-spacing: 0.04em;

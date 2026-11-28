@@ -1,13 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { Folder, PanelLeftClose, PanelLeftOpen, PanelRight, Search } from 'lucide-react';
 import { useApp } from '../../AppContext';
-import type { AgentsView } from '../../types';
 import './CommandBar.css';
-
-const AGENT_TABS: { id: AgentsView; label: string }[] = [
-  { id: 'chat', label: 'Chat' },
-  { id: 'work', label: 'Work' },
-];
 
 /**
  * The conversation title. It truncates with an ellipsis when it doesn't fit,
@@ -61,8 +55,6 @@ function ConversationTitle({ text }: { text: string }) {
 export default function CommandBar() {
   const {
     activeView,
-    agentsView,
-    setAgentsView,
     sessions,
     activeSessionId,
     setCommandPaletteOpen,
@@ -137,24 +129,7 @@ export default function CommandBar() {
       </div>
 
       <div className="command-bar__center">
-        {activeView === 'agents' ? (
-          <div className="command-bar__tabs" role="tablist" aria-label="Agents sections">
-            {AGENT_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={agentsView === tab.id}
-                className={`command-bar__tab${agentsView === tab.id ? ' is-active' : ''}`}
-                onClick={() => setAgentsView(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        ) : title ? (
-          <ConversationTitle text={title} />
-        ) : null}
+        {title ? <ConversationTitle text={title} /> : null}
       </div>
 
       <div className="command-bar__right">

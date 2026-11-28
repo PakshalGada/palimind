@@ -184,7 +184,7 @@
 }
 .data-mode__sql span {
     color: var(--text-muted);
-    font-size: 10px;
+    font-size: var(--type-2xs);
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;

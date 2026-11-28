@@ -104,9 +104,7 @@ export default function CreateArtifactDialog({
         />
       </label>
       <p className="create-artifact-hint">
-        The model writes one fenced artifact. Word and PowerPoint choices download a real
-        .docx/.pptx file when the turn finishes; other choices open in the artifact panel where
-        you can edit, save and export.
+        Word and PowerPoint download a real file. Everything else opens in the artifact panel.
       </p>
     </Modal>
   );

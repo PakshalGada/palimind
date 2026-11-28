@@ -99,6 +99,7 @@ export default function ConversationRail({
     setSelectedAgentId,
     setSelectedTeamId,
     setSelectedChannelId,
+    agentsView,
     setAgentsView,
     inbox,
     overview,
@@ -287,7 +288,26 @@ export default function ConversationRail({
   return (
     <aside className={`ag-rail${open ? ' is-open' : ''}`} aria-label="Agents and conversations">
       <div className="ag-rail__head">
-        <span className="ag-rail__title">Agents</span>
+        <div className="ag-rail__view" role="tablist" aria-label="Agents sections">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={agentsView === 'chat'}
+            className={agentsView === 'chat' ? 'is-on' : ''}
+            onClick={() => setAgentsView('chat')}
+          >
+            Chat
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={agentsView === 'work'}
+            className={agentsView === 'work' ? 'is-on' : ''}
+            onClick={() => setAgentsView('work')}
+          >
+            Work
+          </button>
+        </div>
         <button
           type="button"
           className="ag-rail__new"

@@ -420,7 +420,7 @@ export default function SettingsDrawer({
                 <span>{skills.length}</span>
               </div>
               <p className="ag-settings__note">
-                Skills add focused instructions and tools to an agent. Attach them per agent in its settings.
+                Attach skills per agent in its settings.
               </p>
               <div className="ag-settings__list">
                 {skills.map((skill) => (
@@ -477,7 +477,7 @@ export default function SettingsDrawer({
                 </Button>
               </div>
               <p className="ag-settings__note">
-                Model Context Protocol servers add external tools. Reload after editing the local config.
+                External tools. Reload after editing the local config.
               </p>
               <div className="ag-settings__list">
                 {mcpServers.map((server, index) => (

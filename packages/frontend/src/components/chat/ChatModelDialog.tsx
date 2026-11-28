@@ -153,7 +153,7 @@ export default function ChatModelDialog({
           <span>
             <strong>Auto-route</strong>
             <small>
-              Pick the mode per prompt: research goes to Deep Research, complex analysis to Council, simple prompts stay Default.
+              Chooses a mode per prompt.
             </small>
           </span>
           <input
